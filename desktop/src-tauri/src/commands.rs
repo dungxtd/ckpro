@@ -22,8 +22,8 @@ pub fn env_state(env: State<'_, Arc<Env>>) -> EnvState {
 /// What creating a cluster with `workers` workers needs, and whether it is there.
 #[tauri::command]
 #[specta::specta]
-pub fn preflight(env: State<'_, Arc<Env>>, workers: u8) -> Vec<Check> {
-    preflight::check(&env.snapshot(), workers)
+pub fn preflight(env: State<'_, Arc<Env>>, name: String, workers: u8) -> Vec<Check> {
+    preflight::check(&env.snapshot(), &name, workers)
 }
 
 /// Create a cluster, streaming kind's output lines to `log`. Cancelling
@@ -38,8 +38,13 @@ pub async fn create_cluster(
     workers: u8,
     log: Channel<String>,
 ) -> AppResult<()> {
-    if !matches!(env.snapshot().docker, DockerState::Up { .. }) {
+    let state = env.snapshot();
+    if !matches!(state.docker, DockerState::Up { .. }) {
         return Err(AppError::DockerUnavailable { message: "Docker is not running".into() });
+    }
+    // kind would fail late with "node(s) already exist"; say why up front
+    if let Some(check) = preflight::check(&state, &name, workers).into_iter().find(|c| c.name == "Name" && !c.ok) {
+        return Err(AppError::invalid(check.detail));
     }
     let token = jobs.begin(&name)?;
     let send = |line: String| {
@@ -80,6 +85,19 @@ pub async fn delete_cluster(
 #[specta::specta]
 pub fn cancel_cluster(jobs: State<'_, Jobs>, name: String) -> bool {
     jobs.cancel(&name)
+}
+
+/// Manage an existing kind cluster created outside ckiu.
+#[tauri::command]
+#[specta::specta]
+pub async fn adopt_cluster(
+    kind: State<'_, Arc<Kind>>,
+    env: State<'_, Arc<Env>>,
+    name: String,
+) -> AppResult<()> {
+    kind.adopt(&name).await?;
+    env.request_resync();
+    Ok(())
 }
 
 /// Start a cluster's stopped nodes.

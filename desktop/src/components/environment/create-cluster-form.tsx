@@ -35,7 +35,10 @@ export function CreateClusterForm() {
 				<Input
 					className="w-40"
 					value={form.name}
-					onChange={e => setForm({ name: e.target.value })}
+					onChange={e => {
+						setForm({ name: e.target.value.trim().toLowerCase() });
+						refreshPreflight();
+					}}
 					aria-label="Cluster name"
 				/>
 				<Input

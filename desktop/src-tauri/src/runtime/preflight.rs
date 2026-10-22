@@ -17,7 +17,7 @@ pub struct Check {
     pub detail: String,
 }
 
-pub fn check(state: &EnvState, workers: u8) -> Vec<Check> {
+pub fn check(state: &EnvState, name: &str, workers: u8) -> Vec<Check> {
     let DockerState::Up { cpus, memory_mb, .. } = state.docker else {
         return vec![Check {
             name: "Docker".into(),
@@ -36,8 +36,23 @@ pub fn check(state: &EnvState, workers: u8) -> Vec<Check> {
     let needed = CONTROL_PLANE_MB + WORKER_MB * u32::from(workers) + HEADROOM_MB;
     let free = memory_mb.saturating_sub(in_use);
 
+    let taken = if state.clusters.iter().any(|c| c.name == name) {
+        Some(format!("ckiu already has a cluster named '{name}'. Pick another name or delete it."))
+    } else if state.foreign_clusters.iter().any(|c| c == name) {
+        Some(format!(
+            "a kind cluster named '{name}' already exists outside ckiu. Adopt it, delete it, or pick another name."
+        ))
+    } else {
+        None
+    };
+
     vec![
         Check { name: "Docker".into(), ok: true, detail: "running".into() },
+        Check {
+            name: "Name".into(),
+            ok: taken.is_none(),
+            detail: taken.unwrap_or_else(|| format!("'{name}' is free")),
+        },
         Check {
             name: "Memory".into(),
             ok: free >= needed,

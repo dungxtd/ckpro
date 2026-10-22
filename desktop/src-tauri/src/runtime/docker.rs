@@ -41,6 +41,27 @@ pub async fn connect() -> AppResult<Docker> {
     })
 }
 
+/// Compose project every container started by ckiu belongs to, so container
+/// managers (OrbStack, Docker Desktop) group them as one app.
+pub const COMPOSE_PROJECT: &str = "ckiu";
+
+/// Labels that put a container in the ckiu compose project as `service`.
+pub fn compose_labels(service: &str) -> Vec<(String, String)> {
+    vec![
+        ("com.docker.compose.project".into(), COMPOSE_PROJECT.into()),
+        ("com.docker.compose.service".into(), service.into()),
+        ("com.docker.compose.oneoff".into(), "False".into()),
+    ]
+}
+
+/// The `docker` CLI on this machine.
+pub fn cli() -> Option<std::path::PathBuf> {
+    cli_path()
+        .split(':')
+        .map(|dir| std::path::Path::new(dir).join("docker"))
+        .find(|path| path.is_file())
+}
+
 /// Directories holding the `docker` CLI, which kind shells out to. GUI apps on
 /// macOS start with a minimal PATH, so add the usual install locations.
 pub fn cli_path() -> String {

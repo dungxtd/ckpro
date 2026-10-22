@@ -11,6 +11,9 @@ pub struct EnvState {
     /// Clusters created by this app (kind clusters with a kubeconfig in the
     /// app data dir); other kind clusters on the machine are left alone
     pub clusters: Vec<ClusterState>,
+    /// kind clusters on this machine that ckiu does not manage (created with
+    /// the kind CLI, or by an older install); their names are taken
+    pub foreign_clusters: Vec<String>,
     pub issues: Vec<Issue>,
 }
 
@@ -133,11 +136,26 @@ impl EnvState {
 pub struct Env {
     state: Mutex<EnvState>,
     publish: Box<dyn Fn(&EnvState) + Send + Sync>,
+    /// Asks the monitor to re-read the environment now (after changes that
+    /// produce no Docker event, like adopting a cluster)
+    resync: tokio::sync::Notify,
 }
 
 impl Env {
     pub fn new(publish: impl Fn(&EnvState) + Send + Sync + 'static) -> Self {
-        Self { state: Mutex::new(EnvState::default()), publish: Box::new(publish) }
+        Self {
+            state: Mutex::new(EnvState::default()),
+            publish: Box::new(publish),
+            resync: tokio::sync::Notify::new(),
+        }
+    }
+
+    pub fn request_resync(&self) {
+        self.resync.notify_one();
+    }
+
+    pub async fn resync_requested(&self) {
+        self.resync.notified().await;
     }
 
     pub fn snapshot(&self) -> EnvState {

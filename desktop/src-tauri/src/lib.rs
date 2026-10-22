@@ -27,6 +27,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::delete_cluster,
         commands::cancel_cluster,
         commands::repair_cluster,
+        commands::adopt_cluster,
         commands::run_script,
         commands::terminal_open,
         commands::terminal_write,
@@ -98,6 +99,14 @@ mod tests {
         let started = std::time::Instant::now();
         kind.create(name, 1, &log).await.unwrap();
         println!("created in {:?}", started.elapsed());
+
+        // Nodes belong to the ckiu compose project, one service per node
+        for node in [format!("{name}-control-plane"), format!("{name}-worker")] {
+            let labels = docker.inspect_container(&node, None).await.unwrap().config.unwrap().labels.unwrap();
+            assert_eq!(labels.get("com.docker.compose.project").map(String::as_str), Some("ckiu"), "{node}");
+            assert_eq!(labels.get("com.docker.compose.service"), Some(&node), "{node}");
+        }
+        println!("ok: nodes carry the ckiu compose labels");
 
         // A CK-X validation script: the namespace does not exist yet, so it must fail
         let ckiu = "/Users/d/pwd/CK-X/facilitator/assets/exams/cka/001/scripts/validation/q1_s1_validate_namespace.sh";
@@ -172,6 +181,51 @@ mod tests {
 
         kind.delete(name, &log).await.unwrap();
         wait("cluster gone from the state", Box::new(|s| s.clusters.is_empty())).await;
+    }
+
+    /// A kind cluster created elsewhere is shown as foreign, its name is
+    /// blocked, and adopting it makes it a managed cluster:
+    /// `cargo test foreign -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn foreign_cluster_is_detected_and_adopted() {
+        use std::time::Duration;
+        let tmp = std::env::temp_dir();
+        let elsewhere = cluster::kind::Kind::new(tmp.join("ckiu-e2e-elsewhere"));
+        let ours = Arc::new(cluster::kind::Kind::new(tmp.join("ckiu-e2e-ours")));
+        let log = |_: String| {};
+        let name = "ckiu-foreign";
+        elsewhere.create(name, 0, &log).await.unwrap();
+
+        let env = Arc::new(Env::new(|_| {}));
+        runtime::monitor::start(env.clone(), ours.clone());
+        let wait = |what: &'static str, done: Box<dyn Fn(&EnvState) -> bool>| {
+            let env = env.clone();
+            async move {
+                for _ in 0..120 {
+                    if done(&env.snapshot()) {
+                        println!("ok: {what}");
+                        return;
+                    }
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+                panic!("timed out waiting for: {what}");
+            }
+        };
+
+        wait("listed as foreign", Box::new(|s| s.foreign_clusters.iter().any(|c| c == name))).await;
+        let checks = runtime::preflight::check(&env.snapshot(), name, 0);
+        assert!(checks.iter().any(|c| c.name == "Name" && !c.ok), "name should be blocked");
+        println!("ok: preflight blocks the name");
+
+        ours.adopt(name).await.unwrap();
+        env.request_resync();
+        wait("managed after adopt", Box::new(|s| {
+            s.foreign_clusters.is_empty() && s.clusters.iter().any(|c| c.name == name)
+        }))
+        .await;
+
+        ours.delete(name, &log).await.unwrap();
     }
 
     /// The committed bindings must match the commands (also runs in CI).

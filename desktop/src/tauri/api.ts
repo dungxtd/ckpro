@@ -43,7 +43,7 @@ export const envApi = {
 	/** Calls `onChange` with every new environment state; returns the unsubscribe. */
 	subscribe: async (onChange: (state: EnvState) => void) =>
 		events.envChanged.listen(event => onChange(event.payload)),
-	preflight: (workers: number) => commands.preflight(workers),
+	preflight: (name: string, workers: number) => commands.preflight(name, workers),
 };
 
 export const clusterApi = {
@@ -53,6 +53,7 @@ export const clusterApi = {
 		unwrap(commands.deleteCluster(name, channel(onLog))),
 	cancel: (name: string) => commands.cancelCluster(name),
 	repair: (name: string) => unwrap(commands.repairCluster(name)),
+	adopt: (name: string) => unwrap(commands.adoptCluster(name)),
 };
 
 export const labApi = {

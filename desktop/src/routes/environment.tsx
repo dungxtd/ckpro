@@ -2,6 +2,7 @@ import { Badge } from "@ckiu/ui/components/badge";
 import { useState } from "react";
 import { ClusterCard } from "@/components/environment/cluster-card";
 import { CreateClusterForm } from "@/components/environment/create-cluster-form";
+import { ForeignClusters } from "@/components/environment/foreign-clusters";
 import { IssuesPanel } from "@/components/environment/issues-panel";
 import { ScriptCard } from "@/components/environment/script-card";
 import { StatusDot } from "@/components/environment/status-dot";
@@ -55,6 +56,7 @@ export function EnvironmentRoute() {
 						onShell={node => setShell(s => ({ node, session: (s?.session ?? 0) + 1 }))}
 					/>
 				))}
+				<ForeignClusters names={env.foreign_clusters} />
 				<CreateClusterForm />
 				{firstCluster && <ScriptCard cluster={firstCluster} />}
 			</div>

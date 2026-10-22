@@ -9,7 +9,7 @@ export const commands = {
 	/**  Current environment; later changes arrive as `EnvChanged` events. */
 	envState: () => __TAURI_INVOKE<EnvState>("env_state"),
 	/**  What creating a cluster with `workers` workers needs, and whether it is there. */
-	preflight: (workers: number) => __TAURI_INVOKE<Check[]>("preflight", { workers }),
+	preflight: (name: string, workers: number) => __TAURI_INVOKE<Check[]>("preflight", { name, workers }),
 	/**
 	 *  Create a cluster, streaming kind's output lines to `log`. Cancelling
 	 *  (`cancel_cluster`) stops kind and removes whatever it had created.
@@ -20,6 +20,8 @@ export const commands = {
 	cancelCluster: (name: string) => __TAURI_INVOKE<boolean>("cancel_cluster", { name }),
 	/**  Start a cluster's stopped nodes. */
 	repairCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("repair_cluster", { name })),
+	/**  Manage an existing kind cluster created outside ckiu. */
+	adoptCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("adopt_cluster", { name })),
 	/**  Run a lab script on the cluster's control plane. */
 	runScript: (cluster: string, path: string) => typedError<ScriptResult, AppError>(__TAURI_INVOKE("run_script", { cluster, path })),
 	/**  Shell on a cluster node, with kubectl pointed at the cluster. */
@@ -78,6 +80,11 @@ export type EnvState = {
 	 *  app data dir); other kind clusters on the machine are left alone
 	 */
 	clusters: ClusterState[],
+	/**
+	 *  kind clusters on this machine that ckiu does not manage (created with
+	 *  the kind CLI, or by an older install); their names are taken
+	 */
+	foreign_clusters: string[],
 	issues: Issue[],
 };
 

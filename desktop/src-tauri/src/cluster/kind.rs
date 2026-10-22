@@ -72,12 +72,54 @@ impl Kind {
         Ok(bin)
     }
 
+    /// PATH for kind: a `docker` shim first, then the real CLI. kind has no
+    /// option to label its node containers, so the shim adds the ckiu compose
+    /// labels to every `docker run`; all other commands go straight through.
+    fn kind_path(&self) -> AppResult<String> {
+        let real = docker::cli().ok_or_else(|| AppError::DockerUnavailable {
+            message: "The docker CLI was not found. Install OrbStack or Docker Desktop.".into(),
+        })?;
+        let shim_dir = self.dir.join("shim");
+        std::fs::create_dir_all(&shim_dir).map_err(|e| AppError::io("creating docker shim", e))?;
+        let labels: String = docker::compose_labels("$name")
+            .into_iter()
+            .map(|(k, v)| format!(" --label \"{k}={v}\""))
+            .collect();
+        let script = format!(
+            "#!/bin/sh\n\
+             # Written by ckiu: label kind's node containers as part of the ckiu compose project\n\
+             if [ \"$1\" = run ]; then\n\
+             \x20 shift\n\
+             \x20 name=node prev=\n\
+             \x20 for a in \"$@\"; do\n\
+             \x20   [ \"$prev\" = --name ] && name=\"$a\"\n\
+             \x20   case \"$a\" in --name=*) name=\"${{a#--name=}}\" ;; esac\n\
+             \x20   prev=\"$a\"\n\
+             \x20 done\n\
+             \x20 exec '{real}' run{labels} \"$@\"\n\
+             fi\n\
+             exec '{real}' \"$@\"\n",
+            real = real.display(),
+        );
+        let shim = shim_dir.join("docker");
+        if std::fs::read_to_string(&shim).ok().as_deref() != Some(script.as_str()) {
+            std::fs::write(&shim, &script).map_err(|e| AppError::io("writing docker shim", e))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755))
+                    .map_err(|e| AppError::io("writing docker shim", e))?;
+            }
+        }
+        Ok(format!("{}:{}", shim_dir.display(), docker::cli_path()))
+    }
+
     /// Run kind, handing every output line to `log`.
     async fn run(&self, args: &[&str], log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         let kind = self.binary().await?;
         let mut child = Command::new(&kind)
             .args(args)
-            .env("PATH", docker::cli_path())
+            .env("PATH", self.kind_path()?)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
@@ -132,6 +174,27 @@ impl Kind {
             log,
         )
         .await
+    }
+
+    /// Take over an existing kind cluster: keep its kubeconfig, which is what
+    /// makes ckiu treat a cluster as its own.
+    pub async fn adopt(&self, name: &str) -> AppResult<()> {
+        validate_name(name)?;
+        std::fs::create_dir_all(&self.dir).map_err(|e| AppError::io("creating data dir", e))?;
+        let output = Command::new(self.binary().await?)
+            .args(["get", "kubeconfig", "--name", name])
+            .env("PATH", self.kind_path()?)
+            .output()
+            .await
+            .map_err(|e| AppError::cluster(format!("starting kind: {e}")))?;
+        if !output.status.success() {
+            return Err(AppError::cluster(format!(
+                "reading the kubeconfig of '{name}': {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            )));
+        }
+        std::fs::write(self.kubeconfig(name), output.stdout)
+            .map_err(|e| AppError::io("saving kubeconfig", e))
     }
 
     pub async fn delete(&self, name: &str, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {

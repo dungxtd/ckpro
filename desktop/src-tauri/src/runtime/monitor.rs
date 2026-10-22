@@ -76,6 +76,7 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>) {
                     }
                     _ => break,
                 },
+                _ = env.resync_requested() => sync(&docker, &env, &kind, &mut watchers).await,
                 _ = sweep.tick() => {
                     if docker.ping().await.is_err() {
                         break;
@@ -116,11 +117,16 @@ async fn sync(
     let previous = env.snapshot();
 
     let mut clusters: Vec<ClusterState> = Vec::new();
+    let mut foreign: Vec<String> = Vec::new();
     for c in containers {
         let labels = c.labels.unwrap_or_default();
-        let Some(cluster) = labels.get(CLUSTER_LABEL).filter(|name| owned.contains(name)) else {
+        let Some(cluster) = labels.get(CLUSTER_LABEL) else { continue };
+        if !owned.contains(cluster) {
+            if !foreign.contains(cluster) {
+                foreign.push(cluster.clone());
+            }
             continue;
-        };
+        }
         let name = c.names.and_then(|n| n.first().cloned()).unwrap_or_default();
         let name = name.trim_start_matches('/').to_string();
         let container = match c.state.map(|s| s.to_string()).as_deref() {
@@ -178,7 +184,11 @@ async fn sync(
         });
     }
 
-    env.update(|s| s.clusters = clusters);
+    foreign.sort();
+    env.update(|s| {
+        s.clusters = clusters;
+        s.foreign_clusters = foreign;
+    });
 }
 
 fn stop_watchers(watchers: &mut HashMap<String, JoinHandle<()>>) {

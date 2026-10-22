@@ -3,7 +3,7 @@ import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { ApiError, type Check, clusterApi, type EnvState, envApi } from "@/tauri/api";
 
-type ClusterAction = "create" | "delete" | "repair";
+type ClusterAction = "create" | "delete" | "repair" | "adopt";
 
 interface EnvironmentState {
 	/** Mirror of the Rust EnvState; null until the first snapshot arrives */
@@ -52,7 +52,8 @@ export const useEnvironment = create<EnvironmentState & EnvironmentActions>()(
 				}),
 
 			refreshPreflight: async () => {
-				const checks = await envApi.preflight(get().form.workers);
+				const { name, workers } = get().form;
+				const checks = await envApi.preflight(name, workers);
 				set(s => {
 					s.preflight = checks;
 				});
@@ -76,6 +77,7 @@ export const useEnvironment = create<EnvironmentState & EnvironmentActions>()(
 				try {
 					if (action === "create") await clusterApi.create(target, workers, onLog);
 					else if (action === "delete") await clusterApi.delete(target, onLog);
+					else if (action === "adopt") await clusterApi.adopt(target);
 					else await clusterApi.repair(target);
 					const secs = Math.round((Date.now() - startedAt) / 1000);
 					set(s => {
