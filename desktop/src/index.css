@@ -1,0 +1,8 @@
+@import "@ckx/ui/styles.css";
+@import "@xterm/xterm/css/xterm.css";
+
+html,
+body,
+#root {
+	height: 100%;
+}

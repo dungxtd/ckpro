@@ -1,0 +1,28 @@
+import { cn } from "@ckx/ui/lib/utils";
+import { cva, type VariantProps } from "class-variance-authority";
+import type * as React from "react";
+
+/** Small uppercase label chip: status (Playing), ranking (Best), kind (Pack, TV), codes (S1E2). */
+export const badgeVariants = cva(
+	"inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-bold text-3xs uppercase leading-none tracking-wide",
+	{
+		variants: {
+			variant: {
+				solid: "bg-foreground text-background",
+				subtle: "bg-accent text-accent-foreground",
+				success: "bg-success/15 text-success",
+				// Over posters / stills: stays dark in both themes.
+				overlay: "bg-black/60 text-white backdrop-blur-sm",
+			},
+		},
+		defaultVariants: { variant: "subtle" },
+	}
+);
+
+export function Badge({
+	variant,
+	className,
+	...props
+}: React.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
+	return <span className={cn(badgeVariants({ variant }), className)} {...props} />;
+}

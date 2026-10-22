@@ -1,22 +1,25 @@
 {
-  "name": "ckx-desktop",
-  "private": true,
+  "name": "ckx",
   "version": "0.1.0",
-  "type": "module",
+  "private": true,
+  "description": "CKX Desktop - Kubernetes exam practice app monorepo",
+  "packageManager": "pnpm@12.11.2",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "tauri": "tauri"
-  },
-  "dependencies": {
-    "@tauri-apps/api": "^2",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0"
+    "dev": "pnpm --filter ckx-desktop dev",
+    "build": "pnpm --filter ckx-desktop build",
+    "typecheck": "pnpm --filter ckx-desktop typecheck",
+    "format": "biome check . --write",
+    "format-check": "biome check ."
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
-    "typescript": "~6.0.3",
-    "vite": "^8.0.16"
+    "@biomejs/biome": "^2.5.15"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }
