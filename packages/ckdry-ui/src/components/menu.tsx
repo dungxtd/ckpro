@@ -1,4 +1,4 @@
-import { cn } from "@ckiu/ui/lib/utils";
+import { cn } from "@ckdry/ui/lib/utils";
 
 /**
  * macOS system menu (NSMenu) base, shared by every menu in the app: the

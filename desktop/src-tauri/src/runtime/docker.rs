@@ -41,11 +41,11 @@ pub async fn connect() -> AppResult<Docker> {
     })
 }
 
-/// Compose project every container started by ckiu belongs to, so container
+/// Compose project every container started by ckdry belongs to, so container
 /// managers (OrbStack, Docker Desktop) group them as one app.
-pub const COMPOSE_PROJECT: &str = "ckiu";
+pub const COMPOSE_PROJECT: &str = "ckdry";
 
-/// Labels that put a container in the ckiu compose project as `service`.
+/// Labels that put a container in the ckdry compose project as `service`.
 pub fn compose_labels(service: &str) -> Vec<(String, String)> {
     vec![
         ("com.docker.compose.project".into(), COMPOSE_PROJECT.into()),

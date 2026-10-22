@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ckiu",
+  "productName": "ckdry",
   "version": "0.1.0",
-  "identifier": "dev.ckiu.app",
+  "identifier": "dev.ckdry.app",
   "build": {
     "beforeDevCommand": "pnpm vite:dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "ckiu",
+        "title": "ckdry",
         "width": 1100,
         "height": 800
       }

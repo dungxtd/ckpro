@@ -65,7 +65,7 @@ pub fn run() {
             runtime::monitor::start(env.clone(), kind.clone());
             app.manage(kind);
             app.manage(env);
-            tracing::info!(version = env!("CARGO_PKG_VERSION"), "ckiu started");
+            tracing::info!(version = env!("CARGO_PKG_VERSION"), "ckdry started");
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -90,9 +90,9 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn cluster_lifecycle_and_lab_script() {
-        let kind = cluster::kind::Kind::new(std::env::temp_dir().join("ckiu-e2e"));
+        let kind = cluster::kind::Kind::new(std::env::temp_dir().join("ckdry-e2e"));
         let log = |line: String| println!("  kind: {line}");
-        let name = "ckiu-e2e";
+        let name = "ckdry-e2e";
 
         let docker = runtime::docker::connect().await.unwrap();
         println!("docker: {:?}", docker.version().await.unwrap().version);
@@ -100,22 +100,22 @@ mod tests {
         kind.create(name, 1, &log).await.unwrap();
         println!("created in {:?}", started.elapsed());
 
-        // Nodes belong to the ckiu compose project, one service per node
+        // Nodes belong to the ckdry compose project, one service per node
         for node in [format!("{name}-control-plane"), format!("{name}-worker")] {
             let labels = docker.inspect_container(&node, None).await.unwrap().config.unwrap().labels.unwrap();
-            assert_eq!(labels.get("com.docker.compose.project").map(String::as_str), Some("ckiu"), "{node}");
+            assert_eq!(labels.get("com.docker.compose.project").map(String::as_str), Some("ckdry"), "{node}");
             assert_eq!(labels.get("com.docker.compose.service"), Some(&node), "{node}");
         }
-        println!("ok: nodes carry the ckiu compose labels");
+        println!("ok: nodes carry the ckdry compose labels");
 
         // A CK-X validation script: the namespace does not exist yet, so it must fail
-        let ckiu = "/Users/d/pwd/CK-X/facilitator/assets/exams/cka/001/scripts/validation/q1_s1_validate_namespace.sh";
-        assert_ne!(lab::script::run(name, ckiu).await.unwrap().exit_code, 0);
+        let ckdry = "/Users/d/pwd/CK-X/facilitator/assets/exams/cka/001/scripts/validation/q1_s1_validate_namespace.sh";
+        assert_ne!(lab::script::run(name, ckdry).await.unwrap().exit_code, 0);
 
-        let setup = std::env::temp_dir().join("ckiu-e2e-setup.sh");
+        let setup = std::env::temp_dir().join("ckdry-e2e-setup.sh");
         writeln!(std::fs::File::create(&setup).unwrap(), "kubectl create namespace app-team1").unwrap();
         assert_eq!(lab::script::run(name, setup.to_str().unwrap()).await.unwrap().exit_code, 0);
-        assert_eq!(lab::script::run(name, ckiu).await.unwrap().exit_code, 0);
+        assert_eq!(lab::script::run(name, ckdry).await.unwrap().exit_code, 0);
 
         kind.delete(name, &log).await.unwrap();
     }
@@ -128,9 +128,9 @@ mod tests {
         use runtime::model::{ContainerStatus, Readiness};
         use std::time::Duration;
 
-        let kind = Arc::new(cluster::kind::Kind::new(std::env::temp_dir().join("ckiu-e2e-monitor")));
+        let kind = Arc::new(cluster::kind::Kind::new(std::env::temp_dir().join("ckdry-e2e-monitor")));
         let log = |_: String| {};
-        let name = "ckiu-mon";
+        let name = "ckdry-mon";
         let env = Arc::new(Env::new(|state| {
             let nodes: Vec<String> = state
                 .clusters
@@ -191,10 +191,10 @@ mod tests {
     async fn foreign_cluster_is_detected_and_adopted() {
         use std::time::Duration;
         let tmp = std::env::temp_dir();
-        let elsewhere = cluster::kind::Kind::new(tmp.join("ckiu-e2e-elsewhere"));
-        let ours = Arc::new(cluster::kind::Kind::new(tmp.join("ckiu-e2e-ours")));
+        let elsewhere = cluster::kind::Kind::new(tmp.join("ckdry-e2e-elsewhere"));
+        let ours = Arc::new(cluster::kind::Kind::new(tmp.join("ckdry-e2e-ours")));
         let log = |_: String| {};
-        let name = "ckiu-foreign";
+        let name = "ckdry-foreign";
         elsewhere.create(name, 0, &log).await.unwrap();
 
         let env = Arc::new(Env::new(|_| {}));
@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn bindings_export() {
         specta_builder()
-            .export(typescript(), std::env::temp_dir().join("ckiu-bindings.ts"))
+            .export(typescript(), std::env::temp_dir().join("ckdry-bindings.ts"))
             .unwrap();
     }
 }

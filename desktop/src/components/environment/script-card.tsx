@@ -1,5 +1,5 @@
-import { Button } from "@ckiu/ui/components/button";
-import { Input } from "@ckiu/ui/components/input";
+import { Button } from "@ckdry/ui/components/button";
+import { Input } from "@ckdry/ui/components/input";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ApiError, labApi } from "@/tauri/api";

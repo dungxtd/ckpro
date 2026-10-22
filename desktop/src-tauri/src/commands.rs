@@ -87,7 +87,7 @@ pub fn cancel_cluster(jobs: State<'_, Jobs>, name: String) -> bool {
     jobs.cancel(&name)
 }
 
-/// Manage an existing kind cluster created outside ckiu.
+/// Manage an existing kind cluster created outside ckdry.
 #[tauri::command]
 #[specta::specta]
 pub async fn adopt_cluster(

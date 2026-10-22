@@ -100,6 +100,6 @@ export const useEnvironment = create<EnvironmentState & EnvironmentActions>()(
 				if (job) await clusterApi.cancel(job.cluster);
 			},
 		})),
-		{ name: "ckiu-environment", enabled: import.meta.env.DEV }
+		{ name: "ckdry-environment", enabled: import.meta.env.DEV }
 	)
 );

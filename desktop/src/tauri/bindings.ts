@@ -20,7 +20,7 @@ export const commands = {
 	cancelCluster: (name: string) => __TAURI_INVOKE<boolean>("cancel_cluster", { name }),
 	/**  Start a cluster's stopped nodes. */
 	repairCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("repair_cluster", { name })),
-	/**  Manage an existing kind cluster created outside ckiu. */
+	/**  Manage an existing kind cluster created outside ckdry. */
 	adoptCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("adopt_cluster", { name })),
 	/**  Run a lab script on the cluster's control plane. */
 	runScript: (cluster: string, path: string) => typedError<ScriptResult, AppError>(__TAURI_INVOKE("run_script", { cluster, path })),
@@ -81,7 +81,7 @@ export type EnvState = {
 	 */
 	clusters: ClusterState[],
 	/**
-	 *  kind clusters on this machine that ckiu does not manage (created with
+	 *  kind clusters on this machine that ckdry does not manage (created with
 	 *  the kind CLI, or by an older install); their names are taken
 	 */
 	foreign_clusters: string[],

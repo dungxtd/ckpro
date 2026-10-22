@@ -1,7 +1,7 @@
-import { Button } from "@ckiu/ui/components/button";
+import { Button } from "@ckdry/ui/components/button";
 import { useEnvironment } from "@/stores/environment";
 
-/** kind clusters on this machine that ckiu does not manage yet. */
+/** kind clusters on this machine that ckdry does not manage yet. */
 export function ForeignClusters({ names }: { names: string[] }) {
 	const job = useEnvironment(s => s.job);
 	const runJob = useEnvironment(s => s.runJob);
@@ -11,7 +11,7 @@ export function ForeignClusters({ names }: { names: string[] }) {
 		<section className="rounded-lg border border-border border-dashed p-3">
 			<h2 className="font-semibold text-sm">Other kind clusters</h2>
 			<p className="mb-2 text-muted-foreground text-xs">
-				Created outside ckiu (kind CLI or an older install). Adopt one to manage it here; its name
+				Created outside ckdry (kind CLI or an older install). Adopt one to manage it here; its name
 				is taken until then.
 			</p>
 			<ul className="flex flex-col gap-1">

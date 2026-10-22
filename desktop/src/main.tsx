@@ -1,4 +1,4 @@
-import { Toaster } from "@ckiu/ui/components/sonner";
+import { Toaster } from "@ckdry/ui/components/sonner";
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { HashRouter, Route, Routes } from "react-router";

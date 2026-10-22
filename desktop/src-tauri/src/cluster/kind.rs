@@ -73,7 +73,7 @@ impl Kind {
     }
 
     /// PATH for kind: a `docker` shim first, then the real CLI. kind has no
-    /// option to label its node containers, so the shim adds the ckiu compose
+    /// option to label its node containers, so the shim adds the ckdry compose
     /// labels to every `docker run`; all other commands go straight through.
     fn kind_path(&self) -> AppResult<String> {
         let real = docker::cli().ok_or_else(|| AppError::DockerUnavailable {
@@ -87,7 +87,7 @@ impl Kind {
             .collect();
         let script = format!(
             "#!/bin/sh\n\
-             # Written by ckiu: label kind's node containers as part of the ckiu compose project\n\
+             # Written by ckdry: label kind's node containers as part of the ckdry compose project\n\
              if [ \"$1\" = run ]; then\n\
              \x20 shift\n\
              \x20 name=node prev=\n\
@@ -177,7 +177,7 @@ impl Kind {
     }
 
     /// Take over an existing kind cluster: keep its kubeconfig, which is what
-    /// makes ckiu treat a cluster as its own.
+    /// makes ckdry treat a cluster as its own.
     pub async fn adopt(&self, name: &str) -> AppResult<()> {
         validate_name(name)?;
         std::fs::create_dir_all(&self.dir).map_err(|e| AppError::io("creating data dir", e))?;

@@ -1,4 +1,4 @@
-import { Button } from "@ckiu/ui/components/button";
+import { Button } from "@ckdry/ui/components/button";
 import { SquareTerminal } from "lucide-react";
 import { useEnvironment } from "@/stores/environment";
 import type { ClusterState } from "@/tauri/api";

@@ -1,4 +1,4 @@
-import { Badge } from "@ckiu/ui/components/badge";
+import { Badge } from "@ckdry/ui/components/badge";
 import { useState } from "react";
 import { ClusterCard } from "@/components/environment/cluster-card";
 import { CreateClusterForm } from "@/components/environment/create-cluster-form";
@@ -34,7 +34,7 @@ function DockerStatus({ docker }: { docker: EnvState["docker"] }) {
 	}
 }
 
-/** Live view of everything ckiu runs, with the actions to fix it. */
+/** Live view of everything ckdry runs, with the actions to fix it. */
 export function EnvironmentRoute() {
 	const env = useEnvironment(s => s.env);
 	const [shell, setShell] = useState<{ node: string; session: number } | null>(null);
@@ -45,7 +45,7 @@ export function EnvironmentRoute() {
 		<div className="flex h-full gap-3 p-3">
 			<div className="flex w-[460px] shrink-0 flex-col gap-3 overflow-auto">
 				<header className="flex items-center justify-between">
-					<strong>ckiu</strong>
+					<strong>ckdry</strong>
 					<DockerStatus docker={env.docker} />
 				</header>
 				<IssuesPanel issues={env.issues} />

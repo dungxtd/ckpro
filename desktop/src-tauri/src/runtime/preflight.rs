@@ -37,10 +37,10 @@ pub fn check(state: &EnvState, name: &str, workers: u8) -> Vec<Check> {
     let free = memory_mb.saturating_sub(in_use);
 
     let taken = if state.clusters.iter().any(|c| c.name == name) {
-        Some(format!("ckiu already has a cluster named '{name}'. Pick another name or delete it."))
+        Some(format!("ckdry already has a cluster named '{name}'. Pick another name or delete it."))
     } else if state.foreign_clusters.iter().any(|c| c == name) {
         Some(format!(
-            "a kind cluster named '{name}' already exists outside ckiu. Adopt it, delete it, or pick another name."
+            "a kind cluster named '{name}' already exists outside ckdry. Adopt it, delete it, or pick another name."
         ))
     } else {
         None

@@ -172,9 +172,9 @@ importers:
 
   desktop:
     dependencies:
-      '@ckiu/ui':
+      '@ckdry/ui':
         specifier: workspace:^
-        version: link:../packages/ckiu-ui
+        version: link:../packages/ckdry-ui
       '@tauri-apps/api':
         specifier: ^2.12.4
         version: 2.12.4
@@ -237,7 +237,7 @@ importers:
         specifier: ^8.3.5
         version: 8.3.5(@types/node@26.6.5)(jiti@2.7.0)
 
-  packages/ckiu-ui:
+  packages/ckdry-ui:
     dependencies:
       '@fontsource-variable/geist':
         specifier: ^5.3.0

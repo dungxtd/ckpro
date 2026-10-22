@@ -1,5 +1,5 @@
-import { useThemeScope } from "@ckiu/ui/components/theme-scope";
-import { cn } from "@ckiu/ui/lib/utils";
+import { useThemeScope } from "@ckdry/ui/components/theme-scope";
+import { cn } from "@ckdry/ui/lib/utils";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import type * as React from "react";
 

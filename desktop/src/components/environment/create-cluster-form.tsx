@@ -1,5 +1,5 @@
-import { Button } from "@ckiu/ui/components/button";
-import { Input } from "@ckiu/ui/components/input";
+import { Button } from "@ckdry/ui/components/button";
+import { Input } from "@ckdry/ui/components/input";
 import { CircleCheck, CircleX } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useEnvironment } from "@/stores/environment";

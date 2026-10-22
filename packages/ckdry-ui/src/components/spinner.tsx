@@ -1,4 +1,4 @@
-import { cn } from "@ckiu/ui/lib/utils";
+import { cn } from "@ckdry/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Loader2 } from "lucide-react";
 import type React from "react";

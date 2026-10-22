@@ -9,7 +9,7 @@
 		"skipLibCheck": true,
 		"noEmit": true,
 		"isolatedModules": true,
-		"paths": { "@ckiu/ui/*": ["./src/*"] }
+		"paths": { "@ckdry/ui/*": ["./src/*"] }
 	},
 	"include": ["src"]
 }

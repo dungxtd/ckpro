@@ -1,4 +1,4 @@
-import { cn } from "@ckiu/ui/lib/utils";
+import { cn } from "@ckdry/ui/lib/utils";
 import type * as React from "react";
 
 export interface SegmentedOption<T extends string> {

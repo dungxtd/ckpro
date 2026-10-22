@@ -1,4 +1,4 @@
-import { cn } from "@ckiu/ui/lib/utils";
+import { cn } from "@ckdry/ui/lib/utils";
 import { XIcon } from "lucide-react";
 import type * as React from "react";
 

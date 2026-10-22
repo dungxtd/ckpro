@@ -1,4 +1,4 @@
-import { cn } from "@ckiu/ui/lib/utils";
+import { cn } from "@ckdry/ui/lib/utils";
 import type * as React from "react";
 
 type RangeProps = Omit<React.ComponentProps<"input">, "type" | "value" | "onChange"> & {
