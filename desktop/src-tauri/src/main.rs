@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    ckx_desktop_lib::run()
+    ckiu_lib::run()
 }

@@ -90,6 +90,6 @@ export const useEnvironment = create<EnvironmentState & EnvironmentActions>()(
 				}
 			},
 		})),
-		{ name: "ckx-environment", enabled: import.meta.env.DEV }
+		{ name: "ckiu-environment", enabled: import.meta.env.DEV }
 	)
 );

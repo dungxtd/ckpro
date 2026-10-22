@@ -1,6 +1,6 @@
-import { Badge } from "@ckx/ui/components/badge";
-import { Button } from "@ckx/ui/components/button";
-import { Input } from "@ckx/ui/components/input";
+import { Badge } from "@ckiu/ui/components/badge";
+import { Button } from "@ckiu/ui/components/button";
+import { Input } from "@ckiu/ui/components/input";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { TerminalView } from "@/components/terminal/terminal-view";
@@ -136,7 +136,7 @@ export function Playground() {
 	return (
 		<div className="flex h-full flex-col gap-3 p-3">
 			<header className="flex items-center justify-between">
-				<strong>CKX Desktop</strong>
+				<strong>ckiu</strong>
 				<DockerBadge />
 			</header>
 			<ClusterCard />

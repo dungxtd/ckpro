@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "CKX Desktop",
+  "productName": "ckiu",
   "version": "0.1.0",
-  "identifier": "dev.ckx.desktop",
+  "identifier": "dev.ckiu.app",
   "build": {
     "beforeDevCommand": "pnpm vite:dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "CKX Desktop",
+        "title": "ckiu",
         "width": 1100,
         "height": 800
       }

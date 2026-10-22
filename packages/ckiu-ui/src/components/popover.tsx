@@ -1,5 +1,5 @@
-import { useThemeScope } from "@ckx/ui/components/theme-scope";
-import { cn } from "@ckx/ui/lib/utils";
+import { useThemeScope } from "@ckiu/ui/components/theme-scope";
+import { cn } from "@ckiu/ui/lib/utils";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import type * as React from "react";
 

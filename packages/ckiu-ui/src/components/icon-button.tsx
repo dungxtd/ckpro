@@ -1,5 +1,5 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from "@ckx/ui/components/tooltip";
-import { cn } from "@ckx/ui/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@ckiu/ui/components/tooltip";
+import { cn } from "@ckiu/ui/lib/utils";
 import type * as React from "react";
 
 export type IconButtonVariant = "glass" | "plain";

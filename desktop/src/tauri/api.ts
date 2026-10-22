@@ -1,7 +1,10 @@
 // The only module that talks to Tauri. Wrappers unwrap specta `Result`s so a
 // failed command throws an `ApiError` carrying the Rust `AppError` code.
 import { Channel } from "@tauri-apps/api/core";
-import { type AppError, commands, type Result, type TerminalEvent } from "./bindings";
+import { type AppError, commands, type TerminalEvent } from "./bindings";
+
+/** What the generated command functions resolve to. */
+type Result<T, E> = { status: "ok"; data: T } | { status: "error"; error: E };
 
 export type { AppError, ScriptResult, TerminalEvent } from "./bindings";
 

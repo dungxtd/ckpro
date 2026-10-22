@@ -1,8 +1,8 @@
 "use client";
 
-import { iconButtonVariants } from "@ckx/ui/components/icon-button";
-import { useThemeScope } from "@ckx/ui/components/theme-scope";
-import { cn } from "@ckx/ui/lib/utils";
+import { iconButtonVariants } from "@ckiu/ui/components/icon-button";
+import { useThemeScope } from "@ckiu/ui/components/theme-scope";
+import { cn } from "@ckiu/ui/lib/utils";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
 import type * as React from "react";

@@ -1,5 +1,5 @@
-import { buttonVariants } from "@ckx/ui/components/button";
-import { cn } from "@ckx/ui/lib/utils";
+import { buttonVariants } from "@ckiu/ui/components/button";
+import { cn } from "@ckiu/ui/lib/utils";
 import type React from "react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 

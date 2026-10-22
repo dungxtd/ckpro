@@ -1,6 +1,6 @@
-import { menu } from "@ckx/ui/components/menu";
-import { useThemeScope } from "@ckx/ui/components/theme-scope";
-import { cn } from "@ckx/ui/lib/utils";
+import { menu } from "@ckiu/ui/components/menu";
+import { useThemeScope } from "@ckiu/ui/components/theme-scope";
+import { cn } from "@ckiu/ui/lib/utils";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import type * as React from "react";
 

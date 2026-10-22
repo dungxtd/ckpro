@@ -22,17 +22,16 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     ])
 }
 
+fn typescript() -> specta_typescript::Typescript {
+    specta_typescript::Typescript::default().header("// @ts-nocheck")
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = specta_builder();
     #[cfg(debug_assertions)]
     builder
-        .export(
-            specta_typescript::Typescript::default()
-                .bigint(specta_typescript::BigIntExportBehavior::Number)
-                .header("// @ts-nocheck"),
-            concat!(env!("CARGO_MANIFEST_DIR"), "/../src/tauri/bindings.ts"),
-        )
+        .export(typescript(), concat!(env!("CARGO_MANIFEST_DIR"), "/../src/tauri/bindings.ts"))
         .expect("exporting typescript bindings");
 
     tauri::Builder::default()
@@ -44,7 +43,7 @@ pub fn run() {
             }
             let data_dir = app.path().app_data_dir()?;
             app.manage(cluster::kind::Kind::new(data_dir));
-            tracing::info!(version = env!("CARGO_PKG_VERSION"), "ckx desktop started");
+            tracing::info!(version = env!("CARGO_PKG_VERSION"), "ckiu desktop started");
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -69,9 +68,9 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn cluster_lifecycle_and_lab_script() {
-        let kind = cluster::kind::Kind::new(std::env::temp_dir().join("ckx-e2e"));
+        let kind = cluster::kind::Kind::new(std::env::temp_dir().join("ckiu-e2e"));
         let log = |line: String| println!("  kind: {line}");
-        let name = "ckx-e2e";
+        let name = "ckiu-e2e";
 
         let docker = runtime::docker::connect().await.unwrap();
         println!("docker: {:?}", docker.version().await.unwrap().version);
@@ -80,13 +79,13 @@ mod tests {
         println!("created in {:?}", started.elapsed());
 
         // A CK-X validation script: the namespace does not exist yet, so it must fail
-        let ckx = "/Users/d/pwd/CK-X/facilitator/assets/exams/cka/001/scripts/validation/q1_s1_validate_namespace.sh";
-        assert_ne!(lab::script::run(name, ckx).await.unwrap().exit_code, 0);
+        let ckiu = "/Users/d/pwd/CK-X/facilitator/assets/exams/cka/001/scripts/validation/q1_s1_validate_namespace.sh";
+        assert_ne!(lab::script::run(name, ckiu).await.unwrap().exit_code, 0);
 
-        let setup = std::env::temp_dir().join("ckx-e2e-setup.sh");
+        let setup = std::env::temp_dir().join("ckiu-e2e-setup.sh");
         writeln!(std::fs::File::create(&setup).unwrap(), "kubectl create namespace app-team1").unwrap();
         assert_eq!(lab::script::run(name, setup.to_str().unwrap()).await.unwrap().exit_code, 0);
-        assert_eq!(lab::script::run(name, ckx).await.unwrap().exit_code, 0);
+        assert_eq!(lab::script::run(name, ckiu).await.unwrap().exit_code, 0);
 
         kind.delete(name, &log).await.unwrap();
     }
@@ -95,12 +94,7 @@ mod tests {
     #[test]
     fn bindings_export() {
         specta_builder()
-            .export(
-                specta_typescript::Typescript::default()
-                    .bigint(specta_typescript::BigIntExportBehavior::Number)
-                    .header("// @ts-nocheck"),
-                std::env::temp_dir().join("ckx-bindings.ts"),
-            )
+            .export(typescript(), std::env::temp_dir().join("ckiu-bindings.ts"))
             .unwrap();
     }
 }

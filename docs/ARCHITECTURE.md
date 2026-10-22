@@ -1,10 +1,10 @@
-# CKX Desktop — architecture and roadmap
+# ckiu — architecture and roadmap
 
 ## Why
 
 CK-X sets up exam environments with shell scripts chained over ssh
 (facilitator → jumphost → dind → env-setup). Failures surface late and
-vaguely, and state lives in several places. CKX Desktop is a native app that
+vaguely, and state lives in several places. ckiu is a native app that
 **controls the runtime itself and always knows the environment state**:
 if Docker stops, a node goes NotReady, a cache dies or a pod is stuck, the UI
 shows it live with a fix hint — no "run script, read logs".
@@ -16,7 +16,7 @@ infrastructure app.
 ## Shape
 
 ```
-ckx-desktop/                      pnpm monorepo
+ckiu-desktop/                      pnpm monorepo
 ├─ desktop/                       Tauri app
 │  ├─ src/                        React 19
 │  │  ├─ tauri/                   the ONLY place that imports @tauri-apps/api
@@ -40,18 +40,18 @@ ckx-desktop/                      pnpm monorepo
 │     ├─ terminal/                docker exec TTY over tauri::ipc::Channel
 │     ├─ db/                      rusqlite: attempts, results, settings
 │     └─ observability/           tracing + rolling logs + optional Sentry
-├─ packages/ckx-ui                UI kit forked from @nextflix/ui
+├─ packages/ckiu-ui                UI kit forked from @nextflix/ui
 └─ labs/                          lab pack (from CK-X) + JSON schema, versioned
 ```
 
 ## Improvements over nextflix (domain-specific)
 
-| Area | nextflix | CKX Desktop |
+| Area | nextflix | ckiu |
 |---|---|---|
 | Errors | `CmdError` classified by sniffing message text | `AppError` variants created where the failure happens (`DockerUnavailable`, `InsufficientResources`, `ClusterFailed`, `LabInvalid`, `Cancelled`, …) |
 | Events | untyped `app.emit("x://y")`, listened outside `src/tauri/` | typed specta events; listening only in `src/tauri/` |
 | Streams | global events | `tauri::ipc::Channel` per terminal / job |
-| Shutdown | empty `RunEvent` handler | `RunEvent::Exit` stops jobs; reconcile on next start cleans orphans (everything labelled `ckx.*`) |
+| Shutdown | empty `RunEvent` handler | `RunEvent::Exit` stops jobs; reconcile on next start cleans orphans (everything labelled `ckiu.*`) |
 | Content | from APIs | lab pack separate from the binary, schema-validated at load, updatable without an app release |
 | Long work | ad-hoc spawns | `jobs` with steps, progress, cancellation and rollback |
 | Tests | none by policy | a few opt-in e2e tests on real Docker (cluster lifecycle, scoring, cleanup); UI checked by hand |
@@ -70,12 +70,12 @@ ckx-desktop/                      pnpm monorepo
   "Docker stopped", "node k8s-worker2 NotReady (kubelet)", "cache down: pulls
   go upstream", "4 GB free, lab needs 5 GB"
 
-Sources: Docker events (filtered by `ckx.*` labels) and Kubernetes watches on
+Sources: Docker events (filtered by `ckiu.*` labels) and Kubernetes watches on
 nodes/pods, plus a slow periodic sweep as a safety net. The UI never polls.
 
 ## Roadmap
 
-1. **Foundation**: monorepo, React/Tailwind/@ckx/ui, tauri-specta, AppError,
+1. **Foundation**: monorepo, React/Tailwind/@ckiu/ui, tauri-specta, AppError,
    observability, db; port the spike (cluster, script, terminal) onto it.
 2. **Runtime controller**: EnvState + monitor + issues panel, preflight,
    reconcile, jobs with cancel.

@@ -1,18 +1,18 @@
 {
-  "name": "ckx",
+  "name": "ckiu",
   "version": "0.1.0",
   "private": true,
-  "description": "CKX Desktop - Kubernetes exam practice app monorepo",
+  "description": "ckiu - Kubernetes exam practice app monorepo",
   "packageManager": "pnpm@12.11.2",
   "scripts": {
-    "dev": "pnpm --filter ckx-desktop dev",
-    "build": "pnpm --filter ckx-desktop build",
-    "typecheck": "pnpm --filter ckx-desktop typecheck",
+    "dev": "pnpm --filter ckiu-desktop dev",
+    "build": "pnpm --filter ckiu-desktop build",
+    "typecheck": "pnpm --filter ckiu-desktop typecheck",
     "format": "biome check . --write",
     "format-check": "biome check ."
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.15"
+    "@biomejs/biome": "^2.6.2"
   },
   "engines": {
     "node": ">=22"
