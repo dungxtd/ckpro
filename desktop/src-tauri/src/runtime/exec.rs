@@ -1,0 +1,55 @@
+//! Run a command in a container (no TTY), optionally feeding it stdin, and
+//! collect its output and exit code.
+
+use crate::error::{AppError, AppResult};
+use bollard::Docker;
+use bollard::exec::{CreateExecOptions, StartExecResults};
+use futures_util::StreamExt;
+use tokio::io::AsyncWriteExt;
+
+pub struct Output {
+    pub exit_code: i64,
+    pub text: String,
+}
+
+pub async fn run(
+    docker: &Docker,
+    container: &str,
+    cmd: &[&str],
+    env: &[&str],
+    stdin: Option<&[u8]>,
+) -> AppResult<Output> {
+    let exec = docker
+        .create_exec(
+            container,
+            CreateExecOptions {
+                attach_stdin: Some(stdin.is_some()),
+                attach_stdout: Some(true),
+                attach_stderr: Some(true),
+                env: Some(env.to_vec()),
+                cmd: Some(cmd.to_vec()),
+                ..Default::default()
+            },
+        )
+        .await
+        .map_err(|e| match e {
+            bollard::errors::Error::DockerResponseServerError { status_code: 404, .. } => {
+                AppError::not_found(format!("{container} is not running"))
+            }
+            e => AppError::docker(e),
+        })?;
+    let StartExecResults::Attached { mut output, mut input } = docker.start_exec(&exec.id, None).await?
+    else {
+        return Err(AppError::docker("exec started detached"));
+    };
+    if let Some(stdin) = stdin {
+        input.write_all(stdin).await.map_err(|e| AppError::io("writing stdin", e))?;
+        input.shutdown().await.map_err(|e| AppError::io("writing stdin", e))?;
+    }
+    let mut text = String::new();
+    while let Some(chunk) = output.next().await {
+        text.push_str(&String::from_utf8_lossy(&chunk?.into_bytes()));
+    }
+    let exit_code = docker.inspect_exec(&exec.id).await?.exit_code.unwrap_or(-1);
+    Ok(Output { exit_code, text })
+}

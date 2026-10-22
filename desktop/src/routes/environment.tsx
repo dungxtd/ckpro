@@ -1,4 +1,5 @@
 import { Badge } from "@ckdry/ui/components/badge";
+import { Button } from "@ckdry/ui/components/button";
 import { useState } from "react";
 import { ClusterCard } from "@/components/environment/cluster-card";
 import { CreateClusterForm } from "@/components/environment/create-cluster-form";
@@ -37,10 +38,12 @@ function DockerStatus({ docker }: { docker: EnvState["docker"] }) {
 /** Live view of everything ckdry runs, with the actions to fix it. */
 export function EnvironmentRoute() {
 	const env = useEnvironment(s => s.env);
-	const [shell, setShell] = useState<{ node: string; session: number } | null>(null);
+	// null node: the jumphost, where the candidate works
+	const [shell, setShell] = useState<{ node: string | null; session: number } | null>(null);
+	const openShell = (node: string | null) =>
+		setShell(s => ({ node, session: (s?.session ?? 0) + 1 }));
 	if (!env) return null;
 
-	const firstCluster = env.clusters[0]?.name;
 	return (
 		<div className="flex h-full gap-3 p-3">
 			<div className="flex w-[460px] shrink-0 flex-col gap-3 overflow-auto">
@@ -50,19 +53,18 @@ export function EnvironmentRoute() {
 				</header>
 				<IssuesPanel issues={env.issues} />
 				{env.clusters.map(cluster => (
-					<ClusterCard
-						key={cluster.name}
-						cluster={cluster}
-						onShell={node => setShell(s => ({ node, session: (s?.session ?? 0) + 1 }))}
-					/>
+					<ClusterCard key={cluster.name} cluster={cluster} onShell={openShell} />
 				))}
 				<ForeignClusters names={env.foreign_clusters} />
 				<CreateClusterForm />
-				{firstCluster && <ScriptCard cluster={firstCluster} />}
+				{env.clusters.length > 0 && <ScriptCard />}
 			</div>
 			<section className="flex min-w-0 flex-1 flex-col rounded-lg border border-border bg-card p-2">
-				<h2 className="mb-1 px-1 font-semibold text-sm">
-					{shell ? `Shell on ${shell.node}` : "Open a shell from a node"}
+				<h2 className="mb-1 flex items-center gap-2 px-1 font-semibold text-sm">
+					{shell ? `Shell on ${shell.node ?? "jumphost"}` : "Terminal"}
+					<Button size="sm" variant="outline" className="ml-auto" onClick={() => openShell(null)}>
+						Open jumphost
+					</Button>
 				</h2>
 				<div className="min-h-0 flex-1">
 					{shell && <TerminalView container={shell.node} session={shell.session} />}

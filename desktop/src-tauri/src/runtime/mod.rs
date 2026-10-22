@@ -1,4 +1,6 @@
 pub mod docker;
+pub mod exec;
+pub mod infra;
 pub mod model;
 pub mod monitor;
 pub mod preflight;

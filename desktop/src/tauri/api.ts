@@ -57,11 +57,13 @@ export const clusterApi = {
 };
 
 export const labApi = {
-	runScript: (cluster: string, path: string) => unwrap(commands.runScript(cluster, path)),
+	/** Run a lab script on the jumphost. */
+	runScript: (path: string) => unwrap(commands.runScript(path)),
 };
 
 export const terminalApi = {
-	open: (container: string, onEvent: (event: TerminalEvent) => void) =>
+	/** Shell on the jumphost (`null`) or directly on a node container. */
+	open: (container: string | null, onEvent: (event: TerminalEvent) => void) =>
 		unwrap(commands.terminalOpen(container, channel(onEvent))),
 	write: (id: string, data: string) => unwrap(commands.terminalWrite(id, data)),
 	resize: (id: string, cols: number, rows: number) =>

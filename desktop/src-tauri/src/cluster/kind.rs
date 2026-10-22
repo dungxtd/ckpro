@@ -2,15 +2,13 @@
 //! generated here, and create/delete with every output line handed to a sink.
 
 use crate::error::{AppError, AppResult};
-use crate::runtime::docker;
+use crate::runtime::{docker, infra};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 const KIND_VERSION: &str = "v0.33.0";
-/// Kubernetes version of the exam (CKA currently runs on v1.35).
-pub const NODE_IMAGE: &str = "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0";
 
 /// Where the app keeps kind, cluster configs and kubeconfigs.
 pub struct Kind {
@@ -153,27 +151,48 @@ impl Kind {
         }
     }
 
+    /// Create a cluster from the exam node image; `registry_config` is the
+    /// containerd certs.d directory mounted into every node.
     pub async fn create(
         &self,
         name: &str,
         workers: u8,
+        registry_config: &Path,
         log: &(dyn Fn(String) + Sync),
     ) -> AppResult<()> {
         validate_name(name)?;
         std::fs::create_dir_all(&self.dir).map_err(|e| AppError::io("creating data dir", e))?;
         let config = self.dir.join(format!("kind-{name}.yaml"));
-        std::fs::write(&config, cluster_config(workers))
+        std::fs::write(&config, cluster_config(workers, registry_config))
             .map_err(|e| AppError::io("writing kind config", e))?;
         let kubeconfig = self.kubeconfig(name);
         self.run(
             &[
-                "create", "cluster", "--name", name, "--image", NODE_IMAGE,
+                "create", "cluster", "--name", name, "--image", infra::NODE_IMAGE,
                 "--config", path_str(&config)?, "--kubeconfig", path_str(&kubeconfig)?,
                 "--wait", "120s",
             ],
             log,
         )
         .await
+    }
+
+    /// kubeconfig that reaches the API server from inside the `kind` network
+    /// (`https://<name>-control-plane:6443`), for the jumphost.
+    pub async fn internal_kubeconfig(&self, name: &str) -> AppResult<String> {
+        let output = Command::new(self.binary().await?)
+            .args(["get", "kubeconfig", "--internal", "--name", name])
+            .env("PATH", self.kind_path()?)
+            .output()
+            .await
+            .map_err(|e| AppError::cluster(format!("starting kind: {e}")))?;
+        if !output.status.success() {
+            return Err(AppError::cluster(format!(
+                "reading the kubeconfig of '{name}': {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            )));
+        }
+        String::from_utf8(output.stdout).map_err(|e| AppError::cluster(e.to_string()))
     }
 
     /// Take over an existing kind cluster: keep its kubeconfig, which is what
@@ -221,13 +240,23 @@ fn release_asset() -> AppResult<&'static str> {
     })
 }
 
-/// kind config: one control plane plus `workers` workers.
-fn cluster_config(workers: u8) -> String {
+/// kind config: one control plane plus `workers` workers, every node pulling
+/// through the registry caches (containerd certs.d).
+fn cluster_config(workers: u8, registry_config: &Path) -> String {
+    let node = |role: &str| {
+        format!(
+            "  - role: {role}\n    extraMounts:\n      - hostPath: {}\n        containerPath: /etc/containerd/certs.d\n        readOnly: true\n",
+            registry_config.display()
+        )
+    };
     let mut config = String::from(
-        "kind: Cluster\napiVersion: kind.x-k8s.io/v1alpha4\nnodes:\n  - role: control-plane\n",
+        "kind: Cluster\napiVersion: kind.x-k8s.io/v1alpha4\n\
+         containerdConfigPatches:\n  - |-\n    [plugins.\"io.containerd.cri.v1.images\".registry]\n      config_path = \"/etc/containerd/certs.d\"\n\
+         nodes:\n",
     );
+    config.push_str(&node("control-plane"));
     for _ in 0..workers {
-        config.push_str("  - role: worker\n");
+        config.push_str(&node("worker"));
     }
     config
 }

@@ -6,8 +6,17 @@ import { terminalApi } from "@/tauri/api";
 
 const decode = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
 
-/** Interactive shell in a container; reopens when `container` or `session` changes. */
-export function TerminalView({ container, session }: { container: string; session: number }) {
+/**
+ * Interactive shell on the jumphost (`container` null) or a node; reopens when
+ * `container` or `session` changes.
+ */
+export function TerminalView({
+	container,
+	session,
+}: {
+	container: string | null;
+	session: number;
+}) {
 	const host = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {

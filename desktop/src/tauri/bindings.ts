@@ -22,10 +22,10 @@ export const commands = {
 	repairCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("repair_cluster", { name })),
 	/**  Manage an existing kind cluster created outside ckdry. */
 	adoptCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("adopt_cluster", { name })),
-	/**  Run a lab script on the cluster's control plane. */
-	runScript: (cluster: string, path: string) => typedError<ScriptResult, AppError>(__TAURI_INVOKE("run_script", { cluster, path })),
-	/**  Shell on a cluster node, with kubectl pointed at the cluster. */
-	terminalOpen: (container: string, events: Channel<TerminalEvent>) => typedError<string, AppError>(__TAURI_INVOKE("terminal_open", { container, events })),
+	/**  Run a lab script on the jumphost. */
+	runScript: (path: string) => typedError<ScriptResult, AppError>(__TAURI_INVOKE("run_script", { path })),
+	/**  Shell on the jumphost (no `container`) or directly on a cluster node. */
+	terminalOpen: (container: string | null, events: Channel<TerminalEvent>) => typedError<string, AppError>(__TAURI_INVOKE("terminal_open", { container, events })),
 	terminalWrite: (id: string, data: string) => typedError<null, AppError>(__TAURI_INVOKE("terminal_write", { id, data })),
 	terminalResize: (id: string, cols: number, rows: number) => typedError<null, AppError>(__TAURI_INVOKE("terminal_resize", { id, cols, rows })),
 	terminalClose: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("terminal_close", { id })),

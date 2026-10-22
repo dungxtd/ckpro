@@ -2,7 +2,8 @@
 //! modules. Every command is listed in `specta_builder()` in lib.rs.
 
 use crate::cluster::jobs::Jobs;
-use crate::cluster::kind::Kind;
+use crate::cluster::{kind::Kind, lifecycle};
+use crate::runtime::infra::{self, Infra};
 use crate::error::{AppError, AppResult};
 use crate::lab::script::ScriptResult;
 use crate::runtime::model::{DockerState, Env, EnvState};
@@ -32,6 +33,7 @@ pub fn preflight(env: State<'_, Arc<Env>>, name: String, workers: u8) -> Vec<Che
 #[specta::specta]
 pub async fn create_cluster(
     kind: State<'_, Arc<Kind>>,
+    infra: State<'_, Arc<Infra>>,
     jobs: State<'_, Jobs>,
     env: State<'_, Arc<Env>>,
     name: String,
@@ -50,15 +52,9 @@ pub async fn create_cluster(
     let send = |line: String| {
         let _ = log.send(line);
     };
-    let result = tokio::select! {
-        result = kind.create(&name, workers, &send) => result,
-        _ = token.cancelled() => {
-            send("Cancelled, removing the partial cluster…".into());
-            let _ = kind.delete(&name, &send).await;
-            Err(AppError::Cancelled { message: format!("creating '{name}' was cancelled") })
-        }
-    };
+    let result = lifecycle::create(&kind, &infra, &name, workers, &send, &token).await;
     jobs.end(&name);
+    env.request_resync();
     result
 }
 
@@ -66,16 +62,16 @@ pub async fn create_cluster(
 #[specta::specta]
 pub async fn delete_cluster(
     kind: State<'_, Arc<Kind>>,
+    infra: State<'_, Arc<Infra>>,
     jobs: State<'_, Jobs>,
     name: String,
     log: Channel<String>,
 ) -> AppResult<()> {
     jobs.begin(&name)?;
-    let result = kind
-        .delete(&name, &|line| {
-            let _ = log.send(line);
-        })
-        .await;
+    let send = |line: String| {
+        let _ = log.send(line);
+    };
+    let result = lifecycle::delete(&kind, &infra, &name, &send).await;
     jobs.end(&name);
     result
 }
@@ -92,10 +88,11 @@ pub fn cancel_cluster(jobs: State<'_, Jobs>, name: String) -> bool {
 #[specta::specta]
 pub async fn adopt_cluster(
     kind: State<'_, Arc<Kind>>,
+    infra: State<'_, Arc<Infra>>,
     env: State<'_, Arc<Env>>,
     name: String,
 ) -> AppResult<()> {
-    kind.adopt(&name).await?;
+    lifecycle::adopt(&kind, &infra, &name, &|line| tracing::info!("{line}")).await?;
     env.request_resync();
     Ok(())
 }
@@ -108,23 +105,23 @@ pub async fn repair_cluster(name: String) -> AppResult<()> {
     crate::runtime::reconcile::repair(&docker, &name).await
 }
 
-/// Run a lab script on the cluster's control plane.
+/// Run a lab script on the jumphost.
 #[tauri::command]
 #[specta::specta]
-pub async fn run_script(cluster: String, path: String) -> AppResult<ScriptResult> {
-    crate::lab::script::run(&cluster, &path).await
+pub async fn run_script(path: String) -> AppResult<ScriptResult> {
+    crate::lab::script::run(&path).await
 }
 
-/// Shell on a cluster node, with kubectl pointed at the cluster.
+/// Shell on the jumphost (no `container`) or directly on a cluster node.
 #[tauri::command]
 #[specta::specta]
 pub async fn terminal_open(
     terminals: State<'_, Terminals>,
-    container: String,
+    container: Option<String>,
     events: Channel<TerminalEvent>,
 ) -> AppResult<String> {
-    let env = vec!["KUBECONFIG=/etc/kubernetes/admin.conf".into(), "TERM=xterm-256color".into()];
-    terminals.open(&container, env, events).await
+    let container = container.unwrap_or_else(|| infra::JUMPHOST.into());
+    terminals.open(&container, vec!["TERM=xterm-256color".into()], events).await
 }
 
 #[tauri::command]
