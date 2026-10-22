@@ -26,6 +26,21 @@ impl Kind {
         self.dir.join(format!("kubeconfig-{cluster}"))
     }
 
+    /// Clusters created by this app: the ones it keeps a kubeconfig for.
+    pub fn owned_clusters(&self) -> Vec<String> {
+        let Ok(entries) = std::fs::read_dir(&self.dir) else { return Vec::new() };
+        entries
+            .filter_map(|e| e.ok()?.file_name().into_string().ok())
+            .filter_map(|f| f.strip_prefix("kubeconfig-").map(str::to_string))
+            .collect()
+    }
+
+    /// Drop the app's files for a cluster that no longer exists.
+    pub fn forget(&self, cluster: &str) {
+        let _ = std::fs::remove_file(self.kubeconfig(cluster));
+        let _ = std::fs::remove_file(self.dir.join(format!("kind-{cluster}.yaml")));
+    }
+
     /// Path to the pinned kind binary, downloaded on first use.
     async fn binary(&self) -> AppResult<PathBuf> {
         let bin = self.dir.join(format!("kind-{KIND_VERSION}"));

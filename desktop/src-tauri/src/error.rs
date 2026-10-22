@@ -25,6 +25,9 @@ pub enum AppError {
     /// Local filesystem or network failure.
     #[error("{message}")]
     Io { message: String },
+    /// The user cancelled the operation.
+    #[error("{message}")]
+    Cancelled { message: String },
 }
 
 pub type AppResult<T> = Result<T, AppError>;

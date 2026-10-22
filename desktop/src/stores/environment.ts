@@ -1,27 +1,27 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import { ApiError, clusterApi, dockerApi } from "@/tauri/api";
+import { ApiError, type Check, clusterApi, type EnvState, envApi } from "@/tauri/api";
 
-type Docker =
-	| { state: "checking" }
-	| { state: "ok"; engine: string }
-	| { state: "down"; reason: string };
-type ClusterJob = { action: "create" | "delete"; startedAt: number } | null;
+type ClusterAction = "create" | "delete" | "repair";
 
 interface EnvironmentState {
-	docker: Docker;
-	clusterName: string;
-	workers: number;
-	job: ClusterJob;
+	/** Mirror of the Rust EnvState; null until the first snapshot arrives */
+	env: EnvState | null;
+	form: { name: string; workers: number };
+	preflight: Check[];
+	job: { cluster: string; action: ClusterAction; startedAt: number } | null;
 	log: string[];
 	lastResult: { ok: boolean; message: string } | null;
 }
 
 interface EnvironmentActions {
-	refreshDocker: () => Promise<void>;
-	setCluster: (patch: Partial<Pick<EnvironmentState, "clusterName" | "workers">>) => void;
-	runClusterJob: (action: "create" | "delete") => Promise<void>;
+	/** Load the current state and follow every change. Returns the unsubscribe. */
+	connect: () => Promise<() => void>;
+	setForm: (patch: Partial<EnvironmentState["form"]>) => void;
+	refreshPreflight: () => Promise<void>;
+	runJob: (action: ClusterAction, cluster?: string) => Promise<void>;
+	cancelJob: () => Promise<void>;
 }
 
 const MAX_LOG = 500;
@@ -29,37 +29,42 @@ const MAX_LOG = 500;
 export const useEnvironment = create<EnvironmentState & EnvironmentActions>()(
 	devtools(
 		immer((set, get) => ({
-			docker: { state: "checking" },
-			clusterName: "k8s",
-			workers: 1,
+			env: null,
+			form: { name: "k8s", workers: 1 },
+			preflight: [],
 			job: null,
 			log: [],
 			lastResult: null,
 
-			refreshDocker: async () => {
-				try {
-					const engine = await dockerApi.status();
+			connect: async () => {
+				const apply = (env: EnvState) =>
 					set(s => {
-						s.docker = { state: "ok", engine };
+						s.env = env;
 					});
-				} catch (e) {
-					set(s => {
-						s.docker = { state: "down", reason: e instanceof Error ? e.message : String(e) };
-					});
-				}
+				const unsubscribe = await envApi.subscribe(apply);
+				apply(await envApi.state());
+				return unsubscribe;
 			},
 
-			setCluster: patch =>
+			setForm: patch =>
 				set(s => {
-					Object.assign(s, patch);
+					Object.assign(s.form, patch);
 				}),
 
-			runClusterJob: async action => {
-				const { clusterName, workers, job } = get();
-				if (job) return;
+			refreshPreflight: async () => {
+				const checks = await envApi.preflight(get().form.workers);
+				set(s => {
+					s.preflight = checks;
+				});
+			},
+
+			runJob: async (action, cluster) => {
+				if (get().job) return;
+				const { name, workers } = get().form;
+				const target = cluster ?? name;
 				const startedAt = Date.now();
 				set(s => {
-					s.job = { action, startedAt };
+					s.job = { cluster: target, action, startedAt };
 					s.log = [];
 					s.lastResult = null;
 				});
@@ -69,17 +74,15 @@ export const useEnvironment = create<EnvironmentState & EnvironmentActions>()(
 						if (s.log.length > MAX_LOG) s.log.splice(0, s.log.length - MAX_LOG);
 					});
 				try {
-					if (action === "create") await clusterApi.create(clusterName, workers, onLog);
-					else await clusterApi.delete(clusterName, onLog);
+					if (action === "create") await clusterApi.create(target, workers, onLog);
+					else if (action === "delete") await clusterApi.delete(target, onLog);
+					else await clusterApi.repair(target);
 					const secs = Math.round((Date.now() - startedAt) / 1000);
 					set(s => {
-						s.lastResult = {
-							ok: true,
-							message: `${action === "create" ? "Created" : "Deleted"} in ${secs}s`,
-						};
+						s.lastResult = { ok: true, message: `${target}: ${action} done in ${secs}s` };
 					});
 				} catch (e) {
-					const message = e instanceof ApiError ? `${e.code}: ${e.message}` : String(e);
+					const message = e instanceof ApiError ? e.message : String(e);
 					set(s => {
 						s.lastResult = { ok: false, message };
 					});
@@ -88,6 +91,11 @@ export const useEnvironment = create<EnvironmentState & EnvironmentActions>()(
 						s.job = null;
 					});
 				}
+			},
+
+			cancelJob: async () => {
+				const job = get().job;
+				if (job) await clusterApi.cancel(job.cluster);
 			},
 		})),
 		{ name: "ckiu-environment", enabled: import.meta.env.DEV }

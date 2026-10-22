@@ -1,12 +1,21 @@
 // The only module that talks to Tauri. Wrappers unwrap specta `Result`s so a
 // failed command throws an `ApiError` carrying the Rust `AppError` code.
 import { Channel } from "@tauri-apps/api/core";
-import { type AppError, commands, type TerminalEvent } from "./bindings";
+import { type AppError, commands, type EnvState, events, type TerminalEvent } from "./bindings";
 
 /** What the generated command functions resolve to. */
 type Result<T, E> = { status: "ok"; data: T } | { status: "error"; error: E };
 
-export type { AppError, ScriptResult, TerminalEvent } from "./bindings";
+export type {
+	AppError,
+	Check,
+	ClusterState,
+	EnvState,
+	Issue,
+	NodeState,
+	ScriptResult,
+	TerminalEvent,
+} from "./bindings";
 
 export class ApiError extends Error {
 	readonly code: AppError["code"];
@@ -29,8 +38,12 @@ function channel<T>(onMessage: (message: T) => void): Channel<T> {
 	return ch;
 }
 
-export const dockerApi = {
-	status: () => unwrap(commands.dockerStatus()),
+export const envApi = {
+	state: () => commands.envState(),
+	/** Calls `onChange` with every new environment state; returns the unsubscribe. */
+	subscribe: async (onChange: (state: EnvState) => void) =>
+		events.envChanged.listen(event => onChange(event.payload)),
+	preflight: (workers: number) => commands.preflight(workers),
 };
 
 export const clusterApi = {
@@ -38,6 +51,8 @@ export const clusterApi = {
 		unwrap(commands.createCluster(name, workers, channel(onLog))),
 	delete: (name: string, onLog: (line: string) => void) =>
 		unwrap(commands.deleteCluster(name, channel(onLog))),
+	cancel: (name: string) => commands.cancelCluster(name),
+	repair: (name: string) => unwrap(commands.repairCluster(name)),
 };
 
 export const labApi = {

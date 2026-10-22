@@ -6,14 +6,27 @@ mod observability;
 mod runtime;
 mod terminal;
 
+use runtime::model::{Env, EnvState};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tauri::{Manager, RunEvent};
+use tauri_specta::Event;
+
+/// Pushed to the UI on every environment change.
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct EnvChanged(EnvState);
 
 /// Typed IPC: debug builds regenerate `desktop/src/tauri/bindings.ts`.
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
-    tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
-        commands::docker_status,
+    tauri_specta::Builder::<tauri::Wry>::new()
+        .events(tauri_specta::collect_events![EnvChanged])
+        .commands(tauri_specta::collect_commands![
+        commands::env_state,
+        commands::preflight,
         commands::create_cluster,
         commands::delete_cluster,
+        commands::cancel_cluster,
+        commands::repair_cluster,
         commands::run_script,
         commands::terminal_open,
         commands::terminal_write,
@@ -36,14 +49,22 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(terminal::Terminals::default())
+        .manage(cluster::jobs::Jobs::default())
         .invoke_handler(builder.invoke_handler())
-        .setup(|app| {
+        .setup(move |app| {
             if let Ok(dir) = app.path().app_log_dir() {
                 observability::init(&dir);
             }
-            let data_dir = app.path().app_data_dir()?;
-            app.manage(cluster::kind::Kind::new(data_dir));
-            tracing::info!(version = env!("CARGO_PKG_VERSION"), "ckiu desktop started");
+            builder.mount_events(app);
+            let kind = Arc::new(cluster::kind::Kind::new(app.path().app_data_dir()?));
+            let handle = app.handle().clone();
+            let env = Arc::new(Env::new(move |state| {
+                let _ = EnvChanged(state.clone()).emit(&handle);
+            }));
+            runtime::monitor::start(env.clone(), kind.clone());
+            app.manage(kind);
+            app.manage(env);
+            tracing::info!(version = env!("CARGO_PKG_VERSION"), "ckiu started");
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -88,6 +109,69 @@ mod tests {
         assert_eq!(lab::script::run(name, ckiu).await.unwrap().exit_code, 0);
 
         kind.delete(name, &log).await.unwrap();
+    }
+
+    /// The monitor notices nodes going away and coming back, live:
+    /// `cargo test monitor -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn monitor_tracks_node_failure_and_repair() {
+        use runtime::model::{ContainerStatus, Readiness};
+        use std::time::Duration;
+
+        let kind = Arc::new(cluster::kind::Kind::new(std::env::temp_dir().join("ckiu-e2e-monitor")));
+        let log = |_: String| {};
+        let name = "ckiu-mon";
+        let env = Arc::new(Env::new(|state| {
+            let nodes: Vec<String> = state
+                .clusters
+                .iter()
+                .flat_map(|c| &c.nodes)
+                .map(|n| format!("{}={:?}/{:?}", n.name, n.container, n.ready))
+                .collect();
+            println!("  state: docker={:?} nodes={nodes:?} issues={}", state.docker, state.issues.len());
+        }));
+        kind.create(name, 1, &log).await.unwrap();
+        runtime::monitor::start(env.clone(), kind.clone());
+
+        let wait = |what: &'static str, done: Box<dyn Fn(&EnvState) -> bool>| {
+            let env = env.clone();
+            async move {
+                for _ in 0..240 {
+                    if done(&env.snapshot()) {
+                        println!("ok: {what}");
+                        return;
+                    }
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+                panic!("timed out waiting for: {what}");
+            }
+        };
+        let worker = format!("{name}-worker");
+
+        wait("all nodes Ready", Box::new(|s| {
+            s.clusters.first().is_some_and(|c| c.nodes.len() == 2 && c.nodes.iter().all(|n| n.ready == Readiness::Ready))
+        }))
+        .await;
+
+        let docker = runtime::docker::connect().await.unwrap();
+        docker.stop_container(&worker, None::<bollard::query_parameters::StopContainerOptions>).await.unwrap();
+        let w = worker.clone();
+        wait("stopped worker reported as an issue", Box::new(move |s| {
+            s.clusters.iter().flat_map(|c| &c.nodes).any(|n| n.name == w && n.container == ContainerStatus::Stopped)
+                && s.issues.iter().any(|i| i.component == w)
+        }))
+        .await;
+
+        runtime::reconcile::repair(&docker, name).await.unwrap();
+        wait("worker Ready again, no issues", Box::new(|s| {
+            s.issues.is_empty()
+                && s.clusters.first().is_some_and(|c| c.nodes.iter().all(|n| n.ready == Readiness::Ready))
+        }))
+        .await;
+
+        kind.delete(name, &log).await.unwrap();
+        wait("cluster gone from the state", Box::new(|s| s.clusters.is_empty())).await;
     }
 
     /// The committed bindings must match the commands (also runs in CI).
