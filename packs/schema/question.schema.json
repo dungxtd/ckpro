@@ -32,6 +32,15 @@
       ],
       "type": "object"
     },
+    "Capability": {
+      "oneOf": [
+        {
+          "const": "container-runtime",
+          "description": "Build and run images on the candidate's machine (docker / podman)",
+          "type": "string"
+        }
+      ]
+    },
     "Check": {
       "description": "One graded step. `weight` is its share of the question's points.",
       "oneOf": [
@@ -304,6 +313,14 @@
       "description": "Documentation allowed in the exam (kubernetes.io/docs, ...)",
       "items": {
         "type": "string"
+      },
+      "type": "array"
+    },
+    "requires": {
+      "default": [],
+      "description": "Capabilities the question needs beyond a cluster and the jumphost.\nQuestions needing one ckdry does not provide are left out of exams and\nverify runs.",
+      "items": {
+        "$ref": "#/$defs/Capability"
       },
       "type": "array"
     },

@@ -350,7 +350,7 @@ solution:
     EOF
 
     # Verify the Pod has been created
-    kubectl get pod config-pod -n pod-configuration
+    kubectl wait --for=condition=Ready pod/config-pod -n pod-configuration --timeout=120s
 
     # Verify environment variables within the Pod
     kubectl exec config-pod -n pod-configuration -- env | grep -E 'APP_ENV|DEBUG|DB_|API_'

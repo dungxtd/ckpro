@@ -139,6 +139,16 @@ fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: boo
         eprintln!("error: choose what to verify with --exam or --question");
         return ExitCode::FAILURE;
     }
+    // Questions needing what ckdry cannot offer yet are skipped, not failed
+    for (label, ids) in &mut runs {
+        ids.retain(|id| match pack.questions.get(id) {
+            Some(q) if !q.value.runnable() => {
+                println!("{label}: skipped {id} (needs {:?})", q.value.requires);
+                false
+            }
+            _ => true,
+        });
+    }
 
     let data_dir = crate::data_dir();
     let infra = Infra::new(data_dir.clone());

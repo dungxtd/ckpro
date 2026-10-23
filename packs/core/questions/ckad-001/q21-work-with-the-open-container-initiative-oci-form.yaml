@@ -6,6 +6,7 @@ certifications:  # review: domains guessed from concepts
 difficulty: medium
 namespace: docker-oci
 tags: [containers, images, oci-format, docker]
+requires: [container-runtime]  # needs docker/podman on the jumphost
 
 statement: |
   For improved container image distribution and portability, you need to work with the Open Container Initiative (OCI) format.

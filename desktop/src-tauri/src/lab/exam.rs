@@ -172,7 +172,12 @@ impl Exams {
             .iter()
             .filter_map(|(id, e)| {
                 let cert = self.pack.pack.certifications.get(&e.value.certification)?;
-                let fixed = e.value.questions.len() as u32;
+                let fixed = e
+                    .value
+                    .questions
+                    .iter()
+                    .filter(|id| self.pack.questions.get(*id).is_some_and(|q| q.value.runnable()))
+                    .count() as u32;
                 Some(ExamSummary {
                     id: id.clone(),
                     title: e.value.title.clone(),
@@ -274,7 +279,11 @@ impl Exams {
                     .pack
                     .questions
                     .iter()
-                    .filter(|(id, q)| q.value.certifications.get(&exam.certification) == Some(&domain) && !ids.contains(id))
+                    .filter(|(id, q)| {
+                        q.value.certifications.get(&exam.certification) == Some(&domain)
+                            && q.value.runnable()
+                            && !ids.contains(id)
+                    })
                     .map(|(id, _)| id)
                     .collect();
                 pool.shuffle(&mut rng);
@@ -286,6 +295,10 @@ impl Exams {
         ids.into_iter()
             .filter_map(|id| {
                 let q = &self.pack.questions.get(&id)?.value;
+                if !q.runnable() {
+                    tracing::info!(question = %id, "left out: needs {:?}", q.requires);
+                    return None;
+                }
                 // The app's clusters keep their logical names
                 Some((id, render::render(q, &render::pick(q, false), &q.cluster)))
             })

@@ -61,6 +61,11 @@ pub struct Question {
     pub namespace: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Capabilities the question needs beyond a cluster and the jumphost.
+    /// Questions needing one ckdry does not provide are left out of exams and
+    /// verify runs.
+    #[serde(default)]
+    pub requires: Vec<Capability>,
     /// Values picked once per attempt so answers cannot be memorised
     #[serde(default)]
     pub vars: BTreeMap<String, Var>,
@@ -87,6 +92,29 @@ pub enum Difficulty {
     #[default]
     Medium,
     Hard,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum Capability {
+    /// Build and run images on the candidate's machine (docker / podman)
+    ContainerRuntime,
+}
+
+impl Capability {
+    /// Whether ckdry can offer it
+    pub fn available(self) -> bool {
+        match self {
+            Capability::ContainerRuntime => false,
+        }
+    }
+}
+
+impl Question {
+    /// Every capability it needs is available
+    pub fn runnable(&self) -> bool {
+        self.requires.iter().all(|c| c.available())
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]

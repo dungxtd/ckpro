@@ -300,6 +300,7 @@ solution:
     MANIFEST
 
     kubectl apply -f hello-job.yaml
+    kubectl wait --for=condition=complete job/hello-job -n networking --timeout=60s
 
     # Check job status
     kubectl get jobs -n networking

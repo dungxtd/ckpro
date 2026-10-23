@@ -58,7 +58,7 @@ checks:
       fi
 
       # Check for persistence enabled
-      if ! grep -q "persistence.*enabled.*true" /tmp/exam/q8/redis-values.yaml; then
+      if ! grep -A3 "persistence" /tmp/exam/q8/redis-values.yaml | grep -Eq "enabled: *true"; then
         echo "❌ Values file does not enable persistence"
         echo "File content:"
         cat /tmp/exam/q8/redis-values.yaml

@@ -118,23 +118,3 @@ solution:
     # Create pod with labels
     kubectl run nginx-pod --image=nginx -n core-concepts --labels="app=web,env=prod"
 
-    # Or using YAML:
-    cat <<EOF | kubectl apply -f -
-    apiVersion: v1
-    kind: Namespace
-    metadata:
-      name: core-concepts
-    ---
-    apiVersion: v1
-    kind: Pod
-    metadata:
-      name: nginx-pod
-      namespace: core-concepts
-      labels:
-        app: web
-        env: prod
-    spec:
-      containers:
-      - name: nginx
-        image: nginx
-    EOF
