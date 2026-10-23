@@ -43,6 +43,7 @@ schemars = "1.2.3"
 clap = { version = "4.6.7", features = ["derive"] }
 rand = "0.10.3"
 dirs = "7.0.0"
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

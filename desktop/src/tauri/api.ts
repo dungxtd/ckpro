@@ -9,11 +9,17 @@ import {
 	type ExamState_Serialize,
 	events,
 	type Mode,
+	type Progress,
+	type Settings_Serialize,
 	type TerminalEvent,
 } from "./bindings";
 
 /** What the generated command functions resolve to. */
 type Result<T, E> = { status: "ok"; data: T } | { status: "error"; error: E };
+
+/** The exam desk's display settings */
+export type Settings = Settings_Serialize;
+export type { Progress };
 
 /** A long operation as the app sends it */
 export type Activity = Activity_Serialize;
@@ -102,6 +108,19 @@ export const activityApi = {
 		events.activityChanged.listen(event => on(event.payload as Activity)),
 	onLog: async (on: (id: number, line: string) => void) =>
 		events.activityLog.listen(event => on(event.payload.id, event.payload.line)),
+};
+
+export const progressApi = {
+	/** Where the candidate is in an attempt (kept in the app database) */
+	load: (attemptId: string) => unwrap(commands.examProgress(attemptId)),
+	save: (attemptId: string, progress: Progress) =>
+		unwrap(commands.saveExamProgress(attemptId, progress)),
+};
+
+export const settingsApi = {
+	/** The exam desk's display settings (kept in the app database) */
+	load: () => unwrap(commands.settings()) as Promise<Settings>,
+	save: (settings: Settings) => unwrap(commands.saveSettings(settings)),
 };
 
 export const desktopApi = {

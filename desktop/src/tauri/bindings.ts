@@ -44,6 +44,12 @@ export const commands = {
 	 *  `ActivityChanged` and `ActivityLog`).
 	 */
 	activities: () => __TAURI_INVOKE<Activity_Serialize[]>("activities"),
+	/**  Where the candidate is in an attempt (question, flags, hints opened). */
+	examProgress: (attemptId: string) => typedError<Progress, AppError>(__TAURI_INVOKE("exam_progress", { attemptId })),
+	saveExamProgress: (attemptId: string, progress: Progress) => typedError<null, AppError>(__TAURI_INVOKE("save_exam_progress", { attemptId, progress })),
+	/**  The exam desk's display settings (desktop zoom and resolution, text size). */
+	settings: () => typedError<Settings_Serialize, AppError>(__TAURI_INVOKE("settings")),
+	saveSettings: (settings: Settings_Deserialize) => typedError<null, AppError>(__TAURI_INVOKE("save_settings", { settings })),
 	/**
 	 *  Start preparing an attempt. `replace` deletes existing clusters with the
 	 *  names the exam needs.
@@ -314,6 +320,14 @@ export type NodeState = {
 	ready: Readiness,
 };
 
+/**  Where the candidate is in an attempt */
+export type Progress = {
+	current: number,
+	flagged: string[],
+	/**  Hints opened per question (practice mode) */
+	hints_shown: { [key in string]: number },
+};
+
 export type QuestionResult = {
 	id: string,
 	title: string,
@@ -373,6 +387,29 @@ export type Readiness =
 export type ScriptResult = {
 	exit_code: number,
 	output: string,
+};
+
+/**  The exam desk's display settings */
+export type Settings = Settings_Serialize | Settings_Deserialize;
+
+/**  The exam desk's display settings */
+export type Settings_Deserialize = {
+	/**  How much larger the desktop is drawn (the ExamUI's +/-) */
+	desktop_zoom?: number | null,
+	/**  A fixed desktop resolution, or none to fit the panel */
+	desktop_resolution?: [number, number] | null,
+	/**  Question text size: 0 (smaller) to 3 (larger), 1 by default */
+	question_size?: number,
+};
+
+/**  The exam desk's display settings */
+export type Settings_Serialize = {
+	/**  How much larger the desktop is drawn (the ExamUI's +/-) */
+	desktop_zoom: number | null,
+	/**  A fixed desktop resolution, or none to fit the panel */
+	desktop_resolution: [number, number] | null,
+	/**  Question text size: 0 (smaller) to 3 (larger), 1 by default */
+	question_size: number,
 };
 
 export type Severity = "error" | "warning";

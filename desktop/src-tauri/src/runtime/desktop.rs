@@ -16,6 +16,7 @@ use bollard::query_parameters::{RemoveContainerOptions, UploadToContainerOptions
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// The app's desktop (tests run their own, by name)
 pub const NAME: &str = "ckdry-desktop";
 const VNC_PORT: &str = "6080/tcp";
 const POLICIES: &str = "usr/share/firefox-esr/distribution/policies.json";
@@ -31,8 +32,8 @@ pub struct DesktopSession {
 
 /// A new desktop for an attempt: Firefox allows `allowed` (URL prefixes) and
 /// `ssh <host>` reaches the task host `jumphost` for each cluster in `hosts`.
-pub async fn start(docker: &Docker, allowed: &[String], hosts: &[String], jumphost: &str) -> AppResult<()> {
-    remove(docker).await?;
+pub async fn start(docker: &Docker, name: &str, allowed: &[String], hosts: &[String], jumphost: &str) -> AppResult<()> {
+    remove(docker, name).await?;
     let password: String = {
         use rand::distr::{Alphanumeric, SampleString};
         Alphanumeric.sample_string(&mut rand::rng(), 8)
@@ -42,7 +43,7 @@ pub async fn start(docker: &Docker, allowed: &[String], hosts: &[String], jumpho
         hostname: Some("base".into()),
         env: Some(vec![format!("VNC_PASSWORD={password}")]),
         exposed_ports: Some(vec![VNC_PORT.into()]),
-        labels: Some(compose_labels(NAME).into_iter().collect()),
+        labels: Some(compose_labels(name).into_iter().collect()),
         host_config: Some(HostConfig {
             network_mode: Some(NETWORK.into()),
             // A random port on the loopback interface only
@@ -57,21 +58,21 @@ pub async fn start(docker: &Docker, allowed: &[String], hosts: &[String], jumpho
     };
     docker
         .create_container(
-            Some(bollard::query_parameters::CreateContainerOptions { name: Some(NAME.into()), ..Default::default() }),
+            Some(bollard::query_parameters::CreateContainerOptions { name: Some(name.into()), ..Default::default() }),
             config,
         )
         .await?;
     // In place before the session starts, so Firefox reads them on first launch
     let files = [(POLICIES, firefox_policies(allowed)), (SSH_HOSTS, ssh_hosts(hosts, jumphost))];
-    upload(docker, &files).await?;
-    docker.start_container(NAME, None::<bollard::query_parameters::StartContainerOptions>).await?;
+    upload(docker, name, &files).await?;
+    docker.start_container(name, None::<bollard::query_parameters::StartContainerOptions>).await?;
     Ok(())
 }
 
 /// How to reach the running desktop, if there is one. Read from Docker each
 /// time: the host port changes when the container restarts.
-pub async fn session(docker: &Docker) -> AppResult<Option<DesktopSession>> {
-    let info = match docker.inspect_container(NAME, None).await {
+pub async fn session(docker: &Docker, name: &str) -> AppResult<Option<DesktopSession>> {
+    let info = match docker.inspect_container(name, None).await {
         Ok(info) => info,
         Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => return Ok(None),
         Err(e) => return Err(e.into()),
@@ -95,15 +96,15 @@ pub async fn session(docker: &Docker) -> AppResult<Option<DesktopSession>> {
 
 /// The exam's "Reset Desktop": restart it, closing every window. The
 /// attempt's allowed docs and hosts stay; the app's client reconnects.
-pub async fn reset(docker: &Docker) -> AppResult<()> {
+pub async fn reset(docker: &Docker, name: &str) -> AppResult<()> {
     docker
-        .restart_container(NAME, Some(bollard::query_parameters::RestartContainerOptions { t: Some(2), ..Default::default() }))
+        .restart_container(name, Some(bollard::query_parameters::RestartContainerOptions { t: Some(2), ..Default::default() }))
         .await?;
     Ok(())
 }
 
-pub async fn remove(docker: &Docker) -> AppResult<()> {
-    match docker.remove_container(NAME, Some(RemoveContainerOptions { force: true, v: true, ..Default::default() })).await {
+pub async fn remove(docker: &Docker, name: &str) -> AppResult<()> {
+    match docker.remove_container(name, Some(RemoveContainerOptions { force: true, v: true, ..Default::default() })).await {
         Ok(()) | Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => Ok(()),
         Err(e) => Err(e.into()),
     }
@@ -168,7 +169,7 @@ fn ssh_hosts(hosts: &[String], jumphost: &str) -> String {
     hosts.iter().map(|host| format!("Host {host}\n  HostName {jumphost}\n  SetEnv CKDRY_HOST={host}\n")).collect()
 }
 
-async fn upload(docker: &Docker, files: &[(&str, String)]) -> AppResult<()> {
+async fn upload(docker: &Docker, name: &str, files: &[(&str, String)]) -> AppResult<()> {
     let mut archive = tar::Builder::new(Vec::new());
     for (path, content) in files {
         let mut header = tar::Header::new_gnu();
@@ -180,7 +181,7 @@ async fn upload(docker: &Docker, files: &[(&str, String)]) -> AppResult<()> {
     let archive = archive.into_inner().map_err(|e| AppError::io("packing desktop files", e))?;
     docker
         .upload_to_container(
-            NAME,
+            name,
             Some(UploadToContainerOptions { path: "/".into(), ..Default::default() }),
             bollard::body_full(archive.into()),
         )

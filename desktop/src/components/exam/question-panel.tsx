@@ -1,14 +1,13 @@
 import { Button } from "@ckdry/ui/components/button";
 import { cn } from "@ckdry/ui/lib/utils";
-import { useState } from "react";
 import { Markdown } from "@/components/markdown";
 import { useExam } from "@/stores/exam";
+import { useSettings } from "@/stores/settings";
 import type { Attempt, QuestionView } from "@/tauri/api";
 import { CheckList } from "./check-list";
 
-/** Question text sizes (the A- A A+ buttons), remembered */
+/** Question text sizes (the A- A A+ buttons) */
 const SIZES = ["text-[13px]", "text-sm", "text-base", "text-lg"];
-const SIZE_KEY = "ckdry.questionSize";
 
 /** One task as the exam shows it, plus the practice-mode aids. */
 export function QuestionPanel({ attempt, question }: { attempt: Attempt; question: QuestionView }) {
@@ -18,14 +17,10 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 	const hints = question.hints.slice(0, hintsShown[question.id] ?? 0);
 	const result = checks[question.id];
 	const solution = solutions[question.id];
-	const [size, setSize] = useState(() => {
-		const saved = Number(localStorage.getItem(SIZE_KEY));
-		return saved >= 0 && saved < SIZES.length ? saved : 1;
-	});
-	const changeSize = (next: number) => {
-		localStorage.setItem(SIZE_KEY, String(next));
-		setSize(next);
-	};
+	// Kept in the app database
+	const { settings, update } = useSettings();
+	const size = Math.min(SIZES.length - 1, settings.question_size);
+	const changeSize = (next: number) => update({ question_size: next });
 	const code = "rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-pink-400";
 
 	return (

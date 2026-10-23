@@ -11,6 +11,7 @@ import { HistoryRoute } from "@/routes/history";
 import { useActivities } from "@/stores/activity";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
+import { useSettings } from "@/stores/settings";
 import "./index.css";
 
 const NAV = [
@@ -62,14 +63,16 @@ function App() {
 	const connectEnv = useEnvironment(s => s.connect);
 	const connectExam = useExam(s => s.connect);
 	const connectActivities = useActivities(s => s.connect);
+	const loadSettings = useSettings(s => s.load);
 	// Follow the Rust environment, exam state and long operations for the
 	// life of the app
 	useEffect(() => {
+		loadSettings();
 		const stops = [connectEnv(), connectExam(), connectActivities()];
 		return () => {
 			for (const stop of stops) stop.then(fn => fn());
 		};
-	}, [connectEnv, connectExam, connectActivities]);
+	}, [connectEnv, connectExam, connectActivities, loadSettings]);
 
 	return (
 		<>

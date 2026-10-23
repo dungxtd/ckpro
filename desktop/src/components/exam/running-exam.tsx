@@ -5,17 +5,16 @@ import { BookOpen, ChevronLeft, ChevronRight, Flag, Minus, Monitor, Plus, X } fr
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useExam } from "@/stores/exam";
+import { useSettings } from "@/stores/settings";
 import type { Attempt } from "@/tauri/api";
 import { DesktopView } from "./desktop-view";
-import { ExamSettings, RESOLUTIONS } from "./exam-settings";
+import { ExamSettings } from "./exam-settings";
 import { QuestionPanel } from "./question-panel";
 import { ReadMe } from "./readme";
 import { Timer } from "./timer";
 
 /** The ExamUI's +/-: how much larger the desktop is drawn */
 const ZOOMS = [1, 1.25, 1.5, 1.75, 2];
-const ZOOM_KEY = "ckdry.desktopZoom";
-const RESOLUTION_KEY = "ckdry.desktopResolution";
 
 /** Like the exam's timer bar: alerts at 30, 15 and 5 minutes left */
 const ALERTS_MIN = [30, 15, 5];
@@ -40,11 +39,6 @@ function useTimeAlerts(endsAt: number | null) {
 	}, [endsAt]);
 }
 
-const savedResolution = (): [number, number] | null => {
-	const saved = localStorage.getItem(RESOLUTION_KEY);
-	return RESOLUTIONS.find(r => r.join("x") === saved) ?? null;
-};
-
 /**
  * The exam desk: time and the exam's controls on top, the task on the left
  * (navigation, where to solve it, the text, flag and next; drag the border to
@@ -62,21 +56,15 @@ export function RunningExam({
 	const { current, flagged, select, toggleFlag, submit, end } = useExam();
 	const [confirming, setConfirming] = useState(false);
 	const [width, setWidth] = useState(34);
-	const [zoom, setZoom] = useState(() => {
-		const saved = Number(localStorage.getItem(ZOOM_KEY));
-		return ZOOMS.includes(saved) ? saved : 1;
-	});
+	// Desktop zoom and resolution live in the app database
+	const { settings, update } = useSettings();
+	const zoom = ZOOMS.includes(settings.desktop_zoom ?? 1) ? (settings.desktop_zoom ?? 1) : 1;
+	const resolution = settings.desktop_resolution ?? null;
 	const changeZoom = (step: number) => {
 		const next = ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, ZOOMS.indexOf(zoom) + step))] ?? 1;
-		localStorage.setItem(ZOOM_KEY, String(next));
-		setZoom(next);
+		update({ desktop_zoom: next });
 	};
-	const [resolution, setResolution] = useState(savedResolution);
-	const changeResolution = (next: [number, number] | null) => {
-		if (next) localStorage.setItem(RESOLUTION_KEY, next.join("x"));
-		else localStorage.removeItem(RESOLUTION_KEY);
-		setResolution(next);
-	};
+	const changeResolution = (next: [number, number] | null) => update({ desktop_resolution: next });
 	const [tab, setTab] = useState<"desktop" | "readme">("desktop");
 	useTimeAlerts(endsAt);
 	const desk = useRef<HTMLDivElement>(null);

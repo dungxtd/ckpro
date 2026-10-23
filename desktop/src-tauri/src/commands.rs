@@ -7,6 +7,7 @@ use crate::runtime::infra::Infra;
 use crate::runtime::jumphost::{Jumphost, app_placement};
 use crate::error::{AppError, AppResult};
 use crate::runtime::activity::Activities;
+use crate::store::{Progress, Settings, Store};
 use crate::lab::script::ScriptResult;
 use crate::runtime::model::{DockerState, Env, EnvState};
 use crate::runtime::preflight::{self, Check};
@@ -208,7 +209,33 @@ pub fn list_exams(exams: State<'_, Arc<Exams>>) -> Vec<ExamSummary> {
 #[tauri::command]
 #[specta::specta]
 pub async fn desktop_reset() -> AppResult<()> {
-    crate::runtime::desktop::reset(&crate::runtime::docker::connect().await?).await
+    crate::runtime::desktop::reset(&crate::runtime::docker::connect().await?, crate::runtime::desktop::NAME).await
+}
+
+/// Where the candidate is in an attempt (question, flags, hints opened).
+#[tauri::command]
+#[specta::specta]
+pub fn exam_progress(store: State<'_, Arc<Store>>, attempt_id: String) -> AppResult<Progress> {
+    store.progress(&attempt_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn save_exam_progress(store: State<'_, Arc<Store>>, attempt_id: String, progress: Progress) -> AppResult<()> {
+    store.save_progress(&attempt_id, &progress)
+}
+
+/// The exam desk's display settings (desktop zoom and resolution, text size).
+#[tauri::command]
+#[specta::specta]
+pub fn settings(store: State<'_, Arc<Store>>) -> AppResult<Settings> {
+    store.settings()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn save_settings(store: State<'_, Arc<Store>>, settings: Settings) -> AppResult<()> {
+    store.save_settings(&settings)
 }
 
 /// The last long operations, with their logs (later changes arrive as
@@ -224,7 +251,7 @@ pub fn activities(activities: State<'_, Arc<Activities>>) -> Vec<crate::runtime:
 #[tauri::command]
 #[specta::specta]
 pub async fn desktop_session() -> AppResult<Option<crate::runtime::desktop::DesktopSession>> {
-    crate::runtime::desktop::session(&crate::runtime::docker::connect().await?).await
+    crate::runtime::desktop::session(&crate::runtime::docker::connect().await?, crate::runtime::desktop::NAME).await
 }
 
 /// Current attempt; later changes arrive as `ExamChanged` events.

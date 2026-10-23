@@ -5,6 +5,7 @@ mod error;
 mod lab;
 mod observability;
 mod runtime;
+mod store;
 mod terminal;
 
 use runtime::model::{Env, EnvState};
@@ -54,6 +55,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::desktop_session,
         commands::desktop_reset,
         commands::activities,
+        commands::exam_progress,
+        commands::save_exam_progress,
+        commands::settings,
+        commands::save_settings,
         commands::start_exam,
         commands::submit_exam,
         commands::end_exam,
@@ -154,13 +159,19 @@ pub fn run() {
             }));
             runtime::monitor::start(env.clone(), kind.clone(), infra.clone(), activities.clone());
             let jumphost = app.state::<Arc<runtime::jumphost::Jumphost>>().inner().clone();
+            // Everything kept between runs; what earlier versions wrote to
+            // files moves in once
+            let store = Arc::new(store::Store::open(&data_dir.join("ckdry.db"))?);
+            store.import_files(&data_dir);
+            app.manage(store.clone());
             let exams_handle = app.handle().clone();
             let exams = Arc::new(lab::exam::Exams::new(
                 load_pack(app.path().resource_dir().ok()),
                 kind.clone(),
                 infra,
                 jumphost,
-                crate::data_dir().join("history"),
+                runtime::desktop::NAME,
+                store,
                 move |state| {
                     let _ = ExamChanged(state.clone()).emit(&exams_handle);
                 },
@@ -397,14 +408,23 @@ mod tests {
         std::fs::create_dir_all(pack_dir.join("questions/cka")).unwrap();
         std::fs::create_dir_all(pack_dir.join("exams")).unwrap();
         std::fs::copy(core.join("pack.yaml"), pack_dir.join("pack.yaml")).unwrap();
-        std::fs::copy(core.join("questions/cka/rbac-ci-token.yaml"), pack_dir.join("questions/cka/rbac-ci-token.yaml")).unwrap();
+        // A cluster of its own: kind names are global, and `k8s` is the app's
+        // (a running exam's cluster would be replaced)
+        let cluster = "ckdry-e2e-exam";
+        let question_yaml = std::fs::read_to_string(core.join("questions/cka/rbac-ci-token.yaml")).unwrap();
+        std::fs::write(pack_dir.join("questions/cka/rbac-ci-token.yaml"), format!("{question_yaml}\ncluster: {cluster}\n")).unwrap();
         std::fs::write(pack_dir.join("exams/one.yaml"), "title: One\ncertification: cka\nquestions: [core/cka/rbac-ci-token]\n").unwrap();
         let (pack, findings) = lab::load::load(&pack_dir);
         assert!(findings.is_empty(), "{:?}", findings.iter().map(|f| &f.message).collect::<Vec<_>>());
 
-        let _ = std::fs::remove_dir_all(std::env::temp_dir().join("ckdry-e2e-history"));
+        let db = std::env::temp_dir().join("ckdry-e2e-exam.db");
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", db.display()));
+        }
+        let store = Arc::new(store::Store::open(&db).unwrap());
         let f = fixture("exam");
-        let exams = Arc::new(Exams::new(pack.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}"))));
+        let desktop = "ckdry-desktop-test-exam";
+        let exams = Arc::new(Exams::new(pack.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, store.clone(), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}"))));
         let question = "core/cka/rbac-ci-token";
         let wait_running = async || {
             for _ in 0..300 {
@@ -427,33 +447,33 @@ mod tests {
 
         // The exam desktop, as the candidate uses it
         let docker = runtime::docker::connect().await.unwrap();
-        let session = runtime::desktop::session(&docker).await.unwrap().expect("a desktop session");
+        let session = runtime::desktop::session(&docker, desktop).await.unwrap().expect("a desktop session");
         assert!(tokio::net::TcpStream::connect(("127.0.0.1", session.port)).await.is_ok() && session.password.len() == 8);
         println!("ok: desktop VNC on 127.0.0.1:{} behind a password", session.port);
         let on_base = async |cmd: &str| {
-            exec::run(&docker, runtime::desktop::NAME, &["bash", "-lc", cmd], &[], None).await.unwrap()
+            exec::run(&docker, desktop, &["bash", "-lc", cmd], &[], None).await.unwrap()
         };
         let out = on_base("hostname; whoami; command -v kubectl || echo no-kubectl").await;
         assert_eq!(out.text.split_whitespace().collect::<Vec<_>>(), ["base", "candidate", "no-kubectl"], "{}", out.text);
         println!("ok: the desktop is candidate@base, without kubectl");
-        let out = on_base("ssh -o BatchMode=yes k8s 'kubectl config current-context && kubectl get nodes --no-headers | wc -l && yq --version'").await;
+        let out = on_base(&format!("ssh -o BatchMode=yes {cluster} 'kubectl config current-context && kubectl get nodes --no-headers | wc -l && yq --version'")).await;
         let lines: Vec<&str> = out.text.lines().collect();
-        assert!(out.exit_code == 0 && lines.first() == Some(&"k8s") && out.text.contains("mikefarah"), "{}", out.text);
-        println!("ok: `ssh k8s` from base reaches the task host on context k8s, with yq");
+        assert!(out.exit_code == 0 && lines.first() == Some(&cluster) && out.text.contains("mikefarah"), "{}", out.text);
+        println!("ok: `ssh <cluster>` from base reaches the task host on its context, with yq");
         let out = on_base("cat /usr/share/firefox-esr/distribution/policies.json").await;
         assert!(out.text.contains("https://kubernetes.io/docs*") && out.text.contains("https://gateway-api.sigs.k8s.io*"), "{}", out.text);
         println!("ok: Firefox allows the CKA documentation only");
         assert_eq!(on_base("command -v codium").await.exit_code, 0);
-        runtime::desktop::reset(&docker).await.unwrap();
+        runtime::desktop::reset(&docker, desktop).await.unwrap();
         eventually("Reset desktop brings it back with VSCodium and the same allowed docs", 30, async || {
-            runtime::desktop::session(&docker).await.ok().flatten().is_some()
+            runtime::desktop::session(&docker, desktop).await.ok().flatten().is_some()
                 && on_base("grep -q kubernetes.io/docs /usr/share/firefox-esr/distribution/policies.json").await.exit_code == 0
         })
         .await;
         let solution = exams.solution(question).unwrap();
         let docker = runtime::docker::connect().await.unwrap();
         let (exit, out) =
-            lab::checks::run_script(&docker, &f.jumphost.name, "k8s", &solution.run, 300).await.unwrap();
+            lab::checks::run_script(&docker, &f.jumphost.name, cluster, &solution.run, 300).await.unwrap();
         assert_eq!(exit, 0, "{out}");
         assert!(exams.check_question(question).await.unwrap().iter().all(|c| c.passed));
         println!("ok: practice check passes after solving");
@@ -463,8 +483,8 @@ mod tests {
         })
         .await;
         exams.end().await.unwrap();
-        assert!(matches!(exams.state(), ExamState::Idle) && !f.kind.owned_clusters().contains(&"k8s".to_string()));
-        assert!(runtime::desktop::session(&runtime::docker::connect().await.unwrap()).await.unwrap().is_none());
+        assert!(matches!(exams.state(), ExamState::Idle) && !f.kind.owned_clusters().contains(&cluster.to_string()));
+        assert!(runtime::desktop::session(&runtime::docker::connect().await.unwrap(), desktop).await.unwrap().is_none());
         println!("ok: ending removes the clusters and the desktop");
 
         // Exam: nothing hidden leaks, nothing to check, unsolved scores 0
@@ -474,9 +494,27 @@ mod tests {
         assert!(ends_at.is_some() && attempt.questions[0].hints.is_empty());
         assert!(exams.check_question(question).await.is_err() && exams.solution(question).is_err());
         println!("ok: exam mode hides hints, checks and solutions");
-        // Quitting the app mid-exam: a new engine on the same data resumes it
+        // Quitting the app mid-exam: work in progress on the task host and in
+        // the cluster, everything stopped (as on quit), then a new engine on
+        // the same data resumes it with that work intact
+        let docker = runtime::docker::connect().await.unwrap();
+        let work = format!("mkdir -p /tmp/exam && echo in-progress > /tmp/exam/answer.txt && kubectl --context {cluster} create configmap work-in-progress");
+        assert_eq!(lab::checks::run_script(&docker, &f.jumphost.name, cluster, &work, 60).await.unwrap().0, 0);
+        let nodes = docker
+            .list_containers(Some(bollard::query_parameters::ListContainersOptions {
+                filters: Some(std::collections::HashMap::from([("label".to_string(), vec![format!("io.x-k8s.kind.cluster={cluster}")])])),
+                ..Default::default()
+            }))
+            .await
+            .unwrap();
+        let mut stopped: Vec<String> = nodes.into_iter().flat_map(|c| c.names.unwrap_or_default()).map(|n| n.trim_start_matches('/').to_string()).collect();
+        stopped.extend([f.jumphost.name.clone(), desktop.to_string()]);
+        for name in &stopped {
+            docker.stop_container(name, None::<bollard::query_parameters::StopContainerOptions>).await.unwrap();
+        }
+        println!("ok: quit mid-exam, {} containers stopped", stopped.len());
         let reopen = || {
-            Arc::new(Exams::new(lab::load::load(&pack_dir).0.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |_: &ExamState| {}, runtime::activity::Activities::silent()))
+            Arc::new(Exams::new(lab::load::load(&pack_dir).0.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, Arc::new(store::Store::open(&db).unwrap()), |_: &ExamState| {}, runtime::activity::Activities::silent()))
         };
         let resumed = reopen();
         resumed.restore();
@@ -487,6 +525,17 @@ mod tests {
         })
         .await;
         assert!(resumed.solution(question).is_err());
+        let (exit, out) = lab::checks::run_script(
+            &docker,
+            &f.jumphost.name,
+            cluster,
+            "cat /tmp/exam/answer.txt && kubectl get configmap work-in-progress -o name",
+            60,
+        )
+        .await
+        .unwrap();
+        assert!(exit == 0 && out.contains("in-progress") && out.contains("configmap/work-in-progress"), "{out}");
+        println!("ok: the work on the task host and in the cluster survived");
         exams.submit().unwrap();
         eventually("exam graded, unsolved fails", 60, async || {
             matches!(exams.state(), ExamState::Finished { ref result, .. } if !result.passed)

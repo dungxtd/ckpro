@@ -14,10 +14,10 @@ use crate::error::{AppError, AppResult};
 use crate::runtime::jumphost::{self, Jumphost};
 use crate::runtime::activity::Activities;
 use crate::runtime::{desktop, docker, infra::Infra};
+use crate::store::Store;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 
@@ -155,9 +155,10 @@ pub struct Exams {
     kind: Arc<Kind>,
     infra: Arc<Infra>,
     jumphost: Arc<Jumphost>,
-    history_dir: PathBuf,
-    /// The running attempt, so it survives quitting the app
-    attempt_file: PathBuf,
+    /// The exam desktop's container (`desktop::NAME` for the app)
+    desktop: String,
+    /// The running attempt and history, kept between runs
+    store: Arc<Store>,
     state: Mutex<ExamState>,
     /// Rendered questions of the current attempt (with solutions)
     session: Mutex<Vec<(String, Question)>>,
@@ -172,7 +173,8 @@ impl Exams {
         kind: Arc<Kind>,
         infra: Arc<Infra>,
         jumphost: Arc<Jumphost>,
-        history_dir: PathBuf,
+        desktop: &str,
+        store: Arc<Store>,
         publish: impl Fn(&ExamState) + Send + Sync + 'static,
         activities: Arc<Activities>,
     ) -> Self {
@@ -181,8 +183,8 @@ impl Exams {
             kind,
             infra,
             jumphost,
-            attempt_file: history_dir.with_file_name("attempt.json"),
-            history_dir,
+            desktop: desktop.into(),
+            store,
             state: Mutex::new(ExamState::Idle),
             session: Mutex::new(Vec::new()),
             cancel: Mutex::new(CancellationToken::new()),
@@ -201,27 +203,17 @@ impl Exams {
         (self.publish)(&state);
     }
 
-    /// Persist a running attempt; anything else has nothing to resume. While
-    /// grading the file stays: quitting then resumes the attempt, to submit again.
+    /// Keep a running attempt; anything else has nothing to resume. While
+    /// grading it stays: quitting then resumes the attempt, to submit again.
     fn save_attempt(&self, state: &ExamState) {
         let result = match state {
-            ExamState::Running { .. } => {
-                let saved = SavedAttempt {
-                    state: state.clone(),
-                    questions: self.session.lock().unwrap_or_else(|p| p.into_inner()).clone(),
-                };
-                serde_json::to_vec(&saved).map_err(std::io::Error::other).and_then(|json| {
-                    let tmp = self.attempt_file.with_extension("tmp");
-                    std::fs::write(&tmp, json)?;
-                    std::fs::rename(&tmp, &self.attempt_file)
-                })
-            }
+            ExamState::Running { .. } => self.store.save_attempt(Some(&SavedAttempt {
+                state: state.clone(),
+                questions: self.session.lock().unwrap_or_else(|p| p.into_inner()).clone(),
+            })),
             // Resumed (and graded) at the next start
             ExamState::Grading { .. } | ExamState::Resuming { .. } => Ok(()),
-            _ => match std::fs::remove_file(&self.attempt_file) {
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-                other => other,
-            },
+            _ => self.store.save_attempt::<SavedAttempt>(None),
         };
         if let Err(e) = result {
             tracing::warn!(error = %e, "saving the running attempt");
@@ -232,12 +224,7 @@ impl Exams {
     /// clusters, task host and desktop again and wait for the clusters. An
     /// exam whose time ran out meanwhile is graded then.
     pub fn restore(self: &Arc<Self>) {
-        let Some(saved) = std::fs::read(&self.attempt_file)
-            .ok()
-            .and_then(|json| serde_json::from_slice::<SavedAttempt>(&json).ok())
-        else {
-            return;
-        };
+        let Some(saved) = self.store.attempt::<SavedAttempt>().ok().flatten() else { return };
         let ExamState::Running { attempt, started_at, ends_at } = saved.state else { return };
         tracing::info!(attempt = %attempt.id, "resuming the running attempt");
         *self.session.lock().unwrap_or_else(|p| p.into_inner()) = saved.questions;
@@ -270,6 +257,13 @@ impl Exams {
     async fn resume(&self, attempt: &Attempt, activity: u32) -> AppResult<()> {
         let op = self.activities.handle(activity);
         let docker = docker::connect().await?;
+        // Removed while the app was closed: nothing to wait for
+        let existing = self.kind.all_clusters().await?;
+        if let Some(gone) = attempt.clusters.iter().find(|c| !existing.contains(c)) {
+            return Err(AppError::cluster(format!(
+                "cluster {gone} no longer exists (removed while ckdry was closed): close this exam and start it again"
+            )));
+        }
         let mut step = 0;
         for cluster in &attempt.clusters {
             op.step(step, None);
@@ -279,11 +273,25 @@ impl Exams {
             }
             step += 1;
         }
-        for name in [self.jumphost.name.as_str(), desktop::NAME] {
-            op.step(step, None);
-            crate::runtime::infra::start_existing(&docker, name).await?;
-            step += 1;
+        // Started again as they were (the candidate's files are on them); made
+        // again only if they were removed meanwhile. Never replaced: a newer
+        // image would wipe the work on the task host
+        op.step(step, None);
+        if !crate::runtime::infra::start_existing(&docker, &self.jumphost.name).await? {
+            op.log("the task host was removed: making a new one (files on it are lost)".to_string());
+            let log = |line: String| op.log(line);
+            self.jumphost.ensure(&docker, &log).await?;
         }
+        self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await?;
+        step += 1;
+        op.step(step, None);
+        if !crate::runtime::infra::start_existing(&docker, &self.desktop).await? {
+            op.log("the desktop was removed: making a new one".to_string());
+            let questions = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            let allowed = self.allowed_docs(&attempt.certification, &questions);
+            desktop::start(&docker, &self.desktop, &allowed, &attempt.clusters, &self.jumphost.name).await?;
+        }
+        step += 1;
         op.step(step, None);
         for cluster in &attempt.clusters {
             op.detail(format!("Waiting for the API server of {cluster}"));
@@ -384,10 +392,7 @@ impl Exams {
                 .collect(),
             clusters: clusters.keys().cloned().collect(),
         };
-        // The certification's allowed docs plus the tasks' own references
-        let mut allowed = cert.resources.clone();
-        allowed.extend(questions.iter().flat_map(|(_, q)| q.references.iter().cloned()));
-        allowed.dedup();
+        let allowed = self.allowed_docs(&exam.certification, &questions);
         *self.session.lock().unwrap_or_else(|p| p.into_inner()) = questions;
         let token = CancellationToken::new();
         *self.cancel.lock().unwrap_or_else(|p| p.into_inner()) = token.clone();
@@ -437,6 +442,14 @@ impl Exams {
             }
         });
         Ok(())
+    }
+
+    /// The certification's allowed docs plus the tasks' own references
+    fn allowed_docs(&self, certification: &str, questions: &[(String, Question)]) -> Vec<String> {
+        let mut allowed = self.pack.pack.certifications.get(certification).map(|c| c.resources.clone()).unwrap_or_default();
+        allowed.extend(questions.iter().flat_map(|(_, q)| q.references.iter().cloned()));
+        allowed.dedup();
+        allowed
     }
 
     fn draw(&self, exam: &Exam) -> Vec<(String, Question)> {
@@ -513,7 +526,7 @@ impl Exams {
         self.jumphost.reset(&docker, &log).await?;
         self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await?;
         next(None);
-        desktop::start(&docker, allowed, &attempt.clusters, &self.jumphost.name).await?;
+        desktop::start(&docker, &self.desktop, allowed, &attempt.clusters, &self.jumphost.name).await?;
         if !setups.is_empty() {
             next(None);
         }
@@ -731,7 +744,7 @@ impl Exams {
         op.step(step, None);
         match docker::connect().await {
             Ok(docker) => {
-                if let Err(e) = desktop::remove(&docker).await {
+                if let Err(e) = desktop::remove(&docker, &self.desktop).await {
                     op.log(format!("could not remove the desktop: {e}"));
                 }
                 op.step(step + 1, None);
@@ -753,23 +766,16 @@ impl Exams {
             pass_score: attempt.pass_score,
             result: result.clone(),
         };
-        let write = || -> std::io::Result<()> {
-            std::fs::create_dir_all(&self.history_dir)?;
-            std::fs::write(self.history_dir.join(format!("{}.json", attempt.id)), serde_json::to_vec_pretty(&entry)?)
-        };
-        if let Err(e) = write() {
+        if let Err(e) = self.store.add_history(&attempt.id, &attempt.exam_id, result.finished_at, &entry) {
             tracing::warn!(error = %e, "saving exam history");
         }
     }
 
     pub fn history(&self) -> Vec<HistoryEntry> {
-        let Ok(entries) = std::fs::read_dir(&self.history_dir) else { return Vec::new() };
-        let mut history: Vec<HistoryEntry> = entries
-            .flatten()
-            .filter_map(|e| serde_json::from_slice(&std::fs::read(e.path()).ok()?).ok())
-            .collect();
-        history.sort_by(|a, b| b.attempt_id.cmp(&a.attempt_id));
-        history
+        self.store.history().unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "reading exam history");
+            Vec::new()
+        })
     }
 }
 

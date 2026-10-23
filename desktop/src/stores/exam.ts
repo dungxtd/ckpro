@@ -8,6 +8,7 @@ import {
 	type ExamSummary,
 	examApi,
 	type Mode,
+	progressApi,
 	type Solution,
 } from "@/tauri/api";
 
@@ -51,6 +52,20 @@ const freshAttempt = (attemptId: string | null): AttemptUi => ({
 	solutions: {},
 });
 
+/** Where the candidate is, what they flagged and the hints they opened go to
+ * the app database, so they survive quitting mid-attempt like the attempt */
+const save = (s: AttemptUi) => {
+	if (!s.attemptId) return;
+	// Plain copies: `s` is an immer draft, gone once the update ends
+	progressApi
+		.save(s.attemptId, {
+			current: s.current,
+			flagged: [...s.flagged],
+			hints_shown: { ...s.hintsShown },
+		})
+		.catch(e => console.error("saving exam progress", e));
+};
+
 const attemptId = (state: ExamState) => ("attempt" in state ? (state.attempt?.id ?? null) : null);
 const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
 
@@ -68,7 +83,18 @@ export const useExam = create<ExamStore>()(
 					set(s => {
 						s.state = state;
 						const id = attemptId(state);
-						if (id && id !== s.attemptId) Object.assign(s, freshAttempt(id));
+						if (id && id !== s.attemptId) {
+							Object.assign(s, freshAttempt(id));
+							// Back where the candidate was (the app reopened mid-attempt)
+							progressApi.load(id).then(saved =>
+								set(t => {
+									if (t.attemptId !== id) return;
+									t.current = saved.current;
+									t.flagged = saved.flagged;
+									t.hintsShown = saved.hints_shown as Record<string, number>;
+								})
+							);
+						}
 					});
 				const unsubscribe = await examApi.subscribe(apply);
 				apply(await examApi.state());
@@ -135,6 +161,7 @@ export const useExam = create<ExamStore>()(
 			select: index =>
 				set(s => {
 					s.current = index;
+					save(s);
 				}),
 
 			toggleFlag: questionId =>
@@ -142,11 +169,13 @@ export const useExam = create<ExamStore>()(
 					s.flagged = s.flagged.includes(questionId)
 						? s.flagged.filter(id => id !== questionId)
 						: [...s.flagged, questionId];
+					save(s);
 				}),
 
 			showHint: questionId =>
 				set(s => {
 					s.hintsShown[questionId] = (s.hintsShown[questionId] ?? 0) + 1;
+					save(s);
 				}),
 
 			check: async questionId => {
