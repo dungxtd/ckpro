@@ -94,6 +94,7 @@ pub const DESKTOP_IMAGE: Image = Image {
         ("Dockerfile", include_bytes!("../../resources/desktop/Dockerfile")),
         ("start.sh", include_bytes!("../../resources/desktop/start.sh")),
         ("xsettings.xml", include_bytes!("../../resources/desktop/xsettings.xml")),
+        ("gtk.css", include_bytes!("../../resources/desktop/gtk.css")),
         ("xfce4-terminal.xml", include_bytes!("../../resources/desktop/xfce4-terminal.xml")),
         ("xfce-stripes.png", include_bytes!("../../resources/desktop/xfce-stripes.png")),
         ("xfce4-desktop.xml", include_bytes!("../../resources/desktop/xfce4-desktop.xml")),

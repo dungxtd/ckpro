@@ -50,6 +50,7 @@ COPY trust-launchers.sh /usr/local/bin/trust-launchers
 COPY xsettings.xml xfce4-desktop.xml xfce4-terminal.xml /home/candidate/.config/xfce4/xfconf/xfce-perchannel-xml/
 COPY xfce-stripes.png /usr/share/backgrounds/xfce/xfce-stripes.png
 COPY helpers.rc /home/candidate/.config/xfce4/helpers.rc
+COPY gtk.css /home/candidate/.config/gtk-3.0/gtk.css
 # The exam's desktop icons (xfdesktop opens them through Thunar's service)
 COPY terminal.desktop firefox.desktop codium.desktop keyboard.desktop /home/candidate/Desktop/
 # Xfce's own default panels, as on the exam: the dark top bar (menu, windows,
