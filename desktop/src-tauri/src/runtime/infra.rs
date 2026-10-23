@@ -70,6 +70,7 @@ pub const DESKTOP_IMAGE: Image = Image {
         ("terminal.desktop", include_str!("../../resources/desktop/terminal.desktop")),
         ("firefox.desktop", include_str!("../../resources/desktop/firefox.desktop")),
         ("keyboard.desktop", include_str!("../../resources/desktop/keyboard.desktop")),
+        ("codium.desktop", include_str!("../../resources/desktop/codium.desktop")),
     ],
     args: &[],
 };

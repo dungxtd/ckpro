@@ -1,16 +1,49 @@
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
+import { cn } from "@ckdry/ui/lib/utils";
 import { ChevronLeft, ChevronRight, Flag, Minus, Plus } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useExam } from "@/stores/exam";
 import type { Attempt } from "@/tauri/api";
 import { DesktopView } from "./desktop-view";
+import { ExamSettings, RESOLUTIONS } from "./exam-settings";
 import { QuestionPanel } from "./question-panel";
+import { ReadMe } from "./readme";
 import { Timer } from "./timer";
 
 /** The ExamUI's +/-: how much larger the desktop is drawn */
 const ZOOMS = [1, 1.25, 1.5, 1.75, 2];
 const ZOOM_KEY = "ckdry.desktopZoom";
+const RESOLUTION_KEY = "ckdry.desktopResolution";
+
+/** Like the exam's timer bar: alerts at 30, 15 and 5 minutes left */
+const ALERTS_MIN = [30, 15, 5];
+
+function useTimeAlerts(endsAt: number | null) {
+	// Alerts already past (the app reopened mid-exam) stay quiet
+	const fired = useRef<Set<number> | null>(null);
+	useEffect(() => {
+		if (endsAt === null) return;
+		const left = () => (endsAt - Date.now()) / 60_000;
+		fired.current = new Set(ALERTS_MIN.filter(m => left() <= m));
+		const timer = setInterval(() => {
+			for (const minutes of ALERTS_MIN) {
+				if (left() <= minutes && !fired.current?.has(minutes)) {
+					fired.current?.add(minutes);
+					toast.warning(`${minutes} minutes left`, { duration: 10_000 });
+				}
+			}
+		}, 1000);
+		return () => clearInterval(timer);
+		// Each attempt has its own end
+	}, [endsAt]);
+}
+
+const savedResolution = (): [number, number] | null => {
+	const saved = localStorage.getItem(RESOLUTION_KEY);
+	return RESOLUTIONS.find(r => r.join("x") === saved) ?? null;
+};
 
 /**
  * The exam desk, laid out like the exam's ExamUI: navigation and time on
@@ -38,6 +71,14 @@ export function RunningExam({
 		localStorage.setItem(ZOOM_KEY, String(next));
 		setZoom(next);
 	};
+	const [resolution, setResolution] = useState(savedResolution);
+	const changeResolution = (next: [number, number] | null) => {
+		if (next) localStorage.setItem(RESOLUTION_KEY, next.join("x"));
+		else localStorage.removeItem(RESOLUTION_KEY);
+		setResolution(next);
+	};
+	const [tab, setTab] = useState<"desktop" | "readme">("desktop");
+	useTimeAlerts(endsAt);
 	const desk = useRef<HTMLDivElement>(null);
 	const question = attempt.questions[current];
 	const count = attempt.questions.length;
@@ -123,6 +164,7 @@ export function RunningExam({
 					>
 						<Plus className="size-4" />
 					</Button>
+					<ExamSettings resolution={resolution} onResolution={changeResolution} />
 				</div>
 				<span className="text-sm">
 					<Timer startedAt={startedAt} endsAt={endsAt} />
@@ -159,9 +201,40 @@ export function RunningExam({
 					className="w-1.5 shrink-0 cursor-col-resize bg-border hover:bg-primary/40"
 					title="Drag to resize"
 				/>
-				<section className="min-w-0 flex-1">
-					{/* A new attempt is a new desktop */}
-					<DesktopView key={attempt.id} zoom={zoom} />
+				<section className="flex min-w-0 flex-1 flex-col">
+					<div className="flex gap-1 border-border border-b px-2 pt-1">
+						{(
+							[
+								["readme", "ReadMe"],
+								["desktop", "Remote Desktop"],
+							] as const
+						).map(([id, label]) => (
+							<button
+								key={id}
+								type="button"
+								onClick={() => setTab(id)}
+								className={cn(
+									"-mb-px rounded-t-md border border-transparent px-3 py-1 text-sm",
+									tab === id
+										? "border-border border-b-background bg-background font-medium"
+										: "text-muted-foreground"
+								)}
+							>
+								{label}
+							</button>
+						))}
+					</div>
+					<div className="relative min-h-0 flex-1">
+						{/* Stays connected behind the ReadMe; a new attempt is a new desktop */}
+						<div className={cn("absolute inset-0", tab !== "desktop" && "invisible")}>
+							<DesktopView key={attempt.id} zoom={zoom} resolution={resolution} />
+						</div>
+						{tab === "readme" && (
+							<div className="absolute inset-0 bg-background">
+								<ReadMe attempt={attempt} />
+							</div>
+						)}
+					</div>
 				</section>
 			</div>
 		</div>

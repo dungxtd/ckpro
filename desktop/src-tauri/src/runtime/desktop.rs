@@ -93,6 +93,15 @@ pub async fn session(docker: &Docker) -> AppResult<Option<DesktopSession>> {
     Ok(port.zip(password).map(|(port, password)| DesktopSession { port, password }))
 }
 
+/// The exam's "Reset Desktop": restart it, closing every window. The
+/// attempt's allowed docs and hosts stay; the app's client reconnects.
+pub async fn reset(docker: &Docker) -> AppResult<()> {
+    docker
+        .restart_container(NAME, Some(bollard::query_parameters::RestartContainerOptions { t: Some(2), ..Default::default() }))
+        .await?;
+    Ok(())
+}
+
 pub async fn remove(docker: &Docker) -> AppResult<()> {
     match docker.remove_container(NAME, Some(RemoveContainerOptions { force: true, v: true, ..Default::default() })).await {
         Ok(()) | Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => Ok(()),

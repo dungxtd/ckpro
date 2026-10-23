@@ -107,6 +107,8 @@ export const activityApi = {
 export const desktopApi = {
 	/** VNC websocket port and password of the exam desktop; null until it runs. */
 	session: () => unwrap(commands.desktopSession()),
+	/** The exam's "Reset Desktop": restart it, closing its windows. */
+	reset: () => unwrap(commands.desktopReset()),
 };
 
 export const examApi = {

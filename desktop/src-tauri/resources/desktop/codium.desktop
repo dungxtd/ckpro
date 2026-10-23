@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=VSCodium
+Comment=Code editor (extensions cannot be installed)
+Exec=codium --no-sandbox --disable-gpu --disable-workspace-trust %F
+Icon=vscodium
+StartupNotify=true

@@ -52,6 +52,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::list_exams,
         commands::exam_state,
         commands::desktop_session,
+        commands::desktop_reset,
         commands::activities,
         commands::start_exam,
         commands::submit_exam,
@@ -430,6 +431,13 @@ mod tests {
         let out = on_base("cat /usr/share/firefox-esr/distribution/policies.json").await;
         assert!(out.text.contains("https://kubernetes.io/docs*") && out.text.contains("https://gateway-api.sigs.k8s.io*"), "{}", out.text);
         println!("ok: Firefox allows the CKA documentation only");
+        assert_eq!(on_base("command -v codium").await.exit_code, 0);
+        runtime::desktop::reset(&docker).await.unwrap();
+        eventually("Reset desktop brings it back with VSCodium and the same allowed docs", 30, async || {
+            runtime::desktop::session(&docker).await.ok().flatten().is_some()
+                && on_base("grep -q kubernetes.io/docs /usr/share/firefox-esr/distribution/policies.json").await.exit_code == 0
+        })
+        .await;
         let solution = exams.solution(question).unwrap();
         let docker = runtime::docker::connect().await.unwrap();
         let (exit, out) =

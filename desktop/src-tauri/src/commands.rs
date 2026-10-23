@@ -204,6 +204,13 @@ pub fn list_exams(exams: State<'_, Arc<Exams>>) -> Vec<ExamSummary> {
     exams.catalog()
 }
 
+/// Restart the exam desktop (its windows close; the client reconnects).
+#[tauri::command]
+#[specta::specta]
+pub async fn desktop_reset() -> AppResult<()> {
+    crate::runtime::desktop::reset(&crate::runtime::docker::connect().await?).await
+}
+
 /// The last long operations, with their logs (later changes arrive as
 /// `ActivityChanged` and `ActivityLog`).
 #[tauri::command]

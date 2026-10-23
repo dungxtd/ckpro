@@ -52,7 +52,11 @@ export function ExamRoute() {
 		case "ending":
 			return <ActivityPage id={state.activity} subtitle={state.attempt.title} />;
 		case "finished":
-			return <Results attempt={state.attempt} result={state.result} />;
+			return (
+				<div className="h-full overflow-auto">
+					<Results attempt={state.attempt} result={state.result} />
+				</div>
+			);
 		case "failed": {
 			const attempt = state.attempt;
 			const retry = attempt

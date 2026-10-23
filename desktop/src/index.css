@@ -1,8 +1,10 @@
 @import "@ckdry/ui/styles.css";
 @import "@xterm/xterm/css/xterm.css";
 
+/* An app window: only the areas meant to scroll do */
 html,
 body,
 #root {
 	height: 100%;
+	overflow: hidden;
 }

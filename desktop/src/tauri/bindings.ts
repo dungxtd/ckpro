@@ -37,6 +37,8 @@ export const commands = {
 	 *  or nothing when no attempt has one.
 	 */
 	desktopSession: () => typedError<DesktopSession | null, AppError>(__TAURI_INVOKE("desktop_session")),
+	/**  Restart the exam desktop (its windows close; the client reconnects). */
+	desktopReset: () => typedError<null, AppError>(__TAURI_INVOKE("desktop_reset")),
 	/**
 	 *  The last long operations, with their logs (later changes arrive as
 	 *  `ActivityChanged` and `ActivityLog`).
