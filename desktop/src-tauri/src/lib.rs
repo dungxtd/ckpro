@@ -210,6 +210,16 @@ mod tests {
     }
 
     impl Fixture {
+        /// Remove the test's own jumphost container: a test leaves nothing
+        /// running. Its directory stays: the next run mounts the same path,
+        /// and OrbStack's file sharing shows a deleted-then-recreated
+        /// directory as missing to new containers
+        async fn teardown(&self) {
+            let docker = runtime::docker::connect().await.unwrap();
+            let options = bollard::query_parameters::RemoveContainerOptions { force: true, v: true, ..Default::default() };
+            let _ = docker.remove_container(&self.jumphost.name, Some(options)).await;
+        }
+
         /// Create a cluster and give the jumphost access to it
         async fn create(&self, cluster: &str, workers: u8) {
             cluster::lifecycle::create(&self.kind, &self.infra, cluster, workers, &log, &Default::default()).await.unwrap();
@@ -333,6 +343,7 @@ mod tests {
         let out = f.on_jumphost("kubectl config get-contexts -o name 2>&1").await;
         assert!(!out.text.contains(name), "{}", out.text);
         println!("ok: context removed from the jumphost");
+        f.teardown().await;
     }
 
     /// The monitor notices nodes going away and coming back, live:
@@ -371,6 +382,7 @@ mod tests {
 
         f.delete(name).await;
         eventually("cluster gone from the state", 30, async || env.snapshot().clusters.is_empty()).await;
+        f.teardown().await;
     }
 
     /// A whole attempt through the exam engine, both modes, on a one-question
@@ -489,6 +501,7 @@ mod tests {
         after.restore();
         assert!(matches!(after.state(), ExamState::Idle));
         println!("ok: nothing to resume once the attempt has ended");
+        f.teardown().await;
     }
 
     /// The committed bindings must match the commands (also runs in CI).
