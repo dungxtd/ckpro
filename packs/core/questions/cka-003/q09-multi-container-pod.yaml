@@ -93,4 +93,17 @@ solution:
     ### Why this works
     Multiple containers in the same Pod share the same network namespace and can share volumes; here they're just independent processes with no explicit inter-dependency, which is enough to satisfy the task. A specific image tag (`1.15`, not `latest`) is used for the `consul` container so the pull is deterministic and reproducible.
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: kucc8
+      namespace: multi-container
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+        - name: consul
+          image: hashicorp/consul:1.15
+    MANIFEST

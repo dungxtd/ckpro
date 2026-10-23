@@ -217,4 +217,19 @@ solution:
 
     # Examine the service details to identify selector and port configuration issues
     kubectl describe svc web-service -n troubleshooting
+
+    cat > fixed-service.yaml <<'MANIFEST'
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-service
+      namespace: troubleshooting
+    spec:
+      selector:
+        app: web-app
+      ports:
+      - port: 80
+        targetPort: 80
+    MANIFEST
+
     kubectl apply -f fixed-service.yaml

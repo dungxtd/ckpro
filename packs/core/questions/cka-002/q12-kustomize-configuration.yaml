@@ -254,8 +254,65 @@ solution:
   run: |
     mkdir -p /tmp/exam/kustomize/base
     mkdir -p /tmp/exam/kustomize/overlays/production
+
+    kubectl apply -f - <<'MANIFEST'
+    # /tmp/exam/kustomize/base/deployment.yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: nginx
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: nginx
+      template:
+        metadata:
+          labels:
+            app: nginx
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+            volumeMounts:
+            - name: nginx-index
+              mountPath: /usr/share/nginx/html/
+          volumes:
+          - name: nginx-index
+            configMap:
+              name: nginx-config
+
+    # /tmp/exam/kustomize/base/kustomization.yaml
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    resources:
+    - deployment.yaml
+
+    # /tmp/exam/kustomize/overlays/production/kustomization.yaml
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    namespace: kustomize
+    bases:
+    - ../../base
+    patches:
+    - patch: |
+        - op: replace
+          path: /spec/replicas
+          value: 3
+      target:
+        kind: Deployment
+        name: nginx
+    commonLabels:
+      environment: production
+    configMapGenerator:
+    - name: nginx-config
+      literals:
+      - index.html=Welcome to Production
+    MANIFEST
+
     kubectl create namespace kustomize
     kubectl apply -k /tmp/exam/kustomize/overlays/production/
+
     kubectl get deployments -n kustomize
     kubectl get configmaps -n kustomize
     kubectl get pods -n kustomize

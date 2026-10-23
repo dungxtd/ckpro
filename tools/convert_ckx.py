@@ -21,7 +21,10 @@ PACK = Path(sys.argv[2] if len(sys.argv) > 2 else "packs/core")
 CERTS = {"CKA": ["cka"], "CKAD": ["ckad"], "CKS": ["cks"]}
 # Labs ckdry cannot run yet, and questions already converted by hand
 SKIP_LABS = {"docker-001"}  # needs a Docker daemon on the candidate's machine
-CURATED = {("cka-003", "1"): "core/cka/rbac-ci-token"}
+CURATED = {
+    ("cka-003", "1"): "core/cka/rbac-ci-token",
+    ("cka-001", "2"): "core/cka/static-pod-on-node",  # CK-X put it on the jumphost, not a node
+}
 
 # Concept keywords → curriculum domain, per certification (first match wins ties)
 DOMAINS = {
@@ -51,6 +54,23 @@ DOMAINS = {
 DEFAULT_DOMAIN = {"cka": "cluster-architecture", "ckad": "application-design-build", "cks": "cluster-setup"}
 
 
+# CK-X environment details → ckdry (etcd is reached from the jumphost)
+REWRITES = [
+    ("https://k8s-api-server:2379", "https://k8s-control-plane:2379"),
+    ("/home/candidate/.kube/etcd-certs", "/root/.ckdry/etcd/k8s"),
+]
+
+
+def rewrite(text):
+    for old, new in REWRITES:
+        text = text.replace(old, new)
+    # etcd 3.6 (Kubernetes 1.35) moved offline snapshot commands to etcdutl
+    text = re.sub(r"etcdctl(\s+snapshot\s+(?:status|restore))", r"etcdutl\1", text)
+    text = text.replace("k8s-api-server", "k8s-control-plane")
+    text = text.replace(" (see `kind-cluster/scripts/etcd-export-certs`)", "")
+    return text
+
+
 def domain_for(cert, question):
     words = " ".join(question["concepts"] + [question["question"]]).lower()
     best, score = None, 0
@@ -71,18 +91,53 @@ def script_body(path):
     return body.strip("\n") + "\n" if body.strip() else ""
 
 
+# Manifests of these API groups are configuration files, not cluster objects
+FILE_ONLY_APIS = ("kustomize.config.k8s.io", "apiserver.config.k8s.io", "audit.k8s.io", "kubelet.config.k8s.io",
+                  "kind.x-k8s.io", "apiserver.k8s.io", "kubeadm.k8s.io")
+
+
+def is_object_manifest(text):
+    api = re.search(r"^apiVersion:\s*(\S+)", text, flags=re.M)
+    return bool(api and re.search(r"^kind:\s*\S+", text, flags=re.M)) and not api.group(1).startswith(FILE_ONLY_APIS)
+
+
+def solution_commands(body):
+    """Commands that reproduce an answer: its shell blocks in order, with its
+    manifests either written to the files the commands use (`-f x.yaml`) or
+    applied directly."""
+    blocks = re.findall(r"```(\w*)\n(.*?)```", body, flags=re.S)
+    shell = [b for lang, b in blocks if lang in ("bash", "sh", "shell")]
+    referenced = []
+    for b in shell:
+        for name in re.findall(r"-f\s+(\S+\.ya?ml)\b", b):
+            if name not in referenced and not name.startswith("http"):
+                referenced.append(name)
+    files = iter(referenced)
+    out = []
+    for lang, b in blocks:
+        b = b.strip("\n")
+        # Shell written in a yaml fence (`cat << EOF > x.yaml`) is still shell
+        if lang in ("bash", "sh", "shell") or re.match(r"\s*(#.*\n\s*)*(cat|kubectl|echo|mkdir)\b", b):
+            out.append(b)
+        elif lang in ("yaml", "yml", "") and "apiVersion" in b:
+            target = next(files, None)
+            if target:
+                folder = target.rsplit("/", 1)[0] if "/" in target else ""
+                prefix = f"mkdir -p {folder}\n" if folder else ""
+                out.append(f"{prefix}cat > {target} <<'MANIFEST'\n{b}\nMANIFEST")
+            elif is_object_manifest(b):
+                out.append(f"kubectl apply -f - <<'MANIFEST'\n{b}\nMANIFEST")
+    return "\n\n".join(out)
+
+
 def answers(path):
-    """Question number → (title, markdown, bash commands) from answers.md."""
+    """Question number → (title, markdown, commands) from answers.md."""
     text = path.read_text() if path.exists() else ""
     sections = re.split(r"^## Question (\d+)[:.]?\s*(.*)$", text, flags=re.M)
     found = {}
     for i in range(1, len(sections) - 2, 3):
         number, title, body = sections[i], sections[i + 1].strip(), sections[i + 2].strip()
-        commands = "\n".join(
-            block.strip()
-            for block in re.findall(r"```(?:bash|sh|shell)\n(.*?)```", body, flags=re.S)
-        )
-        found[number] = (title, body, commands)
+        found[number] = (title, body, solution_commands(body))
     return found
 
 
@@ -150,10 +205,10 @@ def main():
     exams = 0
     questions = 0
     for lab in catalog:
-        if lab["id"] in SKIP_LABS:
+        if lab["id"] in SKIP_LABS or lab.get("requires"):
             print(f"skip {lab['id']}: {lab.get('requires')}")
             continue
-        lab["dir"] = LABS / lab["assetPath"]
+        lab["dir"] = LABS / lab["assetPath"].removeprefix("assets/exams/")
         config = json.loads((lab["dir"] / "config.json").read_text())
         assessment = json.loads((lab["dir"] / "assessment.json").read_text())
         cert_list = CERTS.get(lab["category"], ["cka", "ckad"])  # helm lab fits both
@@ -174,7 +229,7 @@ def main():
             name = f"q{int(q['id']):02d}-{slug(title)}"
             target = PACK / "questions" / lab["id"] / f"{name}.yaml"
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(question_yaml(q, lab, cert_list, title, setup, solution_md, solution_run, workers))
+            target.write_text(rewrite(question_yaml(q, lab, cert_list, title, setup, solution_md, solution_run, workers)))
             ids.append(f"core/{lab['id']}/{name}")
             questions += 1
 

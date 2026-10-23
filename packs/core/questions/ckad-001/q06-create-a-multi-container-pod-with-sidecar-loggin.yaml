@@ -181,7 +181,32 @@ solution:
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
+    cat > sidecar-pod.yaml <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: sidecar-pod
+      namespace: troubleshooting
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/my-log
+      - name: sidecar
+        image: busybox
+        command: ["sh", "-c", "while true; do date >> /var/my-log/date.log; sleep 10; done"]
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/my-log
+      volumes:
+      - name: log-volume
+        emptyDir: {}
+    MANIFEST
+
     kubectl apply -f sidecar-pod.yaml
+
     # Check that both containers are running in the pod
     kubectl get pod sidecar-pod -n troubleshooting
 

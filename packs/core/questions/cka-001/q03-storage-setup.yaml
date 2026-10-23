@@ -129,4 +129,31 @@ solution:
     EOF
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    # Create storage namespace
+    kubectl create namespace storage
+
+    # Create StorageClass
+    cat << EOF | kubectl apply -f -
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: fast-storage
+    provisioner: kubernetes.io/no-provisioner
+    EOF
+
+    # Create PVC
+    cat << EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: data-pvc
+      namespace: storage
+    spec:
+      storageClassName: fast-storage
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+    EOF

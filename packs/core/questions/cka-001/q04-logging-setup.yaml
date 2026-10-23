@@ -182,4 +182,36 @@ solution:
     EOF
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    # Create monitoring namespace
+    kubectl create namespace monitoring
+
+    # Create pod
+    cat << EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: logger
+      namespace: monitoring
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ['/bin/sh', '-c']
+        args:
+        - while true; do
+            echo "$(date) - Application log entry" >> /var/log/app.log;
+            sleep 10;
+          done
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/log
+      - name: fluentd
+        image: fluentd
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/log
+      volumes:
+      - name: log-volume
+        emptyDir: {}
+    EOF

@@ -166,4 +166,23 @@ solution:
     ### Why this works
     `ingressClassName: nginx` tells the ingress-nginx controller (installed cluster-wide by this lab's setup, mirroring how `cka/002` installs Gateway API CRDs and `metrics-server` per-lab rather than baking them into the base image) that it is responsible for reconciling this Ingress object. The single rule routes any request whose path starts with `/hello` (`pathType: Prefix`) to the `hello` Service on port `5678`, which fronts the pre-existing `hello` Deployment.
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: pong
+      namespace: ing-internal
+    spec:
+      ingressClassName: nginx
+      rules:
+        - http:
+            paths:
+              - path: /hello
+                pathType: Prefix
+                backend:
+                  service:
+                    name: hello
+                    port:
+                      number: 5678
+    MANIFEST

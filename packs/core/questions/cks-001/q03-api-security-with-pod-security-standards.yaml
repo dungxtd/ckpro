@@ -227,4 +227,58 @@ solution:
     - Deploys a pod that complies with the baseline standard (non-root, no privilege escalation)
     - Sets up RBAC permissions for the PSS viewer service account
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: api-security
+      labels:
+        pod-security.kubernetes.io/enforce: baseline
+    MANIFEST
+
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: secure-pod
+      namespace: api-security
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: nginx
+        image: nginx
+        securityContext:
+          allowPrivilegeEscalation: false
+    MANIFEST
+
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: pss-viewer-role
+      namespace: api-security
+    rules:
+    - apiGroups: [""]
+      resources: ["namespaces"]
+      verbs: ["get"]
+    - apiGroups: [""]
+      resources: ["namespaces/status"]
+      verbs: ["get"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: pss-viewer-binding
+      namespace: api-security
+    subjects:
+    - kind: ServiceAccount
+      name: pss-viewer
+      namespace: api-security
+    roleRef:
+      kind: Role
+      name: pss-viewer-role
+      apiGroup: rbac.authorization.k8s.io
+    MANIFEST

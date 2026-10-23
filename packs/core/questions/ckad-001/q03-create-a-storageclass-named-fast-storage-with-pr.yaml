@@ -80,4 +80,14 @@ solution:
     kubectl apply -f storage-class.yaml
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: kubectl apply -f storage-class.yaml
+  run: |
+    cat > storage-class.yaml <<'MANIFEST'
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: fast-storage
+    provisioner: kubernetes.io/no-provisioner
+    volumeBindingMode: WaitForFirstConsumer
+    MANIFEST
+
+    kubectl apply -f storage-class.yaml

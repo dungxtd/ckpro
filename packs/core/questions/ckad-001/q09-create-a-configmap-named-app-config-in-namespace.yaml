@@ -157,4 +157,35 @@ solution:
   run: |
     # Create the ConfigMap
     kubectl create configmap app-config -n workloads --from-literal=APP_ENV=production --from-literal=LOG_LEVEL=info
+
+    cat > config-pod.yaml <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: config-pod
+      namespace: workloads
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        env:
+        - name: APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: APP_ENV
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: LOG_LEVEL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+    MANIFEST
+
     kubectl apply -f config-pod.yaml

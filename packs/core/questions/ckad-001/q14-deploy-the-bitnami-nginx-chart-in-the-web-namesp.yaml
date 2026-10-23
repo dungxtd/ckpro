@@ -196,5 +196,6 @@ solution:
     # Verify the deployment
     kubectl get pods -n web
     kubectl get svc -n web
+
     helm list -n web
     kubectl get deployment -n web

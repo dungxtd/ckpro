@@ -166,6 +166,34 @@ solution:
   run: |
     # Create the ClusterRole
     kubectl create clusterrole pod-reader --verb=get,watch,list --resource=pods
+
+    cat > cluster-role.yaml <<'MANIFEST'
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: pod-reader
+    rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "watch", "list"]
+    MANIFEST
+
     kubectl create clusterrolebinding read-pods --clusterrole=pod-reader --user=jane --namespace=cluster-admin
+
+    cat > cluster-role-binding.yaml <<'MANIFEST'
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: read-pods
+    subjects:
+    - kind: User
+      name: jane
+      apiGroup: rbac.authorization.k8s.io
+    roleRef:
+      kind: ClusterRole
+      name: pod-reader
+      apiGroup: rbac.authorization.k8s.io
+    MANIFEST
+
     kubectl apply -f cluster-role.yaml
     kubectl apply -f cluster-role-binding.yaml

@@ -111,4 +111,23 @@ solution:
     ### Why this works
     An empty `podSelector: {}` selects every pod in the `fubar` namespace, so the policy applies namespace-wide. The single `ingress` rule combines a `namespaceSelector` (restricting the source to pods in `internal`) with a `ports` restriction (only `9000/tcp`) - both conditions inside the same rule entry must match, so this is strictly "from internal, to port 9000" and nothing else. Every namespace automatically carries the immutable label `kubernetes.io/metadata.name` equal to its own name (since Kubernetes 1.21+), so there's no need to manually label the `internal` namespace.
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-port-from-namespace
+      namespace: fubar
+    spec:
+      podSelector: {}
+      policyTypes:
+        - Ingress
+      ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: internal
+          ports:
+            - protocol: TCP
+              port: 9000
+    MANIFEST

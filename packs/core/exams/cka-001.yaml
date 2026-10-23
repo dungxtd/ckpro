@@ -6,7 +6,7 @@ certification: cka
 duration: 60m
 questions:
   - core/cka-001/q01-namespace-and-pod-creation
-  - core/cka-001/q02-static-pod-creation
+  - core/cka/static-pod-on-node
   - core/cka-001/q03-storage-setup
   - core/cka-001/q04-logging-setup
   - core/cka-001/q05-rbac-setup

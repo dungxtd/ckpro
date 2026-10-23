@@ -169,4 +169,21 @@ solution:
     kubectl apply -f internal-service.yaml
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: kubectl apply -f internal-service.yaml
+  run: |
+    cat > internal-service.yaml <<'MANIFEST'
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: internal-app
+      namespace: networking
+    spec:
+      type: ClusterIP
+      selector:
+        app: backend
+      ports:
+      - port: 80
+        targetPort: 8080
+        protocol: TCP
+    MANIFEST
+
+    kubectl apply -f internal-service.yaml

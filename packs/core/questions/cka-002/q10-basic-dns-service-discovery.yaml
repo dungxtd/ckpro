@@ -192,6 +192,61 @@ solution:
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
+    kubectl apply -f - <<'MANIFEST'
+    # Create the deployment
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: dns-app
+      namespace: dns-config
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: dns-app
+      template:
+        metadata:
+          labels:
+            app: dns-app
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+            ports:
+            - containerPort: 80
+    ---
+    # Create the service
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: dns-svc
+      namespace: dns-config
+    spec:
+      selector:
+        app: dns-app
+      ports:
+      - port: 80
+        targetPort: 80
+    ---
+    # Create the DNS tester pod
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: dns-tester
+      namespace: dns-config
+    spec:
+      containers:
+      - name: dns-tester
+        image: infoblox/dnstools
+        command:
+        - sh
+        - -c
+        - |
+          nslookup dns-svc > /tmp/dns-test.txt
+          nslookup dns-svc.dns-config.svc.cluster.local >> /tmp/dns-test.txt
+          sleep 3600
+    MANIFEST
+
     # Check if service is resolvable
     kubectl exec -n dns-config dns-tester -- cat /tmp/dns-test.txt
 

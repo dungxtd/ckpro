@@ -231,4 +231,36 @@ solution:
         }
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: seccomp-pod
+      namespace: seccomp-profile
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: nginx
+        image: nginx
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: seccomp-config
+      namespace: seccomp-profile
+    data:
+      profile.json: |
+        {
+          "defaultAction": "SCMP_ACT_ERRNO",
+          "architectures": ["SCMP_ARCH_X86_64"],
+          "syscalls": [
+            {
+              "names": ["exit", "exit_group", "rt_sigreturn", "read", "write", "open"],
+              "action": "SCMP_ACT_ALLOW"
+            }
+          ]
+        }
+    MANIFEST

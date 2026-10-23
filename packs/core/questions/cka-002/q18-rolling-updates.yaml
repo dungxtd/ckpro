@@ -238,6 +238,32 @@ solution:
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: app-v1
+      namespace: upgrade
+    spec:
+      replicas: 4
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 1
+          maxSurge: 1
+      selector:
+        matchLabels:
+          app: app-v1
+      template:
+        metadata:
+          labels:
+            app: app-v1
+        spec:
+          containers:
+          - name: nginx
+            image: nginx:1.19
+    MANIFEST
+
     # Perform update
     kubectl set image deployment/app-v1 nginx=nginx:1.20 -n upgrade --record
 

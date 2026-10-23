@@ -257,4 +257,30 @@ solution:
     kubectl apply -f health-pod.yaml
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: kubectl apply -f health-pod.yaml
+  run: |
+    cat > health-pod.yaml <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: health-pod
+      namespace: workloads
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        readinessProbe:
+          tcpSocket:
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+    MANIFEST
+
+    kubectl apply -f health-pod.yaml

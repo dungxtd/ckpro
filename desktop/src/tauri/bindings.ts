@@ -29,11 +29,28 @@ export const commands = {
 	terminalWrite: (id: string, data: string) => typedError<null, AppError>(__TAURI_INVOKE("terminal_write", { id, data })),
 	terminalResize: (id: string, cols: number, rows: number) => typedError<null, AppError>(__TAURI_INVOKE("terminal_resize", { id, cols, rows })),
 	terminalClose: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("terminal_close", { id })),
+	listExams: () => __TAURI_INVOKE<ExamSummary[]>("list_exams"),
+	/**  Current attempt; later changes arrive as `ExamChanged` events. */
+	examState: () => __TAURI_INVOKE<ExamState_Serialize>("exam_state"),
+	/**
+	 *  Start preparing an attempt. `replace` deletes existing clusters with the
+	 *  names the exam needs.
+	 */
+	startExam: (id: string, mode: Mode, replace: boolean) => typedError<null, AppError>(__TAURI_INVOKE("start_exam", { id, mode, replace })),
+	submitExam: () => typedError<null, AppError>(__TAURI_INVOKE("submit_exam")),
+	/**  Cancel preparation, or close the attempt and delete its clusters. */
+	endExam: () => typedError<null, AppError>(__TAURI_INVOKE("end_exam")),
+	/**  Practice mode: grade one question now. */
+	checkQuestion: (questionId: string) => typedError<CheckResult[], AppError>(__TAURI_INVOKE("check_question", { questionId })),
+	/**  Practice mode, or after the result. */
+	questionSolution: (questionId: string) => typedError<Solution, AppError>(__TAURI_INVOKE("question_solution", { questionId })),
+	examHistory: () => __TAURI_INVOKE<HistoryEntry[]>("exam_history"),
 };
 
 /** Events */
 export const events = {
 	envChanged: makeEvent<EnvChanged, EnvChanged>("env-changed"),
+	examChanged: makeEvent<ExamChanged_Serialize, ExamChanged_Deserialize>("exam-changed"),
 };
 
 /* Types */
@@ -53,9 +70,43 @@ export type AppError =
 /**  The user cancelled the operation. */
 { code: "cancelled"; message: string };
 
+export type Attempt = Attempt_Serialize | Attempt_Deserialize;
+
+export type Attempt_Deserialize = {
+	id: string,
+	exam_id: string,
+	title: string,
+	certification: string,
+	mode: Mode,
+	pass_score: number,
+	questions: QuestionView_Deserialize[],
+	/**  Clusters the attempt runs on (deleted when it ends) */
+	clusters: string[],
+};
+
+export type Attempt_Serialize = {
+	id: string,
+	exam_id: string,
+	title: string,
+	certification: string,
+	mode: Mode,
+	pass_score: number,
+	questions: QuestionView_Serialize[],
+	/**  Clusters the attempt runs on (deleted when it ends) */
+	clusters: string[],
+};
+
 export type Check = {
 	name: string,
 	ok: boolean,
+	detail: string,
+};
+
+export type CheckResult = {
+	name: string,
+	weight: number,
+	passed: boolean,
+	/**  Why it failed (or the script's last line) */
 	detail: string,
 };
 
@@ -88,6 +139,54 @@ export type EnvState = {
 	issues: Issue[],
 };
 
+/**  Pushed to the UI on every exam state change. */
+export type ExamChanged = ExamChanged_Serialize | ExamChanged_Deserialize;
+
+/**  Pushed to the UI on every exam state change. */
+export type ExamChanged_Deserialize = ExamState_Deserialize;
+
+/**  Pushed to the UI on every exam state change. */
+export type ExamChanged_Serialize = ExamState_Serialize;
+
+export type ExamResult = {
+	score: number | null,
+	passed: boolean,
+	/**  Unix milliseconds */
+	started_at: number | null,
+	finished_at: number | null,
+	questions: QuestionResult[],
+};
+
+export type ExamState = ExamState_Serialize | ExamState_Deserialize;
+
+export type ExamState_Deserialize = { phase: "idle" } | { phase: "preparing"; attempt: Attempt_Deserialize; step: string; done: number; total: number } | 
+/**  `ends_at` is unset in practice mode (no time limit) */
+{ phase: "running"; attempt: Attempt_Deserialize; started_at: number | null; ends_at?: number | null } | { phase: "grading"; attempt: Attempt_Deserialize; done: number; total: number } | { phase: "finished"; attempt: Attempt_Deserialize; result: ExamResult } | { phase: "failed"; attempt?: Attempt_Deserialize | null; message: string };
+
+export type ExamState_Serialize = { phase: "idle" } | { phase: "preparing"; attempt: Attempt_Serialize; step: string; done: number; total: number } | 
+/**  `ends_at` is unset in practice mode (no time limit) */
+{ phase: "running"; attempt: Attempt_Serialize; started_at: number | null; ends_at: number | null } | { phase: "grading"; attempt: Attempt_Serialize; done: number; total: number } | { phase: "finished"; attempt: Attempt_Serialize; result: ExamResult } | { phase: "failed"; attempt: Attempt_Serialize | null; message: string };
+
+export type ExamSummary = {
+	id: string,
+	title: string,
+	description: string,
+	certification: string,
+	questions: number,
+	duration_minutes: number,
+	pass_score: number,
+};
+
+/**  History entry, one JSON file per finished attempt. */
+export type HistoryEntry = {
+	attempt_id: string,
+	exam_id: string,
+	title: string,
+	mode: Mode,
+	pass_score: number,
+	result: ExamResult,
+};
+
 export type Issue = {
 	severity: Severity,
 	/**  "docker", a cluster name or a node name */
@@ -97,6 +196,8 @@ export type Issue = {
 	hint: string,
 };
 
+export type Mode = "exam" | "practice";
+
 export type NodeRole = "control_plane" | "worker";
 
 export type NodeState = {
@@ -105,6 +206,45 @@ export type NodeState = {
 	role: NodeRole,
 	container: ContainerStatus,
 	ready: Readiness,
+};
+
+export type QuestionResult = {
+	id: string,
+	title: string,
+	points: number,
+	max_points: number,
+	checks: CheckResult[],
+};
+
+/**  What the candidate sees of a question. */
+export type QuestionView = QuestionView_Serialize | QuestionView_Deserialize;
+
+/**  What the candidate sees of a question. */
+export type QuestionView_Deserialize = {
+	id: string,
+	title: string,
+	cluster: string,
+	namespace?: string | null,
+	/**  Share of the exam's points, in percent */
+	weight: number | null,
+	statement: string,
+	/**  Practice mode only */
+	hints: string[],
+	references: string[],
+};
+
+/**  What the candidate sees of a question. */
+export type QuestionView_Serialize = {
+	id: string,
+	title: string,
+	cluster: string,
+	namespace: string | null,
+	/**  Share of the exam's points, in percent */
+	weight: number | null,
+	statement: string,
+	/**  Practice mode only */
+	hints: string[],
+	references: string[],
 };
 
 export type Readiness = 
@@ -117,6 +257,13 @@ export type ScriptResult = {
 };
 
 export type Severity = "error" | "warning";
+
+export type Solution = {
+	/**  Why this is the right approach, in Markdown */
+	explain: string,
+	/**  Commands that solve the task on the jumphost */
+	run: string,
+};
 
 export type TerminalEvent = 
 /**  base64, so multi-byte characters split across chunks survive */

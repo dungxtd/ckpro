@@ -223,4 +223,45 @@ solution:
       targetCPUUtilizationPercentage: 70
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: scaling-app
+      namespace: scaling
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: scaling-app
+      template:
+        metadata:
+          labels:
+            app: scaling-app
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+            resources:
+              requests:
+                cpu: 200m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+    ---
+    apiVersion: autoscaling/v1
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: scaling-app
+      namespace: scaling
+    spec:
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: scaling-app
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+    MANIFEST

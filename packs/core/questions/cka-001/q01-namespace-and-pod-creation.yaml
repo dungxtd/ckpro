@@ -122,4 +122,9 @@ solution:
     kubectl run nginx-pod --image=nginx:1.19 -n app-team1 --labels=run=nginx-pod
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    # Create namespace
+    kubectl create namespace app-team1
+
+    # Create pod
+    kubectl run nginx-pod --image=nginx:1.19 -n app-team1 --labels=run=nginx-pod

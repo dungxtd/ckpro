@@ -257,4 +257,25 @@ solution:
     kubectl apply -f ingress.yaml
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: kubectl apply -f ingress.yaml
+  run: |
+    cat > ingress.yaml <<'MANIFEST'
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: api-ingress
+      namespace: networking
+    spec:
+      rules:
+      - host: api.example.com
+        http:
+          paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-service
+                port:
+                  number: 80
+    MANIFEST
+
+    kubectl apply -f ingress.yaml

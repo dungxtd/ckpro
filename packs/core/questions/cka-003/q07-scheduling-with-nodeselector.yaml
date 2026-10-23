@@ -99,4 +99,17 @@ solution:
     ### Why this works
     `nodeSelector` is the simplest scheduling constraint - the scheduler will only place the pod on nodes whose labels are a superset of the selector, so `disk: ssd` restricts placement to the one worker node with that label.
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: nginx-kusc00401
+      namespace: scheduling
+    spec:
+      nodeSelector:
+        disk: ssd
+      containers:
+        - name: nginx
+          image: nginx
+    MANIFEST

@@ -147,3 +147,63 @@ pub async fn terminal_close(terminals: State<'_, Terminals>, id: String) -> AppR
     terminals.close(&id).await;
     Ok(())
 }
+
+// --- exams -----------------------------------------------------------------
+
+use crate::lab::checks::CheckResult;
+use crate::lab::exam::{ExamState, ExamSummary, Exams, HistoryEntry, Mode};
+use crate::lab::model::Solution;
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_exams(exams: State<'_, Arc<Exams>>) -> Vec<ExamSummary> {
+    exams.catalog()
+}
+
+/// Current attempt; later changes arrive as `ExamChanged` events.
+#[tauri::command]
+#[specta::specta]
+pub fn exam_state(exams: State<'_, Arc<Exams>>) -> ExamState {
+    exams.state()
+}
+
+/// Start preparing an attempt. `replace` deletes existing clusters with the
+/// names the exam needs.
+#[tauri::command]
+#[specta::specta]
+pub fn start_exam(exams: State<'_, Arc<Exams>>, id: String, mode: Mode, replace: bool) -> AppResult<()> {
+    exams.inner().start(&id, mode, replace)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn submit_exam(exams: State<'_, Arc<Exams>>) -> AppResult<()> {
+    exams.inner().submit()
+}
+
+/// Cancel preparation, or close the attempt and delete its clusters.
+#[tauri::command]
+#[specta::specta]
+pub async fn end_exam(exams: State<'_, Arc<Exams>>) -> AppResult<()> {
+    exams.end().await
+}
+
+/// Practice mode: grade one question now.
+#[tauri::command]
+#[specta::specta]
+pub async fn check_question(exams: State<'_, Arc<Exams>>, question_id: String) -> AppResult<Vec<CheckResult>> {
+    exams.check_question(&question_id).await
+}
+
+/// Practice mode, or after the result.
+#[tauri::command]
+#[specta::specta]
+pub fn question_solution(exams: State<'_, Arc<Exams>>, question_id: String) -> AppResult<Solution> {
+    exams.solution(&question_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn exam_history(exams: State<'_, Arc<Exams>>) -> Vec<HistoryEntry> {
+    exams.history()
+}

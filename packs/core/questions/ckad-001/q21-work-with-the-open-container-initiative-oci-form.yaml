@@ -146,5 +146,6 @@ solution:
 
     # Clean up the tarball
     rm /tmp/nginx-image.tar
+
     ls -la /root/oci-images
     cat /root/oci-images/index.json  # Verify it's in OCI format

@@ -243,4 +243,27 @@ solution:
     - Routes traffic for hostname `secure-app.example.com` to the `web-service` service
     - Uses the pre-created `secure-app-tls` secret for TLS termination
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: secure-app
+      namespace: secure-ingress
+    spec:
+      tls:
+      - hosts:
+        - secure-app.example.com
+        secretName: secure-app-tls
+      rules:
+      - host: secure-app.example.com
+        http:
+          paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web-service
+                port:
+                  number: 80
+    MANIFEST

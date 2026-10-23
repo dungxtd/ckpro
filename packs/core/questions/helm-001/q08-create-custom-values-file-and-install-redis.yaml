@@ -169,4 +169,5 @@ solution:
         memory: 256Mi
         cpu: 100m
     EOF
+
     helm install cache-db bitnami/redis -f /tmp/exam/q8/redis-values.yaml

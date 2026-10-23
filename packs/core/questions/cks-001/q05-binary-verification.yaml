@@ -180,4 +180,30 @@ solution:
           type: Directory
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: verify-bin
+      namespace: binary-verify
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          sha256sum /host-bin/kubectl >> /tmp/verified-hashes.txt
+          sha256sum /host-bin/kubelet >> /tmp/verified-hashes.txt
+          sleep 3600
+        volumeMounts:
+        - name: host-bin
+          mountPath: /host-bin
+          readOnly: true
+      volumes:
+      - name: host-bin
+        hostPath:
+          path: /usr/bin
+          type: Directory
+    MANIFEST

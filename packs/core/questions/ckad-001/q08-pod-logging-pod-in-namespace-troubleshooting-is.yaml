@@ -165,4 +165,21 @@ solution:
     kubectl replace -f tmp/<file.yaml> --force
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: logging-pod
+      namespace: troubleshooting
+    spec:
+      containers:
+      - name: <container-name>
+        # ... existing container configuration ...
+        resources:
+          limits:
+            cpu: 100m
+            memory: 50Mi
+    MANIFEST
+
+    kubectl replace -f tmp/<file.yaml> --force

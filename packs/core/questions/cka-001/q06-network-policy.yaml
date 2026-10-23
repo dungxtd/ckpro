@@ -147,4 +147,29 @@ solution:
     EOF
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    # Create networking namespace
+    kubectl create namespace networking
+
+    # Create NetworkPolicy
+    cat << EOF | kubectl apply -f -
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: db-policy
+      namespace: networking
+    spec:
+      podSelector:
+        matchLabels:
+          role: db
+      policyTypes:
+      - Ingress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              role: frontend
+        ports:
+        - protocol: TCP
+          port: 3306
+    EOF

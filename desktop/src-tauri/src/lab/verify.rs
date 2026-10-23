@@ -103,9 +103,18 @@ pub async fn verify(
             if exit != 0 {
                 problems.push(format!("solution failed (exit {exit}): {}", tail(&output)));
             }
+            // Grading happens minutes after the candidate's last command; give
+            // pods, rollouts and mirror pods up to a minute to settle
             let mut after = Vec::new();
-            for check in &q.checks {
-                after.push(checks::run_check(&docker, &q.cluster, check).await?);
+            for attempt in 0..12 {
+                after.clear();
+                for check in &q.checks {
+                    after.push(checks::run_check(&docker, &q.cluster, check).await?);
+                }
+                if after.iter().all(|c| c.passed) || attempt == 11 {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
             for c in after.iter().filter(|c| !c.passed) {
                 problems.push(format!("check fails after the solution: {} ({})", c.name, c.detail));

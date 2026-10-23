@@ -173,6 +173,7 @@ solution:
 
     # Check why pods are failing
     kubectl describe pod -l app.kubernetes.io/instance=buggy-app
+
     cat > /tmp/exam/q12/diagnosis.txt << EOF
     The buggy-app release is failing because it's using a non-existent image tag "nonexistenttag".
     The pods can't start because the container image "nginx:nonexistenttag" cannot be pulled.
@@ -182,8 +183,10 @@ solution:
     2. Used "kubectl get pods" to see pod status (ImagePullBackOff or ErrImagePull)
     3. Used "kubectl describe pod" to see detailed error messages
     EOF
+
     # Upgrade the release with a valid image tag
     helm upgrade buggy-app buggy-app --set image.tag=latest
+
     # Create a new values file to override the problematic values
     cat > /tmp/fixed-values.yaml << EOF
     image:

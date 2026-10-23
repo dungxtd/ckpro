@@ -194,4 +194,25 @@ solution:
     kubectl apply -f network-policy.yaml
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: kubectl apply -f network-policy.yaml
+  run: |
+    cat > network-policy.yaml <<'MANIFEST'
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-traffic
+      namespace: networking
+    spec:
+      podSelector:
+        matchLabels:
+          app: web
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              tier: frontend
+        ports:
+        - protocol: TCP
+          port: 80
+    MANIFEST
+
+    kubectl apply -f network-policy.yaml

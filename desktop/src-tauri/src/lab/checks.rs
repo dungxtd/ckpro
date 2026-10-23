@@ -8,7 +8,7 @@ use crate::runtime::{exec, infra};
 use bollard::Docker;
 use serde::Serialize;
 
-#[derive(Clone, Debug, Serialize, specta::Type)]
+#[derive(Clone, Debug, Serialize, serde::Deserialize, specta::Type)]
 pub struct CheckResult {
     pub name: String,
     pub weight: u32,

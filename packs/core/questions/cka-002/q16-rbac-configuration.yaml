@@ -240,4 +240,63 @@ solution:
               audience: kubernetes.default.svc
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: app-admin
+      namespace: cluster-admin
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: app-admin
+      namespace: cluster-admin
+    rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["list", "get", "watch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments"]
+      verbs: ["list", "get", "watch", "update"]
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["create", "delete"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: app-admin
+      namespace: cluster-admin
+    subjects:
+    - kind: ServiceAccount
+      name: app-admin
+      namespace: cluster-admin
+    roleRef:
+      kind: Role
+      name: app-admin
+      apiGroup: rbac.authorization.k8s.io
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: admin-pod
+      namespace: cluster-admin
+    spec:
+      serviceAccountName: app-admin
+      containers:
+      - name: kubectl
+        image: bitnami/kubectl:latest
+        command: ["sleep", "3600"]
+        volumeMounts:
+        - name: token
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      volumes:
+      - name: token
+        projected:
+          sources:
+          - serviceAccountToken:
+              expirationSeconds: 3600
+              audience: kubernetes.default.svc
+    MANIFEST

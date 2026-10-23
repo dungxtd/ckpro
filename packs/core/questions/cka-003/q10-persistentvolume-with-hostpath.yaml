@@ -76,4 +76,17 @@ solution:
     ### Why this works
     A `hostPath` PV binds directly to a path on whichever node the PV ends up mounted on - suitable for single-node or test scenarios (like this simulator's kind cluster) but not for production multi-node clusters, since the data is not available if a pod is rescheduled to a different node.
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: app-data
+    spec:
+      capacity:
+        storage: 2Gi
+      accessModes:
+        - ReadWriteOnce
+      hostPath:
+        path: /srv/app-data
+    MANIFEST

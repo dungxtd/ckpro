@@ -96,7 +96,7 @@ pub struct Var {
     pub pick: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, specta::Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Solution {
     /// Why this is the right approach, in Markdown

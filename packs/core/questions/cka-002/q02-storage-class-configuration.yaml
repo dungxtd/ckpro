@@ -119,5 +119,16 @@ solution:
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: fast-local
+      annotations:
+        storageclass.kubernetes.io/is-default-class: "true"
+    provisioner: rancher.io/local-path
+    volumeBindingMode: WaitForFirstConsumer
+    MANIFEST
+
     kubectl patch storageclass default-test -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
     kubectl patch storageclass standard -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'

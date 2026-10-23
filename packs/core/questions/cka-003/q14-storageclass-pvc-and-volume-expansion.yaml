@@ -190,5 +190,45 @@ solution:
     `volumeBindingMode: WaitForFirstConsumer` is required on the StorageClass - unlike some CSI drivers, `rancher.io/local-path` needs to know which node the consuming Pod lands on before it can create the volume, and errors with "no node was specified" (leaving the PVC stuck `Pending` forever) under the default `Immediate` binding mode. This is a real, confirmed requirement of this environment, not just a style preference.
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: csi-hostpath-sc
+    provisioner: rancher.io/local-path
+    volumeBindingMode: WaitForFirstConsumer
+    allowVolumeExpansion: true
+    ---
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: pv-volume
+      namespace: storage-pvc
+    spec:
+      storageClassName: csi-hostpath-sc
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Mi
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: web-server
+      namespace: storage-pvc
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/nginx/html
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pv-volume
+    MANIFEST
+
     kubectl patch pvc pv-volume -n storage-pvc \
       -p '{"spec":{"resources":{"requests":{"storage":"70Mi"}}}}'

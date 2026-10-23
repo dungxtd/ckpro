@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Static pod on a worker node
+certifications:
+  cka: cluster-architecture
+difficulty: easy
+estimate: 5m
+namespace: default
+tags: [static-pods, kubelet, nodes]
+
+statement: |
+  Create a static pod named `static-web` on the node `k8s-worker`, using the
+  image `nginx:1.19` and exposing container port `80`.
+
+  The kubelet on that node must run it from its static pod manifest directory.
+
+checks:
+  - name: Mirror pod static-web-k8s-worker runs on k8s-worker
+    weight: 3
+    jsonpath:
+      resource: pod/static-web-k8s-worker
+      namespace: default
+      path: "{.spec.nodeName}"
+      equals: k8s-worker
+  - name: It runs the image nginx:1.19
+    jsonpath:
+      resource: pod/static-web-k8s-worker
+      namespace: default
+      path: "{.spec.containers[0].image}"
+      equals: "nginx:1.19"
+  - name: It exposes container port 80
+    jsonpath:
+      resource: pod/static-web-k8s-worker
+      namespace: default
+      path: "{.spec.containers[*].ports[*].containerPort}"
+      equals: "80"
+  - name: The manifest lives in the kubelet's static pod directory
+    run: |
+      path=$(ssh k8s-worker "grep staticPodPath /var/lib/kubelet/config.yaml | awk '{print \$2}'")
+      ssh k8s-worker "grep -l 'name: static-web' ${path:-/etc/kubernetes/manifests}/*.yaml" >/dev/null 2>&1 \
+        || { echo "no static-web manifest in ${path:-/etc/kubernetes/manifests} on k8s-worker"; exit 1; }
+
+hints:
+  - Static pods are started by the kubelet of one node, not by the API server. Get onto that node first.
+  - The kubelet reads `staticPodPath` from `/var/lib/kubelet/config.yaml`.
+
+solution:
+  explain: |
+    The kubelet on `k8s-worker` watches `staticPodPath` (`/etc/kubernetes/manifests`
+    on kubeadm nodes) and runs every Pod manifest it finds there. The API server
+    shows a read-only *mirror pod* named `<pod>-<node>`.
+  run: |
+    ssh k8s-worker 'cat > /etc/kubernetes/manifests/static-web.yaml' <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: static-web
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.19
+          ports:
+            - containerPort: 80
+    MANIFEST
+
+references:
+  - https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/

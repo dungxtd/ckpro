@@ -157,5 +157,30 @@ solution:
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
+    cat > log-cleaner-cronjob.yaml <<'MANIFEST'
+    apiVersion: batch/v1
+    kind: CronJob
+    metadata:
+      name: log-cleaner
+      namespace: workloads
+    spec:
+      schedule: "0 * * * *"  # Run every hour at minute 0
+      concurrencyPolicy: Forbid  # Skip new job if previous is running
+      successfulJobsHistoryLimit: 3  # Keep 3 successful job completions
+      failedJobsHistoryLimit: 1  # Keep 1 failed job
+      jobTemplate:
+        spec:
+          template:
+            spec:
+              containers:
+              - name: log-cleaner
+                image: busybox
+                command: ["/bin/sh", "-c"]
+                args:
+                - find /var/log -type f -name "*.log" -mtime +7 -delete
+              restartPolicy: OnFailure
+    MANIFEST
+
     kubectl apply -f log-cleaner-cronjob.yaml
+
     kubectl get cronjob log-cleaner -n workloads -o yaml

@@ -139,6 +139,12 @@ solution:
 
     # Check logs of the failing pod
     kubectl logs <pod-name> -n troubleshooting
-    kubectl set image deployments -n troubleshooting broken-app app=nginx:latest
-    kubectl edit deployment broken-app -n troubleshooting
-    kubectl patch deployment broken-app -n troubleshooting -p '{"spec":{"template":{"spec":{"containers":[{"name":"container-name","resources":{"limits":{"memory":"512Mi"}}}]}}}}'
+
+       kubectl set image deployments -n troubleshooting broken-app app=nginx:latest
+
+
+       kubectl edit deployment broken-app -n troubleshooting
+
+
+       kubectl patch deployment broken-app -n troubleshooting -p '{"spec":{"template":{"spec":{"containers":[{"name":"container-name","resources":{"limits":{"memory":"512Mi"}}}]}}}}'
+

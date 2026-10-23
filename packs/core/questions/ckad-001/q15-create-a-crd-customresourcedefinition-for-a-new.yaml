@@ -216,4 +216,36 @@ solution:
     kubectl apply -f backup-crd.yaml
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: kubectl apply -f backup-crd.yaml
+  run: |
+    cat > backup-crd.yaml <<'MANIFEST'
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: backups.data.example.com
+    spec:
+      group: data.example.com
+      names:
+        kind: Backup
+        listKind: BackupList
+        plural: backups
+        singular: backup
+      scope: Namespaced
+      versions:
+      - name: v1alpha1
+        served: true
+        storage: true
+        schema:
+          openAPIV3Schema:
+            type: object
+            properties:
+              spec:
+                type: object
+                properties:
+                  source:
+                    type: string
+                  destination:
+                    type: string
+                required: ["source", "destination"]
+    MANIFEST
+
+    kubectl apply -f backup-crd.yaml

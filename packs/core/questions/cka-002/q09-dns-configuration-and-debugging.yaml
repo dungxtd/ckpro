@@ -225,4 +225,63 @@ solution:
         search dns-debug.svc.cluster.local svc.cluster.local cluster.local
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web-app
+      namespace: dns-debug
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: web-app
+      template:
+        metadata:
+          labels:
+            app: web-app
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-svc
+      namespace: dns-debug
+    spec:
+      selector:
+        app: web-app
+      ports:
+      - port: 80
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: dns-test
+      namespace: dns-debug
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command:
+        - sh
+        - -c
+        - "wget -qO- http://web-svc && wget -qO- http://web-svc.dns-debug.svc.cluster.local && sleep 36000"
+      dnsConfig:
+        searches:
+        - dns-debug.svc.cluster.local
+        - svc.cluster.local
+        - cluster.local
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: dns-config
+      namespace: dns-debug
+    data:
+      search-domains: |
+        search dns-debug.svc.cluster.local svc.cluster.local cluster.local
+    MANIFEST

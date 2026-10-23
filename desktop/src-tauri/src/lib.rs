@@ -13,6 +13,10 @@ use std::sync::Arc;
 use tauri::{Manager, RunEvent};
 use tauri_specta::Event;
 
+/// Pushed to the UI on every exam state change.
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct ExamChanged(lab::exam::ExamState);
+
 /// Pushed to the UI on every environment change.
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct EnvChanged(EnvState);
@@ -20,7 +24,7 @@ pub struct EnvChanged(EnvState);
 /// Typed IPC: debug builds regenerate `desktop/src/tauri/bindings.ts`.
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .events(tauri_specta::collect_events![EnvChanged])
+        .events(tauri_specta::collect_events![EnvChanged, ExamChanged])
         .commands(tauri_specta::collect_commands![
         commands::env_state,
         commands::preflight,
@@ -34,6 +38,14 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::terminal_write,
         commands::terminal_resize,
         commands::terminal_close,
+        commands::list_exams,
+        commands::exam_state,
+        commands::start_exam,
+        commands::submit_exam,
+        commands::end_exam,
+        commands::check_question,
+        commands::question_solution,
+        commands::exam_history,
     ])
 }
 
@@ -48,6 +60,34 @@ pub const APP_ID: &str = "dev.ckdry.app";
 /// directory for the app and the CLI.
 pub fn data_dir() -> std::path::PathBuf {
     dirs::data_dir().unwrap_or_else(std::env::temp_dir).join(APP_ID)
+}
+
+/// The bundled lab pack: from the source tree in development, from the app
+/// resources in a release build. Lint problems are logged, not fatal.
+fn load_pack(resource_dir: Option<std::path::PathBuf>) -> lab::load::LoadedPack {
+    let root = if cfg!(debug_assertions) {
+        std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../packs/core"))
+    } else {
+        resource_dir.unwrap_or_default().join("packs/core")
+    };
+    let (pack, mut findings) = lab::load::load(&root);
+    if let Some(pack) = &pack {
+        findings.extend(lab::lint::lint(pack));
+    }
+    for f in &findings {
+        tracing::warn!(file = %f.file, "{}", f.message);
+    }
+    pack.unwrap_or_else(|| lab::load::LoadedPack {
+        root,
+        pack: lab::model::Pack {
+            id: "none".into(),
+            title: "No pack".into(),
+            version: "0".into(),
+            certifications: Default::default(),
+        },
+        questions: Default::default(),
+        exams: Default::default(),
+    })
 }
 
 /// CLI subcommands run headless; otherwise start the app.
@@ -85,6 +125,18 @@ pub fn run() {
                 let _ = EnvChanged(state.clone()).emit(&handle);
             }));
             runtime::monitor::start(env.clone(), kind.clone());
+            let infra = app.state::<Arc<runtime::infra::Infra>>().inner().clone();
+            let exams_handle = app.handle().clone();
+            let exams = Arc::new(lab::exam::Exams::new(
+                load_pack(app.path().resource_dir().ok()),
+                kind.clone(),
+                infra,
+                crate::data_dir().join("history"),
+                move |state| {
+                    let _ = ExamChanged(state.clone()).emit(&exams_handle);
+                },
+            ));
+            app.manage(exams);
             app.manage(kind);
             app.manage(env);
             tracing::info!(version = env!("CARGO_PKG_VERSION"), "ckdry started");
@@ -241,6 +293,81 @@ mod tests {
 
         cluster::lifecycle::delete(&f.kind, &f.infra, name, &log).await.unwrap();
         eventually("cluster gone from the state", 30, async || env.snapshot().clusters.is_empty()).await;
+    }
+
+    /// A whole attempt through the exam engine, both modes, on a one-question
+    /// exam: `cargo test exam_engine -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn exam_engine_practice_and_exam_modes() {
+        use lab::exam::{ExamState, Exams, Mode};
+        let pack_dir = std::env::temp_dir().join("ckdry-e2e-pack");
+        let _ = std::fs::remove_dir_all(&pack_dir);
+        let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/core");
+        std::fs::create_dir_all(pack_dir.join("questions/cka")).unwrap();
+        std::fs::create_dir_all(pack_dir.join("exams")).unwrap();
+        std::fs::copy(core.join("pack.yaml"), pack_dir.join("pack.yaml")).unwrap();
+        std::fs::copy(core.join("questions/cka/rbac-ci-token.yaml"), pack_dir.join("questions/cka/rbac-ci-token.yaml")).unwrap();
+        std::fs::write(pack_dir.join("exams/one.yaml"), "title: One\ncertification: cka\nquestions: [core/cka/rbac-ci-token]\n").unwrap();
+        let (pack, findings) = lab::load::load(&pack_dir);
+        assert!(findings.is_empty(), "{:?}", findings.iter().map(|f| &f.message).collect::<Vec<_>>());
+
+        let _ = std::fs::remove_dir_all(std::env::temp_dir().join("ckdry-e2e-history"));
+        let f = fixture("ckdry-e2e-exam");
+        let exams = Arc::new(Exams::new(pack.unwrap(), f.kind.clone(), f.infra.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |s: &ExamState| {
+            if let ExamState::Preparing { step, .. } = s { println!("  | {step}"); }
+        }));
+        let question = "core/cka/rbac-ci-token";
+        let wait_running = async || {
+            for _ in 0..300 {
+                match exams.state() {
+                    ExamState::Running { .. } => return,
+                    ExamState::Failed { message, .. } => panic!("exam failed: {message}"),
+                    _ => tokio::time::sleep(Duration::from_secs(1)).await,
+                }
+            }
+            panic!("exam never started");
+        };
+
+        // Practice: check, solve, check, submit
+        exams.start("core/one", Mode::Practice, true).unwrap();
+        wait_running().await;
+        let ExamState::Running { attempt, ends_at, .. } = exams.state() else { unreachable!() };
+        assert!(ends_at.is_none() && !attempt.questions[0].hints.is_empty());
+        assert!(exams.check_question(question).await.unwrap().iter().all(|c| !c.passed));
+        println!("ok: practice check fails before solving");
+        let solution = exams.solution(question).unwrap();
+        let docker = runtime::docker::connect().await.unwrap();
+        let (exit, out) = lab::checks::run_script(&docker, "k8s", &solution.run).await.unwrap();
+        assert_eq!(exit, 0, "{out}");
+        assert!(exams.check_question(question).await.unwrap().iter().all(|c| c.passed));
+        println!("ok: practice check passes after solving");
+        exams.submit().unwrap();
+        eventually("practice graded 100%", 60, async || {
+            matches!(exams.state(), ExamState::Finished { ref result, .. } if result.score == 100.0 && result.passed)
+        })
+        .await;
+        exams.end().await.unwrap();
+        assert!(matches!(exams.state(), ExamState::Idle) && !f.kind.owned_clusters().contains(&"k8s".to_string()));
+        println!("ok: ending removes the clusters");
+
+        // Exam: nothing hidden leaks, nothing to check, unsolved scores 0
+        exams.start("core/one", Mode::Exam, true).unwrap();
+        wait_running().await;
+        let ExamState::Running { attempt, ends_at, .. } = exams.state() else { unreachable!() };
+        assert!(ends_at.is_some() && attempt.questions[0].hints.is_empty());
+        assert!(exams.check_question(question).await.is_err() && exams.solution(question).is_err());
+        println!("ok: exam mode hides hints, checks and solutions");
+        exams.submit().unwrap();
+        eventually("exam graded, unsolved fails", 60, async || {
+            matches!(exams.state(), ExamState::Finished { ref result, .. } if !result.passed)
+        })
+        .await;
+        assert!(exams.solution(question).is_ok());
+        println!("ok: solution available after the result");
+        exams.end().await.unwrap();
+        assert_eq!(exams.history().len(), 2);
+        println!("ok: both attempts in history");
     }
 
     /// The committed bindings must match the commands (also runs in CI).

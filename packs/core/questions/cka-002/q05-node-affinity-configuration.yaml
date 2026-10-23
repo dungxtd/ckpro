@@ -156,3 +156,33 @@ solution:
   run: |
     # Label the node
     kubectl label node k8s-worker2 disk=ssd
+
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: app-scheduling
+      namespace: scheduling
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: app-scheduling
+      template:
+        metadata:
+          labels:
+            app: app-scheduling
+        spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: disk
+                    operator: In
+                    values:
+                    - ssd
+          containers:
+          - name: nginx
+            image: nginx
+    MANIFEST

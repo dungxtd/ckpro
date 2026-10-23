@@ -117,4 +117,20 @@ solution:
     kubectl apply -f pvc.yaml -n storage-test
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: kubectl apply -f pvc.yaml -n storage-test
+  run: |
+    cat > pvc.yaml <<'MANIFEST'
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: pvc-app
+      namespace: storage-test
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 500Mi
+      storageClassName: fast-storage
+    MANIFEST
+
+    kubectl apply -f pvc.yaml -n storage-test

@@ -206,3 +206,34 @@ solution:
   run: |
     # Label the namespace
     kubectl label namespace pod-security pod-security.kubernetes.io/enforce=baseline
+
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: compliant-pod
+      namespace: pod-security
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: nginx
+        image: nginx
+        securityContext:
+          allowPrivilegeEscalation: false
+    MANIFEST
+
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: non-compliant-pod
+      namespace: pod-security
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        securityContext:
+          privileged: true
+    MANIFEST

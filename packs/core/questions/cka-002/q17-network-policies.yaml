@@ -265,4 +265,122 @@ solution:
               app: api
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: "true  # TODO: commands that solve the task"
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web
+      namespace: network
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: web
+      template:
+        metadata:
+          labels:
+            app: web
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: api
+      namespace: network
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: api
+      template:
+        metadata:
+          labels:
+            app: api
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: db
+      namespace: network
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: db
+      template:
+        metadata:
+          labels:
+            app: db
+        spec:
+          containers:
+          - name: postgres
+            image: postgres
+            env:
+            - name: POSTGRES_HOST_AUTH_METHOD
+              value: trust
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: web-policy
+      namespace: network
+    spec:
+      podSelector:
+        matchLabels:
+          app: web
+      policyTypes:
+      - Egress
+      egress:
+      - to:
+        - podSelector:
+            matchLabels:
+              app: api
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: api-policy
+      namespace: network
+    spec:
+      podSelector:
+        matchLabels:
+          app: api
+      policyTypes:
+      - Egress
+      - Ingress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              app: web
+      egress:
+      - to:
+        - podSelector:
+            matchLabels:
+              app: db
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: db-policy
+      namespace: network
+    spec:
+      podSelector:
+        matchLabels:
+          app: db
+      policyTypes:
+      - Ingress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              app: api
+    MANIFEST

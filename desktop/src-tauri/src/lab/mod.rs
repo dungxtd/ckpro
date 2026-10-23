@@ -1,4 +1,5 @@
 pub mod checks;
+pub mod exam;
 pub mod lint;
 pub mod load;
 pub mod model;

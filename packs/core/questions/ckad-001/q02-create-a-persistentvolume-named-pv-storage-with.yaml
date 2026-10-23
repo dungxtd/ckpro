@@ -108,4 +108,20 @@ solution:
     kubectl apply -f pv-storage.yaml
     ```
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
-  run: kubectl apply -f pv-storage.yaml
+  run: |
+    cat > pv-storage.yaml <<'MANIFEST'
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: pv-storage
+    spec:
+      capacity:
+        storage: 1Gi
+      accessModes:
+        - ReadWriteOnce
+      persistentVolumeReclaimPolicy: Retain
+      hostPath:
+        path: /mnt/data
+    MANIFEST
+
+    kubectl apply -f pv-storage.yaml
