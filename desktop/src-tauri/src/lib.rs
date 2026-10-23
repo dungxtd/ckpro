@@ -139,6 +139,7 @@ pub fn run() {
                     let _ = ExamChanged(state.clone()).emit(&exams_handle);
                 },
             ));
+            exams.restore();
             app.manage(exams);
             app.manage(kind);
             app.manage(env);
@@ -385,6 +386,15 @@ mod tests {
         assert!(ends_at.is_some() && attempt.questions[0].hints.is_empty());
         assert!(exams.check_question(question).await.is_err() && exams.solution(question).is_err());
         println!("ok: exam mode hides hints, checks and solutions");
+        // Quitting the app mid-exam: a new engine on the same data resumes it
+        let reopen = || {
+            Arc::new(Exams::new(lab::load::load(&pack_dir).0.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |_: &ExamState| {}))
+        };
+        let resumed = reopen();
+        resumed.restore();
+        let ExamState::Running { attempt: again, ends_at: again_ends, .. } = resumed.state() else { panic!("not resumed") };
+        assert!(again.id == attempt.id && again_ends == ends_at && resumed.solution(question).is_err());
+        println!("ok: a running exam survives restarting the app");
         exams.submit().unwrap();
         eventually("exam graded, unsolved fails", 60, async || {
             matches!(exams.state(), ExamState::Finished { ref result, .. } if !result.passed)
@@ -395,6 +405,10 @@ mod tests {
         exams.end().await.unwrap();
         assert_eq!(exams.history().len(), 2);
         println!("ok: both attempts in history");
+        let after = reopen();
+        after.restore();
+        assert!(matches!(after.state(), ExamState::Idle));
+        println!("ok: nothing to resume once the attempt has ended");
     }
 
     /// The committed bindings must match the commands (also runs in CI).

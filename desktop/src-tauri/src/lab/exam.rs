@@ -111,6 +111,12 @@ impl ExamState {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+struct SavedAttempt {
+    state: ExamState,
+    questions: Vec<(String, Question)>,
+}
+
 /// History entry, one JSON file per finished attempt.
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 pub struct HistoryEntry {
@@ -128,6 +134,8 @@ pub struct Exams {
     infra: Arc<Infra>,
     jumphost: Arc<Jumphost>,
     history_dir: PathBuf,
+    /// The running attempt, so it survives quitting the app
+    attempt_file: PathBuf,
     state: Mutex<ExamState>,
     /// Rendered questions of the current attempt (with solutions)
     session: Mutex<Vec<(String, Question)>>,
@@ -149,6 +157,7 @@ impl Exams {
             kind,
             infra,
             jumphost,
+            attempt_file: history_dir.with_file_name("attempt.json"),
             history_dir,
             state: Mutex::new(ExamState::Idle),
             session: Mutex::new(Vec::new()),
@@ -163,7 +172,53 @@ impl Exams {
 
     fn set(&self, state: ExamState) {
         *self.state.lock().unwrap_or_else(|p| p.into_inner()) = state.clone();
+        self.save_attempt(&state);
         (self.publish)(&state);
+    }
+
+    /// Persist a running attempt; anything else has nothing to resume. While
+    /// grading the file stays: quitting then resumes the attempt, to submit again.
+    fn save_attempt(&self, state: &ExamState) {
+        let result = match state {
+            ExamState::Running { .. } => {
+                let saved = SavedAttempt {
+                    state: state.clone(),
+                    questions: self.session.lock().unwrap_or_else(|p| p.into_inner()).clone(),
+                };
+                serde_json::to_vec(&saved).map_err(std::io::Error::other).and_then(|json| {
+                    let tmp = self.attempt_file.with_extension("tmp");
+                    std::fs::write(&tmp, json)?;
+                    std::fs::rename(&tmp, &self.attempt_file)
+                })
+            }
+            ExamState::Grading { .. } => Ok(()),
+            _ => match std::fs::remove_file(&self.attempt_file) {
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                other => other,
+            },
+        };
+        if let Err(e) = result {
+            tracing::warn!(error = %e, "saving the running attempt");
+        }
+    }
+
+    /// Resume the attempt that was running when the app quit. Its clusters are
+    /// still there; an exam whose time ran out meanwhile is submitted now.
+    pub fn restore(self: &Arc<Self>) {
+        let Some(saved) = std::fs::read(&self.attempt_file)
+            .ok()
+            .and_then(|json| serde_json::from_slice::<SavedAttempt>(&json).ok())
+        else {
+            return;
+        };
+        let ExamState::Running { attempt, ends_at, .. } = &saved.state else { return };
+        tracing::info!(attempt = %attempt.id, "resuming the running attempt");
+        *self.session.lock().unwrap_or_else(|p| p.into_inner()) = saved.questions;
+        let (id, ends_at) = (attempt.id.clone(), *ends_at);
+        self.set(saved.state);
+        if let Some(ends_at) = ends_at {
+            self.submit_at(id, ends_at);
+        }
     }
 
     pub fn catalog(&self) -> Vec<ExamSummary> {
