@@ -13,7 +13,7 @@ declare module "@novnc/novnc" {
 		focusOnClick: boolean;
 		background: string;
 		disconnect(): void;
-		focus(): void;
+		focus(options?: FocusOptions): void;
 		/** Put text on the remote clipboard */
 		clipboardPasteFrom(text: string): void;
 	}

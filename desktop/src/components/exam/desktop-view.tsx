@@ -74,7 +74,9 @@ export function DesktopView({
 			rfb.background = "#1e1e1e";
 			rfb.addEventListener("connect", () => {
 				setConnected(true);
-				rfb.focus();
+				// Without preventScroll the browser scrolls the page to the canvas,
+				// shifting the whole exam desk out of the window
+				rfb.focus({ preventScroll: true });
 			});
 			rfb.addEventListener("disconnect", () => {
 				setConnected(false);
