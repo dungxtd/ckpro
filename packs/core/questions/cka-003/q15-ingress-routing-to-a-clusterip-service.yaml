@@ -1,0 +1,169 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-003 question 15
+title: Ingress Routing to a ClusterIP Service
+certifications:  # review: domains guessed from concepts
+  cka: services-networking
+difficulty: hard
+workers: 3
+namespace: ing-internal
+tags: [ingress, ingress-nginx, networking]
+
+statement: |
+  Create an Ingress resource named `pong` in namespace `ing-internal` as follows:
+
+  - Uses the `nginx` IngressClass
+  - Exposes the existing Service `hello` (ClusterIP, port `5678`) on path `/hello`
+  - Uses pathType `Prefix`
+
+  An ingress-nginx controller is already installed in the cluster, and the `hello` Service/Deployment already exist in `ing-internal`.
+
+setup: |
+  set -e
+
+  kubectl create namespace ing-internal --dry-run=client -o yaml | kubectl apply -f -
+
+  # Install ingress-nginx controller if not already present
+  kubectl get deployment ingress-nginx-controller -n ingress-nginx || {
+    echo "Installing ingress-nginx controller..."
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/cloud/deploy.yaml
+    kubectl wait --for=condition=available --timeout=180s deployment/ingress-nginx-controller -n ingress-nginx || {
+      echo "WARNING: ingress-nginx-controller did not become available in time, continuing anyway"
+    }
+  }
+
+  # Backend Deployment + Service "hello" listening on port 5678
+  kubectl apply -f - <<EOF
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: hello
+    namespace: ing-internal
+    labels:
+      app: hello
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: hello
+    template:
+      metadata:
+        labels:
+          app: hello
+      spec:
+        containers:
+          - name: hello
+            image: hashicorp/http-echo:1.0.0
+            args:
+              - "-listen=:5678"
+              - "-text=hello"
+            ports:
+              - containerPort: 5678
+  ---
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: hello
+    namespace: ing-internal
+  spec:
+    selector:
+      app: hello
+    ports:
+      - port: 5678
+        targetPort: 5678
+  EOF
+
+  echo "Waiting for hello deployment to be available..."
+  kubectl wait --for=condition=available --timeout=120s deployment/hello -n ing-internal || {
+    echo "WARNING: hello deployment did not become available in time, continuing anyway"
+  }
+
+checks:
+  - name: Ingress pong exists in ing-internal
+    run: |
+      set -e
+
+      kubectl get ingress pong -n ing-internal || {
+          echo "Ingress pong not found in namespace ing-internal"
+          exit 1
+      }
+
+      echo "Ingress pong exists"
+      exit 0
+  - name: Ingress uses the nginx ingress class
+    weight: 2
+    run: |
+      set -e
+
+      ING=$(kubectl get ingress pong -n ing-internal -o json)
+
+      CLASS_NAME=$(echo "$ING" | jq -r '.spec.ingressClassName // empty')
+      CLASS_ANNOTATION=$(echo "$ING" | jq -r '.metadata.annotations["kubernetes.io/ingress.class"] // empty')
+
+      if [[ "$CLASS_NAME" != "nginx" && "$CLASS_ANNOTATION" != "nginx" ]]; then
+          echo "Ingress pong is not using the nginx ingress class (ingressClassName='$CLASS_NAME', annotation='$CLASS_ANNOTATION')"
+          exit 1
+      fi
+
+      echo "Ingress class validation successful"
+      exit 0
+  - name: "Ingress has a Prefix rule for /hello routing to service hello:5678"
+    weight: 4
+    run: |
+      set -e
+
+      ING=$(kubectl get ingress pong -n ing-internal -o json)
+
+      PATH_ENTRY=$(echo "$ING" | jq -c '[.spec.rules[]?.http.paths[]? | select(.path=="/hello")] | first')
+      if [[ -z "$PATH_ENTRY" || "$PATH_ENTRY" == "null" ]]; then
+          echo "Ingress pong has no rule for path /hello"
+          exit 1
+      fi
+
+      PATH_TYPE=$(echo "$PATH_ENTRY" | jq -r '.pathType')
+      if [[ "$PATH_TYPE" != "Prefix" ]]; then
+          echo "Path /hello pathType is not Prefix (got '$PATH_TYPE')"
+          exit 1
+      fi
+
+      BACKEND_SVC=$(echo "$PATH_ENTRY" | jq -r '.backend.service.name')
+      if [[ "$BACKEND_SVC" != "hello" ]]; then
+          echo "Path /hello does not route to service 'hello' (got '$BACKEND_SVC')"
+          exit 1
+      fi
+
+      BACKEND_PORT=$(echo "$PATH_ENTRY" | jq -r '.backend.service.port.number')
+      if [[ "$BACKEND_PORT" != "5678" ]]; then
+          echo "Path /hello does not route to port 5678 (got '$BACKEND_PORT')"
+          exit 1
+      fi
+
+      echo "Ingress rule validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: pong
+      namespace: ing-internal
+    spec:
+      ingressClassName: nginx
+      rules:
+        - http:
+            paths:
+              - path: /hello
+                pathType: Prefix
+                backend:
+                  service:
+                    name: hello
+                    port:
+                      number: 5678
+    ```
+
+    ### Why this works
+    `ingressClassName: nginx` tells the ingress-nginx controller (installed cluster-wide by this lab's setup, mirroring how `cka/002` installs Gateway API CRDs and `metrics-server` per-lab rather than baking them into the base image) that it is responsible for reconciling this Ingress object. The single rule routes any request whose path starts with `/hello` (`pathType: Prefix`) to the `hello` Service on port `5678`, which fronts the pre-existing `hello` Deployment.
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

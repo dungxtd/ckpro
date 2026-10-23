@@ -1,0 +1,168 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X ckad-001 question 8
+title: Pod 'logging-pod' in namespace 'troubleshooting' is consuming excessive CPU resources. Set appropriate CPU and memory limits
+certifications:  # review: domains guessed from concepts
+  ckad: application-environment-configuration-security
+difficulty: medium
+namespace: troubleshooting
+tags: [resource-limits, resource-requests, cpu-management, troubleshooting]
+
+statement: |
+  The operations team has reported performance degradation in the cluster.
+
+  Pod `logging-pod` in namespace `troubleshooting` is consuming excessive CPU resources, affecting other workloads in the cluster.
+
+  Your task is to:
+
+  1. Identify which container within the pod is causing the high CPU usage
+
+  2. Configure appropriate CPU limits `100m` and memory limits `50Mi` for that container to prevent resource abuse while ensuring the application can still function
+
+  3. Implement your solution by modifying the pod specification with the necessary resource constraints
+
+  Ensure that the pod continues to run successfully after your changes, but with its CPU usage kept within reasonable bounds as defined by the limits you set.
+
+setup: |
+  # Setup for Question 8: Pod with high CPU usage
+
+  # Create the troubleshooting namespace if it doesn't exist already
+  if ! kubectl get namespace troubleshooting &> /dev/null; then
+      kubectl create namespace troubleshooting
+  fi
+
+  # Delete any existing pod with the same name
+  kubectl delete pod logging-pod -n troubleshooting --ignore-not-found=true
+
+  # Create a pod with a container that has high CPU usage and no resource limits
+  cat <<EOF | kubectl apply -f -
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: logging-pod
+    namespace: troubleshooting
+  spec:
+    containers:
+    - name: cpu-consumer
+      image: busybox
+      command: ["/bin/sh", "-c"]
+      args:
+      - "while true; do echo 'Consuming CPU...'; done"
+    - name: normal-container
+      image: nginx
+  EOF
+
+  echo "Setup complete for Question 8: Created pod 'logging-pod' with high CPU usage container"
+  echo "Note: In a real environment, the 'cpu-consumer' container would actually consume high CPU."
+  echo "      The student needs to identify this container and set appropriate CPU limits."
+  exit 0
+
+checks:
+  - name: CPU limits are set for container
+    weight: 2
+    run: |
+      # Validate that CPU limits are set for containers in the 'logging-pod' in namespace 'troubleshooting'
+
+      NAMESPACE="troubleshooting"
+      POD_NAME="logging-pod"
+
+      # Check if the pod exists
+      kubectl get pod $POD_NAME -n $NAMESPACE > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+        echo "❌ Pod '$POD_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Get the number of containers in the pod
+      CONTAINERS=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[*].name}')
+      CONTAINER_COUNT=$(echo $CONTAINERS | wc -w)
+
+      # Check if CPU limits are set for all containers
+      CONTAINERS_WITH_LIMITS=0
+      CONTAINER_WITH_ISSUE=""
+
+      for CONTAINER in $CONTAINERS; do
+        CPU_LIMIT=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath="{.spec.containers[?(@.name==\"$CONTAINER\")].resources.limits.cpu}")
+
+        if [ -n "$CPU_LIMIT" ]; then
+          CONTAINERS_WITH_LIMITS=$((CONTAINERS_WITH_LIMITS+1))
+          echo "✅ Container '$CONTAINER' has CPU limits set to '$CPU_LIMIT'"
+        else
+          CONTAINER_WITH_ISSUE="$CONTAINER"
+          echo "❌ Container '$CONTAINER' does not have CPU limits set"
+        fi
+      done
+
+      # Check if at least one container has CPU limits
+      if [ $CONTAINERS_WITH_LIMITS -eq 0 ]; then
+        echo "❌ No containers in pod '$POD_NAME' have CPU limits set"
+        exit 1
+      fi
+
+      # For this specific task, it's acceptable if at least one container has CPU limits
+      # as the troubleshooting scenario is about identifying and limiting only the problematic container
+      echo "✅ CPU limits are properly configured in pod '$POD_NAME'"
+      exit 0
+  - name: CPU and Memory limits are configured correctly
+    run: |
+      # Validate that the 'logging-pod' is running in namespace 'troubleshooting'
+
+
+      NAMESPACE="troubleshooting"
+      POD_NAME="logging-pod"
+
+      # Check if the pod exists
+      POD_STATUS=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.status.phase}' 2>/dev/null)
+
+      if [ -z "$POD_STATUS" ]; then
+        echo "❌ Pod '$POD_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      #validate `100m` and memory limits `50Mi` set for the container
+
+      # Check if the pod is running
+      if [ "$POD_STATUS" != "Running" ]; then
+        echo "❌ Pod '$POD_NAME' exists but is not running (current status: $POD_STATUS)"
+        exit 1
+      fi
+
+      # Check if the container has the correct CPU and memory limits
+      CONTAINER_NAME=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].name}')
+      CPU_LIMIT=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath="{.spec.containers[?(@.name==\"$CONTAINER_NAME\")].resources.limits.cpu}")
+      MEMORY_LIMIT=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath="{.spec.containers[?(@.name==\"$CONTAINER_NAME\")].resources.limits.memory}")
+
+      if [ "$CPU_LIMIT" != "100m" ] || [ "$MEMORY_LIMIT" != "50Mi" ]; then
+        echo "❌ Container '$CONTAINER_NAME' does not have the correct CPU and memory limits"
+        exit 1
+      fi
+
+      echo "✅ Container '$CONTAINER_NAME' has the correct CPU and memory limits"
+      exit 0
+
+solution:
+  explain: |
+    Solution:
+    1. After identifying which container is causing high CPU usage, edit the pod to add resource limits:
+
+    ```yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: logging-pod
+      namespace: troubleshooting
+    spec:
+      containers:
+      - name: <container-name>
+        # ... existing container configuration ...
+        resources:
+          limits:
+            cpu: 100m
+            memory: 50Mi
+    ```
+
+    Edit the pod to add resource limits and will be saved to tmp/<file.yaml>
+    ```
+    kubectl replace -f tmp/<file.yaml> --force
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

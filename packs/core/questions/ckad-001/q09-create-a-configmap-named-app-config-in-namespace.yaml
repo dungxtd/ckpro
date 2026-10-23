@@ -1,0 +1,160 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X ckad-001 question 9
+title: "Create a ConfigMap named 'app-config' in namespace 'workloads' containing the following key-value pairs: APP_ENV=production, LOG_LEVEL=info. Then create a Pod named 'config-pod' using 'nginx' image that mounts these configurations as environment variables"
+certifications:  # review: domains guessed from concepts
+  ckad: application-environment-configuration-security
+difficulty: medium
+namespace: workloads
+tags: [configmaps, pods, environment-variables, resource-limits]
+
+statement: |
+  A development team needs environment-specific configuration for their application.
+
+  First, create a ConfigMap named `app-config` in namespace `workloads` containing exactly two key-value pairs: `APP_ENV=production` and `LOG_LEVEL=info`.
+
+  Next, create a Pod named `config-pod` using the `nginx` image that consumes these configurations as environment variables.
+
+  The pod should be resource-efficient but have guaranteed resources, so configure it with a CPU request of `100m`, a CPU limit of `200m`, a memory request of `128Mi`, and a memory limit of `256Mi`.
+
+setup: |
+  # Setup for Question 9: Create a ConfigMap and use it in a Pod
+
+  # Create the workloads namespace if it doesn't exist already
+  if ! kubectl get namespace workloads &> /dev/null; then
+      kubectl create namespace workloads
+  fi
+
+  # Delete any existing ConfigMap and Pod with the same names
+  kubectl delete configmap app-config -n workloads --ignore-not-found=true
+  kubectl delete pod config-pod -n workloads --ignore-not-found=true
+
+  echo "Setup complete for Question 9: Environment ready for creating ConfigMap 'app-config' and Pod 'config-pod'"
+  exit 0
+
+checks:
+  - name: ConfigMap is created with correct data
+    weight: 2
+    run: |
+      # Validate if the ConfigMap 'app-config' exists in the 'workloads' namespace with correct data
+      APP_ENV=$(kubectl get configmap app-config -n workloads -o jsonpath='{.data.APP_ENV}' 2>/dev/null)
+      LOG_LEVEL=$(kubectl get configmap app-config -n workloads -o jsonpath='{.data.LOG_LEVEL}' 2>/dev/null)
+
+      if [ "$APP_ENV" = "production" ] && [ "$LOG_LEVEL" = "info" ]; then
+          echo "Success: ConfigMap 'app-config' exists with correct key-value pairs"
+          exit 0
+      else
+          echo "Error: ConfigMap 'app-config' does not have the correct data."
+          echo "Expected: APP_ENV=production, LOG_LEVEL=info"
+          echo "Found: APP_ENV=$APP_ENV, LOG_LEVEL=$LOG_LEVEL"
+          exit 1
+      fi
+  - name: Pod is created and running
+    run: |
+      # Validate if the Pod 'config-pod' exists and is running in the 'workloads' namespace
+      POD_STATUS=$(kubectl get pod config-pod -n workloads -o jsonpath='{.status.phase}' 2>/dev/null)
+
+      if [ "$POD_STATUS" = "Running" ]; then
+          echo "Success: Pod 'config-pod' is running in namespace 'workloads'"
+          exit 0
+      else
+          echo "Error: Pod 'config-pod' is not running in namespace 'workloads'. Current status: $POD_STATUS"
+          exit 1
+      fi
+  - name: Pod has environment variables from ConfigMap
+    weight: 2
+    run: |
+      # Validate if the Pod 'config-pod' has the environment variables from the ConfigMap
+      POD_APP_ENV=$(kubectl exec config-pod -n workloads -- env | grep APP_ENV | cut -d '=' -f 2 2>/dev/null)
+      POD_LOG_LEVEL=$(kubectl exec config-pod -n workloads -- env | grep LOG_LEVEL | cut -d '=' -f 2 2>/dev/null)
+
+      if [ "$POD_APP_ENV" = "production" ] && [ "$POD_LOG_LEVEL" = "info" ]; then
+          echo "Success: Pod 'config-pod' has the correct environment variables from ConfigMap"
+          exit 0
+      else
+          echo "Error: Pod 'config-pod' does not have the correct environment variables."
+          echo "Expected: APP_ENV=production, LOG_LEVEL=info"
+          echo "Found: APP_ENV=$POD_APP_ENV, LOG_LEVEL=$POD_LOG_LEVEL"
+          exit 1
+      fi
+  - name: Pod has correct resource requirements
+    weight: 2
+    run: |
+      # Validate if the Pod 'config-pod' in namespace 'workloads' has the correct resource requirements
+      POD_EXISTS=$(kubectl get pod config-pod -n workloads -o name 2>/dev/null)
+
+      if [ -z "$POD_EXISTS" ]; then
+          echo "Error: Pod 'config-pod' does not exist in namespace 'workloads'"
+          exit 1
+      fi
+
+      # Extract resource limits and requests
+      CPU_REQUEST=$(kubectl get pod config-pod -n workloads -o jsonpath='{.spec.containers[0].resources.requests.cpu}' 2>/dev/null)
+      CPU_LIMIT=$(kubectl get pod config-pod -n workloads -o jsonpath='{.spec.containers[0].resources.limits.cpu}' 2>/dev/null)
+      MEM_REQUEST=$(kubectl get pod config-pod -n workloads -o jsonpath='{.spec.containers[0].resources.requests.memory}' 2>/dev/null)
+      MEM_LIMIT=$(kubectl get pod config-pod -n workloads -o jsonpath='{.spec.containers[0].resources.limits.memory}' 2>/dev/null)
+
+      # Check if resources are defined
+      if [ -z "$CPU_REQUEST" ] || [ -z "$CPU_LIMIT" ] || [ -z "$MEM_REQUEST" ] || [ -z "$MEM_LIMIT" ]; then
+          echo "Error: Resource requirements not fully defined for Pod 'config-pod'"
+          echo "Found: CPU request='$CPU_REQUEST', CPU limit='$CPU_LIMIT', Memory request='$MEM_REQUEST', Memory limit='$MEM_LIMIT'"
+          exit 1
+      fi
+
+      # Check if resources match expected values
+      if [ "$CPU_REQUEST" = "100m" ] && [ "$CPU_LIMIT" = "200m" ] && [ "$MEM_REQUEST" = "128Mi" ] && [ "$MEM_LIMIT" = "256Mi" ]; then
+          echo "Success: Pod 'config-pod' has the correct resource requirements"
+          exit 0
+      else
+          echo "Error: Pod 'config-pod' does not have the correct resource requirements"
+          echo "Expected: CPU request='100m', CPU limit='200m', Memory request='128Mi', Memory limit='256Mi'"
+          echo "Found: CPU request='$CPU_REQUEST', CPU limit='$CPU_LIMIT', Memory request='$MEM_REQUEST', Memory limit='$MEM_LIMIT'"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    ```bash
+    # Create the ConfigMap
+    kubectl create configmap app-config -n workloads --from-literal=APP_ENV=production --from-literal=LOG_LEVEL=info
+    ```
+
+    Create the Pod with ConfigMap environment variables:
+    ```yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: config-pod
+      namespace: workloads
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        env:
+        - name: APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: APP_ENV
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: LOG_LEVEL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+    ```
+
+    Save as `config-pod.yaml` and apply:
+    ```bash
+    kubectl apply -f config-pod.yaml
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    # Create the ConfigMap
+    kubectl create configmap app-config -n workloads --from-literal=APP_ENV=production --from-literal=LOG_LEVEL=info
+    kubectl apply -f config-pod.yaml

@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-003 question 10
+title: PersistentVolume with hostPath
+certifications:  # review: domains guessed from concepts
+  cka: storage
+difficulty: hard
+workers: 3
+namespace: storage-pv
+tags: [persistent-volumes, hostpath]
+
+statement: |
+  Create a PersistentVolume named `app-data` with the following specifications:
+
+  - Capacity: `2Gi`
+  - Access mode: `ReadWriteOnce`
+  - Volume type: hostPath, at path `/srv/app-data`
+
+setup: |
+  set -e
+
+  # PersistentVolumes are cluster-scoped, but create a namespace for organizational
+  # consistency with the rest of the lab.
+  kubectl create namespace storage-pv --dry-run=client -o yaml | kubectl apply -f -
+
+checks:
+  - name: PersistentVolume app-data exists with the exact capacity/accessMode/hostPath.path
+    weight: 7
+    run: |
+      set -e
+
+      kubectl get pv app-data || {
+          echo "PersistentVolume app-data not found"
+          exit 1
+      }
+
+      PV=$(kubectl get pv app-data -o json)
+
+      CAPACITY=$(echo "$PV" | jq -r '.spec.capacity.storage')
+      if [[ "$CAPACITY" != "2Gi" ]]; then
+          echo "Incorrect capacity. Expected 2Gi, got '$CAPACITY'"
+          exit 1
+      fi
+
+      ACCESS_MODE=$(echo "$PV" | jq -r '.spec.accessModes[0]')
+      if [[ "$ACCESS_MODE" != "ReadWriteOnce" ]]; then
+          echo "Incorrect access mode. Expected ReadWriteOnce, got '$ACCESS_MODE'"
+          exit 1
+      fi
+
+      HOSTPATH=$(echo "$PV" | jq -r '.spec.hostPath.path')
+      if [[ "$HOSTPATH" != "/srv/app-data" ]]; then
+          echo "Incorrect hostPath. Expected /srv/app-data, got '$HOSTPATH'"
+          exit 1
+      fi
+
+      echo "PersistentVolume app-data validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: app-data
+    spec:
+      capacity:
+        storage: 2Gi
+      accessModes:
+        - ReadWriteOnce
+      hostPath:
+        path: /srv/app-data
+    ```
+
+    ### Why this works
+    A `hostPath` PV binds directly to a path on whichever node the PV ends up mounted on - suitable for single-node or test scenarios (like this simulator's kind cluster) but not for production multi-node clusters, since the data is not available if a pod is rescheduled to a different node.
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

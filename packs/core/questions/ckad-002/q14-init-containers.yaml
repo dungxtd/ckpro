@@ -1,0 +1,262 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X ckad-002 question 14
+title: Init Containers
+certifications:  # review: domains guessed from concepts
+  ckad: application-design-build
+difficulty: hard
+namespace: init-containers
+tags: [init-containers, services, shared-volumes]
+
+statement: |
+  Create a Pod named `app-with-init` in the `init-containers` namespace with the following specifications:
+
+  1. Main container using image `nginx`
+  2. Init container using image `busybox` with command: `['sh', '-c', 'until nslookup myservice; do echo waiting for myservice; sleep 2; done']`
+  3. Create a service named `myservice` using image `nginx`
+  4. Share a volume between init container and main container at `/shared`
+
+  Ensure the namespace exists before creating the resources.
+
+setup: |
+  # Delete the init-containers namespace if it exists
+  echo "Setting up environment for Question 14 (Init Containers)..."
+  kubectl delete namespace init-containers --ignore-not-found=true
+
+  # Wait for deletion to complete
+  sleep 2
+
+  # Confirm environment is ready
+  echo "Environment ready for Question 14"
+  exit 0
+
+checks:
+  - name: Namespace is created
+    run: |
+      # Validate that the init-containers namespace exists
+      NS=$(kubectl get namespace init-containers -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$NS" == "init-containers" ]]; then
+          # Namespace exists
+          exit 0
+      else
+          # Namespace does not exist
+          echo "Namespace 'init-containers' does not exist"
+          exit 1
+      fi
+  - name: Pod is created with init container
+    weight: 2
+    run: |
+      # Validate that the pod exists with init container
+      POD=$(kubectl get pod app-with-init -n init-containers -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$POD" == "app-with-init" ]]; then
+          # Pod exists, now check init container
+
+          # Check main container image
+          MAIN_CONTAINER_IMAGE=$(kubectl get pod app-with-init -n init-containers -o jsonpath='{.spec.containers[0].image}' 2>/dev/null)
+
+          # Check init container existence
+          INIT_CONTAINER=$(kubectl get pod app-with-init -n init-containers -o jsonpath='{.spec.initContainers[0].name}' 2>/dev/null)
+
+          # Check init container image
+          INIT_CONTAINER_IMAGE=$(kubectl get pod app-with-init -n init-containers -o jsonpath='{.spec.initContainers[0].image}' 2>/dev/null)
+
+          # Check init container command
+          INIT_CONTAINER_COMMAND=$(kubectl get pod app-with-init -n init-containers -o jsonpath='{.spec.initContainers[0].command}' 2>/dev/null)
+
+          if [[ "$MAIN_CONTAINER_IMAGE" == "nginx" &&
+                "$INIT_CONTAINER_IMAGE" == "busybox" &&
+                "$INIT_CONTAINER_COMMAND" == *"nslookup myservice"* ]]; then
+              # Pod and init container are configured correctly
+              exit 0
+          else
+              echo "Pod 'app-with-init' does not have correct configuration."
+              echo "Found main container image: $MAIN_CONTAINER_IMAGE (expected: nginx)"
+              echo "Found init container: $INIT_CONTAINER"
+              echo "Found init container image: $INIT_CONTAINER_IMAGE (expected: busybox)"
+              echo "Found init container command: $INIT_CONTAINER_COMMAND (should include 'nslookup myservice')"
+              exit 1
+          fi
+      else
+          # Pod does not exist
+          echo "Pod 'app-with-init' does not exist in the 'init-containers' namespace"
+          exit 1
+      fi
+  - name: Service is created correctly
+    weight: 2
+    run: |
+      # Validate that the service is created correctly
+      SERVICE=$(kubectl get service myservice -n init-containers -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$SERVICE" == "myservice" ]]; then
+          # Service exists, now check image of the pods it selects
+
+          # Get selector labels
+          SELECTOR_LABELS=$(kubectl get service myservice -n init-containers -o jsonpath='{.spec.selector}' 2>/dev/null)
+
+          # Check if the service is configured correctly
+          # Since we don't have specific requirements for the service selector in the question,
+          # we'll just check if the service exists with the correct name and if it's using the nginx image
+          SERVICE_IMAGE=$(kubectl get deployment -n init-containers -l app=myservice -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' 2>/dev/null)
+
+          if [[ "$SERVICE_IMAGE" == *"nginx"* || "$SERVICE_IMAGE" == "" ]]; then
+              # Service is using nginx or we couldn't find a deployment with app=myservice
+              # (which is fine, as the question doesn't specify how the service should be implemented)
+              exit 0
+          else
+              echo "Service 'myservice' does not appear to be using nginx."
+              echo "Found image: $SERVICE_IMAGE"
+              exit 1
+          fi
+      else
+          # Service does not exist
+          echo "Service 'myservice' does not exist in the 'init-containers' namespace"
+          exit 1
+      fi
+  - name: Shared volume is configured correctly
+    weight: 2
+    run: |
+      # Validate that the shared volume is configured correctly
+      # Check if volume exists
+      VOLUME_NAME=$(kubectl get pod app-with-init -n init-containers -o jsonpath='{.spec.volumes[?(@.name=="shared")].name}' 2>/dev/null)
+
+      if [[ "$VOLUME_NAME" == "shared" ]]; then
+          # Volume exists, now check if it's mounted in both containers
+          # Check main container mount
+          MAIN_CONTAINER_MOUNT=$(kubectl get pod app-with-init -n init-containers -o jsonpath='{.spec.containers[0].volumeMounts[?(@.name=="shared")].mountPath}' 2>/dev/null)
+
+          # Check init container mount
+          INIT_CONTAINER_MOUNT=$(kubectl get pod app-with-init -n init-containers -o jsonpath='{.spec.initContainers[0].volumeMounts[?(@.name=="shared")].mountPath}' 2>/dev/null)
+
+          if [[ "$MAIN_CONTAINER_MOUNT" == "/shared" && "$INIT_CONTAINER_MOUNT" == "/shared" ]]; then
+              # Both containers have the volume mounted at the correct path
+              exit 0
+          else
+              echo "Volume mounts are not configured correctly."
+              echo "Main container mount path: $MAIN_CONTAINER_MOUNT (expected: /shared)"
+              echo "Init container mount path: $INIT_CONTAINER_MOUNT (expected: /shared)"
+              exit 1
+          fi
+      else
+          # Try checking with different volume names, as the question doesn't specify the exact name
+          VOLUMES=$(kubectl get pod app-with-init -n init-containers -o jsonpath='{.spec.volumes[*].name}' 2>/dev/null)
+
+          if [[ "$VOLUMES" != "" ]]; then
+              # There are volumes, check if any are mounted in both containers
+              # Check main container mounts
+              MAIN_CONTAINER_MOUNTS=$(kubectl get pod app-with-init -n init-containers -o jsonpath='{.spec.containers[0].volumeMounts[*].mountPath}' 2>/dev/null)
+
+              # Check init container mounts
+              INIT_CONTAINER_MOUNTS=$(kubectl get pod app-with-init -n init-containers -o jsonpath='{.spec.initContainers[0].volumeMounts[*].mountPath}' 2>/dev/null)
+
+              if [[ "$MAIN_CONTAINER_MOUNTS" == *"/shared"* && "$INIT_CONTAINER_MOUNTS" == *"/shared"* ]]; then
+                  # Both containers have a volume mounted at /shared
+                  exit 0
+              else
+                  echo "Shared volume is not configured correctly. Both containers should mount the same volume at '/shared'."
+                  echo "Main container mounts: $MAIN_CONTAINER_MOUNTS"
+                  echo "Init container mounts: $INIT_CONTAINER_MOUNTS"
+                  exit 1
+              fi
+          else
+              echo "No shared volume found in pod 'app-with-init'"
+              exit 1
+          fi
+      fi
+
+solution:
+  explain: |
+    Create a Pod with init container and service:
+
+    ```bash
+    # Create namespace
+    kubectl create namespace init-containers
+
+    # Create Pod with init container and Service
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: init-containers
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: myservice
+      namespace: init-containers
+    spec:
+      selector:
+        app: myservice
+      ports:
+      - port: 80
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: app-with-init
+      namespace: init-containers
+    spec:
+      containers:
+      - name: main-container
+        image: nginx
+        volumeMounts:
+        - name: log-volume
+          mountPath: /shared
+      initContainers:
+      - name: sidecar-container
+        image: busybox
+        command: ['sh', '-c', 'until nslookup myservice; do echo waiting for myservice; sleep 2; done']
+        volumeMounts:
+        - name: log-volume
+          mountPath: /shared
+      volumes:
+      - name: log-volume
+        emptyDir: {}
+    EOF
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    # Create namespace
+    kubectl create namespace init-containers
+
+    # Create Pod with init container and Service
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: init-containers
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: myservice
+      namespace: init-containers
+    spec:
+      selector:
+        app: myservice
+      ports:
+      - port: 80
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: app-with-init
+      namespace: init-containers
+    spec:
+      containers:
+      - name: main-container
+        image: nginx
+        volumeMounts:
+        - name: log-volume
+          mountPath: /shared
+      initContainers:
+      - name: sidecar-container
+        image: busybox
+        command: ['sh', '-c', 'until nslookup myservice; do echo waiting for myservice; sleep 2; done']
+        volumeMounts:
+        - name: log-volume
+          mountPath: /shared
+      volumes:
+      - name: log-volume
+        emptyDir: {}
+    EOF

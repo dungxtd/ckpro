@@ -1,0 +1,242 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-001 question 10
+title: Health Checks
+certifications:  # review: domains guessed from concepts
+  cka: workloads-scheduling
+difficulty: easy
+namespace: default
+tags: [health checks, pod lifecycle]
+
+statement: |
+  Create a pod named `health-check` in the `default` namespace using the `nginx` image with the following health check configuration:
+
+  - Liveness probe: HTTP GET on path `/` port `80` with initial delay of `5` seconds
+  - Readiness probe: HTTP GET on path `/` port `80` with initial delay of `5` seconds
+
+  Ensure the pod is running with both probes functioning correctly.
+
+setup: |
+  # Setup for Question 10: Health Check setup
+
+  # Remove any existing pod with the same name
+  kubectl delete pod health-check --ignore-not-found=true
+
+  # Pre-pull the nginx image
+  kubectl run prefetch-nginx --image=nginx --restart=Never --dry-run=client -o yaml | kubectl apply -f -
+
+  # Create a ConfigMap with a custom nginx configuration that includes /healthz endpoint
+  kubectl create configmap nginx-health-config --from-literal=nginx.conf='
+  events {
+      worker_connections 1024;
+  }
+  http {
+      server {
+          listen 80;
+          location /healthz {
+              access_log off;
+              return 200 "healthy\n";
+          }
+      }
+  }' --dry-run=client -o yaml | kubectl apply -f -
+
+  sleep 5
+  kubectl delete pod prefetch-nginx --ignore-not-found=true
+
+  exit 0
+
+checks:
+  - name: Pod exists with health check configuration
+    weight: 2
+    run: |
+      # Validate if pod with health checks exists with correct configuration
+
+      POD_NAME="health-check"
+      EXPECTED_IMAGE="nginx"
+
+      # Check if pod exists
+      if ! kubectl get pod $POD_NAME &> /dev/null; then
+          echo "❌ Pod '$POD_NAME' not found"
+          exit 1
+      fi
+
+      # Check if pod is running
+      POD_STATUS=$(kubectl get pod $POD_NAME -o jsonpath='{.status.phase}')
+      if [ "$POD_STATUS" != "Running" ]; then
+          echo "❌ Pod '$POD_NAME' exists but is not running (status: $POD_STATUS)"
+          exit 1
+      fi
+
+      # Check if correct image is used
+      POD_IMAGE=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].image}')
+      if [ "$POD_IMAGE" != "$EXPECTED_IMAGE" ]; then
+          echo "❌ Pod '$POD_NAME' using incorrect image: $POD_IMAGE (expected: $EXPECTED_IMAGE)"
+          exit 1
+      fi
+
+      # Check if liveness probe is configured
+      LIVENESS_PROBE=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].livenessProbe.httpGet.path}')
+      if [ "$LIVENESS_PROBE" != "/" ]; then
+          echo "❌ Pod '$POD_NAME' missing liveness probe or incorrect path"
+          exit 1
+      fi
+
+      # Check if liveness probe port is correct
+      LIVENESS_PORT=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].livenessProbe.httpGet.port}')
+      if [ "$LIVENESS_PORT" != "80" ]; then
+          echo "❌ Pod '$POD_NAME' has incorrect liveness probe port: $LIVENESS_PORT (expected: 80)"
+          exit 1
+      fi
+
+      # Check if readiness probe is configured
+      READINESS_PROBE=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].readinessProbe.httpGet.path}')
+      if [ "$READINESS_PROBE" != "/" ]; then
+          echo "❌ Pod '$POD_NAME' missing readiness probe or incorrect path"
+          exit 1
+      fi
+
+      # Check if readiness probe port is correct
+      READINESS_PORT=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].readinessProbe.httpGet.port}')
+      if [ "$READINESS_PORT" != "80" ]; then
+          echo "❌ Pod '$POD_NAME' has incorrect readiness probe port: $READINESS_PORT (expected: 80)"
+          exit 1
+      fi
+
+      # Check if probes have correct initial delay
+      LIVENESS_DELAY=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].livenessProbe.initialDelaySeconds}')
+      READINESS_DELAY=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].readinessProbe.initialDelaySeconds}')
+
+      if [ "$LIVENESS_DELAY" != "5" ]; then
+          echo "❌ Pod '$POD_NAME' has incorrect liveness probe initial delay: $LIVENESS_DELAY (expected: 5)"
+          exit 1
+      fi
+
+      if [ "$READINESS_DELAY" != "5" ]; then
+          echo "❌ Pod '$POD_NAME' has incorrect readiness probe initial delay: $READINESS_DELAY (expected: 5)"
+          exit 1
+      fi
+
+      echo "✅ Pod '$POD_NAME' exists with correct health check configuration"
+      exit 0
+  - name: Health check effectiveness is verified
+    weight: 3
+    run: |
+      # Validate health check effectiveness
+
+      POD_NAME="health-check"
+
+      # Check if pod exists and is running
+      if ! kubectl get pod $POD_NAME &> /dev/null; then
+          echo "❌ Pod '$POD_NAME' not found"
+          exit 1
+      fi
+
+      POD_STATUS=$(kubectl get pod $POD_NAME -o jsonpath='{.status.phase}')
+      if [ "$POD_STATUS" != "Running" ]; then
+          echo "❌ Pod '$POD_NAME' is not running"
+          exit 1
+      fi
+
+      # Check liveness probe configuration
+      LIVENESS_PROBE=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].livenessProbe.httpGet.path}')
+      LIVENESS_PORT=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].livenessProbe.httpGet.port}')
+      LIVENESS_DELAY=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].livenessProbe.initialDelaySeconds}')
+      LIVENESS_PERIOD=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].livenessProbe.periodSeconds}')
+
+      if [ "$LIVENESS_PROBE" != "/" ]; then
+          echo "❌ Incorrect liveness probe path: $LIVENESS_PROBE"
+          exit 1
+      fi
+
+      if [ "$LIVENESS_PORT" != "80" ]; then
+          echo "❌ Incorrect liveness probe port: $LIVENESS_PORT"
+          exit 1
+      fi
+
+      if [ "$LIVENESS_DELAY" != "5" ]; then
+          echo "❌ Incorrect liveness probe initial delay: $LIVENESS_DELAY"
+          exit 1
+      fi
+
+      # Check readiness probe configuration
+      READINESS_PROBE=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].readinessProbe.httpGet.path}')
+      READINESS_PORT=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].readinessProbe.httpGet.port}')
+      READINESS_DELAY=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].readinessProbe.initialDelaySeconds}')
+      READINESS_PERIOD=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].readinessProbe.periodSeconds}')
+
+      if [ "$READINESS_PROBE" != "/" ]; then
+          echo "❌ Incorrect readiness probe path: $READINESS_PROBE"
+          exit 1
+      fi
+
+      if [ "$READINESS_PORT" != "80" ]; then
+          echo "❌ Incorrect readiness probe port: $READINESS_PORT"
+          exit 1
+      fi
+
+      if [ "$READINESS_DELAY" != "5" ]; then
+          echo "❌ Incorrect readiness probe initial delay: $READINESS_DELAY"
+          exit 1
+      fi
+
+      # Check if health endpoint is responding
+      POD_IP=$(kubectl get pod $POD_NAME -o jsonpath='{.status.podIP}')
+      if [ -z "$POD_IP" ]; then
+          echo "❌ Pod IP not found"
+          exit 1
+      fi
+
+      # Test health endpoint (root path for nginx)
+      if ! kubectl exec $POD_NAME -- curl -s http://localhost/ | grep -q "Welcome to nginx"; then
+          echo "❌ Root endpoint is not responding correctly"
+          exit 1
+      fi
+
+      # Check if pod has been restarted due to health check failures
+      RESTARTS=$(kubectl get pod $POD_NAME -o jsonpath='{.status.containerStatuses[0].restartCount}')
+      if [ "$RESTARTS" -gt 0 ]; then
+          echo "❌ Pod has been restarted $RESTARTS times"
+          exit 1
+      fi
+
+      # Check if pod is ready
+      READY=$(kubectl get pod $POD_NAME -o jsonpath='{.status.containerStatuses[0].ready}')
+      if [ "$READY" != "true" ]; then
+          echo "❌ Pod is not ready"
+          exit 1
+      fi
+
+      echo "✅ Health checks are correctly configured and working"
+      exit 0
+
+solution:
+  explain: |
+    Create a pod named `health-check` with the following health check specifications:
+    - Liveness Probe: HTTP GET / on port 80
+    - Readiness Probe: HTTP GET / on port 80
+    - Initial Delay: 5 seconds for both probes
+
+    ```yaml
+    # Create pod
+    cat << EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: health-check
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+    EOF
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

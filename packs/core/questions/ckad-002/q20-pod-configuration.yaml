@@ -1,0 +1,360 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X ckad-002 question 20
+title: Pod Configuration
+certifications:  # review: domains guessed from concepts
+  ckad: application-environment-configuration-security
+difficulty: hard
+namespace: pod-configuration
+tags: [environment-variables, configmaps, secrets, volumes]
+
+statement: |
+  Create a Pod named `config-pod` in the `pod-configuration` namespace with the following specifications:
+
+  1. Use image `nginx`
+  2. Add environment variables:
+     - `APP_ENV=production`
+     - `DEBUG=false`
+  3. Add environment variables from ConfigMap `app-config` with keys:
+     - `DB_HOST`
+     - `DB_PORT`
+  4. Mount ConfigMap `app-config` as a volume at `/etc/app-config`
+  5. Add environment variables from Secret `app-secret` with keys:
+     - `API_KEY`
+     - `API_SECRET`
+
+  First create the ConfigMap and Secret with the specified data.
+
+  Ensure the namespace exists before creating the resources.
+
+setup: |
+  # Delete the pod-configuration namespace if it exists
+  echo "Setting up environment for Question 20 (Pod Configuration)..."
+  kubectl delete namespace pod-configuration --ignore-not-found=true
+
+  # Wait for deletion to complete
+  sleep 2
+
+  # Confirm environment is ready
+  echo "Environment ready for Question 20"
+  exit 0
+
+checks:
+  - name: Namespace is created
+    run: |
+      # Check if namespace exists
+      NS_EXISTS=$(kubectl get namespace pod-configuration --no-headers --output=name 2>/dev/null | wc -l)
+      if [[ "$NS_EXISTS" -eq 1 ]]; then
+        echo "✅ Namespace 'pod-configuration' exists"
+        exit 0
+      else
+        echo "❌ Namespace 'pod-configuration' not found"
+        exit 1
+      fi
+  - name: ConfigMap is created correctly
+    weight: 2
+    run: |
+      # Check if the ConfigMap exists
+      CM_EXISTS=$(kubectl get configmap app-config -n pod-configuration --no-headers --output=name 2>/dev/null | wc -l)
+      if [[ "$CM_EXISTS" -eq 0 ]]; then
+        echo "❌ ConfigMap 'app-config' not found in namespace 'pod-configuration'"
+        exit 1
+      fi
+
+      # Check for required keys
+      DB_HOST=$(kubectl get configmap app-config -n pod-configuration -o jsonpath='{.data.DB_HOST}' 2>/dev/null)
+      if [[ -z "$DB_HOST" ]]; then
+        echo "❌ ConfigMap 'app-config' is missing key 'DB_HOST'"
+        exit 1
+      fi
+
+      DB_PORT=$(kubectl get configmap app-config -n pod-configuration -o jsonpath='{.data.DB_PORT}' 2>/dev/null)
+      if [[ -z "$DB_PORT" ]]; then
+        echo "❌ ConfigMap 'app-config' is missing key 'DB_PORT'"
+        exit 1
+      fi
+
+      echo "✅ ConfigMap 'app-config' exists with required keys in namespace 'pod-configuration'"
+      exit 0
+  - name: Secret is created correctly
+    weight: 2
+    run: |
+      # Check if the Secret exists
+      SECRET_EXISTS=$(kubectl get secret app-secret -n pod-configuration --no-headers --output=name 2>/dev/null | wc -l)
+      if [[ "$SECRET_EXISTS" -eq 0 ]]; then
+        echo "❌ Secret 'app-secret' not found in namespace 'pod-configuration'"
+        exit 1
+      fi
+
+      # Check for required keys
+      API_KEY=$(kubectl get secret app-secret -n pod-configuration -o jsonpath='{.data.API_KEY}' 2>/dev/null)
+      if [[ -z "$API_KEY" ]]; then
+        echo "❌ Secret 'app-secret' is missing key 'API_KEY'"
+        exit 1
+      fi
+
+      API_SECRET=$(kubectl get secret app-secret -n pod-configuration -o jsonpath='{.data.API_SECRET}' 2>/dev/null)
+      if [[ -z "$API_SECRET" ]]; then
+        echo "❌ Secret 'app-secret' is missing key 'API_SECRET'"
+        exit 1
+      fi
+
+      echo "✅ Secret 'app-secret' exists with required keys in namespace 'pod-configuration'"
+      exit 0
+  - name: Pod has correct environment variables
+    weight: 2
+    run: |
+      # Check if the Pod exists
+      POD_EXISTS=$(kubectl get pod config-pod -n pod-configuration --no-headers --output=name 2>/dev/null | wc -l)
+      if [[ "$POD_EXISTS" -eq 0 ]]; then
+        echo "❌ Pod 'config-pod' not found in namespace 'pod-configuration'"
+        exit 1
+      fi
+
+      # Check for direct environment variables
+      APP_ENV=$(kubectl get pod config-pod -n pod-configuration -o jsonpath='{.spec.containers[0].env[?(@.name=="APP_ENV")].value}' 2>/dev/null)
+      if [[ "$APP_ENV" != "production" ]]; then
+        echo "❌ Pod 'config-pod' does not have environment variable 'APP_ENV=production'"
+        exit 1
+      fi
+
+      DEBUG=$(kubectl get pod config-pod -n pod-configuration -o jsonpath='{.spec.containers[0].env[?(@.name=="DEBUG")].value}' 2>/dev/null)
+      if [[ "$DEBUG" != "false" ]]; then
+        echo "❌ Pod 'config-pod' does not have environment variable 'DEBUG=false'"
+        exit 1
+      fi
+
+      # Check for ConfigMap environment variables
+      DB_HOST_REF=$(kubectl get pod config-pod -n pod-configuration -o jsonpath='{.spec.containers[0].env[?(@.name=="DB_HOST")].valueFrom.configMapKeyRef.name}' 2>/dev/null)
+      DB_HOST_KEY=$(kubectl get pod config-pod -n pod-configuration -o jsonpath='{.spec.containers[0].env[?(@.name=="DB_HOST")].valueFrom.configMapKeyRef.key}' 2>/dev/null)
+
+      if [[ "$DB_HOST_REF" != "app-config" || "$DB_HOST_KEY" != "DB_HOST" ]]; then
+        echo "❌ Pod 'config-pod' does not have environment variable 'DB_HOST' from ConfigMap 'app-config'"
+        exit 1
+      fi
+
+      DB_PORT_REF=$(kubectl get pod config-pod -n pod-configuration -o jsonpath='{.spec.containers[0].env[?(@.name=="DB_PORT")].valueFrom.configMapKeyRef.name}' 2>/dev/null)
+      DB_PORT_KEY=$(kubectl get pod config-pod -n pod-configuration -o jsonpath='{.spec.containers[0].env[?(@.name=="DB_PORT")].valueFrom.configMapKeyRef.key}' 2>/dev/null)
+
+      if [[ "$DB_PORT_REF" != "app-config" || "$DB_PORT_KEY" != "DB_PORT" ]]; then
+        echo "❌ Pod 'config-pod' does not have environment variable 'DB_PORT' from ConfigMap 'app-config'"
+        exit 1
+      fi
+
+      # Check for Secret environment variables
+      API_KEY_REF=$(kubectl get pod config-pod -n pod-configuration -o jsonpath='{.spec.containers[0].env[?(@.name=="API_KEY")].valueFrom.secretKeyRef.name}' 2>/dev/null)
+      API_KEY_KEY=$(kubectl get pod config-pod -n pod-configuration -o jsonpath='{.spec.containers[0].env[?(@.name=="API_KEY")].valueFrom.secretKeyRef.key}' 2>/dev/null)
+
+      if [[ "$API_KEY_REF" != "app-secret" || "$API_KEY_KEY" != "API_KEY" ]]; then
+        echo "❌ Pod 'config-pod' does not have environment variable 'API_KEY' from Secret 'app-secret'"
+        exit 1
+      fi
+
+      API_SECRET_REF=$(kubectl get pod config-pod -n pod-configuration -o jsonpath='{.spec.containers[0].env[?(@.name=="API_SECRET")].valueFrom.secretKeyRef.name}' 2>/dev/null)
+      API_SECRET_KEY=$(kubectl get pod config-pod -n pod-configuration -o jsonpath='{.spec.containers[0].env[?(@.name=="API_SECRET")].valueFrom.secretKeyRef.key}' 2>/dev/null)
+
+      if [[ "$API_SECRET_REF" != "app-secret" || "$API_SECRET_KEY" != "API_SECRET" ]]; then
+        echo "❌ Pod 'config-pod' does not have environment variable 'API_SECRET' from Secret 'app-secret'"
+        exit 1
+      fi
+
+      echo "✅ Pod 'config-pod' has all required environment variables configured correctly"
+      exit 0
+  - name: Pod mounts ConfigMap correctly
+    weight: 2
+    run: |
+      # Check if the Pod exists
+      POD_EXISTS=$(kubectl get pod config-pod -n pod-configuration --no-headers --output=name 2>/dev/null | wc -l)
+      if [[ "$POD_EXISTS" -eq 0 ]]; then
+        echo "❌ Pod 'config-pod' not found in namespace 'pod-configuration'"
+        exit 1
+      fi
+
+      # Check if there's a volume that uses the ConfigMap
+      CM_VOLUME=$(kubectl get pod config-pod -n pod-configuration -o jsonpath='{.spec.volumes[?(@.configMap.name=="app-config")].name}' 2>/dev/null)
+      if [[ -z "$CM_VOLUME" ]]; then
+        echo "❌ Pod 'config-pod' does not have a volume using ConfigMap 'app-config'"
+        exit 1
+      fi
+
+      # Check if the volume is mounted at the correct location
+      VOLUME_MOUNT=$(kubectl get pod config-pod -n pod-configuration -o jsonpath="{.spec.containers[0].volumeMounts[?(@.name==\"$CM_VOLUME\")].mountPath}" 2>/dev/null)
+      if [[ "$VOLUME_MOUNT" != "/etc/app-config" ]]; then
+        echo "❌ ConfigMap volume is not mounted at '/etc/app-config' in pod 'config-pod'"
+        exit 1
+      fi
+
+      echo "✅ Pod 'config-pod' correctly mounts ConfigMap 'app-config' as a volume at '/etc/app-config'"
+      exit 0
+
+solution:
+  explain: |
+    Create a Pod that uses ConfigMaps and Secrets for configuration:
+
+    ```bash
+    # Create namespace
+    kubectl create namespace pod-configuration
+
+    # Create ConfigMap with database connection settings
+    kubectl create configmap app-config -n pod-configuration \
+      --from-literal=DB_HOST=db.example.com \
+      --from-literal=DB_PORT=5432
+
+    # Verify the ConfigMap was created correctly
+    kubectl get configmap app-config -n pod-configuration -o yaml
+
+    # Create Secret with API credentials
+    kubectl create secret generic app-secret -n pod-configuration \
+      --from-literal=API_KEY=my-api-key \
+      --from-literal=API_SECRET=my-api-secret
+
+    # Verify the Secret was created (note values will be base64 encoded)
+    kubectl get secret app-secret -n pod-configuration -o yaml
+
+    # Create Pod with environment variables and volume mounts
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: config-pod
+      namespace: pod-configuration
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        # Direct environment variables
+        env:
+        - name: APP_ENV
+          value: production
+        - name: DEBUG
+          value: "false"
+        # Environment variables from ConfigMap
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: DB_PORT
+        # Environment variables from Secret
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secret
+              key: API_KEY
+        - name: API_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secret
+              key: API_SECRET
+        # Mount ConfigMap as a volume
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/app-config
+      volumes:
+      - name: config-volume
+        configMap:
+          name: app-config
+    EOF
+
+    # Verify the Pod has been created
+    kubectl get pod config-pod -n pod-configuration
+
+    # Verify environment variables within the Pod
+    kubectl exec config-pod -n pod-configuration -- env | grep -E 'APP_ENV|DEBUG|DB_|API_'
+
+    # Verify the ConfigMap is mounted as a volume
+    kubectl exec config-pod -n pod-configuration -- ls -la /etc/app-config
+    kubectl exec config-pod -n pod-configuration -- cat /etc/app-config/DB_HOST
+    ```
+
+    This solution demonstrates:
+    1. Creating a ConfigMap with database connection settings
+    2. Creating a Secret with API credentials
+    3. Configuring a Pod with:
+       - Direct environment variables (APP_ENV, DEBUG)
+       - Environment variables from ConfigMap (DB_HOST, DB_PORT)
+       - Environment variables from Secret (API_KEY, API_SECRET)
+       - Mounting the ConfigMap as a volume at /etc/app-config
+    4. Verification commands to ensure everything is working correctly
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    # Create namespace
+    kubectl create namespace pod-configuration
+
+    # Create ConfigMap with database connection settings
+    kubectl create configmap app-config -n pod-configuration \
+      --from-literal=DB_HOST=db.example.com \
+      --from-literal=DB_PORT=5432
+
+    # Verify the ConfigMap was created correctly
+    kubectl get configmap app-config -n pod-configuration -o yaml
+
+    # Create Secret with API credentials
+    kubectl create secret generic app-secret -n pod-configuration \
+      --from-literal=API_KEY=my-api-key \
+      --from-literal=API_SECRET=my-api-secret
+
+    # Verify the Secret was created (note values will be base64 encoded)
+    kubectl get secret app-secret -n pod-configuration -o yaml
+
+    # Create Pod with environment variables and volume mounts
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: config-pod
+      namespace: pod-configuration
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        # Direct environment variables
+        env:
+        - name: APP_ENV
+          value: production
+        - name: DEBUG
+          value: "false"
+        # Environment variables from ConfigMap
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: DB_PORT
+        # Environment variables from Secret
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secret
+              key: API_KEY
+        - name: API_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secret
+              key: API_SECRET
+        # Mount ConfigMap as a volume
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/app-config
+      volumes:
+      - name: config-volume
+        configMap:
+          name: app-config
+    EOF
+
+    # Verify the Pod has been created
+    kubectl get pod config-pod -n pod-configuration
+
+    # Verify environment variables within the Pod
+    kubectl exec config-pod -n pod-configuration -- env | grep -E 'APP_ENV|DEBUG|DB_|API_'
+
+    # Verify the ConfigMap is mounted as a volume
+    kubectl exec config-pod -n pod-configuration -- ls -la /etc/app-config
+    kubectl exec config-pod -n pod-configuration -- cat /etc/app-config/DB_HOST

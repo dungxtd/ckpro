@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
 title: RBAC for a CI/CD ServiceAccount
-certifications: [cka]
-domain: cluster-architecture
+certifications:
+  cka: cluster-architecture
 difficulty: medium
 estimate: 6m
 namespace: "{{ns}}"

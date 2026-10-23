@@ -1,0 +1,192 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X ckad-001 question 6
+title: Create a multi-container pod with sidecar logging pattern
+certifications:  # review: domains guessed from concepts
+  ckad: application-design-build
+difficulty: medium
+namespace: troubleshooting
+tags: [pods, multi-container, volumes, sidecar-pattern]
+
+statement: |
+  The DevOps team needs a specialized pod to help with monitoring and logging.
+
+  Create a multi-container pod named `sidecar-pod` in the `troubleshooting` namespace with the following specifications:
+
+  1. Main container:
+     - Image: `nginx`
+     - Container name: `nginx`
+     - Purpose: Serve web content
+
+  2. Sidecar container:
+     - Image: `busybox`
+     - Container name: `sidecar`
+     - Command: [`sh`, `-c`, `while true; do date >> /var/my-log/date.log; sleep 10; done`]
+
+  3. Shared volume configuration:
+     - Volume name: `log-volume`
+     - Mount path: `/var/my-log` in both containers
+
+  This demonstrates the sidecar container pattern for extending application functionality.
+
+setup: |
+  # Setup for Question 6: Multi-container pod with shared volume
+
+  # Create the troubleshooting namespace if it doesn't exist already
+  if ! kubectl get namespace troubleshooting &> /dev/null; then
+      kubectl create namespace troubleshooting
+  fi
+
+  # Delete any existing pod with the same name
+  kubectl delete pod sidecar-pod -n troubleshooting --ignore-not-found=true
+
+  echo "Setup complete for Question 6: Environment ready for creating a multi-container pod with shared volume"
+  exit 0
+
+checks:
+  - name: Pod is created with two containers
+    weight: 2
+    run: |
+      # Validate if the pod 'sidecar-pod' exists in the 'troubleshooting' namespace and has containers named 'nginx' and 'sidecar'
+      POD_EXISTS=$(kubectl get pod sidecar-pod -n troubleshooting -o name 2>/dev/null)
+
+      if [ -z "$POD_EXISTS" ]; then
+          echo "Error: Pod 'sidecar-pod' does not exist in namespace 'troubleshooting'"
+          exit 1
+      fi
+
+      # Verify container names
+      NGINX_CONTAINER=$(kubectl get pod sidecar-pod -n troubleshooting -o jsonpath='{.spec.containers[?(@.name=="nginx")].name}' 2>/dev/null)
+      SIDECAR_CONTAINER=$(kubectl get pod sidecar-pod -n troubleshooting -o jsonpath='{.spec.containers[?(@.name=="sidecar")].name}' 2>/dev/null)
+      SIDECAR_INITCONTAINER=$(kubectl get pod sidecar-pod -n troubleshooting -o jsonpath='{.spec.initContainers[?(@.name=="sidecar")].name}' 2>/dev/null)
+      SIDECAR_INITCONTAINER_CONDITION=$(kubectl get pod sidecar-pod -n troubleshooting -o jsonpath='{.spec.initContainers[?(@.name=="sidecar")].restartPolicy}' 2>/dev/null)
+
+      if [ -n "$NGINX_CONTAINER" ] && [ -n "$SIDECAR_CONTAINER" ]; then
+          echo "Success: Pod has both 'nginx' and 'sidecar' containers"
+          exit 0
+      elif [ -n "$NGINX_CONTAINER" ] && [ -n "$SIDECAR_INITCONTAINER" ] && [ "$SIDECAR_INITCONTAINER_CONDITION" = "Always" ]; then
+          echo "Success: Pod has 'nginx' container and 'sidecar' init container with restartPolicy 'Always'"
+          exit 0
+      else
+          echo "Error: Pod does not have the required container names ('nginx' and 'sidecar')"
+          echo "Found containers with names: $(kubectl get pod sidecar-pod -n troubleshooting -o jsonpath='{.spec.containers[*].name}' 2>/dev/null)"
+          exit 1
+      fi
+  - name: Pod has shared volume mounted in both containers
+    weight: 3
+    run: |
+      # Validate if the pod 'sidecar-pod' has a shared volume mounted in both containers
+      POD_EXISTS=$(kubectl get pod sidecar-pod -n troubleshooting -o name 2>/dev/null)
+
+      if [ -z "$POD_EXISTS" ]; then
+          echo "Error: Pod 'sidecar-pod' does not exist in namespace 'troubleshooting'"
+          exit 1
+      fi
+
+      # Get volume names defined in the pod
+      VOLUMES=$(kubectl get pod sidecar-pod -n troubleshooting -o jsonpath='{.spec.volumes[*].name}' 2>/dev/null)
+
+      if [ -z "$VOLUMES" ]; then
+          echo "Error: Pod 'sidecar-pod' does not have any volumes defined"
+          exit 1
+      fi
+
+      # Check if there's at least one shared volume mounted in both containers
+      SHARED_VOLUME_FOUND=false
+
+      for VOLUME in $VOLUMES; do
+          # Check if this volume is mounted in the first container
+          MOUNT_IN_CONTAINER1=$(kubectl get pod sidecar-pod -n troubleshooting -o jsonpath="{.spec.containers[0].volumeMounts[?(@.name==\"$VOLUME\")].mountPath}" 2>/dev/null)
+
+          # Check if this volume is mounted in the second container
+          MOUNT_IN_CONTAINER2=$(kubectl get pod sidecar-pod -n troubleshooting -o jsonpath="{.spec.containers[1].volumeMounts[?(@.name==\"$VOLUME\")].mountPath}" 2>/dev/null)
+
+          if [ -n "$MOUNT_IN_CONTAINER1" ] && [ -n "$MOUNT_IN_CONTAINER2" ]; then
+              echo "Success: Volume '$VOLUME' is mounted in both containers"
+              echo "Mount path in first container: $MOUNT_IN_CONTAINER1"
+              echo "Mount path in second container: $MOUNT_IN_CONTAINER2"
+              SHARED_VOLUME_FOUND=true
+              break
+          fi
+      done
+
+      if [ "$SHARED_VOLUME_FOUND" = true ]; then
+          # Check if the sidecar container is writing to the shared volume
+          BUSYBOX_CONTAINER=$(kubectl get pod sidecar-pod -n troubleshooting -o jsonpath='{.spec.containers[?(@.image=="busybox")].name}' 2>/dev/null)
+
+          if [ -n "$BUSYBOX_CONTAINER" ]; then
+              COMMAND=$(kubectl get pod sidecar-pod -n troubleshooting -o jsonpath="{.spec.containers[?(@.name==\"$BUSYBOX_CONTAINER\")].command}" 2>/dev/null)
+              ARGS=$(kubectl get pod sidecar-pod -n troubleshooting -o jsonpath="{.spec.containers[?(@.name==\"$BUSYBOX_CONTAINER\")].args}" 2>/dev/null)
+
+              if [[ "$COMMAND" == *"date"* ]] || [[ "$ARGS" == *"date"* ]]; then
+                  echo "Success: Sidecar container appears to be writing date to the shared volume"
+                  exit 0
+              else
+                  echo "Warning: Shared volume found, but sidecar container may not be writing date to it"
+                  echo "Container command: $COMMAND"
+                  echo "Container args: $ARGS"
+                  exit 0  # Still pass the test since we can't easily verify the exact command
+              fi
+          else
+              echo "Success: Shared volume is mounted in both containers"
+              exit 0
+          fi
+      else
+          echo "Error: No shared volumes found mounted in both containers"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    ```yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: sidecar-pod
+      namespace: troubleshooting
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/my-log
+      - name: sidecar
+        image: busybox
+        command: ["sh", "-c", "while true; do date >> /var/my-log/date.log; sleep 10; done"]
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/my-log
+      volumes:
+      - name: log-volume
+        emptyDir: {}
+    ```
+
+    Save this as `sidecar-pod.yaml` and apply:
+
+    ```bash
+    kubectl apply -f sidecar-pod.yaml
+    ```
+
+    You can verify the pod is working correctly:
+
+    ```bash
+    # Check that both containers are running in the pod
+    kubectl get pod sidecar-pod -n troubleshooting
+
+    # Verify the shared volume is mounted and the log file is being written
+    kubectl exec -it sidecar-pod -n troubleshooting -c nginx -- cat /var/my-log/date.log
+
+    # Check events related to the pod
+    kubectl describe pod sidecar-pod -n troubleshooting
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    kubectl apply -f sidecar-pod.yaml
+    # Check that both containers are running in the pod
+    kubectl get pod sidecar-pod -n troubleshooting
+
+    # Verify the shared volume is mounted and the log file is being written
+    kubectl exec -it sidecar-pod -n troubleshooting -c nginx -- cat /var/my-log/date.log
+
+    # Check events related to the pod
+    kubectl describe pod sidecar-pod -n troubleshooting

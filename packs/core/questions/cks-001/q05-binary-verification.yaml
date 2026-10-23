@@ -1,0 +1,183 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cks-001 question 5
+title: Binary Verification
+certifications:  # review: domains guessed from concepts
+  cks: supply-chain-security
+difficulty: hard
+namespace: binary-verify
+tags: [binary verification, hostpath volumes]
+
+statement: |
+  You need to verify the integrity of Kubernetes binaries before deploying them. In the `binary-verify` namespace, create a pod named `verify-bin` using the `busybox` image that mounts the host's `/usr/bin` directory as a read-only volume at `/host-bin`.
+
+  Inside the pod, write a script that calculates the SHA256 hash of the following files and stores the results in a file at `/tmp/verified-hashes.txt` within the pod:
+  - /host-bin/kubectl
+  - /host-bin/kubelet
+
+  Use the command format: `sha256sum [file] >> /tmp/verified-hashes.txt`
+
+setup: |
+  # Setup for Question 5: Binary Verification
+
+  # Create namespace if it doesn't exist
+  kubectl create namespace binary-verify 2>/dev/null || true
+
+  # We'll just need to create the namespace for this question
+  # The student will need to create a pod that mounts the host binaries
+
+  echo "Setup completed for Question 5"
+  exit 0
+
+checks:
+  - name: Pod exists
+    run: |
+      # Validate that the binary verification pod exists
+
+      POD_NAME="verify-bin"
+      NAMESPACE="binary-verify"
+
+      # Check if pod exists
+      kubectl get pod $POD_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Pod '$POD_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check if pod is running
+      POD_STATUS=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.status.phase}')
+      if [ "$POD_STATUS" != "Running" ]; then
+        echo "❌ Pod '$POD_NAME' is not in Running state (current state: $POD_STATUS)"
+        exit 1
+      fi
+
+      # Check if pod uses the busybox image as required
+      POD_IMAGE=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].image}')
+      if [[ "$POD_IMAGE" != *"busybox"* ]]; then
+        echo "❌ Pod '$POD_NAME' is not using the busybox image (current image: $POD_IMAGE)"
+        exit 1
+      fi
+
+      echo "✅ Binary verification pod exists"
+      exit 0
+  - name: Correct volume mount
+    weight: 2
+    run: |
+      # Validate that the pod has the correct volume mount
+
+      POD_NAME="verify-bin"
+      NAMESPACE="binary-verify"
+      EXPECTED_HOST_PATH="/usr/bin"
+      EXPECTED_MOUNT_PATH="/host-bin"
+
+      # Check if pod exists
+      kubectl get pod $POD_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Pod '$POD_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check if pod has a volume that mounts the host's /usr/bin directory
+      VOLUME_NAME=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.volumes[*].name}')
+      HOST_PATH=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.volumes[?(@.hostPath)].hostPath.path}')
+      if [[ "$HOST_PATH" != *"$EXPECTED_HOST_PATH"* ]]; then
+        echo "❌ Pod does not mount the hostPath $EXPECTED_HOST_PATH"
+        exit 1
+      fi
+
+      # Check if the volume is mounted at the correct path
+      MOUNT_PATH=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].volumeMounts[0].mountPath}')
+      if [ "$MOUNT_PATH" != "$EXPECTED_MOUNT_PATH" ]; then
+        echo "❌ Volume is not mounted at the correct path ($MOUNT_PATH instead of $EXPECTED_MOUNT_PATH)"
+        exit 1
+      fi
+
+      # Check if the volume is mounted as read-only
+      READONLY=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].volumeMounts[0].readOnly}')
+      if [ "$READONLY" != "true" ]; then
+        echo "❌ Volume is not mounted as read-only"
+        exit 1
+      fi
+
+      echo "✅ Pod has the correct volume mount configuration"
+      exit 0
+  - name: Hash calculation script works
+    weight: 2
+    run: |
+      # Validate that the hash calculation script works
+
+      POD_NAME="verify-bin"
+      NAMESPACE="binary-verify"
+      HASH_FILE="/tmp/verified-hashes.txt"
+      REQUIRED_FILES=("kubectl" "kubelet")
+
+      # Check if pod exists
+      kubectl get pod $POD_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Pod '$POD_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check if the hash file exists in the pod
+      kubectl exec $POD_NAME -n $NAMESPACE -- ls $HASH_FILE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Hash file $HASH_FILE not found in the pod"
+        exit 1
+      fi
+
+      # Check if the file contains SHA256 hashes
+      HASH_CONTENT=$(kubectl exec $POD_NAME -n $NAMESPACE -- cat $HASH_FILE 2>/dev/null)
+      if [ -z "$HASH_CONTENT" ]; then
+        echo "❌ Hash file is empty"
+        exit 1
+      fi
+
+      # Check if the file contains hashes for the required files
+      for file in "${REQUIRED_FILES[@]}"; do
+        if ! echo "$HASH_CONTENT" | grep -q "/host-bin/$file"; then
+          echo "❌ Hash file does not contain hash for /host-bin/$file"
+          exit 1
+        fi
+      done
+
+      # Check if the hashes are in the correct format (SHA256)
+      HASH_FORMAT=$(echo "$HASH_CONTENT" | grep -E "^[a-f0-9]{64}")
+      if [ -z "$HASH_FORMAT" ]; then
+        echo "❌ Hashes are not in the correct SHA256 format"
+        exit 1
+      fi
+
+      echo "✅ Hash calculation script works correctly"
+      exit 0
+
+solution:
+  explain: |
+    Create a pod to verify Kubernetes binaries:
+
+    ```yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: verify-bin
+      namespace: binary-verify
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          sha256sum /host-bin/kubectl >> /tmp/verified-hashes.txt
+          sha256sum /host-bin/kubelet >> /tmp/verified-hashes.txt
+          sleep 3600
+        volumeMounts:
+        - name: host-bin
+          mountPath: /host-bin
+          readOnly: true
+      volumes:
+      - name: host-bin
+        hostPath:
+          path: /usr/bin
+          type: Directory
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

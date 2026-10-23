@@ -1,0 +1,202 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-002 question 10
+title: Basic DNS Service Discovery
+certifications:  # review: domains guessed from concepts
+  cka: workloads-scheduling
+difficulty: hard
+workers: 2
+namespace: dns-config
+tags: [dns, service-discovery, networking]
+
+statement: |
+  Set up basic DNS service discovery:
+
+  1. Create a deployment named `dns-app` with 2 replicas using the `nginx` image
+  2. Create a service named `dns-svc` to expose the deployment
+  3. Create a Pod named `dns-tester` using the `infoblox/dnstools` image that:
+     - Runs the command to test DNS resolution of the service
+     - Verifies both service DNS (`dns-svc.dns-config.svc.cluster.local`)
+     - Stores the test results in `/tmp/dns-test.txt` inside the pod
+
+  Note: The test results should include both the service DNS resolution and FQDN resolution.
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace dns-config --dry-run=client -o yaml | kubectl apply -f -
+
+  # Create directory for test results if it doesn't exist
+  mkdir -p /tmp/dns-test
+
+checks:
+  - name: Deployment and service exist and are correctly configured
+    weight: 2
+    run: |
+      set -e
+
+      # Check if deployment exists and has correct replicas
+      DEPLOY_STATUS=$(kubectl get deployment dns-app -n dns-config -o jsonpath='{.status.replicas},{.status.availableReplicas}' 2>/dev/null || echo "not found")
+      if [ "$DEPLOY_STATUS" = "not found" ]; then
+          echo "Deployment dns-app not found"
+          exit 1
+      fi
+
+      REPLICAS=$(echo $DEPLOY_STATUS | cut -d',' -f1)
+      AVAILABLE=$(echo $DEPLOY_STATUS | cut -d',' -f2)
+
+      if [ "$REPLICAS" != "2" ] || [ "$AVAILABLE" != "2" ]; then
+          echo "Deployment does not have correct number of replicas"
+          exit 1
+      fi
+
+      # Check if service exists and has correct port
+      SVC_PORT=$(kubectl get svc dns-svc -n dns-config -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || echo "not found")
+      if [ "$SVC_PORT" = "not found" ]; then
+          echo "Service dns-svc not found"
+          exit 1
+      fi
+
+      if [ "$SVC_PORT" != "80" ]; then
+          echo "Service port is not configured correctly"
+          exit 1
+      fi
+
+      exit 0
+  - name: DNS resolution works correctly
+    weight: 2
+    run: |
+      set -e
+
+      # Check if tester pod exists and is running
+      POD_STATUS=$(kubectl get pod dns-tester -n dns-config -o jsonpath='{.status.phase}' 2>/dev/null || echo "not found")
+      if [ "$POD_STATUS" = "not found" ]; then
+          echo "DNS tester pod not found"
+          exit 1
+      fi
+
+      if [ "$POD_STATUS" != "Running" ]; then
+          echo "DNS tester pod is not running"
+          exit 1
+      fi
+
+      # Test DNS resolution
+      TEST_RESULT=$(kubectl exec -n dns-config dns-tester -- nslookup dns-svc 2>/dev/null || echo "failed")
+      if echo "$TEST_RESULT" | grep -q "failed"; then
+          echo "DNS resolution test failed"
+          exit 1
+      fi
+
+      # Test FQDN resolution
+      TEST_RESULT=$(kubectl exec -n dns-config dns-tester -- nslookup dns-svc.dns-config.svc.cluster.local 2>/dev/null || echo "failed")
+      if echo "$TEST_RESULT" | grep -q "failed"; then
+          echo "FQDN DNS resolution test failed"
+          exit 1
+      fi
+
+      exit 0
+  - name: Test results are properly stored
+    run: |
+      set -e
+
+      # Check if results file exists in the pod
+      FILE_CHECK=$(kubectl exec -n dns-config dns-tester -- test -f /tmp/dns-test.txt && echo "exists" || echo "not found")
+      if [ "$FILE_CHECK" = "not found" ]; then
+          echo "DNS test results file not found"
+          exit 1
+      fi
+
+      # Check if file has content
+      CONTENT=$(kubectl exec -n dns-config dns-tester -- cat /tmp/dns-test.txt 2>/dev/null || echo "")
+      if [ -z "$CONTENT" ]; then
+          echo "DNS test results file is empty"
+          exit 1
+      fi
+
+      # Verify file contains required information
+      if ! echo "$CONTENT" | grep -q "dns-svc.dns-config.svc.cluster.local"; then
+          echo "FQDN resolution results not found in file"
+          exit 1
+      fi
+
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    # Create the deployment
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: dns-app
+      namespace: dns-config
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: dns-app
+      template:
+        metadata:
+          labels:
+            app: dns-app
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+            ports:
+            - containerPort: 80
+    ---
+    # Create the service
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: dns-svc
+      namespace: dns-config
+    spec:
+      selector:
+        app: dns-app
+      ports:
+      - port: 80
+        targetPort: 80
+    ---
+    # Create the DNS tester pod
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: dns-tester
+      namespace: dns-config
+    spec:
+      containers:
+      - name: dns-tester
+        image: infoblox/dnstools
+        command:
+        - sh
+        - -c
+        - |
+          nslookup dns-svc > /tmp/dns-test.txt
+          nslookup dns-svc.dns-config.svc.cluster.local >> /tmp/dns-test.txt
+          sleep 3600
+    ```
+
+    To verify the setup:
+    ```bash
+    # Check if service is resolvable
+    kubectl exec -n dns-config dns-tester -- cat /tmp/dns-test.txt
+
+    # Verify deployment is running
+    kubectl get deployment -n dns-config dns-app
+
+    # Check service endpoints
+    kubectl get endpoints -n dns-config dns-svc
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    # Check if service is resolvable
+    kubectl exec -n dns-config dns-tester -- cat /tmp/dns-test.txt
+
+    # Verify deployment is running
+    kubectl get deployment -n dns-config dns-app
+
+    # Check service endpoints
+    kubectl get endpoints -n dns-config dns-svc

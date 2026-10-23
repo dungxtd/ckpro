@@ -1,0 +1,132 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-001 question 3
+title: Storage Setup
+certifications:  # review: domains guessed from concepts
+  cka: storage
+difficulty: easy
+namespace: storage
+tags: [storage, storage classes, persistent volumes]
+
+statement: |
+  Create a StorageClass named `fast-storage` with the provisioner `kubernetes.io/no-provisioner`.
+
+  Create a PersistentVolumeClaim named `data-pvc` in the `storage` namespace that uses this StorageClass.
+
+  Set the access mode to `ReadWriteOnce` and request `1Gi` of storage.
+
+setup: |
+  # Setup for Question 3: Storage setup
+
+  # Create storage namespace if it doesn't exist
+  kubectl create namespace storage --dry-run=client -o yaml | kubectl apply -f -
+
+  # Remove any existing storage class and PVC with the same names
+  kubectl delete storageclass fast-storage --ignore-not-found=true
+  kubectl delete pvc -n storage data-pvc --ignore-not-found=true
+
+  exit 0
+
+checks:
+  - name: StorageClass and PVC exist
+    weight: 2
+    run: |
+      # Validate if StorageClass exists with correct configuration
+
+      SC_NAME="fast-storage"
+      EXPECTED_PROVISIONER="kubernetes.io/no-provisioner"
+
+      # Check if StorageClass exists
+      if ! kubectl get storageclass $SC_NAME &> /dev/null; then
+          echo "❌ StorageClass '$SC_NAME' not found"
+          exit 1
+      fi
+
+      # Check if correct provisioner is used
+      PROVISIONER=$(kubectl get storageclass $SC_NAME -o jsonpath='{.provisioner}')
+      if [ "$PROVISIONER" != "$EXPECTED_PROVISIONER" ]; then
+          echo "❌ StorageClass '$SC_NAME' using incorrect provisioner: $PROVISIONER (expected: $EXPECTED_PROVISIONER)"
+          exit 1
+      fi
+
+      echo "✅ StorageClass '$SC_NAME' exists with correct provisioner"
+      exit 0
+  - name: StorageClass has correct configuration
+    weight: 2
+    run: |
+      # Validate if PVC exists with correct configuration
+
+      NAMESPACE="storage"
+      PVC_NAME="data-pvc"
+      SC_NAME="fast-storage"
+      EXPECTED_SIZE="1Gi"
+
+      # Check if PVC exists
+      if ! kubectl get pvc $PVC_NAME -n $NAMESPACE &> /dev/null; then
+          echo "❌ PVC '$PVC_NAME' not found in namespace '$NAMESPACE'"
+          exit 1
+      fi
+
+      # Check if correct storage class is used
+      STORAGE_CLASS=$(kubectl get pvc $PVC_NAME -n $NAMESPACE -o jsonpath='{.spec.storageClassName}')
+      if [ "$STORAGE_CLASS" != "$SC_NAME" ]; then
+          echo "❌ PVC '$PVC_NAME' using incorrect storage class: $STORAGE_CLASS (expected: $SC_NAME)"
+          exit 1
+      fi
+
+      # Check if correct size is requested
+      SIZE=$(kubectl get pvc $PVC_NAME -n $NAMESPACE -o jsonpath='{.spec.resources.requests.storage}')
+      if [ "$SIZE" != "$EXPECTED_SIZE" ]; then
+          echo "❌ PVC '$PVC_NAME' requesting incorrect size: $SIZE (expected: $EXPECTED_SIZE)"
+          exit 1
+      fi
+
+      echo "✅ PVC '$PVC_NAME' exists with correct storage class and size"
+      exit 0
+
+solution:
+  explain: |
+    Create a StorageClass named `fast-storage` and a PVC named `data-pvc` with the following specifications:
+
+    StorageClass:
+    - Name: fast-storage
+    - Provisioner: kubernetes.io/no-provisioner
+    - Namespace: storage
+
+    PVC:
+    - Name: data-pvc
+    - StorageClass: fast-storage
+    - Size: 1Gi
+    - Namespace: storage
+    - Access Mode: ReadWriteOnce
+
+    ```yaml
+    # Create storage namespace
+    kubectl create namespace storage
+
+    # Create StorageClass
+    cat << EOF | kubectl apply -f -
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: fast-storage
+    provisioner: kubernetes.io/no-provisioner
+    EOF
+
+    # Create PVC
+    cat << EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: data-pvc
+      namespace: storage
+    spec:
+      storageClassName: fast-storage
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+    EOF
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

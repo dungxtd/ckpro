@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../schema/exam.schema.json
+# Converted from CK-X ckad-002
+title: CKAD Comprehensive Lab - 2
+description: Series of practical tasks on multi-container pods, pod design patterns, configuration, services, and networking in Kubernetes environments.
+certification: ckad
+duration: 120m
+questions:
+  - core/ckad-002/q01-core-concepts
+  - core/ckad-002/q02-multi-container-pods
+  - core/ckad-002/q03-pod-design-deployment-service
+  - core/ckad-002/q04-configuration-configmaps-secrets
+  - core/ckad-002/q05-observability-probes-resource-limits
+  - core/ckad-002/q06-services-different-service-types
+  - core/ckad-002/q07-state-pv-pvc-and-statefulapp
+  - core/ckad-002/q08-pod-design-cronjob
+  - core/ckad-002/q09-troubleshooting-a-deployment
+  - core/ckad-002/q10-networking-networkpolicy
+  - core/ckad-002/q11-security-context
+  - core/ckad-002/q12-docker-basics
+  - core/ckad-002/q13-jobs
+  - core/ckad-002/q14-init-containers
+  - core/ckad-002/q15-helm-basics
+  - core/ckad-002/q16-health-checks
+  - core/ckad-002/q17-pod-lifecycle
+  - core/ckad-002/q18-custom-resource-definitions
+  - core/ckad-002/q19-custom-column-output
+  - core/ckad-002/q20-pod-configuration

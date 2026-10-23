@@ -1,0 +1,187 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X ckad-002 question 8
+title: Pod Design - CronJob
+certifications:  # review: domains guessed from concepts
+  ckad: application-design-build
+difficulty: hard
+namespace: pod-design
+tags: [cronjobs, jobs, scheduling]
+
+statement: |
+  Create a CronJob in the `pod-design` namespace with the following specifications:
+
+  1. Name: `backup-job`
+  2. Schedule: Every 5 minutes
+  3. Container image: `busybox`
+  4. Command: `['sh', '-c', 'echo Backup started: $(date); sleep 30; echo Backup completed: $(date)']`
+  5. Configure the job with a restart policy of `OnFailure`
+  6. Set a deadline of `100` seconds for the job to complete
+
+  Ensure the namespace exists before creating the resource.
+
+setup: |
+  # Delete the batch namespace if it exists
+  echo "Setting up environment for Question 8 (CronJob)..."
+  kubectl delete namespace batch --ignore-not-found=true
+
+  # Wait for deletion to complete
+  sleep 2
+
+  # Confirm environment is ready
+  echo "Environment ready for Question 8"
+  exit 0
+
+checks:
+  - name: Namespace exists
+    run: |
+      # Validate that the pod-design namespace exists
+      NS=$(kubectl get namespace pod-design -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$NS" == "pod-design" ]]; then
+          # Namespace exists
+          exit 0
+      else
+          # Namespace does not exist
+          echo "Namespace 'pod-design' does not exist"
+          exit 1
+      fi
+  - name: CronJob is created with correct name and schedule
+    weight: 3
+    run: |
+      # Validate that the backup-job CronJob exists with correct name and schedule
+      CRONJOB=$(kubectl get cronjob backup-job -n pod-design -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$CRONJOB" == "backup-job" ]]; then
+          # CronJob exists, now check schedule
+          SCHEDULE=$(kubectl get cronjob backup-job -n pod-design -o jsonpath='{.spec.schedule}' 2>/dev/null)
+
+          if [[ "$SCHEDULE" == "*/5 * * * *" ]]; then
+              # CronJob has correct schedule
+              exit 0
+          else
+              echo "CronJob 'backup-job' does not have correct schedule. Found: $SCHEDULE (expected: */5 * * * *)"
+              exit 1
+          fi
+      else
+          # CronJob does not exist
+          echo "CronJob 'backup-job' does not exist in the 'pod-design' namespace"
+          exit 1
+      fi
+  - name: CronJob uses correct image and command
+    weight: 2
+    run: |
+      # Validate that the CronJob uses correct image and command
+      CRONJOB=$(kubectl get cronjob backup-job -n pod-design -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$CRONJOB" == "backup-job" ]]; then
+          # CronJob exists, now check image and command
+
+          # Check image
+          IMAGE=$(kubectl get cronjob backup-job -n pod-design -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}' 2>/dev/null)
+
+          # Check command
+          COMMAND=$(kubectl get cronjob backup-job -n pod-design -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].command}' 2>/dev/null)
+
+          if [[ "$IMAGE" == "busybox" &&
+                "$COMMAND" == *"sh"* &&
+                "$COMMAND" == *"-c"* &&
+                "$COMMAND" == *"echo Backup started"* &&
+                "$COMMAND" == *"sleep 30"* &&
+                "$COMMAND" == *"echo Backup completed"* ]]; then
+              # CronJob has correct image and command
+              exit 0
+          else
+              echo "CronJob 'backup-job' does not use correct image or command."
+              echo "Found image: $IMAGE (expected: busybox)"
+              echo "Found command: $COMMAND (expected to contain: sh, -c, echo Backup started, sleep 30, echo Backup completed)"
+              exit 1
+          fi
+      else
+          # CronJob does not exist
+          echo "CronJob 'backup-job' does not exist in the 'pod-design' namespace"
+          exit 1
+      fi
+  - name: CronJob has correct restart policy and deadline
+    weight: 2
+    run: |
+      # Validate that the CronJob has correct restart policy and deadline
+      CRONJOB=$(kubectl get cronjob backup-job -n pod-design -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$CRONJOB" == "backup-job" ]]; then
+          # CronJob exists, now check restart policy and deadline
+
+          # Check restart policy
+          RESTART_POLICY=$(kubectl get cronjob backup-job -n pod-design -o jsonpath='{.spec.jobTemplate.spec.template.spec.restartPolicy}' 2>/dev/null)
+
+          # Check active deadline seconds
+          DEADLINE=$(kubectl get cronjob backup-job -n pod-design -o jsonpath='{.spec.jobTemplate.spec.activeDeadlineSeconds}' 2>/dev/null)
+
+          if [[ "$RESTART_POLICY" == "OnFailure" && "$DEADLINE" == "100" ]]; then
+              # CronJob has correct restart policy and deadline
+              exit 0
+          else
+              echo "CronJob 'backup-job' does not have correct restart policy or deadline."
+              echo "Found restart policy: $RESTART_POLICY (expected: OnFailure)"
+              echo "Found active deadline seconds: $DEADLINE (expected: 100)"
+              exit 1
+          fi
+      else
+          # CronJob does not exist
+          echo "CronJob 'backup-job' does not exist in the 'pod-design' namespace"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    Create a CronJob:
+
+    ```bash
+    # Ensure namespace exists (should be created from Question 3)
+    kubectl get namespace pod-design || kubectl create namespace pod-design
+
+    # Create CronJob
+    cat <<EOF | kubectl apply -f -
+    apiVersion: batch/v1
+    kind: CronJob
+    metadata:
+      name: backup-job
+      namespace: pod-design
+    spec:
+      schedule: "*/5 * * * *"
+      jobTemplate:
+        spec:
+          activeDeadlineSeconds: 100
+          template:
+            spec:
+              containers:
+              - name: backup
+                image: busybox
+                command: ['sh', '-c', 'echo Backup started: $(date); sleep 30; echo Backup completed: $(date)']
+              restartPolicy: OnFailure
+    EOF
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    # Ensure namespace exists (should be created from Question 3)
+    kubectl get namespace pod-design || kubectl create namespace pod-design
+
+    # Create CronJob
+    cat <<EOF | kubectl apply -f -
+    apiVersion: batch/v1
+    kind: CronJob
+    metadata:
+      name: backup-job
+      namespace: pod-design
+    spec:
+      schedule: "*/5 * * * *"
+      jobTemplate:
+        spec:
+          activeDeadlineSeconds: 100
+          template:
+            spec:
+              containers:
+              - name: backup
+                image: busybox
+                command: ['sh', '-c', 'echo Backup started: $(date); sleep 30; echo Backup completed: $(date)']
+              restartPolicy: OnFailure
+    EOF

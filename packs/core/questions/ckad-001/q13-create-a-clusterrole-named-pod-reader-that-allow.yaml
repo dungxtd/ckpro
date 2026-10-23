@@ -1,0 +1,171 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X ckad-001 question 13
+title: Create a ClusterRole named 'pod-reader' that allows getting, watching, and listing pods. Then create a ClusterRoleBinding named 'read-pods' that grants this role to the user 'jane' in the namespace 'cluster-admin'
+certifications:  # review: domains guessed from concepts
+  ckad: application-environment-configuration-security
+difficulty: medium
+namespace: cluster-admin
+tags: [rbac, cluster-role, cluster-role-binding, authorization]
+
+statement: |
+  In the `cluster-admin` namespace, implement proper access control and security segmentation in the cluster by configuring RBAC resources.
+
+  First, create a `ClusterRole` named `pod-reader` that defines a set of permissions for pod operations. This role should specifically allow three operations on pods: `get` (view individual pods), `watch` (receive notifications about pod changes), and `list` (view collections of pods).
+
+  Next, create a `ClusterRoleBinding` named `read-pods` that associates this role with the user `jane` in the namespace `cluster-admin`.
+
+  This binding will grant user `Jane` read-only access to pod resources across all namespaces in the cluster, following the principle of least privilege while allowing her to perform her monitoring duties.
+
+checks:
+  - name: ClusterRole is created with correct permissions
+    weight: 3
+    run: |
+      # Validate that the ClusterRole 'pod-reader' has the correct permissions for pod operations
+
+      CLUSTERROLE_NAME="pod-reader"
+
+      # Check if the ClusterRole exists
+      kubectl get clusterrole $CLUSTERROLE_NAME > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+        echo "❌ ClusterRole '$CLUSTERROLE_NAME' not found"
+        exit 1
+      fi
+
+      # Check if the ClusterRole has rules for pods
+      RESOURCE_PODS=$(kubectl get clusterrole $CLUSTERROLE_NAME -o jsonpath='{.rules[*].resources}' | grep -o "pods" | wc -l)
+
+      if [ $RESOURCE_PODS -eq 0 ]; then
+        echo "❌ ClusterRole '$CLUSTERROLE_NAME' does not have rules for 'pods' resource"
+        exit 1
+      fi
+
+      # Check for the required verbs: get, watch, and list
+      VERBS=$(kubectl get clusterrole $CLUSTERROLE_NAME -o jsonpath='{.rules[?(@.resources[*]=="pods")].verbs[*]}')
+
+      echo "🔍 Verifying required verbs in ClusterRole '$CLUSTERROLE_NAME'..."
+
+      # Check for 'get' verb
+      if [[ ! $VERBS =~ "get" ]]; then
+        echo "❌ ClusterRole '$CLUSTERROLE_NAME' is missing 'get' verb for pods"
+        exit 1
+      fi
+
+      # Check for 'watch' verb
+      if [[ ! $VERBS =~ "watch" ]]; then
+        echo "❌ ClusterRole '$CLUSTERROLE_NAME' is missing 'watch' verb for pods"
+        exit 1
+      fi
+
+      # Check for 'list' verb
+      if [[ ! $VERBS =~ "list" ]]; then
+        echo "❌ ClusterRole '$CLUSTERROLE_NAME' is missing 'list' verb for pods"
+        exit 1
+      fi
+
+      # Ensure that the ClusterRole doesn't provide excessive permissions
+      RESOURCE_COUNT=$(kubectl get clusterrole $CLUSTERROLE_NAME -o jsonpath='{.rules[*].resources}' | wc -w)
+      VERB_COUNT=$(kubectl get clusterrole $CLUSTERROLE_NAME -o jsonpath='{.rules[*].verbs}' | wc -w)
+
+      if [ $RESOURCE_COUNT -gt 1 ] || [ $VERB_COUNT -gt 3 ]; then
+        echo "⚠️  ClusterRole '$CLUSTERROLE_NAME' may have more permissions than necessary for the least privilege principle"
+      fi
+
+      # Success
+      echo "✅ ClusterRole '$CLUSTERROLE_NAME' correctly allows get, watch, and list operations on pods"
+      exit 0
+  - name: ClusterRoleBinding is created correctly
+    weight: 2
+    run: |
+      # Validate that the ClusterRoleBinding 'read-pods' correctly associates the 'pod-reader' ClusterRole with user 'jane'
+
+      CLUSTERROLEBINDING_NAME="read-pods"
+      CLUSTERROLE_NAME="pod-reader"
+      USER_NAME="jane"
+
+      # Check if the ClusterRoleBinding exists
+      if ! kubectl get clusterrolebinding "$CLUSTERROLEBINDING_NAME" > /dev/null 2>&1; then
+        echo "❌ ClusterRoleBinding '$CLUSTERROLEBINDING_NAME' not found"
+        exit 1
+      fi
+
+      # Check if the ClusterRoleBinding references the correct ClusterRole
+      ROLE_REF=$(kubectl get clusterrolebinding "$CLUSTERROLEBINDING_NAME" -o jsonpath='{.roleRef.name}')
+      if [ "$ROLE_REF" != "$CLUSTERROLE_NAME" ]; then
+        echo "❌ ClusterRoleBinding '$CLUSTERROLEBINDING_NAME' references role '$ROLE_REF' instead of '$CLUSTERROLE_NAME'"
+        exit 1
+      fi
+
+      # Check if the roleRef kind is 'ClusterRole'
+      ROLE_KIND=$(kubectl get clusterrolebinding "$CLUSTERROLEBINDING_NAME" -o jsonpath='{.roleRef.kind}')
+      if [ "$ROLE_KIND" != "ClusterRole" ]; then
+        echo "❌ ClusterRoleBinding '$CLUSTERROLEBINDING_NAME' references a '$ROLE_KIND' instead of a 'ClusterRole'"
+        exit 1
+      fi
+
+      # Check if the ClusterRoleBinding binds to user 'jane'
+      SUBJECTS=$(kubectl get clusterrolebinding "$CLUSTERROLEBINDING_NAME" -o json)
+
+      USER_BOUND=$(echo "$SUBJECTS" | grep -A 2 '"kind": "User"' | grep -q "\"name\": \"$USER_NAME\"" && echo "yes" || echo "no")
+
+      if [ "$USER_BOUND" != "yes" ]; then
+        echo "❌ ClusterRoleBinding '$CLUSTERROLEBINDING_NAME' does not bind to user '$USER_NAME'"
+        exit 1
+      fi
+
+      # Success
+      echo "✅ ClusterRoleBinding '$CLUSTERROLEBINDING_NAME' correctly associates ClusterRole '$CLUSTERROLE_NAME' with user '$USER_NAME'"
+      echo "✅ This binding grants '$USER_NAME' read-only access to pod resources across all namespaces"
+      exit 0
+
+solution:
+  explain: |
+    ```bash
+    # Create the ClusterRole
+    kubectl create clusterrole pod-reader --verb=get,watch,list --resource=pods
+    ```
+
+    Or using YAML:
+    ```yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: pod-reader
+    rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "watch", "list"]
+    ```
+
+    Create the ClusterRoleBinding:
+    ```bash
+    kubectl create clusterrolebinding read-pods --clusterrole=pod-reader --user=jane --namespace=cluster-admin
+    ```
+
+    Or using YAML:
+    ```yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: read-pods
+    subjects:
+    - kind: User
+      name: jane
+      apiGroup: rbac.authorization.k8s.io
+    roleRef:
+      kind: ClusterRole
+      name: pod-reader
+      apiGroup: rbac.authorization.k8s.io
+    ```
+
+    Save YAML files and apply them:
+    ```bash
+    kubectl apply -f cluster-role.yaml
+    kubectl apply -f cluster-role-binding.yaml
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    # Create the ClusterRole
+    kubectl create clusterrole pod-reader --verb=get,watch,list --resource=pods
+    kubectl create clusterrolebinding read-pods --clusterrole=pod-reader --user=jane --namespace=cluster-admin
+    kubectl apply -f cluster-role.yaml
+    kubectl apply -f cluster-role-binding.yaml

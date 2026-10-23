@@ -1,0 +1,253 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cks-001 question 6
+title: RBAC with Minimal Permissions
+certifications:  # review: domains guessed from concepts
+  cks: cluster-hardening
+difficulty: hard
+namespace: rbac-minimize
+tags: [rbac, role, rolebinding, least privilege]
+
+statement: |
+  Create a Role and RoleBinding in the `rbac-minimize` namespace to provide a ServiceAccount named `app-reader` with minimal permissions required to read pods, services, and deployments, but not secrets or configmaps.
+
+  The Role should be named `app-reader-role` and the RoleBinding should be named `app-reader-binding`.
+
+setup: |
+  # Setup for Question 6: RBAC with Minimal Permissions
+
+  # Create namespace if it doesn't exist
+  kubectl create namespace rbac-minimize 2>/dev/null || true
+
+  # Create the ServiceAccount to be used
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: app-reader
+    namespace: rbac-minimize
+  EOF
+
+  # Create some resources for testing
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: test-pod
+    namespace: rbac-minimize
+  spec:
+    containers:
+    - name: nginx
+      image: nginx
+  EOF
+
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: test-service
+    namespace: rbac-minimize
+  spec:
+    selector:
+      app: test
+    ports:
+    - port: 80
+      targetPort: 80
+  EOF
+
+  kubectl apply -f - <<EOF
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: test-deployment
+    namespace: rbac-minimize
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: test
+    template:
+      metadata:
+        labels:
+          app: test
+      spec:
+        containers:
+        - name: nginx
+          image: nginx
+  EOF
+
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: test-configmap
+    namespace: rbac-minimize
+  data:
+    test.conf: |
+      # Test configuration
+  EOF
+
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: test-secret
+    namespace: rbac-minimize
+  type: Opaque
+  data:
+    username: YWRtaW4=
+    password: cGFzc3dvcmQ=
+  EOF
+
+  echo "Setup completed for Question 6"
+  exit 0
+
+checks:
+  - name: Role exists
+    run: |
+      # Validate that the Role exists
+
+      ROLE_NAME="app-reader-role"
+      NAMESPACE="rbac-minimize"
+
+      kubectl get role $ROLE_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -eq 0 ]; then
+        echo "✅ Role '$ROLE_NAME' exists in namespace '$NAMESPACE'"
+        exit 0
+      else
+        echo "❌ Role '$ROLE_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+  - name: Role has correct permissions
+    weight: 2
+    run: |
+      # Validate that the Role has correct permissions
+
+      ROLE_NAME="app-reader-role"
+      NAMESPACE="rbac-minimize"
+      ALLOWED_RESOURCES=("pods" "services" "deployments")
+      FORBIDDEN_RESOURCES=("secrets" "configmaps")
+      ALLOWED_VERBS=("get" "list" "watch")
+
+      # Check if role exists
+      kubectl get role $ROLE_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Role '$ROLE_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check if role allows access to required resources
+      RESOURCES=$(kubectl get role $ROLE_NAME -n $NAMESPACE -o jsonpath='{.rules[*].resources}')
+      for resource in "${ALLOWED_RESOURCES[@]}"; do
+        if [[ "$RESOURCES" != *"$resource"* ]]; then
+          echo "❌ Role does not allow access to resource: $resource"
+          exit 1
+        fi
+      done
+
+      # Check if role does NOT allow access to forbidden resources
+      for resource in "${FORBIDDEN_RESOURCES[@]}"; do
+        if [[ "$RESOURCES" == *"$resource"* ]]; then
+          echo "❌ Role allows access to forbidden resource: $resource"
+          exit 1
+        fi
+      done
+
+      # Check if role has the correct verbs (get, list, watch)
+      VERBS=$(kubectl get role $ROLE_NAME -n $NAMESPACE -o jsonpath='{.rules[*].verbs}')
+      for verb in "${ALLOWED_VERBS[@]}"; do
+        if [[ "$VERBS" != *"$verb"* ]]; then
+          echo "❌ Role does not allow '$verb' permission"
+          exit 1
+        fi
+      done
+
+      # Make sure create/update/delete verbs are not included
+      if [[ "$VERBS" == *"create"* ]] || [[ "$VERBS" == *"update"* ]] || [[ "$VERBS" == *"delete"* ]] || [[ "$VERBS" == *"patch"* ]]; then
+        echo "❌ Role allows modification verbs (create/update/delete/patch) which should not be allowed for a reader role"
+        exit 1
+      fi
+
+      echo "✅ Role has correct minimal permissions"
+      exit 0
+  - name: RoleBinding exists and is correct
+    weight: 2
+    run: |
+      # Validate that the RoleBinding exists and is correct
+
+      NAMESPACE="rbac-minimize"
+      ROLEBINDING_NAME="app-reader-binding"
+      ROLE_NAME="app-reader-role"
+      SERVICE_ACCOUNT="app-reader"
+
+      # Check if namespace exists
+      kubectl get namespace $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Namespace '$NAMESPACE' not found"
+        exit 1
+      fi
+
+      # Check if RoleBinding exists
+      kubectl get rolebinding $ROLEBINDING_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ RoleBinding '$ROLEBINDING_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check if RoleBinding references the correct Role
+      ROLE_REF=$(kubectl get rolebinding $ROLEBINDING_NAME -n $NAMESPACE -o jsonpath='{.roleRef.name}')
+      if [ "$ROLE_REF" != "$ROLE_NAME" ]; then
+        echo "❌ RoleBinding does not reference the correct Role '$ROLE_NAME' (actual: $ROLE_REF)"
+        exit 1
+      fi
+
+      # Check if RoleBinding references the correct ServiceAccount
+      SUBJECT_KIND=$(kubectl get rolebinding $ROLEBINDING_NAME -n $NAMESPACE -o jsonpath='{.subjects[0].kind}')
+      SUBJECT_NAME=$(kubectl get rolebinding $ROLEBINDING_NAME -n $NAMESPACE -o jsonpath='{.subjects[0].name}')
+
+      if [ "$SUBJECT_KIND" != "ServiceAccount" ]; then
+        echo "❌ RoleBinding subject is not a ServiceAccount (actual: $SUBJECT_KIND)"
+        exit 1
+      fi
+
+      if [ "$SUBJECT_NAME" != "$SERVICE_ACCOUNT" ]; then
+        echo "❌ RoleBinding does not reference the correct ServiceAccount '$SERVICE_ACCOUNT' (actual: $SUBJECT_NAME)"
+        exit 1
+      fi
+
+      echo "✅ RoleBinding exists and is correctly configured"
+      exit 0
+
+solution:
+  explain: |
+    Create Role and RoleBinding for minimal access:
+
+    ```yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: app-reader-role
+      namespace: rbac-minimize
+    rules:
+    - apiGroups: [""]
+      resources: ["pods", "services"]
+      verbs: ["get", "watch", "list"]
+    - apiGroups: ["apps"]
+      resources: ["deployments"]
+      verbs: ["get", "watch", "list"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: app-reader-binding
+      namespace: rbac-minimize
+    subjects:
+    - kind: ServiceAccount
+      name: app-reader
+      namespace: rbac-minimize
+    roleRef:
+      kind: Role
+      name: app-reader-role
+      apiGroup: rbac.authorization.k8s.io
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

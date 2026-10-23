@@ -1,6 +1,0 @@
-# yaml-language-server: $schema=../../schema/exam.schema.json
-title: CKA sample
-description: Format example while the bank is being converted.
-certification: cka
-questions:
-  - core/cka/rbac-ci-token

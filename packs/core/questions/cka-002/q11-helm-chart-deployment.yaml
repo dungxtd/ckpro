@@ -1,0 +1,153 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-002 question 11
+title: Helm Chart Deployment
+certifications:  # review: domains guessed from concepts
+  cka: workloads-scheduling
+difficulty: hard
+workers: 2
+namespace: helm-test
+tags: [helm, package-management]
+
+statement: |
+  Using Helm:
+
+  1. Add the bitnami repository `https://charts.bitnami.com/bitnami`
+  2. Install the `nginx` chart from bitnami with release name `web-release` in namespace `helm-test`
+  3. Configure the service type as `NodePort` and set the replica count to `2`
+  4. Verify the deployment is successful and pods are running
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace helm-test --dry-run=client -o yaml | kubectl apply -f -
+
+  # Ensure helm is installed
+  helm version || {
+    echo "Helm is not installed"
+    exit 1
+  }
+
+  # Remove bitnami repo if it exists (to test adding it)
+  helm repo remove bitnami 2>/dev/null || true
+
+checks:
+  - name: Helm repository is added correctly
+    run: |
+      set -e
+
+      # Check if bitnami repo is added
+      helm repo list | grep bitnami || {
+          echo "Bitnami repository not found in helm repo list"
+          exit 1
+      }
+
+      # Check if repo URL is correct
+      REPO_URL=$(helm repo list | grep bitnami | awk '{print $2}')
+      if [[ "$REPO_URL" != "https://charts.bitnami.com/bitnami" ]]; then
+          echo "Incorrect repository URL. Expected https://charts.bitnami.com/bitnami, got $REPO_URL"
+          exit 1
+      fi
+
+      # Check if repo is up to date
+      helm repo update bitnami || {
+          echo "Failed to update bitnami repository"
+          exit 1
+      }
+
+      echo "Helm repository validation successful"
+      exit 0
+  - name: Helm release is installed with correct configuration
+    weight: 2
+    run: |
+      set -e
+
+      # Check if release exists
+      helm status web-release -n helm-test || {
+          echo "Helm release web-release not found in namespace helm-test"
+          exit 1
+      }
+
+      # Check if it's using nginx chart
+      CHART=$(helm get manifest web-release -n helm-test | grep "chart:" | head -1)
+      if [[ ! "$CHART" =~ "nginx" ]]; then
+          echo "Release is not using nginx chart"
+          exit 1
+      fi
+
+      # Check if service type is NodePort
+      SERVICE_TYPE=$(kubectl get service web-release-nginx -n helm-test -o jsonpath='{.spec.type}')
+      if [[ "$SERVICE_TYPE" != "NodePort" ]]; then
+          echo "Service type is not NodePort. Current type: $SERVICE_TYPE"
+          exit 1
+      fi
+
+      # Check replica count
+      REPLICAS=$(kubectl get deployment web-release-nginx -n helm-test -o jsonpath='{.spec.replicas}')
+      if [[ "$REPLICAS" != "2" ]]; then
+          echo "Incorrect number of replicas. Expected 2, got $REPLICAS"
+          exit 1
+      fi
+
+      echo "Helm release validation successful"
+      exit 0
+  - name: Deployment is running with correct specifications
+    weight: 2
+    run: |
+      set -e
+
+      # Check if deployment exists
+      kubectl get deployment web-release-nginx -n helm-test || {
+          echo "Deployment web-release-nginx not found in namespace helm-test"
+          exit 1
+      }
+
+      # Check if all pods are running
+      READY_PODS=$(kubectl get deployment web-release-nginx -n helm-test -o jsonpath='{.status.readyReplicas}')
+      if [[ "$READY_PODS" != "2" ]]; then
+          echo "Not all pods are ready. Expected 2, got $READY_PODS"
+          exit 1
+      fi
+
+      # Check if pods are using correct image
+      POD_IMAGE=$(kubectl get deployment web-release-nginx -n helm-test -o jsonpath='{.spec.template.spec.containers[0].image}')
+      if [[ ! "$POD_IMAGE" =~ "nginx" ]]; then
+          echo "Pods are not using nginx image. Current image: $POD_IMAGE"
+          exit 1
+      fi
+
+      # Check if service is accessible
+      SERVICE_PORT=$(kubectl get service web-release-nginx -n helm-test -o jsonpath='{.spec.ports[0].nodePort}')
+      if [[ -z "$SERVICE_PORT" ]]; then
+          echo "NodePort not configured for service"
+          exit 1
+      fi
+
+      echo "Deployment validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```bash
+    # Add bitnami repo
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+    helm repo update
+
+    # Install nginx chart
+    helm install web-release bitnami/nginx \
+      --namespace helm-test \
+      --set service.type=NodePort \
+      --set replicaCount=2
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    # Add bitnami repo
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+    helm repo update
+
+    # Install nginx chart
+    helm install web-release bitnami/nginx \
+      --namespace helm-test \
+      --set service.type=NodePort \
+      --set replicaCount=2

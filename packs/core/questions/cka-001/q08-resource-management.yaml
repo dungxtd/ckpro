@@ -1,0 +1,206 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-001 question 8
+title: Resource Management
+certifications:  # review: domains guessed from concepts
+  cka: troubleshooting
+difficulty: easy
+namespace: monitoring
+tags: [resource management, pod configuration]
+
+statement: |
+  Create a pod named `resource-pod` in the `monitoring` namespace using the `nginx` image with the following resource requirements:
+
+  - CPU request: `100m`
+  - CPU limit: `200m`
+  - Memory request: `128Mi`
+  - Memory limit: `256Mi`
+
+  Ensure the pod is in the Running state with all resource constraints applied correctly.
+
+setup: |
+  # Setup for Question 8: Resource Management setup
+
+  # Ensure monitoring namespace exists
+  kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+  # Remove any existing pod with the same name
+  kubectl delete pod -n monitoring resource-pod --ignore-not-found=true
+
+  # Pre-pull the nginx image
+  kubectl run prefetch-nginx --image=nginx --restart=Never -n monitoring --dry-run=client -o yaml | kubectl apply -f -
+  sleep 5
+  kubectl delete pod -n monitoring prefetch-nginx --ignore-not-found=true
+
+  exit 0
+
+checks:
+  - name: Pod exists with correct resource configuration
+    weight: 2
+    run: |
+      # Validate if resource-constrained pod exists with correct configuration
+
+      NAMESPACE="monitoring"
+      POD_NAME="resource-pod"
+      EXPECTED_IMAGE="nginx"
+      EXPECTED_CPU_REQUEST="100m"
+      EXPECTED_MEMORY_REQUEST="128Mi"
+      EXPECTED_CPU_LIMIT="200m"
+      EXPECTED_MEMORY_LIMIT="256Mi"
+
+      # Check if pod exists
+      if ! kubectl get pod $POD_NAME -n $NAMESPACE &> /dev/null; then
+          echo "❌ Pod '$POD_NAME' not found in namespace '$NAMESPACE'"
+          exit 1
+      fi
+
+      # Check if pod is running
+      POD_STATUS=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.status.phase}')
+      if [ "$POD_STATUS" != "Running" ]; then
+          echo "❌ Pod '$POD_NAME' exists but is not running (status: $POD_STATUS)"
+          exit 1
+      fi
+
+      # Check if correct image is used
+      POD_IMAGE=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].image}')
+      if [ "$POD_IMAGE" != "$EXPECTED_IMAGE" ]; then
+          echo "❌ Pod '$POD_NAME' using incorrect image: $POD_IMAGE (expected: $EXPECTED_IMAGE)"
+          exit 1
+      fi
+
+      # Check resource requests
+      CPU_REQUEST=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].resources.requests.cpu}')
+      MEMORY_REQUEST=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].resources.requests.memory}')
+
+      if [ "$CPU_REQUEST" != "$EXPECTED_CPU_REQUEST" ]; then
+          echo "❌ Pod '$POD_NAME' has incorrect CPU request: $CPU_REQUEST (expected: $EXPECTED_CPU_REQUEST)"
+          exit 1
+      fi
+
+      if [ "$MEMORY_REQUEST" != "$EXPECTED_MEMORY_REQUEST" ]; then
+          echo "❌ Pod '$POD_NAME' has incorrect memory request: $MEMORY_REQUEST (expected: $EXPECTED_MEMORY_REQUEST)"
+          exit 1
+      fi
+
+      # Check resource limits
+      CPU_LIMIT=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].resources.limits.cpu}')
+      MEMORY_LIMIT=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].resources.limits.memory}')
+
+      if [ "$CPU_LIMIT" != "$EXPECTED_CPU_LIMIT" ]; then
+          echo "❌ Pod '$POD_NAME' has incorrect CPU limit: $CPU_LIMIT (expected: $EXPECTED_CPU_LIMIT)"
+          exit 1
+      fi
+
+      if [ "$MEMORY_LIMIT" != "$EXPECTED_MEMORY_LIMIT" ]; then
+          echo "❌ Pod '$POD_NAME' has incorrect memory limit: $MEMORY_LIMIT (expected: $EXPECTED_MEMORY_LIMIT)"
+          exit 1
+      fi
+
+      echo "✅ Pod '$POD_NAME' exists with correct resource configuration"
+      exit 0
+  - name: Resource usage and limits are correct
+    weight: 3
+    run: |
+      # Validate resource usage and limits
+
+      NAMESPACE="monitoring"
+      POD_NAME="resource-pod"
+
+      # Check if pod exists and is running
+      if ! kubectl get pod $POD_NAME -n $NAMESPACE &> /dev/null; then
+          echo "❌ Pod '$POD_NAME' not found"
+          exit 1
+      fi
+
+      POD_STATUS=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.status.phase}')
+      if [ "$POD_STATUS" != "Running" ]; then
+          echo "❌ Pod '$POD_NAME' is not running"
+          exit 1
+      fi
+
+      # Check resource requests
+      CPU_REQUEST=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].resources.requests.cpu}')
+      MEMORY_REQUEST=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].resources.requests.memory}')
+
+      if [ "$CPU_REQUEST" != "100m" ]; then
+          echo "❌ Incorrect CPU request: $CPU_REQUEST (expected: 100m)"
+          exit 1
+      fi
+
+      if [ "$MEMORY_REQUEST" != "128Mi" ]; then
+          echo "❌ Incorrect memory request: $MEMORY_REQUEST (expected: 128Mi)"
+          exit 1
+      fi
+
+      # Check resource limits
+      CPU_LIMIT=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].resources.limits.cpu}')
+      MEMORY_LIMIT=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].resources.limits.memory}')
+
+      if [ "$CPU_LIMIT" != "200m" ]; then
+          echo "❌ Incorrect CPU limit: $CPU_LIMIT (expected: 200m)"
+          exit 1
+      fi
+
+      if [ "$MEMORY_LIMIT" != "256Mi" ]; then
+          echo "❌ Incorrect memory limit: $MEMORY_LIMIT (expected: 256Mi)"
+          exit 1
+      fi
+
+      # Check actual resource usage
+      CPU_USAGE=$(kubectl top pod $POD_NAME -n $NAMESPACE --no-headers | awk '{print $2}')
+      MEMORY_USAGE=$(kubectl top pod $POD_NAME -n $NAMESPACE --no-headers | awk '{print $3}')
+
+      # Convert CPU usage to millicores for comparison
+      CPU_MILLICORES=$(echo $CPU_USAGE | sed 's/m//')
+      if [ "$CPU_MILLICORES" -gt 200 ]; then
+          echo "❌ CPU usage exceeds limit: $CPU_USAGE"
+          exit 1
+      fi
+
+      # Convert memory usage to Mi for comparison
+      MEMORY_MI=$(echo $MEMORY_USAGE | sed 's/Mi//')
+      if [ "$MEMORY_MI" -gt 256 ]; then
+          echo "❌ Memory usage exceeds limit: $MEMORY_USAGE"
+          exit 1
+      fi
+
+      # Check if pod has been restarted due to resource issues
+      RESTARTS=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.status.containerStatuses[0].restartCount}')
+      if [ "$RESTARTS" -gt 0 ]; then
+          echo "❌ Pod has been restarted $RESTARTS times"
+          exit 1
+      fi
+
+      echo "✅ Resource configuration and usage are correct"
+      exit 0
+
+solution:
+  explain: |
+    Create a pod named `resource-pod` in the monitoring namespace with the following resource specifications:
+    - CPU Request: 100m
+    - Memory Request: 128Mi
+    - CPU Limit: 200m
+    - Memory Limit: 256Mi
+
+    ```yaml
+    # Create pod
+    cat << EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: resource-pod
+      namespace: monitoring
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+    EOF
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

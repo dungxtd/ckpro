@@ -1,0 +1,261 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-002 question 12
+title: Kustomize Configuration
+certifications:  # review: domains guessed from concepts
+  cka: workloads-scheduling
+difficulty: hard
+workers: 2
+namespace: kustomize
+tags: [kustomize, configuration-management]
+
+statement: |
+  Using Kustomize: in the directory `/tmp/exam/kustomize/`
+
+  1. Create a base deployment for `nginx` with `2` replicas
+  2. Create an overlay that:
+     - Adds a label `environment=production`
+     - Increases replicas to `3`
+     - Adds a ConfigMap named `nginx-config` with key `index.html` and value `Welcome to Production`, mount config map as volume named `nginx-index`
+  3. Apply the overlay to create resources in the `kustomize` namespace
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace kustomize --dry-run=client -o yaml | kubectl apply -f -
+
+  # Create directory structure for kustomize
+  mkdir -p /tmp/exam/kustomize/{base,overlays/production}
+
+  # Create initial base files
+  cat > /tmp/exam/kustomize/base/kustomization.yaml <<EOF
+  apiVersion: kustomize.config.k8s.io/v1beta1
+  kind: Kustomization
+  resources:
+  - deployment.yaml
+  EOF
+
+checks:
+  - name: Kustomization files exist with correct structure
+    weight: 2
+    run: |
+      set -e
+
+      # Check base directory structure
+      BASE_DIR="/tmp/exam/kustomize/base"
+      if [[ ! -d "$BASE_DIR" ]]; then
+          echo "Base directory not found at $BASE_DIR"
+          exit 1
+      fi
+
+      # Check overlay directory structure
+      OVERLAY_DIR="/tmp/exam/kustomize/overlays/production"
+      if [[ ! -d "$OVERLAY_DIR" ]]; then
+          echo "Overlay directory not found at $OVERLAY_DIR"
+          exit 1
+      fi
+
+      # Check base kustomization.yaml
+      if [[ ! -f "$BASE_DIR/kustomization.yaml" ]]; then
+          echo "Base kustomization.yaml not found"
+          exit 1
+      fi
+
+      # Check base deployment.yaml
+      if [[ ! -f "$BASE_DIR/deployment.yaml" ]]; then
+          echo "Base deployment.yaml not found"
+          exit 1
+      fi
+
+      # Check overlay kustomization.yaml
+      if [[ ! -f "$OVERLAY_DIR/kustomization.yaml" ]]; then
+          echo "Overlay kustomization.yaml not found"
+          exit 1
+      fi
+
+      # Validate base kustomization.yaml content
+      BASE_RESOURCES=$(cat "$BASE_DIR/kustomization.yaml" | grep "deployment.yaml")
+      if [[ -z "$BASE_RESOURCES" ]]; then
+          echo "Base kustomization.yaml does not reference deployment.yaml"
+          exit 1
+      fi
+
+      # Validate overlay kustomization.yaml content
+      OVERLAY_CONTENT=$(cat "$OVERLAY_DIR/kustomization.yaml")
+      if [[ ! "$OVERLAY_CONTENT" =~ "production" ]] || \
+         [[ ! "$OVERLAY_CONTENT" =~ "value: 3" ]]; then
+          echo "Overlay kustomization.yaml missing required configurations"
+          exit 1
+      fi
+
+      echo "Kustomize files validation successful"
+      exit 0
+  - name: Resources are created with correct overlay modifications
+    weight: 2
+    run: |
+      set -e
+
+      # Check if deployment exists
+      kubectl get deployment nginx -n kustomize || {
+          echo "Deployment nginx not found in namespace kustomize"
+          exit 1
+      }
+
+      # Check replicas
+      REPLICAS=$(kubectl get deployment nginx -n kustomize -o jsonpath='{.spec.replicas}')
+      if [[ "$REPLICAS" != "3" ]]; then
+          echo "Incorrect number of replicas. Expected 3, got $REPLICAS"
+          exit 1
+      fi
+
+      # Check environment label
+      ENV_LABEL=$(kubectl get deployment nginx -n kustomize -o jsonpath='{.metadata.labels.environment}')
+      if [[ "$ENV_LABEL" != "production" ]]; then
+          echo "Incorrect environment label. Expected production, got $ENV_LABEL"
+          exit 1
+      fi
+
+      # Check if pods are running
+      READY_PODS=$(kubectl get deployment nginx -n kustomize -o jsonpath='{.status.readyReplicas}')
+      if [[ "$READY_PODS" != "3" ]]; then
+          echo "Not all pods are ready. Expected 3, got $READY_PODS"
+          exit 1
+      fi
+
+      # Check if pods have the environment label
+      POD_LABEL=$(kubectl get pods -n kustomize -l app=nginx -o jsonpath='{.items[0].metadata.labels.environment}')
+      if [[ "$POD_LABEL" != "production" ]]; then
+          echo "Pods do not have correct environment label"
+          exit 1
+      fi
+
+      echo "Resources validation successful"
+      exit 0
+  - name: ConfigMap is created and mounted correctly
+    run: |
+      set -e
+
+      NAMESPACE="kustomize"
+
+      # Find the full name of the nginx-config ConfigMap
+      CONFIGMAP_NAME=$(kubectl get configmap -n $NAMESPACE --no-headers | awk '/^nginx-config-/ {print $1; exit}')
+
+      if [[ -z "$CONFIGMAP_NAME" ]]; then
+        echo "ConfigMap starting with nginx-config not found in namespace $NAMESPACE"
+        exit 1
+      fi
+
+      echo "Found ConfigMap: $CONFIGMAP_NAME"
+
+      # Check ConfigMap content
+      CONFIG_CONTENT=$(kubectl get configmap "$CONFIGMAP_NAME" -n $NAMESPACE -o jsonpath='{.data.index\.html}')
+      if [[ "$CONFIG_CONTENT" != "Welcome to Production" ]]; then
+          echo "Incorrect ConfigMap content. Expected 'Welcome to Production', got '$CONFIG_CONTENT'"
+          exit 1
+      fi
+
+      # Check if ConfigMap is mounted in pods
+      MOUNT_PATH=$(kubectl get deployment nginx -n $NAMESPACE -o jsonpath='{.spec.template.spec.containers[0].volumeMounts[?(@.name=="nginx-index")].mountPath}')
+      if [[ -z "$MOUNT_PATH" ]]; then
+          echo "ConfigMap not mounted in deployment"
+          exit 1
+      fi
+
+      # Check if volume is configured correctly
+      VOLUME_NAME=$(kubectl get deployment nginx -n $NAMESPACE -o jsonpath="{.spec.template.spec.volumes[?(@.configMap.name==\"$CONFIGMAP_NAME\")].name}")
+      if [[ -z "$VOLUME_NAME" ]]; then
+          echo "ConfigMap volume not configured correctly in deployment"
+          exit 1
+      fi
+
+      echo "ConfigMap validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+
+    First, create the directory structure:
+    ```bash
+    mkdir -p /tmp/exam/kustomize/base
+    mkdir -p /tmp/exam/kustomize/overlays/production
+    ```
+
+    Create base files:
+
+    ```yaml
+    # /tmp/exam/kustomize/base/deployment.yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: nginx
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: nginx
+      template:
+        metadata:
+          labels:
+            app: nginx
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+            volumeMounts:
+            - name: nginx-index
+              mountPath: /usr/share/nginx/html/
+          volumes:
+          - name: nginx-index
+            configMap:
+              name: nginx-config
+
+    # /tmp/exam/kustomize/base/kustomization.yaml
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    resources:
+    - deployment.yaml
+
+    # /tmp/exam/kustomize/overlays/production/kustomization.yaml
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    namespace: kustomize
+    bases:
+    - ../../base
+    patches:
+    - patch: |
+        - op: replace
+          path: /spec/replicas
+          value: 3
+      target:
+        kind: Deployment
+        name: nginx
+    commonLabels:
+      environment: production
+    configMapGenerator:
+    - name: nginx-config
+      literals:
+      - index.html=Welcome to Production
+    ```
+
+    Apply the configuration:
+    ```bash
+    kubectl create namespace kustomize
+    kubectl apply -k /tmp/exam/kustomize/overlays/production/
+    ```
+
+    Verify the deployment:
+    ```bash
+    kubectl get deployments -n kustomize
+    kubectl get configmaps -n kustomize
+    kubectl get pods -n kustomize
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    mkdir -p /tmp/exam/kustomize/base
+    mkdir -p /tmp/exam/kustomize/overlays/production
+    kubectl create namespace kustomize
+    kubectl apply -k /tmp/exam/kustomize/overlays/production/
+    kubectl get deployments -n kustomize
+    kubectl get configmaps -n kustomize
+    kubectl get pods -n kustomize

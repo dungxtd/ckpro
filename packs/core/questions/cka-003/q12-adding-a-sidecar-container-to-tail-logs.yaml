@@ -1,0 +1,158 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-003 question 12
+title: Adding a Sidecar Container to Tail Logs
+certifications:  # review: domains guessed from concepts
+  cka: storage
+difficulty: hard
+workers: 3
+namespace: logging
+tags: [multi-container-pods, sidecar-pattern, emptydir, logging]
+
+statement: |
+  Pod `big-corp-app` has a single container which writes to the file `/var/log/big-corp-app.log`, via an `emptyDir` volume already mounted at `/var/log`.
+
+  Add a second, "sidecar" container named `sidecar` to the Pod `big-corp-app`, using image `busybox`, which continuously tails (`tail -f`) that same log file.
+
+  Note: containers cannot be added to a running Pod - you will need to delete and recreate the Pod `big-corp-app` with the additional container, keeping the existing container and volume configuration intact.
+
+setup: |
+  set -e
+
+  kubectl create namespace logging --dry-run=client -o yaml | kubectl apply -f -
+
+  # Existing single-container pod writing to /var/log/big-corp-app.log via an emptyDir
+  # volume mounted at /var/log. The candidate must add a "sidecar" container (pods
+  # can't have containers added live, so they will need to delete+recreate this pod).
+  # NOTE: heredoc delimiter is quoted ('EOF') so $(date) below is NOT expanded by
+  # this setup script - it must stay literal so busybox evaluates it fresh on
+  # every loop iteration inside the container, not once here.
+  kubectl apply -f - <<'EOF'
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: big-corp-app
+    namespace: logging
+    labels:
+      app: big-corp-app
+  spec:
+    containers:
+      - name: count
+        image: busybox:1.36
+        command:
+          - "sh"
+          - "-c"
+          - |
+            while true; do
+              echo "$(date) big-corp-app log line" >> /var/log/big-corp-app.log
+              sleep 2
+            done
+        volumeMounts:
+          - name: varlog
+            mountPath: /var/log
+    volumes:
+      - name: varlog
+        emptyDir: {}
+  EOF
+
+  echo "Waiting for pod big-corp-app to be running..."
+  kubectl wait --for=condition=Ready --timeout=90s pod/big-corp-app -n logging || {
+    echo "WARNING: pod big-corp-app not ready in time, continuing anyway"
+  }
+
+checks:
+  - name: Pod big-corp-app has exactly 2 containers
+    weight: 3
+    run: |
+      set -e
+
+      kubectl get pod big-corp-app -n logging || {
+          echo "Pod big-corp-app not found in namespace logging"
+          exit 1
+      }
+
+      COUNT=$(kubectl get pod big-corp-app -n logging -o jsonpath='{.spec.containers[*].name}' | wc -w)
+      if [[ "$COUNT" -ne 2 ]]; then
+          echo "Pod big-corp-app does not have exactly 2 containers (got $COUNT)"
+          exit 1
+      fi
+
+      echo "big-corp-app container count validation successful"
+      exit 0
+  - name: A container named 'sidecar' uses image busybox and mounts the same volume at /var/log
+    weight: 3
+    run: |
+      set -e
+
+      POD=$(kubectl get pod big-corp-app -n logging -o json)
+
+      SIDECAR_IMAGE=$(echo "$POD" | jq -r '.spec.containers[] | select(.name=="sidecar") | .image')
+      if [[ -z "$SIDECAR_IMAGE" ]]; then
+          echo "Pod big-corp-app has no container named 'sidecar'"
+          exit 1
+      fi
+      if [[ "$SIDECAR_IMAGE" != *"busybox"* ]]; then
+          echo "sidecar container does not use busybox image (got '$SIDECAR_IMAGE')"
+          exit 1
+      fi
+
+      MOUNT_PATH=$(echo "$POD" | jq -r '.spec.containers[] | select(.name=="sidecar") | .volumeMounts[]? | select(.mountPath=="/var/log") | .mountPath')
+      if [[ "$MOUNT_PATH" != "/var/log" ]]; then
+          echo "sidecar container does not mount /var/log"
+          exit 1
+      fi
+
+      VOLUME_NAME=$(echo "$POD" | jq -r '.spec.containers[] | select(.name=="sidecar") | .volumeMounts[]? | select(.mountPath=="/var/log") | .name')
+      ORIG_VOLUME_NAME=$(echo "$POD" | jq -r '.spec.containers[] | select(.name=="count") | .volumeMounts[]? | select(.mountPath=="/var/log") | .name')
+      if [[ -z "$VOLUME_NAME" || "$VOLUME_NAME" != "$ORIG_VOLUME_NAME" ]]; then
+          echo "sidecar does not mount the same volume as the original container at /var/log"
+          exit 1
+      fi
+
+      echo "sidecar container validation successful"
+      exit 0
+  - name: "'kubectl logs big-corp-app -c sidecar' returns non-empty log output"
+    run: |
+      set -e
+
+      WAIT_COUNT=0
+      while [ $WAIT_COUNT -lt 60 ]; do
+          LOGS=$(kubectl logs big-corp-app -c sidecar -n logging 2>/dev/null || true)
+          if [[ -n "$LOGS" ]]; then
+              echo "sidecar container logs validation successful"
+              exit 0
+          fi
+          WAIT_COUNT=$((WAIT_COUNT+5))
+          sleep 5
+      done
+
+      echo "sidecar container produced no log output via 'kubectl logs -c sidecar'"
+      exit 1
+
+solution:
+  explain: |
+    ### Solution
+    ```bash
+    kubectl get pod big-corp-app -n logging -o yaml > /tmp/exam/big-corp-app.yaml
+    # edit /tmp/exam/big-corp-app.yaml to add the sidecar container below, then:
+    kubectl delete pod big-corp-app -n logging
+    kubectl apply -f /tmp/exam/big-corp-app.yaml
+    ```
+
+    Sidecar container to add:
+    ```yaml
+    - name: sidecar
+      image: busybox
+      command: ["/bin/sh", "-c", "tail -f /var/log/big-corp-app.log"]
+      volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+    ```
+
+    ### Why this works
+    Kubernetes does not allow adding/removing containers on a running Pod (`spec.containers` is immutable), so the only way to add a sidecar to an existing Pod is to delete and recreate it with the updated spec. Mounting the same `emptyDir` volume (`varlog`) into both containers lets the new `sidecar` container tail the exact file the original `count` container is writing to.
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    kubectl get pod big-corp-app -n logging -o yaml > /tmp/exam/big-corp-app.yaml
+    # edit /tmp/exam/big-corp-app.yaml to add the sidecar container below, then:
+    kubectl delete pod big-corp-app -n logging
+    kubectl apply -f /tmp/exam/big-corp-app.yaml

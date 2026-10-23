@@ -251,11 +251,11 @@
   "description": "One task. `{{var}}` placeholders in text and scripts are filled from `vars`.",
   "properties": {
     "certifications": {
-      "description": "Certifications this question belongs to (keys of `certifications`)",
-      "items": {
+      "additionalProperties": {
         "type": "string"
       },
-      "type": "array"
+      "description": "Certifications this question belongs to, each with the curriculum\ndomain it falls under there (domain names differ per certification)",
+      "type": "object"
     },
     "checks": {
       "items": {
@@ -271,10 +271,6 @@
     "difficulty": {
       "$ref": "#/$defs/Difficulty",
       "default": "medium"
-    },
-    "domain": {
-      "description": "Curriculum domain (a key of the certification's `domains`)",
-      "type": "string"
     },
     "estimate": {
       "anyOf": [
@@ -357,7 +353,6 @@
   "required": [
     "title",
     "certifications",
-    "domain",
     "statement",
     "checks",
     "solution"

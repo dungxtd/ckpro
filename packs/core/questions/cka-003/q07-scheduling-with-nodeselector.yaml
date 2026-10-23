@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-003 question 7
+title: Scheduling with nodeSelector
+certifications:  # review: domains guessed from concepts
+  cka: workloads-scheduling
+difficulty: hard
+workers: 3
+namespace: scheduling
+tags: [scheduling, node-selector]
+
+statement: |
+  Schedule a Pod as follows:
+
+  - Name: `nginx-kusc00401`
+  - Image: `nginx`
+  - Node selector: the pod should only run on nodes labeled `disk=ssd`
+
+  A node in the cluster has already been labeled `disk=ssd` for you.
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace scheduling --dry-run=client -o yaml | kubectl apply -f -
+
+  # Dynamically pick a worker (non control-plane) node and label it disk=ssd.
+  # Uses items[1] (not items[0]) so it doesn't collide with Q2's drain-target node.
+  TARGET_NODE=$(kubectl get nodes -l '!node-role.kubernetes.io/control-plane' -o jsonpath='{.items[1].metadata.name}')
+  if [ -z "$TARGET_NODE" ]; then
+    echo "No worker node found to label with disk=ssd"
+    exit 1
+  fi
+
+  echo "Labeling node $TARGET_NODE with disk=ssd"
+  kubectl label node "$TARGET_NODE" disk=ssd --overwrite
+
+checks:
+  - name: "Pod nginx-kusc00401 has nodeSelector disk=ssd in its spec"
+    weight: 3
+    run: |
+      set -e
+
+      kubectl get pod nginx-kusc00401 -n scheduling || {
+          echo "Pod nginx-kusc00401 not found in namespace scheduling"
+          exit 1
+      }
+
+      DISK_SELECTOR=$(kubectl get pod nginx-kusc00401 -n scheduling -o jsonpath='{.spec.nodeSelector.disk}')
+      if [[ "$DISK_SELECTOR" != "ssd" ]]; then
+          echo "Pod does not have nodeSelector disk=ssd (got '$DISK_SELECTOR')"
+          exit 1
+      fi
+
+      echo "nodeSelector validation successful"
+      exit 0
+  - name: "Pod is Running and actually scheduled onto the disk=ssd node"
+    weight: 4
+    run: |
+      set -e
+
+      SSD_NODE=$(kubectl get nodes -l disk=ssd -o jsonpath='{.items[0].metadata.name}')
+      if [[ -z "$SSD_NODE" ]]; then
+          echo "No node labeled disk=ssd found"
+          exit 1
+      fi
+
+      WAIT_COUNT=0
+      while [ $WAIT_COUNT -lt 60 ]; do
+          PHASE=$(kubectl get pod nginx-kusc00401 -n scheduling -o jsonpath='{.status.phase}' 2>/dev/null || true)
+          NODE_NAME=$(kubectl get pod nginx-kusc00401 -n scheduling -o jsonpath='{.spec.nodeName}' 2>/dev/null || true)
+          if [[ "$PHASE" == "Running" && "$NODE_NAME" == "$SSD_NODE" ]]; then
+              echo "Pod nginx-kusc00401 is Running on disk=ssd node $SSD_NODE"
+              exit 0
+          fi
+          WAIT_COUNT=$((WAIT_COUNT+5))
+          sleep 5
+      done
+
+      echo "Pod nginx-kusc00401 is not Running on the disk=ssd node (phase='$PHASE', node='$NODE_NAME', expected='$SSD_NODE')"
+      exit 1
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: nginx-kusc00401
+      namespace: scheduling
+    spec:
+      nodeSelector:
+        disk: ssd
+      containers:
+        - name: nginx
+          image: nginx
+    ```
+
+    ### Why this works
+    `nodeSelector` is the simplest scheduling constraint - the scheduler will only place the pod on nodes whose labels are a superset of the selector, so `disk: ssd` restricts placement to the one worker node with that label.
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

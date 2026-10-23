@@ -1,0 +1,219 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X ckad-001 question 15
+title: Create a CRD (CustomResourceDefinition) for a new resource type 'Backup' in API group 'data.example.com' with version 'v1alpha1' that includes fields 'spec.source' and 'spec.destination'
+certifications:  # review: domains guessed from concepts
+  ckad: application-environment-configuration-security
+difficulty: medium
+namespace: cluster-admin
+tags: [custom-resource-definitions, api-extensions, crds, api-groups]
+
+statement: |
+  To support a custom backup solution, you need to extend the Kubernetes API.
+
+  Create a CustomResourceDefinition (CRD) named `backups.data.example.com` that defines a new resource type `Backup` in API group `data.example.com` with version `v1alpha1`.
+
+  This custom resource should include a schema that validates two required fields: `spec.source` (a string representing the source data location) and `spec.destination` (a string representing where backups should be stored).
+
+  Configure appropriate additional fields like shortNames, scope, and descriptions to make this CRD user-friendly.
+
+checks:
+  - name: CRD is created with correct API group and version
+    weight: 3
+    run: |
+      # Validate that the CustomResourceDefinition 'backups.data.example.com' has the correct API group and version
+
+      CRD_NAME="backups.data.example.com"
+      EXPECTED_GROUP="data.example.com"
+      EXPECTED_VERSION="v1alpha1"
+
+      # Check if the CRD exists
+      kubectl get crd $CRD_NAME > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+        echo "❌ CustomResourceDefinition '$CRD_NAME' not found"
+        exit 1
+      fi
+
+      # Check API group
+      GROUP=$(kubectl get crd $CRD_NAME -o jsonpath='{.spec.group}' 2>/dev/null)
+
+      if [ "$GROUP" != "$EXPECTED_GROUP" ]; then
+        echo "❌ CRD has incorrect API group: '$GROUP', expected: '$EXPECTED_GROUP'"
+        exit 1
+      fi
+
+      echo "✅ CRD has correct API group: '$GROUP'"
+
+      # Check API version
+      # The structure of versions can be different based on the Kubernetes version
+      # First try the newer structure
+      VERSIONS=$(kubectl get crd $CRD_NAME -o jsonpath='{.spec.versions[*].name}' 2>/dev/null)
+
+      # If that doesn't work, try the older structure
+      if [ -z "$VERSIONS" ]; then
+        VERSIONS=$(kubectl get crd $CRD_NAME -o jsonpath='{.spec.version}' 2>/dev/null)
+      fi
+
+      if [[ ! $VERSIONS =~ $EXPECTED_VERSION ]]; then
+        echo "❌ CRD versions ($VERSIONS) do not include expected version: '$EXPECTED_VERSION'"
+        exit 1
+      fi
+
+      echo "✅ CRD includes correct API version: '$EXPECTED_VERSION'"
+
+      # Check the resource type name (singular/plural)
+      PLURAL=$(kubectl get crd $CRD_NAME -o jsonpath='{.spec.names.plural}' 2>/dev/null)
+      SINGULAR=$(kubectl get crd $CRD_NAME -o jsonpath='{.spec.names.singular}' 2>/dev/null)
+      KIND=$(kubectl get crd $CRD_NAME -o jsonpath='{.spec.names.kind}' 2>/dev/null)
+
+      if [ "$PLURAL" != "backups" ]; then
+        echo "❌ CRD has incorrect plural name: '$PLURAL', expected: 'backups'"
+        exit 1
+      fi
+
+      if [ "$KIND" != "Backup" ]; then
+        echo "❌ CRD has incorrect kind: '$KIND', expected: 'Backup'"
+        exit 1
+      fi
+
+      echo "✅ CRD has correct names - plural: '$PLURAL', kind: '$KIND'"
+
+      # Check that the v1alpha1 version is served and stored
+      SERVED=$(kubectl get crd $CRD_NAME -o jsonpath='{.spec.versions[?(@.name=="v1alpha1")].served}' 2>/dev/null)
+      STORAGE=$(kubectl get crd $CRD_NAME -o jsonpath='{.spec.versions[?(@.name=="v1alpha1")].storage}' 2>/dev/null)
+
+      if [ "$SERVED" != "true" ] && [ -n "$SERVED" ]; then
+        echo "⚠️  The version 'v1alpha1' might not be served (served: $SERVED)"
+      fi
+
+      echo "✅ CustomResourceDefinition '$CRD_NAME' has correct API group '$EXPECTED_GROUP' and version '$EXPECTED_VERSION'"
+      exit 0
+  - name: CRD has required fields in schema
+    weight: 2
+    run: |
+      # Validate that the CustomResourceDefinition 'backups.data.example.com' has required schema fields
+
+      CRD_NAME="backups.data.example.com"
+      REQUIRED_FIELDS=("spec.source" "spec.destination")
+
+      # Check if the CRD exists
+      kubectl get crd $CRD_NAME > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+        echo "❌ CustomResourceDefinition '$CRD_NAME' not found"
+        exit 1
+      fi
+
+      # Get the full CRD definition for inspection
+      CRD_JSON=$(kubectl get crd $CRD_NAME -o json)
+
+      # Check for schema validation in different Kubernetes API versions
+      # First, try to get the schema for v1 API
+      SCHEMA=$(echo "$CRD_JSON" | jq -r '.spec.versions[] | select(.name=="v1alpha1") | .schema.openAPIV3Schema // empty' 2>/dev/null)
+
+      # If that's empty, try the beta API versions
+      if [ -z "$SCHEMA" ]; then
+        SCHEMA=$(echo "$CRD_JSON" | jq -r '.spec.validation.openAPIV3Schema // empty' 2>/dev/null)
+      fi
+
+      if [ -z "$SCHEMA" ]; then
+        echo "❌ No schema validation found in the CRD"
+        exit 1
+      fi
+
+      echo "✅ Schema validation is defined for the CRD"
+
+      # Check for the required properties in the schema
+      SCHEMA_PROPERTIES=$(echo "$CRD_JSON" | jq -r '.spec.versions[] | select(.name=="v1alpha1") | .schema.openAPIV3Schema.properties.spec.properties // empty' 2>/dev/null)
+
+      # If that's empty, try the beta API versions
+      if [ -z "$SCHEMA_PROPERTIES" ]; then
+        SCHEMA_PROPERTIES=$(echo "$CRD_JSON" | jq -r '.spec.validation.openAPIV3Schema.properties.spec.properties // empty' 2>/dev/null)
+      fi
+
+      if [ -z "$SCHEMA_PROPERTIES" ]; then
+        echo "❌ Could not find 'spec' properties in the schema"
+        exit 1
+      fi
+
+      # Check for each required field
+      for field in "${REQUIRED_FIELDS[@]}"; do
+        field_name=$(echo $field | cut -d'.' -f2)
+
+        # Check if the field is defined in properties
+        FIELD_DEF=$(echo "$SCHEMA_PROPERTIES" | jq -r ".$field_name // empty" 2>/dev/null)
+
+        if [ -z "$FIELD_DEF" ]; then
+          echo "❌ Required field '$field' is not defined in the schema"
+          exit 1
+        fi
+
+        echo "✅ Field '$field' is defined in the schema"
+
+        # Check if the field is a string type
+        FIELD_TYPE=$(echo "$SCHEMA_PROPERTIES" | jq -r ".$field_name.type" 2>/dev/null)
+
+        if [ "$FIELD_TYPE" != "string" ]; then
+          echo "⚠️  Field '$field' is of type '$FIELD_TYPE', not 'string' as expected"
+        fi
+      done
+
+      # Check if both fields are required
+      REQUIRED_LIST=$(echo "$CRD_JSON" | jq -r '.spec.versions[] | select(.name=="v1alpha1") | .schema.openAPIV3Schema.properties.spec.required // empty' 2>/dev/null)
+
+      # If that's empty, try the beta API versions
+      if [ -z "$REQUIRED_LIST" ]; then
+        REQUIRED_LIST=$(echo "$CRD_JSON" | jq -r '.spec.validation.openAPIV3Schema.properties.spec.required // empty' 2>/dev/null)
+      fi
+
+      if [ -z "$REQUIRED_LIST" ]; then
+        echo "⚠️  No required fields specified in the schema"
+      else
+        # Check if both source and destination are in the required list
+        if echo "$REQUIRED_LIST" | jq -e 'index("source")' > /dev/null && echo "$REQUIRED_LIST" | jq -e 'index("destination")' > /dev/null; then
+          echo "✅ Both 'source' and 'destination' are marked as required fields"
+        else
+          echo "⚠️  Not all required fields ('source', 'destination') are marked as required in the schema"
+        fi
+      fi
+
+      echo "✅ CRD schema includes the required fields 'spec.source' and 'spec.destination'"
+      exit 0
+
+solution:
+  explain: |
+    ```yaml
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: backups.data.example.com
+    spec:
+      group: data.example.com
+      names:
+        kind: Backup
+        listKind: BackupList
+        plural: backups
+        singular: backup
+      scope: Namespaced
+      versions:
+      - name: v1alpha1
+        served: true
+        storage: true
+        schema:
+          openAPIV3Schema:
+            type: object
+            properties:
+              spec:
+                type: object
+                properties:
+                  source:
+                    type: string
+                  destination:
+                    type: string
+                required: ["source", "destination"]
+    ```
+
+    Save as `backup-crd.yaml` and apply:
+    ```bash
+    kubectl apply -f backup-crd.yaml
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: kubectl apply -f backup-crd.yaml

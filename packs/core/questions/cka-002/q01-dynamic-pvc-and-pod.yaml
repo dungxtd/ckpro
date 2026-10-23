@@ -1,0 +1,156 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-002 question 1
+title: Dynamic PVC and Pod
+certifications:  # review: domains guessed from concepts
+  cka: storage
+difficulty: hard
+workers: 2
+namespace: storage-task
+tags: [storage, persistent-volumes, pods]
+
+statement: |
+  Create a Dynamic PVC named `data-pvc` with the following specifications:
+
+  - Storage Class: `standard`
+  - Access Mode: `ReadWriteOnce`
+  - Storage Request: `2Gi`
+
+  Then create a Pod named `data-pod` using the `nginx` image that mounts this PVC as volume with name `data` at `/usr/share/nginx/html`.
+
+  Ensure both the PVC and Pod are in the `storage-task` namespace.
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace storage-task --dry-run=client -o yaml | kubectl apply -f -
+
+  # Ensure the standard storage class exists
+  kubectl get storageclass standard || kubectl create -f - <<EOF
+  apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    name: standard
+  provisioner: rancher.io/local-path
+  volumeBindingMode: WaitForFirstConsumer
+  EOF
+
+checks:
+  - name: PVC exists with correct specifications
+    weight: 2
+    run: |
+      set -e
+
+      # Check if PVC exists
+      kubectl get pvc data-pvc -n storage-task || {
+          echo "PVC data-pvc not found in namespace storage-task"
+          exit 1
+      }
+
+      # Validate storage class
+      STORAGE_CLASS=$(kubectl get pvc data-pvc -n storage-task -o jsonpath='{.spec.storageClassName}')
+      if [[ "$STORAGE_CLASS" != "standard" ]]; then
+          echo "Incorrect storage class. Expected 'standard', got '$STORAGE_CLASS'"
+          exit 1
+      fi
+
+      # Validate access mode
+      ACCESS_MODE=$(kubectl get pvc data-pvc -n storage-task -o jsonpath='{.spec.accessModes[0]}')
+      if [[ "$ACCESS_MODE" != "ReadWriteOnce" ]]; then
+          echo "Incorrect access mode. Expected 'ReadWriteOnce', got '$ACCESS_MODE'"
+          exit 1
+      fi
+
+      # Validate storage size
+      STORAGE_SIZE=$(kubectl get pvc data-pvc -n storage-task -o jsonpath='{.spec.resources.requests.storage}')
+      if [[ "$STORAGE_SIZE" != "2Gi" ]]; then
+          echo "Incorrect storage size. Expected '2Gi', got '$STORAGE_SIZE'"
+          exit 1
+      fi
+
+      echo "PVC validation successful"
+      exit 0
+  - name: Pod exists and is running
+    run: |
+      set -e
+
+      # Check if pod exists
+      kubectl get pod data-pod -n storage-task || {
+          echo "Pod data-pod not found in namespace storage-task"
+          exit 1
+      }
+
+      # Check if pod is running
+      POD_STATUS=$(kubectl get pod data-pod -n storage-task -o jsonpath='{.status.phase}')
+      if [[ "$POD_STATUS" != "Running" ]]; then
+          echo "Pod is not in Running state. Current state: $POD_STATUS"
+          exit 1
+      fi
+
+      # Check if pod is using nginx image
+      POD_IMAGE=$(kubectl get pod data-pod -n storage-task -o jsonpath='{.spec.containers[0].image}')
+      if [[ "$POD_IMAGE" != *"nginx"* ]]; then
+          echo "Pod is not using nginx image. Current image: $POD_IMAGE"
+          exit 1
+      fi
+
+      echo "Pod validation successful"
+      exit 0
+  - name: PVC is correctly mounted in the pod
+    weight: 2
+    run: |
+      set -e
+
+      # Check if volume mount exists
+      MOUNT_PATH=$(kubectl get pod data-pod -n storage-task -o jsonpath='{.spec.containers[0].volumeMounts[?(@.name=="data")].mountPath}')
+      if [[ "$MOUNT_PATH" != "/usr/share/nginx/html" ]]; then
+          echo "Volume not mounted at correct path. Expected '/usr/share/nginx/html', got '$MOUNT_PATH'"
+          exit 1
+      fi
+
+      # Check if volume is using the PVC
+      VOLUME_PVC=$(kubectl get pod data-pod -n storage-task -o jsonpath='{.spec.volumes[?(@.name=="data")].persistentVolumeClaim.claimName}')
+      if [[ "$VOLUME_PVC" != "data-pvc" ]]; then
+          echo "Pod is not using the correct PVC. Expected 'data-pvc', got '$VOLUME_PVC'"
+          exit 1
+      fi
+
+      echo "Volume mount validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: data-pvc
+      namespace: storage-task
+    spec:
+      storageClassName: standard
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: data-pod
+      namespace: storage-task
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        volumeMounts:
+        - name: data
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: data-pvc
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

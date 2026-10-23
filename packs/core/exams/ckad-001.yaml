@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../schema/exam.schema.json
+# Converted from CK-X ckad-001
+title: CKAD Comprehensive Lab - 1
+description: Hands-on exercises covering core Kubernetes concepts, pod configuration, deployments, and services with practical tasks for application deployment in a cluster.
+certification: ckad
+duration: 120m
+questions:
+  - core/ckad-001/q01-create-a-deployment-called-nginx-deployment-in-t
+  - core/ckad-001/q02-create-a-persistentvolume-named-pv-storage-with
+  - core/ckad-001/q03-create-a-storageclass-named-fast-storage-with-pr
+  - core/ckad-001/q04-create-a-persistentvolumeclaim-named-pvc-app-tha
+  - core/ckad-001/q05-the-deployment-broken-app-in-namespace-troublesh
+  - core/ckad-001/q06-create-a-multi-container-pod-with-sidecar-loggin
+  - core/ckad-001/q07-service-web-service-in-namespace-troubleshooting
+  - core/ckad-001/q08-pod-logging-pod-in-namespace-troubleshooting-is
+  - core/ckad-001/q09-create-a-configmap-named-app-config-in-namespace
+  - core/ckad-001/q10-create-a-secret-named-db-credentials-in-namespac
+  - core/ckad-001/q11-create-a-cronjob-named-log-cleaner-in-namespace
+  - core/ckad-001/q12-create-a-pod-named-health-pod-in-namespace-workl
+  - core/ckad-001/q13-create-a-clusterrole-named-pod-reader-that-allow
+  - core/ckad-001/q14-deploy-the-bitnami-nginx-chart-in-the-web-namesp
+  - core/ckad-001/q15-create-a-crd-customresourcedefinition-for-a-new
+  - core/ckad-001/q16-create-a-networkpolicy-named-allow-traffic-in-na
+  - core/ckad-001/q17-create-a-clusterip-service-named-internal-app-in
+  - core/ckad-001/q18-create-a-nodeport-service-named-public-web-in-na
+  - core/ckad-001/q19-create-an-ingress-resource-named-api-ingress-in
+  - core/ckad-001/q20-create-a-simple-kubernetes-job-named-hello-job-t
+  - core/ckad-001/q21-work-with-the-open-container-initiative-oci-form

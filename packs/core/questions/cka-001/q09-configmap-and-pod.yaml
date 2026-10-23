@@ -1,0 +1,205 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-001 question 9
+title: ConfigMap and Pod
+certifications:  # review: domains guessed from concepts
+  cka: workloads-scheduling
+difficulty: easy
+namespace: default
+tags: [configmaps, volumes, pod configuration]
+
+statement: |
+  Create a ConfigMap named `app-config` with the key `APP_COLOR` and value `blue`.
+
+  Create a pod named `config-pod` using the `nginx` image that mounts this ConfigMap as a volume named `config-volume` at `/etc/config`.
+
+  Verify that the configuration is correctly accessible within the pod.
+
+setup: |
+  # Setup for Question 9: ConfigMap setup
+
+  # Remove any existing configmap and pod with the same names
+  kubectl delete configmap app-config --ignore-not-found=true
+  kubectl delete pod config-pod --ignore-not-found=true
+
+  # Pre-pull the nginx image
+  kubectl run prefetch-nginx --image=nginx --restart=Never --dry-run=client -o yaml | kubectl apply -f -
+  sleep 5
+  kubectl delete pod prefetch-nginx --ignore-not-found=true
+
+  exit 0
+
+checks:
+  - name: ConfigMap and pod exist
+    weight: 2
+    run: |
+      # Validate if ConfigMap exists with correct configuration
+
+      CONFIGMAP_NAME="app-config"
+      EXPECTED_KEY="APP_COLOR"
+      EXPECTED_VALUE="blue"
+
+      # Check if ConfigMap exists
+      if ! kubectl get configmap $CONFIGMAP_NAME &> /dev/null; then
+          echo "❌ ConfigMap '$CONFIGMAP_NAME' not found"
+          exit 1
+      fi
+
+      # Check if ConfigMap has the required key
+      if ! kubectl get configmap $CONFIGMAP_NAME -o jsonpath='{.data.APP_COLOR}' &> /dev/null; then
+          echo "❌ ConfigMap '$CONFIGMAP_NAME' missing required key '$EXPECTED_KEY'"
+          exit 1
+      fi
+
+      # Check if ConfigMap has the correct value
+      CONFIG_VALUE=$(kubectl get configmap $CONFIGMAP_NAME -o jsonpath='{.data.APP_COLOR}')
+      if [ "$CONFIG_VALUE" != "$EXPECTED_VALUE" ]; then
+          echo "❌ ConfigMap '$CONFIGMAP_NAME' has incorrect value for '$EXPECTED_KEY': $CONFIG_VALUE (expected: $EXPECTED_VALUE)"
+          exit 1
+      fi
+
+      echo "✅ ConfigMap '$CONFIGMAP_NAME' exists with correct configuration"
+      exit 0
+  - name: ConfigMap has correct data
+    weight: 2
+    run: |
+      # Validate if pod using ConfigMap exists with correct configuration
+
+      POD_NAME="config-pod"
+      CONFIGMAP_NAME="app-config"
+      EXPECTED_IMAGE="nginx"
+
+      # Check if pod exists
+      if ! kubectl get pod $POD_NAME &> /dev/null; then
+          echo "❌ Pod '$POD_NAME' not found"
+          exit 1
+      fi
+
+      # Check if pod is running
+      POD_STATUS=$(kubectl get pod $POD_NAME -o jsonpath='{.status.phase}')
+      if [ "$POD_STATUS" != "Running" ]; then
+          echo "❌ Pod '$POD_NAME' exists but is not running (status: $POD_STATUS)"
+          exit 1
+      fi
+
+      # Check if correct image is used
+      POD_IMAGE=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].image}')
+      if [ "$POD_IMAGE" != "$EXPECTED_IMAGE" ]; then
+          echo "❌ Pod '$POD_NAME' using incorrect image: $POD_IMAGE (expected: $EXPECTED_IMAGE)"
+          exit 1
+      fi
+
+      # Check if ConfigMap is mounted
+      CONFIGMAP_MOUNT=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.volumes[?(@.configMap.name=="app-config")].name}')
+      if [ -z "$CONFIGMAP_MOUNT" ]; then
+          echo "❌ Pod '$POD_NAME' not mounting ConfigMap '$CONFIGMAP_NAME'"
+          exit 1
+      fi
+
+      # Check if ConfigMap is mounted at correct path
+      MOUNT_PATH=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].volumeMounts[?(@.name=="config-volume")].mountPath}')
+      if [ "$MOUNT_PATH" != "/etc/config" ]; then
+          echo "❌ Pod '$POD_NAME' mounting ConfigMap at incorrect path: $MOUNT_PATH (expected: /etc/config)"
+          exit 1
+      fi
+
+      echo "✅ Pod '$POD_NAME' exists with correct ConfigMap configuration"
+      exit 0
+  - name: ConfigMap usage and mounting are correct
+    weight: 3
+    run: |
+      # Validate ConfigMap usage and mounting
+
+      POD_NAME="config-pod"
+      CONFIGMAP_NAME="app-config"
+
+      # Check if pod exists and is running
+      if ! kubectl get pod $POD_NAME &> /dev/null; then
+          echo "❌ Pod '$POD_NAME' not found"
+          exit 1
+      fi
+
+      POD_STATUS=$(kubectl get pod $POD_NAME -o jsonpath='{.status.phase}')
+      if [ "$POD_STATUS" != "Running" ]; then
+          echo "❌ Pod '$POD_NAME' is not running"
+          exit 1
+      fi
+
+      # Check if ConfigMap exists
+      if ! kubectl get configmap $CONFIGMAP_NAME &> /dev/null; then
+          echo "❌ ConfigMap '$CONFIGMAP_NAME' not found"
+          exit 1
+      fi
+
+      # Check if ConfigMap has correct data
+      CONFIG_VALUE=$(kubectl get configmap $CONFIGMAP_NAME -o jsonpath='{.data.APP_COLOR}')
+      if [ "$CONFIG_VALUE" != "blue" ]; then
+          echo "❌ ConfigMap has incorrect value: $CONFIG_VALUE (expected: blue)"
+          exit 1
+      fi
+
+      # Check if volume is properly mounted
+      VOLUME_MOUNT=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.volumes[?(@.name=="config-volume")].configMap.name}')
+      if [ "$VOLUME_MOUNT" != "$CONFIGMAP_NAME" ]; then
+          echo "❌ ConfigMap is not properly mounted as volume"
+          exit 1
+      fi
+
+      # Check if volume is mounted at correct path
+      MOUNT_PATH=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.containers[0].volumeMounts[?(@.name=="config-volume")].mountPath}')
+      if [ "$MOUNT_PATH" != "/etc/config" ]; then
+          echo "❌ ConfigMap is mounted at incorrect path: $MOUNT_PATH"
+          exit 1
+      fi
+
+      # Verify ConfigMap content in pod
+      POD_CONFIG_VALUE=$(kubectl exec $POD_NAME -- cat /etc/config/APP_COLOR)
+      if [ "$POD_CONFIG_VALUE" != "blue" ]; then
+          echo "❌ ConfigMap value not correctly mounted in pod"
+          exit 1
+      fi
+
+      # Check if pod can read the mounted ConfigMap
+      if ! kubectl exec $POD_NAME -- ls -l /etc/config/APP_COLOR &> /dev/null; then
+          echo "❌ Pod cannot access mounted ConfigMap file"
+          exit 1
+      fi
+
+      echo "✅ ConfigMap is correctly configured and mounted"
+      exit 0
+
+solution:
+  explain: |
+    Create a ConfigMap named `app-config` with a key `APP_COLOR` set to `blue` and create a pod named `config-pod` that mounts this ConfigMap at `/etc/config`.
+
+    ```yaml
+    # Create ConfigMap
+    cat << EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: app-config
+    data:
+      APP_COLOR: blue
+    EOF
+
+    # Create pod
+    cat << EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: config-pod
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+      volumes:
+      - name: config-volume
+        configMap:
+          name: app-config
+    EOF
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

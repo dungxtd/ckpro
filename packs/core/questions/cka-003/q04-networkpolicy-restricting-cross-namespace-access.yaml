@@ -1,0 +1,114 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-003 question 4
+title: NetworkPolicy Restricting Cross-Namespace Access
+certifications:  # review: domains guessed from concepts
+  cka: services-networking
+difficulty: hard
+workers: 3
+namespace: fubar
+tags: [networkpolicy, networking, namespace-isolation]
+
+statement: |
+  Create a NetworkPolicy named `allow-port-from-namespace` in namespace `fubar` which allows pods in namespace `internal` to connect to port `9000` of pods in namespace `fubar`.
+
+  More specifically, ensure that:
+
+  - The policy allows pods in the `internal` namespace to connect to port `9000/tcp` of ALL pods in namespace `fubar`.
+  - The policy does NOT allow access from any other namespace.
+  - The policy does NOT allow access to any other port.
+
+  Tip: every namespace already carries the built-in immutable label `kubernetes.io/metadata.name` equal to its own name, so you can select the `internal` namespace with a `namespaceSelector` without labeling it yourself.
+
+setup: |
+  set -e
+
+  # Create namespaces (every namespace automatically gets the built-in
+  # kubernetes.io/metadata.name label, so "internal" is already selectable by name)
+  kubectl create namespace fubar --dry-run=client -o yaml | kubectl apply -f -
+  kubectl create namespace internal --dry-run=client -o yaml | kubectl apply -f -
+
+checks:
+  - name: NetworkPolicy allow-port-from-namespace exists in fubar
+    weight: 2
+    run: |
+      set -e
+
+      kubectl get networkpolicy allow-port-from-namespace -n fubar || {
+          echo "NetworkPolicy allow-port-from-namespace not found in namespace fubar"
+          exit 1
+      }
+
+      echo "NetworkPolicy exists"
+      exit 0
+  - name: Ingress rule restricts source to namespace 'internal' and port 9000/TCP only
+    weight: 3
+    run: |
+      set -e
+
+      NP=$(kubectl get networkpolicy allow-port-from-namespace -n fubar -o json)
+
+      POLICY_TYPES=$(echo "$NP" | jq -r '.spec.policyTypes[]')
+      if ! echo "$POLICY_TYPES" | grep -q "Ingress"; then
+          echo "NetworkPolicy does not include Ingress in policyTypes"
+          exit 1
+      fi
+
+      # Exactly one ingress rule, restricted to namespaceSelector matching "internal"
+      NS_MATCH=$(echo "$NP" | jq -r '.spec.ingress[]?.from[]?.namespaceSelector.matchLabels["kubernetes.io/metadata.name"] // empty')
+      if [[ "$NS_MATCH" != "internal" ]]; then
+          echo "Ingress rule does not restrict source to namespaceSelector matching namespace 'internal' (got '$NS_MATCH')"
+          exit 1
+      fi
+
+      PORT=$(echo "$NP" | jq -r '.spec.ingress[]?.ports[]?.port // empty')
+      PROTO=$(echo "$NP" | jq -r '.spec.ingress[]?.ports[]?.protocol // empty')
+      if [[ "$PORT" != "9000" || "$PROTO" != "TCP" ]]; then
+          echo "Ingress rule does not restrict to port 9000/TCP (got port='$PORT' protocol='$PROTO')"
+          exit 1
+      fi
+
+      echo "NetworkPolicy ingress rule validation successful"
+      exit 0
+  - name: podSelector is empty, applying the policy to all pods in fubar
+    weight: 2
+    run: |
+      set -e
+
+      NP=$(kubectl get networkpolicy allow-port-from-namespace -n fubar -o json)
+
+      POD_SELECTOR=$(echo "$NP" | jq -c '.spec.podSelector')
+      if [[ "$POD_SELECTOR" != "{}" ]]; then
+          echo "podSelector should be empty (match all pods in fubar) to make the policy namespace-wide, got: $POD_SELECTOR"
+          exit 1
+      fi
+
+      echo "podSelector validation successful (namespace-wide policy)"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-port-from-namespace
+      namespace: fubar
+    spec:
+      podSelector: {}
+      policyTypes:
+        - Ingress
+      ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: internal
+          ports:
+            - protocol: TCP
+              port: 9000
+    ```
+
+    ### Why this works
+    An empty `podSelector: {}` selects every pod in the `fubar` namespace, so the policy applies namespace-wide. The single `ingress` rule combines a `namespaceSelector` (restricting the source to pods in `internal`) with a `ports` restriction (only `9000/tcp`) - both conditions inside the same rule entry must match, so this is strictly "from internal, to port 9000" and nothing else. Every namespace automatically carries the immutable label `kubernetes.io/metadata.name` equal to its own name (since Kubernetes 1.21+), so there's no need to manually label the `internal` namespace.
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

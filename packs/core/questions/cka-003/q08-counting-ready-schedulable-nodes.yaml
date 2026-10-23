@@ -1,0 +1,85 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-003 question 8
+title: Counting Ready, Schedulable Nodes
+certifications:  # review: domains guessed from concepts
+  cka: workloads-scheduling
+difficulty: hard
+workers: 3
+namespace: default
+tags: [nodes, taints, cluster-inspection]
+
+statement: |
+  Check how many nodes in the cluster are in `Ready` state, EXCLUDING any nodes that are tainted `NoSchedule`.
+
+  Write the count (just the number, nothing else) to `/tmp/exam/ready-node-count.txt`.
+
+setup: |
+  set -e
+
+  mkdir -p /tmp/exam
+
+  # Dynamically pick a worker (non control-plane) node and taint it NoSchedule,
+  # so there is a real node to exclude from the "Ready" count the candidate computes.
+  # Uses items[2] (not items[0]/[1]) so it doesn't collide with Q2's drain-target
+  # node or Q7's disk=ssd node - a NoSchedule taint on either would make those
+  # questions' pods permanently unschedulable.
+  TARGET_NODE=$(kubectl get nodes -l '!node-role.kubernetes.io/control-plane' -o jsonpath='{.items[2].metadata.name}')
+  if [ -z "$TARGET_NODE" ]; then
+    echo "No worker node found to taint"
+    exit 1
+  fi
+
+  echo "Tainting node $TARGET_NODE with maintenance=true:NoSchedule"
+  kubectl taint node "$TARGET_NODE" maintenance=true:NoSchedule --overwrite
+
+checks:
+  - name: File contains the correct count of Ready nodes without a NoSchedule taint
+    weight: 6
+    run: |
+      set -e
+
+      FILE=/tmp/exam/ready-node-count.txt
+
+      if [[ ! -f "$FILE" ]]; then
+          echo "File $FILE does not exist"
+          exit 1
+      fi
+
+      ACTUAL=$(tr -d '[:space:]' < "$FILE")
+
+      # Independently compute expected count: nodes with Ready=True and no NoSchedule taint
+      NODES_JSON=$(kubectl get nodes -o json)
+      EXPECTED=$(echo "$NODES_JSON" | jq '[
+        .items[]
+        | select((.status.conditions[] | select(.type=="Ready") | .status) == "True")
+        | select(((.spec.taints // []) | map(select(.effect=="NoSchedule")) | length) == 0)
+      ] | length')
+
+      if [[ "$ACTUAL" != "$EXPECTED" ]]; then
+          echo "Incorrect ready node count. Expected $EXPECTED, file contains '$ACTUAL'"
+          exit 1
+      fi
+
+      echo "Ready node count validation successful ($ACTUAL)"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```bash
+    kubectl get nodes -o json | jq '[
+      .items[]
+      | select((.status.conditions[] | select(.type=="Ready") | .status) == "True")
+      | select(((.spec.taints // []) | map(select(.effect=="NoSchedule")) | length) == 0)
+    ] | length' > /tmp/exam/ready-node-count.txt
+    ```
+
+    ### Why this works
+    A node can be `Ready` but still excluded from receiving new workloads if it carries a `NoSchedule` taint (e.g. during maintenance) - this filters for both conditions simultaneously.
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    kubectl get nodes -o json | jq '[
+      .items[]
+      | select((.status.conditions[] | select(.type=="Ready") | .status) == "True")
+      | select(((.spec.taints // []) | map(select(.effect=="NoSchedule")) | length) == 0)
+    ] | length' > /tmp/exam/ready-node-count.txt

@@ -1,0 +1,272 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-002 question 20
+title: Troubleshooting Application
+certifications:  # review: domains guessed from concepts
+  cka: troubleshooting
+difficulty: hard
+workers: 2
+namespace: troubleshoot
+tags: [troubleshooting, debugging, deployment-configuration]
+
+statement: |
+  A deployment named `failing-app` has been created in the namespace `troubleshoot` but pods are not running. The deployment uses image `nginx:1.25` and should have 3 replicas.
+
+  Fix the following issues:
+
+  1. The deployment is using an incorrect container port (port 8080 instead of 80)
+  2. The pods are failing due to insufficient memory (current limit is 64Mi, should be 256Mi)
+  3. There's a misconfigured liveness probe checking port 8080 instead of 80
+
+  Ensure all pods are running successfully after applying the fixes.
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace troubleshoot --dry-run=client -o yaml | kubectl apply -f -
+
+  # Create the failing deployment
+  kubectl create -f - <<EOF
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: failing-app
+    namespace: troubleshoot
+  spec:
+    replicas: 3
+    selector:
+      matchLabels:
+        app: failing-app
+    template:
+      metadata:
+        labels:
+          app: failing-app
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.25
+          ports:
+          - containerPort: 8080
+          resources:
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 3
+  EOF
+
+checks:
+  - name: Container port is correctly set to 80
+    weight: 2
+    run: |
+      set -e
+
+      # Check if deployment exists
+      kubectl get deployment failing-app -n troubleshoot || {
+          echo "Deployment failing-app not found in namespace troubleshoot"
+          exit 1
+      }
+
+      # Check container port configuration
+      PORT=$(kubectl get deployment failing-app -n troubleshoot -o jsonpath='{.spec.template.spec.containers[0].ports[0].containerPort}')
+      if [[ "$PORT" != "80" ]]; then
+          echo "Incorrect container port. Expected 80, got $PORT"
+          exit 1
+      fi
+
+      # Check if port is correctly configured in pods
+      PODS=$(kubectl get pods -n troubleshoot -l app=failing-app -o jsonpath='{.items[*].metadata.name}')
+      for POD in $PODS; do
+          POD_PORT=$(kubectl get pod $POD -n troubleshoot -o jsonpath='{.spec.containers[0].ports[0].containerPort}')
+          if [[ "$POD_PORT" != "80" ]]; then
+              echo "Pod $POD has incorrect port configuration. Expected 80, got $POD_PORT"
+              exit 1
+          fi
+      done
+
+      echo "Container port validation successful"
+      exit 0
+  - name: Memory limits are set correctly to 256Mi
+    weight: 2
+    run: |
+      set -e
+
+      # Check if deployment exists
+      kubectl get deployment failing-app -n troubleshoot || {
+          echo "Deployment failing-app not found in namespace troubleshoot"
+          exit 1
+      }
+
+      # Check memory limit configuration
+      MEM_LIMIT=$(kubectl get deployment failing-app -n troubleshoot -o jsonpath='{.spec.template.spec.containers[0].resources.limits.memory}')
+      if [[ "$MEM_LIMIT" != "256Mi" ]]; then
+          echo "Incorrect memory limit. Expected 256Mi, got $MEM_LIMIT"
+          exit 1
+      fi
+
+      # Check if memory limit is correctly applied to pods
+      PODS=$(kubectl get pods -n troubleshoot -l app=failing-app -o jsonpath='{.items[*].metadata.name}')
+      for POD in $PODS; do
+          POD_MEM_LIMIT=$(kubectl get pod $POD -n troubleshoot -o jsonpath='{.spec.containers[0].resources.limits.memory}')
+          if [[ "$POD_MEM_LIMIT" != "256Mi" ]]; then
+              echo "Pod $POD has incorrect memory limit. Expected 256Mi, got $POD_MEM_LIMIT"
+              exit 1
+          fi
+      done
+
+      # Check if pods are not being OOMKilled
+      for POD in $PODS; do
+          RESTARTS=$(kubectl get pod $POD -n troubleshoot -o jsonpath='{.status.containerStatuses[0].restartCount}')
+          LAST_STATE=$(kubectl get pod $POD -n troubleshoot -o jsonpath='{.status.containerStatuses[0].lastState.terminated.reason}')
+
+          if [[ "$LAST_STATE" == "OOMKilled" ]]; then
+              echo "Pod $POD was terminated due to OOMKilled"
+              exit 1
+          fi
+      done
+
+      echo "Memory limit validation successful"
+      exit 0
+  - name: Liveness probe is configured correctly
+    weight: 2
+    run: |
+      set -e
+
+      # Check if deployment exists
+      kubectl get deployment failing-app -n troubleshoot || {
+          echo "Deployment failing-app not found in namespace troubleshoot"
+          exit 1
+      }
+
+      # Check liveness probe configuration
+      PROBE_PORT=$(kubectl get deployment failing-app -n troubleshoot -o jsonpath='{.spec.template.spec.containers[0].livenessProbe.httpGet.port}')
+      if [[ "$PROBE_PORT" != "80" ]]; then
+          echo "Incorrect liveness probe port. Expected 80, got $PROBE_PORT"
+          exit 1
+      fi
+
+      # Check if probe is configured in pods
+      PODS=$(kubectl get pods -n troubleshoot -l app=failing-app -o jsonpath='{.items[*].metadata.name}')
+      for POD in $PODS; do
+          POD_PROBE_PORT=$(kubectl get pod $POD -n troubleshoot -o jsonpath='{.spec.containers[0].livenessProbe.httpGet.port}')
+          if [[ "$POD_PROBE_PORT" != "80" ]]; then
+              echo "Pod $POD has incorrect liveness probe port. Expected 80, got $POD_PROBE_PORT"
+              exit 1
+          fi
+
+          # Check if pod is being restarted due to failed liveness probe
+          RESTARTS=$(kubectl get pod $POD -n troubleshoot -o jsonpath='{.status.containerStatuses[0].restartCount}')
+          LAST_STATE=$(kubectl get pod $POD -n troubleshoot -o jsonpath='{.status.containerStatuses[0].lastState.terminated.reason}')
+
+          if [[ "$LAST_STATE" == "LivenessProbe" ]]; then
+              echo "Pod $POD is failing due to liveness probe"
+              exit 1
+          fi
+      done
+
+      echo "Liveness probe validation successful"
+      exit 0
+  - name: All pods are running successfully
+    weight: 2
+    run: |
+      set -e
+
+      # Check if deployment exists
+      kubectl get deployment failing-app -n troubleshoot || {
+          echo "Deployment failing-app not found in namespace troubleshoot"
+          exit 1
+      }
+
+      # Check if all pods are running
+      READY_PODS=$(kubectl get deployment failing-app -n troubleshoot -o jsonpath='{.status.readyReplicas}')
+      if [[ "$READY_PODS" != "3" ]]; then
+          echo "Not all pods are ready. Expected 3, got $READY_PODS"
+          exit 1
+      fi
+
+      # Check pod status
+      PODS=$(kubectl get pods -n troubleshoot -l app=failing-app -o jsonpath='{.items[*].metadata.name}')
+      for POD in $PODS; do
+          # Check pod phase
+          PHASE=$(kubectl get pod $POD -n troubleshoot -o jsonpath='{.status.phase}')
+          if [[ "$PHASE" != "Running" ]]; then
+              echo "Pod $POD is not running. Current phase: $PHASE"
+              exit 1
+          fi
+
+          # Check container ready status
+          READY=$(kubectl get pod $POD -n troubleshoot -o jsonpath='{.status.containerStatuses[0].ready}')
+          if [[ "$READY" != "true" ]]; then
+              echo "Container in pod $POD is not ready"
+              exit 1
+          fi
+
+          # Check for recent restarts
+          RESTARTS=$(kubectl get pod $POD -n troubleshoot -o jsonpath='{.status.containerStatuses[0].restartCount}')
+          if [[ "$RESTARTS" -gt 0 ]]; then
+              # Check if the last restart was recent (within last minute)
+              LAST_RESTART=$(kubectl get pod $POD -n troubleshoot -o jsonpath='{.status.containerStatuses[0].lastState.terminated.finishedAt}')
+              if [[ -n "$LAST_RESTART" ]]; then
+                  RESTART_TIME=$(date -d "$LAST_RESTART" +%s)
+                  NOW=$(date +%s)
+                  DIFF=$((NOW - RESTART_TIME))
+                  if [[ "$DIFF" -lt 60 ]]; then
+                      echo "Pod $POD has recent restarts"
+                      exit 1
+                  fi
+              fi
+          fi
+      done
+
+      # Test pod functionality
+      for POD in $PODS; do
+          # Test nginx is serving on port 80
+          kubectl exec $POD -n troubleshoot -- curl -s localhost:80 > /dev/null || {
+              echo "Pod $POD is not serving content on port 80"
+              exit 1
+          }
+      done
+
+      echo "Pod validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: failing-app
+      namespace: troubleshoot
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: failing-app
+      template:
+        metadata:
+          labels:
+            app: failing-app
+        spec:
+          containers:
+          - name: nginx
+            image: nginx:1.25
+            ports:
+            - containerPort: 80  # Fixed from 8080
+            resources:
+              limits:
+                memory: 256Mi    # Fixed from 64Mi
+            livenessProbe:
+              httpGet:
+                path: /
+                port: 80        # Fixed from 8080
+              initialDelaySeconds: 15
+              periodSeconds: 10
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

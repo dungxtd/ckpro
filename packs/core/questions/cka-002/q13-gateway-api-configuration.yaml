@@ -1,0 +1,271 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-002 question 13
+title: Gateway API Configuration
+certifications:  # review: domains guessed from concepts
+  cka: services-networking
+difficulty: hard
+workers: 2
+namespace: gateway
+tags: [gateway-api, networking]
+
+statement: |
+  Configure Gateway API resources:
+
+  1. Create a Gateway named `main-gateway` listening on port `80`
+  2. Create an HTTPRoute to route traffic to a backend service:
+     - Path: `/app1` should route to service `app1-svc` port `8080`
+     - Path: `/app2` should route to service `app2-svc` port `8080`
+  3. Create two deployments (`app1` and `app2`) with corresponding services to test the routing
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace gateway --dry-run=client -o yaml | kubectl apply -f -
+
+  # Install Gateway API CRDs
+  kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v0.8.0/standard-install.yaml
+
+  # Wait for CRDs to be ready
+  kubectl wait --for=condition=established --timeout=60s crd/gateways.gateway.networking.k8s.io
+  kubectl wait --for=condition=established --timeout=60s crd/httproutes.gateway.networking.k8s.io
+
+checks:
+  - name: Gateway resource exists and is configured correctly
+    weight: 2
+    run: |
+      set -e
+
+      # Check if Gateway exists
+      kubectl get gateway main-gateway -n gateway || {
+          echo "Gateway main-gateway not found in namespace gateway"
+          exit 1
+      }
+
+      # Check if Gateway is listening on port 80
+      PORT=$(kubectl get gateway main-gateway -n gateway -o jsonpath='{.spec.listeners[0].port}')
+      if [[ "$PORT" != "80" ]]; then
+          echo "Gateway is not listening on port 80. Current port: $PORT"
+          exit 1
+      fi
+
+      # Check protocol
+      PROTOCOL=$(kubectl get gateway main-gateway -n gateway -o jsonpath='{.spec.listeners[0].protocol}')
+      if [[ "$PROTOCOL" != "HTTP" ]]; then
+          echo "Gateway is not using HTTP protocol. Current protocol: $PROTOCOL"
+          exit 1
+      fi
+
+      # Check if Gateway is ready
+      # READY_STATUS=$(kubectl get gateway main-gateway -n gateway -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+      # if [[ "$READY_STATUS" != "True" ]]; then
+      #     echo "Gateway is not ready. Current status: $READY_STATUS"
+      #     exit 1
+      # fi
+
+      echo "Gateway validation successful"
+      exit 0
+  - name: HTTPRoute exists with correct routing rules
+    weight: 2
+    run: |
+      set -e
+
+      # Check if HTTPRoute exists
+      kubectl get httproute -n gateway || {
+          echo "No HTTPRoute found in namespace gateway"
+          exit 1
+      }
+
+      # Check app1 path rule
+      APP1_PATH=$(kubectl get httproute -n gateway -o jsonpath='{.items[0].spec.rules[?(@.matches[0].path.value=="/app1")].matches[0].path.value}')
+      if [[ "$APP1_PATH" != "/app1" ]]; then
+          echo "Missing or incorrect path rule for /app1"
+          exit 1
+      fi
+
+      # Check app2 path rule
+      APP2_PATH=$(kubectl get httproute -n gateway -o jsonpath='{.items[0].spec.rules[?(@.matches[0].path.value=="/app2")].matches[0].path.value}')
+      if [[ "$APP2_PATH" != "/app2" ]]; then
+          echo "Missing or incorrect path rule for /app2"
+          exit 1
+      fi
+
+      # Check backend services
+      APP1_BACKEND=$(kubectl get httproute -n gateway -o jsonpath='{.items[0].spec.rules[?(@.matches[0].path.value=="/app1")].backendRefs[0].name}')
+      if [[ "$APP1_BACKEND" != "app1-svc" ]]; then
+          echo "Incorrect backend service for /app1. Expected app1-svc, got $APP1_BACKEND"
+          exit 1
+      fi
+
+      APP2_BACKEND=$(kubectl get httproute -n gateway -o jsonpath='{.items[0].spec.rules[?(@.matches[0].path.value=="/app2")].backendRefs[0].name}')
+      if [[ "$APP2_BACKEND" != "app2-svc" ]]; then
+          echo "Incorrect backend service for /app2. Expected app2-svc, got $APP2_BACKEND"
+          exit 1
+      fi
+
+      # Check backend ports
+      APP1_PORT=$(kubectl get httproute -n gateway -o jsonpath='{.items[0].spec.rules[?(@.matches[0].path.value=="/app1")].backendRefs[0].port}')
+      APP2_PORT=$(kubectl get httproute -n gateway -o jsonpath='{.items[0].spec.rules[?(@.matches[0].path.value=="/app2")].backendRefs[0].port}')
+      if [[ "$APP1_PORT" != "8080" ]] || [[ "$APP2_PORT" != "8080" ]]; then
+          echo "Incorrect backend ports. Expected 8080 for both services"
+          exit 1
+      fi
+
+      echo "HTTPRoute validation successful"
+      exit 0
+  - name: Backend services and deployments are running
+    run: |
+      set -e
+
+      # Check app1 deployment and service
+      kubectl get deployment app1 -n gateway || {
+          echo "Deployment app1 not found in namespace gateway"
+          exit 1
+      }
+
+      kubectl get service app1-svc -n gateway || {
+          echo "Service app1-svc not found in namespace gateway"
+          exit 1
+      }
+
+      # Check app2 deployment and service
+      kubectl get deployment app2 -n gateway || {
+          echo "Deployment app2 not found in namespace gateway"
+          exit 1
+      }
+
+      kubectl get service app2-svc -n gateway || {
+          echo "Service app2-svc not found in namespace gateway"
+          exit 1
+      }
+
+      # Check if services are configured correctly
+      for SVC in app1-svc app2-svc; do
+          # Check port
+          PORT=$(kubectl get service $SVC -n gateway -o jsonpath='{.spec.ports[0].port}')
+          if [[ "$PORT" != "8080" ]]; then
+              echo "Service $SVC has incorrect port. Expected 8080, got $PORT"
+              exit 1
+          fi
+
+          # Check if pods are running
+          APP_NAME=${SVC%-svc}
+          READY_PODS=$(kubectl get deployment $APP_NAME -n gateway -o jsonpath='{.status.readyReplicas}')
+          if [[ -z "$READY_PODS" ]] || [[ "$READY_PODS" -lt 1 ]]; then
+              echo "No ready pods found for deployment $APP_NAME"
+              exit 1
+          fi
+
+          # Check if service endpoints exist
+          ENDPOINTS=$(kubectl get endpoints $SVC -n gateway -o jsonpath='{.subsets[0].addresses}')
+          if [[ -z "$ENDPOINTS" ]]; then
+              echo "No endpoints found for service $SVC"
+              exit 1
+          fi
+      done
+
+      echo "Backend services validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: gateway.networking.k8s.io/v1beta1
+    kind: Gateway
+    metadata:
+      name: main-gateway
+      namespace: gateway
+    spec:
+      gatewayClassName: standard
+      listeners:
+      - name: http
+        port: 80
+        protocol: HTTP
+    ---
+    apiVersion: gateway.networking.k8s.io/v1beta1
+    kind: HTTPRoute
+    metadata:
+      name: app-routes
+      namespace: gateway
+    spec:
+      parentRefs:
+      - name: main-gateway
+      rules:
+      - matches:
+        - path:
+            value: /app1
+        backendRefs:
+        - name: app1-svc
+          port: 8080
+      - matches:
+        - path:
+            value: /app2
+        backendRefs:
+        - name: app2-svc
+          port: 8080
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: app1
+      namespace: gateway
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: app1
+      template:
+        metadata:
+          labels:
+            app: app1
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: app1-svc
+      namespace: gateway
+    spec:
+      selector:
+        app: app1
+      ports:
+      - port: 8080
+        targetPort: 80
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: app2
+      namespace: gateway
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: app2
+      template:
+        metadata:
+          labels:
+            app: app2
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: app2-svc
+      namespace: gateway
+    spec:
+      selector:
+        app: app2
+      ports:
+      - port: 8080
+        targetPort: 80
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

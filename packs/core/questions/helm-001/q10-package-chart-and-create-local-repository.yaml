@@ -1,0 +1,159 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X helm-001 question 10
+title: Package Chart and Create Local Repository
+certifications:  # review: domains guessed from concepts
+  cka: cluster-architecture
+  ckad: application-deployment
+difficulty: medium
+namespace: default
+tags: [helm, chart packaging, repository management]
+
+statement: |
+  Package the `webapp` chart you created into a `.tgz` file.
+
+  Then create a local chart repository by:
+  1. Creating a directory at `/tmp/exam/q10/charts`
+  2. Moving the packaged chart to this directory
+  3. Creating an index file for this repository
+  4. Adding this local repository to Helm with the name `localrepo`
+
+setup: |
+  # Setup environment for Question 10 - Package Chart and Create Local Repo
+
+  # Create necessary directories
+  mkdir -p /tmp/exam/q10/charts
+
+  # No other specific setup needed for this question
+  # The student needs to package the webapp chart into a .tgz file
+  # Create a local chart repository at /tmp/exam/q10/charts
+  # Create an index file and add the local repo to Helm
+
+  echo "Environment setup complete for Question 10"
+  exit 0
+
+checks:
+  - name: Chart is packaged
+    weight: 2
+    run: |
+      # Validate script for Question 10, Step 1: Check if chart is packaged
+
+      # Check if the packaged chart is in the current directory
+      if ! ls webapp-*.tgz &>/dev/null; then
+        # Check if it was moved to the repository directory already
+        if ! ls /tmp/exam/q10/charts/webapp-*.tgz &>/dev/null; then
+          echo "❌ Packaged chart (webapp-*.tgz) not found in current directory or repository directory"
+          echo "Current directory contents:"
+          ls -la
+          echo "Repository directory contents (if exists):"
+          ls -la /tmp/exam/q10/charts 2>/dev/null || echo "Repository directory does not exist yet"
+          exit 1
+        else
+          echo "✅ Chart is packaged and moved to the repository directory"
+          echo "Repository directory contents:"
+          ls -la /tmp/exam/q10/charts
+          exit 0
+        fi
+      fi
+
+      echo "✅ Chart is packaged (but not yet moved to repository directory)"
+      echo "Current directory contents:"
+      ls -la webapp-*.tgz
+      exit 0
+  - name: Local repo is created and configured
+    weight: 2
+    run: |
+      # Validate script for Question 10, Step 2: Check if local repo is created and configured
+
+      # Check if helm command is available
+      if ! command -v helm &> /dev/null; then
+        echo "❌ Helm command not found in PATH"
+        exit 1
+      fi
+
+      # Check if the charts directory exists
+      if [ ! -d /tmp/exam/q10/charts ]; then
+        echo "❌ Charts directory does not exist at /tmp/exam/q10/charts"
+        exit 1
+      fi
+
+      # Check if the packaged chart exists in the directory
+      if ! ls /tmp/exam/q10/charts/webapp-*.tgz &>/dev/null; then
+        echo "❌ Packaged chart not found in the charts directory"
+        echo "Directory contents:"
+        ls -la /tmp/exam/q10/charts
+        exit 1
+      fi
+
+      # Check if the index.yaml file was created
+      if [ ! -f /tmp/exam/q10/charts/index.yaml ]; then
+        echo "❌ Index file does not exist at /tmp/exam/q10/charts/index.yaml"
+        exit 1
+      fi
+
+      # Check if the index file contains the webapp chart
+      if ! grep -q "webapp" /tmp/exam/q10/charts/index.yaml; then
+        echo "❌ Index file does not contain the webapp chart"
+        echo "Index file content:"
+        cat /tmp/exam/q10/charts/index.yaml
+        exit 1
+      fi
+
+      # Check if the local repository is added to Helm
+      repo_list=$(helm repo list 2>&1)
+      if ! echo "$repo_list" | grep -q "localrepo"; then
+        echo "❌ Local repository 'localrepo' not found in Helm repositories"
+        echo "Current repositories:"
+        echo "$repo_list"
+        exit 1
+      fi
+
+      # Check if the URL is set to the correct path
+      local_path="/tmp/exam/q10/charts"
+      if ! echo "$repo_list" | grep -q "localrepo.*$local_path"; then
+        echo "❌ Local repository URL is not set to $local_path"
+        echo "Current repositories:"
+        echo "$repo_list"
+        exit 1
+      fi
+
+      echo "✅ Local chart repository is created and configured correctly"
+      echo "Repository content:"
+      ls -la /tmp/exam/q10/charts
+      echo "Repository list:"
+      echo "$repo_list"
+      exit 0
+
+solution:
+  explain: |
+    ```bash
+    # Package the chart
+    helm package webapp
+
+    # Create a charts directory
+    mkdir -p /tmp/exam/q10/charts
+
+    # Move the packaged chart
+    mv webapp-*.tgz /tmp/exam/q10/charts/
+
+    # Create an index file
+    helm repo index /tmp/exam/q10/charts/
+
+    # Add the local repo
+    helm repo add localrepo /tmp/exam/q10/charts
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    # Package the chart
+    helm package webapp
+
+    # Create a charts directory
+    mkdir -p /tmp/exam/q10/charts
+
+    # Move the packaged chart
+    mv webapp-*.tgz /tmp/exam/q10/charts/
+
+    # Create an index file
+    helm repo index /tmp/exam/q10/charts/
+
+    # Add the local repo
+    helm repo add localrepo /tmp/exam/q10/charts

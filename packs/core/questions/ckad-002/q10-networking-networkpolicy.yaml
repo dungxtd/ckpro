@@ -1,0 +1,345 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X ckad-002 question 10
+title: Networking - NetworkPolicy
+certifications:  # review: domains guessed from concepts
+  ckad: services-networking
+difficulty: hard
+namespace: networking
+tags: [network-policies, pods, labels, security]
+
+statement: |
+  Create a NetworkPolicy in the `networking` namespace that restricts access to the `secure-db` pod with label `app=db` as follows:
+
+  1. Allow ingress traffic only from pods with the label `role=frontend` on port `5432`
+  2. Allow egress traffic only to pods with the label `role=monitoring` on port `8080`
+  3. Deny all other traffic
+
+  Then create three pods for testing:
+  - A pod named `secure-db` with label `app=db` using image `postgres:12`
+  - A pod named `frontend` with label `role=frontend` using image `nginx`
+  - A pod named `monitoring` with label `role=monitoring` using image `nginx`
+
+  Ensure the namespace exists before creating the resources.
+
+setup: |
+  # Delete the network-policy namespace if it exists
+  echo "Setting up environment for Question 10 (Network Policies)..."
+  kubectl delete namespace network-policy --ignore-not-found=true
+
+  # Wait for deletion to complete
+  sleep 2
+
+  # Confirm environment is ready
+  echo "Environment ready for Question 10"
+  exit 0
+
+checks:
+  - name: Namespace is created
+    run: |
+      # Validate that the networking namespace exists
+      NS=$(kubectl get namespace networking -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$NS" == "networking" ]]; then
+          # Namespace exists
+          exit 0
+      else
+          # Namespace does not exist
+          echo "Namespace 'networking' does not exist"
+          exit 1
+      fi
+  - name: All three pods are created correctly
+    weight: 2
+    run: |
+      # Validate that all three pods are created correctly
+      # Check the secure-db pod
+      SECURE_DB=$(kubectl get pod secure-db -n networking -o jsonpath='{.metadata.name}' 2>/dev/null)
+      SECURE_DB_IMAGE=$(kubectl get pod secure-db -n networking -o jsonpath='{.spec.containers[0].image}' 2>/dev/null)
+      SECURE_DB_LABEL=$(kubectl get pod secure-db -n networking -o jsonpath='{.metadata.labels.app}' 2>/dev/null)
+
+      # Check the frontend pod
+      FRONTEND=$(kubectl get pod frontend -n networking -o jsonpath='{.metadata.name}' 2>/dev/null)
+      FRONTEND_IMAGE=$(kubectl get pod frontend -n networking -o jsonpath='{.spec.containers[0].image}' 2>/dev/null)
+      FRONTEND_LABEL=$(kubectl get pod frontend -n networking -o jsonpath='{.metadata.labels.role}' 2>/dev/null)
+
+      # Check the monitoring pod
+      MONITORING=$(kubectl get pod monitoring -n networking -o jsonpath='{.metadata.name}' 2>/dev/null)
+      MONITORING_IMAGE=$(kubectl get pod monitoring -n networking -o jsonpath='{.spec.containers[0].image}' 2>/dev/null)
+      MONITORING_LABEL=$(kubectl get pod monitoring -n networking -o jsonpath='{.metadata.labels.role}' 2>/dev/null)
+
+      # Check if all pods exist with correct specifications
+      if [[ "$SECURE_DB" == "secure-db" &&
+            "$SECURE_DB_IMAGE" == "postgres:12" &&
+            "$SECURE_DB_LABEL" == "db" &&
+            "$FRONTEND" == "frontend" &&
+            "$FRONTEND_IMAGE" == "nginx" &&
+            "$FRONTEND_LABEL" == "frontend" &&
+            "$MONITORING" == "monitoring" &&
+            "$MONITORING_IMAGE" == "nginx" &&
+            "$MONITORING_LABEL" == "monitoring" ]]; then
+          # All pods are configured correctly
+          exit 0
+      else
+          echo "Not all pods are configured correctly in the 'networking' namespace."
+          echo "secure-db pod exists: $SECURE_DB (expected: secure-db)"
+          echo "secure-db image: $SECURE_DB_IMAGE (expected: postgres:12)"
+          echo "secure-db app label: $SECURE_DB_LABEL (expected: db)"
+          echo "frontend pod exists: $FRONTEND (expected: frontend)"
+          echo "frontend image: $FRONTEND_IMAGE (expected: nginx)"
+          echo "frontend role label: $FRONTEND_LABEL (expected: frontend)"
+          echo "monitoring pod exists: $MONITORING (expected: monitoring)"
+          echo "monitoring image: $MONITORING_IMAGE (expected: nginx)"
+          echo "monitoring role label: $MONITORING_LABEL (expected: monitoring)"
+          exit 1
+      fi
+  - name: NetworkPolicy exists with correct name
+    run: |
+      # Validate that the NetworkPolicy exists with correct name
+      # Since the question doesn't specify the exact name, we'll check for any NetworkPolicy that targets the secure-db pod
+      NETWORK_POLICY=$(kubectl get networkpolicy -n networking -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+
+      if [[ "$NETWORK_POLICY" != "" ]]; then
+          # At least one NetworkPolicy exists
+
+          # Check if any NetworkPolicy targets the secure-db pod
+          # This is a simple check to see if any NetworkPolicy has a podSelector that matches app=db
+          DB_SELECTOR=$(kubectl get networkpolicy -n networking -o jsonpath='{.items[*].spec.podSelector.matchLabels.app}' 2>/dev/null)
+
+          if [[ "$DB_SELECTOR" == *"db"* ]]; then
+              # NetworkPolicy targeting the secure-db pod exists
+              exit 0
+          else
+              echo "No NetworkPolicy targeting the secure-db pod (app=db) exists in the 'networking' namespace"
+              exit 1
+          fi
+      else
+          # No NetworkPolicy exists
+          echo "No NetworkPolicy exists in the 'networking' namespace"
+          exit 1
+      fi
+  - name: NetworkPolicy has correct ingress rules
+    weight: 3
+    run: |
+      # Validate that the NetworkPolicy has correct ingress rules
+      # First find the NetworkPolicy that targets the secure-db pod
+      NP_NAME=$(kubectl get networkpolicy -n networking -o jsonpath='{.items[?(@.spec.podSelector.matchLabels.app=="db")].metadata.name}' 2>/dev/null)
+
+      if [[ "$NP_NAME" != "" ]]; then
+          # NetworkPolicy targeting the secure-db pod exists
+
+          # Check the ingress rule
+          # Check if it has a 'from' section with podSelector.matchLabels.role=frontend
+          FROM_SELECTOR=$(kubectl get networkpolicy $NP_NAME -n networking -o jsonpath='{.spec.ingress[*].from[*].podSelector.matchLabels.role}' 2>/dev/null)
+
+          # Check if it specifies port 5432
+          PORT=$(kubectl get networkpolicy $NP_NAME -n networking -o jsonpath='{.spec.ingress[*].ports[*].port}' 2>/dev/null)
+
+          if [[ "$FROM_SELECTOR" == *"frontend"* && "$PORT" == *"5432"* ]]; then
+              # NetworkPolicy has correct ingress rules
+              exit 0
+          else
+              echo "NetworkPolicy '$NP_NAME' does not have correct ingress rules."
+              echo "Found from selector: $FROM_SELECTOR (should include 'frontend')"
+              echo "Found port: $PORT (should include 5432)"
+              exit 1
+          fi
+      else
+          # No NetworkPolicy targeting the secure-db pod exists
+          echo "No NetworkPolicy targeting the secure-db pod (app=db) exists in the 'networking' namespace"
+          exit 1
+      fi
+  - name: NetworkPolicy has correct egress rules
+    weight: 3
+    run: |
+      # Validate that the NetworkPolicy has correct egress rules
+      # First find the NetworkPolicy that targets the secure-db pod
+      NP_NAME=$(kubectl get networkpolicy -n networking -o jsonpath='{.items[?(@.spec.podSelector.matchLabels.app=="db")].metadata.name}' 2>/dev/null)
+
+      if [[ "$NP_NAME" != "" ]]; then
+          # NetworkPolicy targeting the secure-db pod exists
+
+          # Check the egress rule
+          # Check if it has a 'to' section with podSelector.matchLabels.role=monitoring
+          TO_SELECTOR=$(kubectl get networkpolicy $NP_NAME -n networking -o jsonpath='{.spec.egress[*].to[*].podSelector.matchLabels.role}' 2>/dev/null)
+
+          # Check if it specifies port 8080
+          PORT=$(kubectl get networkpolicy $NP_NAME -n networking -o jsonpath='{.spec.egress[*].ports[*].port}' 2>/dev/null)
+
+          if [[ "$TO_SELECTOR" == *"monitoring"* && "$PORT" == *"8080"* ]]; then
+              # NetworkPolicy has correct egress rules
+              exit 0
+          else
+              echo "NetworkPolicy '$NP_NAME' does not have correct egress rules."
+              echo "Found to selector: $TO_SELECTOR (should include 'monitoring')"
+              echo "Found port: $PORT (should include 8080)"
+              exit 1
+          fi
+      else
+          # No NetworkPolicy targeting the secure-db pod exists
+          echo "No NetworkPolicy targeting the secure-db pod (app=db) exists in the 'networking' namespace"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    Create pods and a NetworkPolicy:
+
+    ```bash
+    # Create namespace
+    kubectl create namespace networking
+
+    # Create the three pods
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: networking
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: secure-db
+      namespace: networking
+      labels:
+        app: db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:12
+        env:
+        - name: POSTGRES_PASSWORD
+          value: password
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: frontend
+      namespace: networking
+      labels:
+        role: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: monitoring
+      namespace: networking
+      labels:
+        role: monitoring
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: db-network-policy
+      namespace: networking
+    spec:
+      podSelector:
+        matchLabels:
+          app: db
+      policyTypes:
+      - Ingress
+      - Egress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              role: frontend
+        ports:
+        - protocol: TCP
+          port: 5432
+      egress:
+      - to:
+        - podSelector:
+            matchLabels:
+              role: monitoring
+        ports:
+        - protocol: TCP
+          port: 8080
+    EOF
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    # Create namespace
+    kubectl create namespace networking
+
+    # Create the three pods
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: networking
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: secure-db
+      namespace: networking
+      labels:
+        app: db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:12
+        env:
+        - name: POSTGRES_PASSWORD
+          value: password
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: frontend
+      namespace: networking
+      labels:
+        role: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: monitoring
+      namespace: networking
+      labels:
+        role: monitoring
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: db-network-policy
+      namespace: networking
+    spec:
+      podSelector:
+        matchLabels:
+          app: db
+      policyTypes:
+      - Ingress
+      - Egress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              role: frontend
+        ports:
+        - protocol: TCP
+          port: 5432
+      egress:
+      - to:
+        - podSelector:
+            matchLabels:
+              role: monitoring
+        ports:
+        - protocol: TCP
+          port: 8080
+    EOF

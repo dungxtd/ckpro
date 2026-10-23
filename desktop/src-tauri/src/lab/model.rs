@@ -43,10 +43,9 @@ pub struct Certification {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Question {
     pub title: String,
-    /// Certifications this question belongs to (keys of `certifications`)
-    pub certifications: Vec<String>,
-    /// Curriculum domain (a key of the certification's `domains`)
-    pub domain: String,
+    /// Certifications this question belongs to, each with the curriculum
+    /// domain it falls under there (domain names differ per certification)
+    pub certifications: BTreeMap<String, String>,
     #[serde(default)]
     pub difficulty: Difficulty,
     /// Suggested time, e.g. "6m"

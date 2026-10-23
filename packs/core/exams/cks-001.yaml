@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../schema/exam.schema.json
+# Converted from CK-X cks-001
+title: CKS Practice Lab - Kubernetes Security Essentials
+description: Practice essential Kubernetes security concepts including network policies, RBAC, supply chain security, and runtime protection
+certification: cks
+duration: 120m
+questions:
+  - core/cks-001/q01-network-policies-for-backend-services
+  - core/cks-001/q02-tls-enabled-ingress
+  - core/cks-001/q03-api-security-with-pod-security-standards
+  - core/cks-001/q04-node-metadata-protection
+  - core/cks-001/q05-binary-verification
+  - core/cks-001/q06-rbac-with-minimal-permissions
+  - core/cks-001/q07-service-account-caution
+  - core/cks-001/q08-api-server-access-restriction
+  - core/cks-001/q09-secure-container-configuration
+  - core/cks-001/q10-seccomp-profile
+  - core/cks-001/q11-pod-security-standards
+  - core/cks-001/q12-secrets-management

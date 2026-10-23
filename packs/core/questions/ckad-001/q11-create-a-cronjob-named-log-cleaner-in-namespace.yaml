@@ -1,0 +1,161 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X ckad-001 question 11
+title: Create a CronJob named 'log-cleaner' in namespace 'workloads' that runs hourly to clean up log files
+certifications:  # review: domains guessed from concepts
+  ckad: application-design-build
+difficulty: medium
+namespace: workloads
+tags: [cronjobs, jobs, scheduling, concurrency-policy]
+
+statement: |
+  The system administration team needs an automated solution for log file cleanup.
+
+  Create a CronJob named `log-cleaner` in namespace `workloads` that will automatically manage log files based on age.
+
+  Configure it to run precisely every hour (using a standard cron expression) and use the `busybox` image. The job should execute the command `find /var/log -type f -name "*.log" -mtime +7 -delete` to remove log files older than 7 days.
+
+  To prevent resource contention, set the concurrency policy to `Forbid` so that new job executions are skipped if a previous execution is still running.
+
+  For job history management, configure the job to keep exactly `3` successful job completions and `1` failed job in its history.
+
+setup: |
+  # Setup for Question 11: Create a CronJob for log cleaning
+
+  # Create the workloads namespace if it doesn't exist already
+  if ! kubectl get namespace workloads &> /dev/null; then
+      kubectl create namespace workloads
+  fi
+
+  # Delete any existing CronJob with the same name
+  kubectl delete cronjob log-cleaner -n workloads --ignore-not-found=true
+
+  # Create a directory with some sample log files for demonstration
+  mkdir -p /tmp/var/log
+  touch /tmp/var/log/test1.log
+  touch /tmp/var/log/test2.log
+  touch /tmp/var/log/app.log
+  touch /tmp/var/log/system.log
+
+  echo "Setup complete for Question 11: Environment ready for creating CronJob 'log-cleaner'"
+  echo "Note: In a real environment, log files would be on the host system. These sample files"
+  echo "      are for demonstration only and won't actually be accessible from the CronJob."
+  exit 0
+
+checks:
+  - name: CronJob is created with correct name and namespace
+    weight: 2
+    run: |
+      # Validate if the CronJob 'log-cleaner' exists in the 'workloads' namespace
+      if kubectl get cronjob log-cleaner -n workloads &> /dev/null; then
+          echo "Success: CronJob 'log-cleaner' exists in namespace 'workloads'"
+          exit 0
+      else
+          echo "Error: CronJob 'log-cleaner' does not exist in namespace 'workloads'"
+          exit 1
+      fi
+  - name: CronJob has correct schedule
+    run: |
+      # Validate if the CronJob 'log-cleaner' has the correct schedule (every hour)
+      SCHEDULE=$(kubectl get cronjob log-cleaner -n workloads -o jsonpath='{.spec.schedule}' 2>/dev/null)
+
+      if [ "$SCHEDULE" = "0 * * * *" ] || [ "$SCHEDULE" = "@hourly" ]; then
+          echo "Success: CronJob 'log-cleaner' has the correct schedule (every hour): $SCHEDULE"
+          exit 0
+      else
+          echo "Error: CronJob 'log-cleaner' does not have the correct schedule"
+          echo "Expected: '0 * * * *' or '@hourly', Found: '$SCHEDULE'"
+          exit 1
+      fi
+  - name: CronJob has correct command
+    weight: 2
+    run: |
+      CRONJOB_NAME="log-cleaner"
+      NAMESPACE="workloads"
+
+      # Expected values
+      EXPECTED_COMMAND='["/bin/sh","-c"]'
+      EXPECTED_ARGS='find /var/log -type f -name "*.log" -mtime +7 -delete'
+
+      # Fetch actual values from the CronJob
+      ACTUAL_COMMAND=$(kubectl get cronjob "$CRONJOB_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.jobTemplate.spec.template.spec.containers[0].command}")
+      ACTUAL_ARGS=$(kubectl get cronjob "$CRONJOB_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.jobTemplate.spec.template.spec.containers[0].args[0]}")
+
+      # Compare
+      if [[ "$ACTUAL_COMMAND" == "$EXPECTED_COMMAND" && "$ACTUAL_ARGS" == "$EXPECTED_ARGS" ]]; then
+          echo "✅ Success: CronJob '$CRONJOB_NAME' has the correct command and args"
+          exit 0
+      else
+          echo "❌ Error: CronJob '$CRONJOB_NAME' does not have the correct command/args"
+          echo "Actual command: $ACTUAL_COMMAND"
+          echo "Actual args: $ACTUAL_ARGS"
+          exit 1
+      fi
+  - name: CronJob has correct concurrency policy and history limits
+    run: |
+      CRONJOB_NAME="log-cleaner"
+      NAMESPACE="workloads"
+
+      # Expected values
+      EXPECTED_CONCURRENCY_POLICY="Forbid"
+      EXPECTED_SUCCESSFUL_LIMIT="3"
+      EXPECTED_FAILED_LIMIT="1"
+
+      # Fetch actual values from the CronJob spec
+      ACTUAL_CONCURRENCY_POLICY=$(kubectl get cronjob "$CRONJOB_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.concurrencyPolicy}")
+      ACTUAL_SUCCESSFUL_LIMIT=$(kubectl get cronjob "$CRONJOB_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.successfulJobsHistoryLimit}")
+      ACTUAL_FAILED_LIMIT=$(kubectl get cronjob "$CRONJOB_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.failedJobsHistoryLimit}")
+
+      # Compare
+      if [[ "$ACTUAL_CONCURRENCY_POLICY" == "$EXPECTED_CONCURRENCY_POLICY" && \
+            "$ACTUAL_SUCCESSFUL_LIMIT" == "$EXPECTED_SUCCESSFUL_LIMIT" && \
+            "$ACTUAL_FAILED_LIMIT" == "$EXPECTED_FAILED_LIMIT" ]]; then
+          echo "✅ Success: CronJob '$CRONJOB_NAME' has correct concurrency policy and history limits"
+          exit 0
+      else
+          echo "❌ Error: CronJob '$CRONJOB_NAME' has incorrect concurrency policy or history limits"
+          echo "ConcurrencyPolicy: $ACTUAL_CONCURRENCY_POLICY (expected: $EXPECTED_CONCURRENCY_POLICY)"
+          echo "SuccessfulJobsHistoryLimit: $ACTUAL_SUCCESSFUL_LIMIT (expected: $EXPECTED_SUCCESSFUL_LIMIT)"
+          echo "FailedJobsHistoryLimit: $ACTUAL_FAILED_LIMIT (expected: $EXPECTED_FAILED_LIMIT)"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    ```yaml
+    apiVersion: batch/v1
+    kind: CronJob
+    metadata:
+      name: log-cleaner
+      namespace: workloads
+    spec:
+      schedule: "0 * * * *"  # Run every hour at minute 0
+      concurrencyPolicy: Forbid  # Skip new job if previous is running
+      successfulJobsHistoryLimit: 3  # Keep 3 successful job completions
+      failedJobsHistoryLimit: 1  # Keep 1 failed job
+      jobTemplate:
+        spec:
+          template:
+            spec:
+              containers:
+              - name: log-cleaner
+                image: busybox
+                command: ["/bin/sh", "-c"]
+                args:
+                - find /var/log -type f -name "*.log" -mtime +7 -delete
+              restartPolicy: OnFailure
+    ```
+
+    Save this as `log-cleaner-cronjob.yaml` and apply:
+
+    ```bash
+    kubectl apply -f log-cleaner-cronjob.yaml
+    ```
+
+    You can check the cron job configuration:
+    ```bash
+    kubectl get cronjob log-cleaner -n workloads -o yaml
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    kubectl apply -f log-cleaner-cronjob.yaml
+    kubectl get cronjob log-cleaner -n workloads -o yaml

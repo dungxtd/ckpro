@@ -1,0 +1,130 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-001 question 2
+title: Static Pod Creation
+certifications:  # review: domains guessed from concepts
+  cka: cluster-architecture
+difficulty: easy
+namespace: default
+tags: [static pods, node configuration]
+
+statement: |
+  Create a static pod named `static-web` on `ckad9999` using the `nginx:1.19` image.
+  The pod should expose port `80`.
+
+  Place the static pod manifest file at `/etc/kubernetes/manifests/static-web.yaml`.
+
+setup: |
+  # Setup for Question 2: Static Pod setup
+
+  # Ensure the static pod directory exists
+  mkdir -p /etc/kubernetes/manifests/
+
+  # Remove any existing static pod with the same name
+  rm -f /etc/kubernetes/manifests/static-web.yaml
+
+  exit 0
+
+checks:
+  - name: Static pod manifest exists
+    weight: 2
+    run: |
+      # Validate if static pod manifest exists in the correct location
+
+      POD_NAME="static-web"
+      EXPECTED_IMAGE="nginx:1.19"
+
+      # Check if the static pod manifest file exists
+      if [ ! -f "/etc/kubernetes/manifests/static-web.yaml" ]; then
+          echo "❌ Static pod manifest file not found at /etc/kubernetes/manifests/static-web.yaml"
+          exit 1
+      fi
+
+      # Verify the manifest is a valid yaml file
+      if ! grep -q "apiVersion: v1" "/etc/kubernetes/manifests/static-web.yaml"; then
+          echo "❌ Static pod manifest is not a valid Kubernetes yaml file"
+          exit 1
+      fi
+
+      # Verify it's a Pod resource
+      if ! grep -q "kind: Pod" "/etc/kubernetes/manifests/static-web.yaml"; then
+          echo "❌ Static pod manifest is not configured as a Pod resource"
+          exit 1
+      fi
+
+      # Verify the pod name
+      if ! grep -q "name: ${POD_NAME}" "/etc/kubernetes/manifests/static-web.yaml"; then
+          echo "❌ Static pod manifest does not have the correct pod name: ${POD_NAME}"
+          exit 1
+      fi
+
+      echo "✅ Static pod manifest exists at the correct location with proper configuration"
+      exit 0
+  - name: Static pod manifest has correct configuration
+    weight: 3
+    run: |
+      # Validate static pod manifest configuration
+
+      POD_NAME="static-web"
+      EXPECTED_IMAGE="nginx:1.19"
+
+      # Check if static pod manifest exists
+      if [ ! -f "/etc/kubernetes/manifests/static-web.yaml" ]; then
+          echo "❌ Static pod manifest not found at /etc/kubernetes/manifests/static-web.yaml"
+          exit 1
+      fi
+
+      # Check if manifest has correct content structure
+      if ! grep -q "apiVersion: v1" /etc/kubernetes/manifests/static-web.yaml; then
+          echo "❌ Static pod manifest missing apiVersion"
+          exit 1
+      fi
+
+      if ! grep -q "kind: Pod" /etc/kubernetes/manifests/static-web.yaml; then
+          echo "❌ Static pod manifest missing required content: not a Pod resource"
+          exit 1
+      fi
+
+      # Check if manifest has correct name
+      if ! grep -q "name: ${POD_NAME}" /etc/kubernetes/manifests/static-web.yaml; then
+          echo "❌ Static pod manifest has incorrect name"
+          exit 1
+      fi
+
+      # Check if manifest has correct image
+      if ! grep -q "image: ${EXPECTED_IMAGE}" /etc/kubernetes/manifests/static-web.yaml; then
+          echo "❌ Static pod manifest has incorrect image. Expected: ${EXPECTED_IMAGE}"
+          exit 1
+      fi
+
+      # Check if port 80 is defined
+      if ! grep -q "containerPort: 80" /etc/kubernetes/manifests/static-web.yaml; then
+          echo "❌ Static pod manifest missing containerPort: 80"
+          exit 1
+      fi
+
+      echo "✅ Static pod manifest has correct configuration"
+      exit 0
+
+solution:
+  explain: |
+    Create a static pod named `static-web` on ckad9999 with the following specifications:
+    - Image: nginx:1.19
+    - Port: 80
+
+    ```yaml
+    # Create static pod manifest
+    cat << EOF > /etc/kubernetes/manifests/static-web.yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: static-web
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.19
+        ports:
+        - containerPort: 80
+    EOF
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

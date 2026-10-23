@@ -1,0 +1,326 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X ckad-001 question 18
+title: Create a NodePort service named public-web in namespace networking that will expose the web-frontend deployment to external users.
+certifications:  # review: domains guessed from concepts
+  ckad: services-networking
+difficulty: medium
+namespace: networking
+tags: [services, nodeport, networking, exposing-apps]
+
+statement: |
+  A public-facing web application needs to be exposed to external users.
+
+  Create a NodePort service named `public-web` in namespace `networking` that will expose the `web-frontend` deployment to external users.
+
+  Configure the service to accept external traffic on port `80` and forward it to port `8080` on the deployment's pods. Set the NodePort to `30080`.
+
+  Using a `NodePort` service will expose the application on a static port on each node in the cluster, making it accessible via any node`s IP address.
+
+  Ensure the service selector correctly targets the `web-frontend` deployment pods and that the port configuration is appropriate for a web application.
+
+  This setup will enable external users to access the web application through `<node-ip>:30080`.
+
+setup: |
+  # Setup for Question 18: Create a LoadBalancer service
+
+  # Create the networking namespace if it doesn't exist already
+  if ! kubectl get namespace networking &> /dev/null; then
+      kubectl create namespace networking
+  fi
+
+  # Delete any existing service with the same name
+  kubectl delete service public-web -n networking --ignore-not-found=true
+
+  # Create a deployment to be exposed by the LoadBalancer service
+  kubectl delete deployment web-frontend -n networking --ignore-not-found=true
+  cat <<EOF | kubectl apply -f -
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: web-frontend
+    namespace: networking
+  spec:
+    replicas: 3
+    selector:
+      matchLabels:
+        app: web-frontend
+    template:
+      metadata:
+        labels:
+          app: web-frontend
+      spec:
+        containers:
+        - name: nginx
+          image: nginx
+          ports:
+          - containerPort: 80
+  EOF
+
+  echo "Setup complete for Question 18: Created deployment 'web-frontend' for the LoadBalancer service"
+  exit 0
+
+checks:
+  - name: Service is created with correct type
+    weight: 2
+    run: |
+      # Validate that the service 'public-web' in namespace 'networking' is of type NodePort with correct nodePort
+
+      NAMESPACE="networking"
+      SERVICE_NAME="public-web"
+      EXPECTED_TYPE="NodePort"
+      EXPECTED_NODE_PORT=30080
+
+      # Check if the service exists
+      kubectl get service $SERVICE_NAME -n $NAMESPACE > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+        echo "❌ Service '$SERVICE_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check service type
+      SERVICE_TYPE=$(kubectl get service $SERVICE_NAME -n $NAMESPACE -o jsonpath='{.spec.type}' 2>/dev/null)
+
+      if [ -z "$SERVICE_TYPE" ]; then
+        echo "❌ Cannot determine service type for '$SERVICE_NAME'"
+        exit 1
+      fi
+
+      if [ "$SERVICE_TYPE" != "$EXPECTED_TYPE" ]; then
+        echo "❌ Service '$SERVICE_NAME' is of type '$SERVICE_TYPE', not '$EXPECTED_TYPE' as required"
+        exit 1
+      fi
+
+      echo "✅ Service '$SERVICE_NAME' is correctly configured as type '$EXPECTED_TYPE'"
+
+      # Check nodePort value
+      NODE_PORT=$(kubectl get service $SERVICE_NAME -n $NAMESPACE -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null)
+
+      if [ -z "$NODE_PORT" ]; then
+        echo "❌ NodePort is not configured for service '$SERVICE_NAME'"
+        exit 1
+      fi
+
+      if [ "$NODE_PORT" -ne "$EXPECTED_NODE_PORT" ]; then
+        echo "❌ Service '$SERVICE_NAME' uses nodePort $NODE_PORT, expected $EXPECTED_NODE_PORT"
+        exit 1
+      fi
+
+      echo "✅ Service '$SERVICE_NAME' is correctly configured with nodePort: $NODE_PORT"
+      exit 0
+  - name: Service has correct selector
+    run: |
+      # Validate that the service 'public-web' in namespace 'networking' has the correct selector to target 'web-frontend' deployment pods
+
+      NAMESPACE="networking"
+      SERVICE_NAME="public-web"
+      DEPLOYMENT_NAME="web-frontend"
+
+      # Check if the service exists
+      kubectl get service $SERVICE_NAME -n $NAMESPACE > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+        echo "❌ Service '$SERVICE_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check if the deployment exists
+      kubectl get deployment $DEPLOYMENT_NAME -n $NAMESPACE > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+        echo "⚠️  Deployment '$DEPLOYMENT_NAME' not found in namespace '$NAMESPACE', but will continue checking service selector"
+      fi
+
+      # Get service selector
+      SERVICE_SELECTOR=$(kubectl get service $SERVICE_NAME -n $NAMESPACE -o json | jq -r '.spec.selector' 2>/dev/null)
+
+      if [ -z "$SERVICE_SELECTOR" ] || [ "$SERVICE_SELECTOR" == "null" ]; then
+        echo "❌ Service '$SERVICE_NAME' does not have a selector"
+        exit 1
+      fi
+
+      echo "🔍 Service '$SERVICE_NAME' has selector: $SERVICE_SELECTOR"
+
+      # Check if deployment exists to compare selectors
+      if kubectl get deployment $DEPLOYMENT_NAME -n $NAMESPACE > /dev/null 2>&1; then
+        # Get deployment selector
+        DEPLOYMENT_SELECTOR=$(kubectl get deployment $DEPLOYMENT_NAME -n $NAMESPACE -o json | jq -r '.spec.selector.matchLabels' 2>/dev/null)
+
+        if [ -z "$DEPLOYMENT_SELECTOR" ] || [ "$DEPLOYMENT_SELECTOR" == "null" ]; then
+          echo "⚠️  Deployment '$DEPLOYMENT_NAME' does not have matchLabels in its selector"
+        else
+          echo "🔍 Deployment '$DEPLOYMENT_NAME' has selector: $DEPLOYMENT_SELECTOR"
+
+          # Check if service selector is a subset of deployment selector
+          # This is a simplistic check and might not work for complex selectors
+          MATCHES=true
+          for key in $(echo "$SERVICE_SELECTOR" | jq -r 'keys[]'); do
+            service_value=$(echo "$SERVICE_SELECTOR" | jq -r --arg k "$key" '.[$k]')
+            deployment_value=$(echo "$DEPLOYMENT_SELECTOR" | jq -r --arg k "$key" '.[$k] // empty')
+
+            if [ "$service_value" != "$deployment_value" ]; then
+              MATCHES=false
+              echo "❌ Service selector key '$key' value '$service_value' does not match deployment value '$deployment_value'"
+            fi
+          done
+
+          if [ "$MATCHES" = true ]; then
+            echo "✅ Service selector matches deployment selector"
+          else
+            echo "❌ Service selector does not match deployment selector"
+            exit 1
+          fi
+        fi
+      fi
+
+      # Check if the service selects any pods
+      SELECTOR_STRING=""
+      for key in $(echo $SERVICE_SELECTOR | jq -r 'keys[]'); do
+        value=$(echo $SERVICE_SELECTOR | jq -r --arg key "$key" '.[$key]')
+        if [ -n "$SELECTOR_STRING" ]; then
+          SELECTOR_STRING="$SELECTOR_STRING,"
+        fi
+        SELECTOR_STRING="${SELECTOR_STRING}${key}=${value}"
+      done
+
+      SELECTED_PODS=$(kubectl get pods -n $NAMESPACE -l "$SELECTOR_STRING" -o name 2>/dev/null)
+
+      if [ -z "$SELECTED_PODS" ]; then
+        echo "⚠️  No pods are currently selected by the service selector"
+      else
+        POD_COUNT=$(echo "$SELECTED_PODS" | wc -l)
+        echo "✅ Service selector targets $POD_COUNT pods"
+      fi
+
+      # Check if the service has endpoints
+      ENDPOINTS=$(kubectl get endpoints $SERVICE_NAME -n $NAMESPACE -o jsonpath='{.subsets[*].addresses}' 2>/dev/null)
+
+      if [ -z "$ENDPOINTS" ] || [ "$ENDPOINTS" == "[]" ]; then
+        echo "⚠️  Service '$SERVICE_NAME' has no endpoints, which may indicate a selector problem"
+      else
+        echo "✅ Service '$SERVICE_NAME' has endpoints, indicating its selector is working"
+      fi
+
+      echo "✅ Service '$SERVICE_NAME' has a selector that targets pods from the '$DEPLOYMENT_NAME' deployment"
+      exit 0
+  - name: Service has correct port configuration
+    weight: 2
+    run: |
+      # Validate that the service 'public-web' in namespace 'networking' has correct port configurations
+
+      NAMESPACE="networking"
+      SERVICE_NAME="public-web"
+      EXPECTED_PORT=80
+      EXPECTED_TARGET_PORT=8080
+      EXPECTED_NODE_PORT=30080
+
+      # Check if the service exists
+      kubectl get service $SERVICE_NAME -n $NAMESPACE > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+        echo "❌ Service '$SERVICE_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check service port configuration
+      SERVICE_PORT=$(kubectl get service $SERVICE_NAME -n $NAMESPACE -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+
+      if [ -z "$SERVICE_PORT" ]; then
+        echo "❌ Cannot determine service port for '$SERVICE_NAME'"
+        exit 1
+      fi
+
+      if [ "$SERVICE_PORT" != "$EXPECTED_PORT" ]; then
+        echo "❌ Service '$SERVICE_NAME' exposes port $SERVICE_PORT, not port $EXPECTED_PORT as required"
+        exit 1
+      fi
+
+      echo "✅ Service '$SERVICE_NAME' correctly exposes port $SERVICE_PORT"
+
+      # Check target port configuration
+      TARGET_PORT=$(kubectl get service $SERVICE_NAME -n $NAMESPACE -o jsonpath='{.spec.ports[0].targetPort}' 2>/dev/null)
+
+      if [ -z "$TARGET_PORT" ]; then
+        echo "❌ Target port is not specified"
+        exit 1
+      fi
+
+      if [ "$TARGET_PORT" != "$EXPECTED_TARGET_PORT" ]; then
+        echo "❌ Service has incorrect target port: $TARGET_PORT, expected: $EXPECTED_TARGET_PORT"
+        exit 1
+      fi
+
+      echo "✅ Service has correct target port: $TARGET_PORT"
+
+      # Check node port configuration
+      NODE_PORT=$(kubectl get service $SERVICE_NAME -n $NAMESPACE -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null)
+
+      if [ -z "$NODE_PORT" ]; then
+        echo "❌ NodePort is not specified"
+        exit 1
+      fi
+
+      if [ "$NODE_PORT" != "$EXPECTED_NODE_PORT" ]; then
+        echo "❌ Service has incorrect node port: $NODE_PORT, expected: $EXPECTED_NODE_PORT"
+        exit 1
+      fi
+
+      echo "✅ Service has correct node port: $NODE_PORT"
+
+      # Check if the target port exists in the pods
+      SERVICE_SELECTOR=$(kubectl get service $SERVICE_NAME -n $NAMESPACE -o json | jq -r '.spec.selector' 2>/dev/null)
+
+      if [ -n "$SERVICE_SELECTOR" ] && [ "$SERVICE_SELECTOR" != "null" ]; then
+        # Format selector for kubectl label selector
+        SELECTOR_STRING=""
+        for key in $(echo $SERVICE_SELECTOR | jq -r 'keys[]'); do
+          value=$(echo $SERVICE_SELECTOR | jq -r --arg key "$key" '.[$key]')
+          if [ -n "$SELECTOR_STRING" ]; then
+            SELECTOR_STRING="$SELECTOR_STRING,"
+          fi
+          SELECTOR_STRING="${SELECTOR_STRING}${key}=${value}"
+        done
+
+        # Get a pod that matches the selector
+        POD_NAME=$(kubectl get pods -n $NAMESPACE -l "$SELECTOR_STRING" -o name 2>/dev/null | head -n 1 | cut -d '/' -f 2)
+
+        if [ -n "$POD_NAME" ]; then
+          # Check if the target port matches any container port in the pod
+          CONTAINER_PORTS=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[*].ports[*].containerPort}' 2>/dev/null)
+
+          if [[ $CONTAINER_PORTS == *"$TARGET_PORT"* ]]; then
+            echo "✅ Target port $TARGET_PORT matches container port in selected pods"
+          else
+            echo "⚠️  Target port $TARGET_PORT does not match any container port in pod $POD_NAME (ports: $CONTAINER_PORTS)"
+          fi
+        else
+          echo "⚠️  No pods found matching service selector, cannot verify container ports"
+        fi
+      fi
+
+      echo "✅ Service '$SERVICE_NAME' has correct port configuration (port: $SERVICE_PORT, targetPort: $TARGET_PORT, nodePort: $NODE_PORT)"
+      exit 0
+
+solution:
+  explain: |
+    ```yaml
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: public-web
+      namespace: networking
+    spec:
+      type: NodePort
+      selector:
+        app: web-frontend
+      ports:
+        - name: http
+          protocol: TCP
+          port: 80
+          targetPort: 8080
+          nodePort: 30080
+
+    ```
+
+    Save as `loadbalancer-service.yaml` and apply:
+    ```bash
+    kubectl apply -f loadbalancer-service.yaml
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: kubectl apply -f loadbalancer-service.yaml

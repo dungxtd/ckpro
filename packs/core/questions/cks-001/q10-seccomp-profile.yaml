@@ -1,0 +1,234 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cks-001 question 10
+title: Seccomp Profile
+certifications:  # review: domains guessed from concepts
+  cks: system-hardening
+difficulty: hard
+namespace: seccomp-profile
+tags: [seccomp, syscalls, container hardening]
+
+statement: |
+  Create a pod named `seccomp-pod` in the `seccomp-profile` namespace using the `nginx` image with a seccomp profile applied.
+
+  The seccomp profile should be the default runtime/default profile.
+
+  Additionally, create a ConfigMap named `seccomp-config` in the same namespace with key `profile.json` containing a simple seccomp profile that allows only the following syscalls: `exit`, `exit_group`, `rt_sigreturn`, `read`, `write`, and `open`.
+
+setup: |
+  # Setup for Question 10: Seccomp Profile
+
+  # Create namespace if it doesn't exist
+  kubectl create namespace seccomp-profile 2>/dev/null || true
+
+  # Create a reference ConfigMap with information about seccomp
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: seccomp-info
+    namespace: seccomp-profile
+  data:
+    seccomp.txt: |
+      Seccomp (secure computing mode) is a Linux kernel feature that restricts the system calls that a process can make.
+
+      In Kubernetes, seccomp profiles can be applied to container runtimes to limit the system calls that containers can make.
+
+      Common Seccomp Profile types:
+      - RuntimeDefault: Uses the container runtime's default seccomp profile
+      - Localhost: Uses a custom seccomp profile from a file on the node
+      - Unconfined: Disables seccomp (not recommended for production)
+
+      For syscalls in custom profiles, the actions can be:
+      - SCMP_ACT_ALLOW: Allow the syscall
+      - SCMP_ACT_ERRNO: Return an error code
+      - SCMP_ACT_KILL: Kill the process
+      - SCMP_ACT_TRAP: Send SIGSYS signal
+  EOF
+
+  echo "Setup completed for Question 10"
+  exit 0
+
+checks:
+  - name: Pod exists with seccomp profile
+    weight: 2
+    run: |
+      # Validate that pod exists with seccomp profile
+
+      POD_NAME="seccomp-pod"
+      NAMESPACE="seccomp-profile"
+
+      # Check if namespace exists
+      kubectl get namespace $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Namespace '$NAMESPACE' not found"
+        exit 1
+      fi
+
+      # Check if pod exists
+      kubectl get pod $POD_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Pod '$POD_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check if pod has seccomp profile applied
+      SECCOMP_PROFILE=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.securityContext.seccompProfile.type}')
+      if [ "$SECCOMP_PROFILE" != "RuntimeDefault" ]; then
+        echo "❌ Pod does not have RuntimeDefault seccomp profile applied"
+        exit 1
+      fi
+
+      # Check if pod is running
+      POD_STATUS=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.status.phase}')
+      if [ "$POD_STATUS" != "Running" ]; then
+        echo "❌ Pod is not in Running state. Current status: $POD_STATUS"
+        exit 1
+      fi
+
+      echo "✅ Pod exists with RuntimeDefault seccomp profile applied"
+      exit 0
+  - name: ConfigMap exists with profile
+    weight: 2
+    run: |
+      # Validate that ConfigMap exists with seccomp profile
+
+      CONFIGMAP_NAME="seccomp-config"
+      NAMESPACE="seccomp-profile"
+      PROFILE_KEY="profile.json"
+
+      # Check if namespace exists
+      kubectl get namespace $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Namespace '$NAMESPACE' not found"
+        exit 1
+      fi
+
+      # Check if ConfigMap exists
+      kubectl get configmap $CONFIGMAP_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ ConfigMap '$CONFIGMAP_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Fetch profile.json from ConfigMap
+      PROFILE=$(kubectl get configmap $CONFIGMAP_NAME -n $NAMESPACE -o json | jq -r --arg key "$PROFILE_KEY" '.data[$key]')
+      if [ -z "$PROFILE" ] || [ "$PROFILE" == "null" ]; then
+        echo "❌ ConfigMap does not have required key '$PROFILE_KEY'"
+        exit 1
+      fi
+
+      # Check if profile is valid JSON
+      if ! echo "$PROFILE" | jq . > /dev/null 2>&1; then
+        echo "❌ ConfigMap content is not valid JSON"
+        exit 1
+      fi
+
+      # Check for required seccomp keys
+      if ! echo "$PROFILE" | jq -e '.defaultAction' > /dev/null 2>&1; then
+        echo "❌ ConfigMap does not contain a valid seccomp profile (missing defaultAction)"
+        exit 1
+      fi
+
+      if ! echo "$PROFILE" | jq -e '.syscalls' > /dev/null 2>&1; then
+        echo "❌ ConfigMap does not contain a valid seccomp profile (missing syscalls)"
+        exit 1
+      fi
+
+      echo "✅ ConfigMap exists with valid seccomp profile"
+      exit 0
+  - name: Seccomp profile allows required syscalls
+    run: |
+      # Validate that seccomp profile allows required syscalls
+
+      CONFIGMAP_NAME="seccomp-config"
+      NAMESPACE="seccomp-profile"
+      PROFILE_KEY="profile.json"
+      REQUIRED_SYSCALLS=("exit" "exit_group" "rt_sigreturn" "read" "write" "open")
+
+      # Check if namespace exists
+      kubectl get namespace "$NAMESPACE" &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Namespace '$NAMESPACE' not found"
+        exit 1
+      fi
+
+      # Check if ConfigMap exists
+      kubectl get configmap "$CONFIGMAP_NAME" -n "$NAMESPACE" &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ ConfigMap '$CONFIGMAP_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Extract profile JSON from ConfigMap using jq instead of jsonpath
+      PROFILE=$(kubectl get configmap "$CONFIGMAP_NAME" -n "$NAMESPACE" -o json | jq -r --arg key "$PROFILE_KEY" '.data[$key]')
+
+      if [ -z "$PROFILE" ] || [ "$PROFILE" == "null" ]; then
+        echo "❌ ConfigMap does not have required key '$PROFILE_KEY'"
+        exit 1
+      fi
+
+      # Check if it's valid JSON
+      if ! echo "$PROFILE" | jq . > /dev/null 2>&1; then
+        echo "❌ Profile is not valid JSON"
+        exit 1
+      fi
+
+      # Check if defaultAction is SCMP_ACT_ERRNO
+      DEFAULT_ACTION=$(echo "$PROFILE" | jq -r '.defaultAction')
+      if [ "$DEFAULT_ACTION" != "SCMP_ACT_ERRNO" ]; then
+        echo "❌ Profile defaultAction is not SCMP_ACT_ERRNO (actual: $DEFAULT_ACTION)"
+        exit 1
+      fi
+
+      # Extract all allowed syscall names into a flat list
+      ALLOWED_SYSCALLS=$(echo "$PROFILE" | jq -r '[.syscalls[] | select(.action == "SCMP_ACT_ALLOW") | .names[]] | unique | .[]')
+
+      # Check if all required syscalls are in the allowed list
+      for syscall in "${REQUIRED_SYSCALLS[@]}"; do
+        if ! echo "$ALLOWED_SYSCALLS" | grep -q -w "$syscall"; then
+          echo "❌ Required syscall not allowed: $syscall"
+          exit 1
+        fi
+      done
+
+      echo "✅ Seccomp profile allows all required syscalls"
+      exit 0
+
+solution:
+  explain: |
+    Create a pod with seccomp and a sample profile:
+
+    ```yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: seccomp-pod
+      namespace: seccomp-profile
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: nginx
+        image: nginx
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: seccomp-config
+      namespace: seccomp-profile
+    data:
+      profile.json: |
+        {
+          "defaultAction": "SCMP_ACT_ERRNO",
+          "architectures": ["SCMP_ARCH_X86_64"],
+          "syscalls": [
+            {
+              "names": ["exit", "exit_group", "rt_sigreturn", "read", "write", "open"],
+              "action": "SCMP_ACT_ALLOW"
+            }
+          ]
+        }
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

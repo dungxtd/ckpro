@@ -1,0 +1,246 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X cka-002 question 19
+title: Pod Priority and Anti-affinity
+certifications:  # review: domains guessed from concepts
+  cka: workloads-scheduling
+difficulty: hard
+workers: 2
+namespace: scheduling
+tags: [scheduling, priority, anti-affinity]
+
+statement: |
+  Configure advanced scheduling:
+
+  1. Create a pod named `high-priority` with PriorityClass priority `1000`
+  2. Create a pod named `low-priority` with PriorityClass priority `100`
+  3. Configure pod anti-affinity to ensure these pods don't run on the same node
+  4. Create enough resource pressure to trigger pod eviction and observe priority behavior
+
+  Note for Testing Resource Pressure:
+  - Use a resource-intensive image like `polinux/stress` to generate load
+  - Example: Create a pod with command: `stress -c 4 -m 2 --vm-bytes 1G` to consume CPU and memory
+  - Deploy multiple instances of resource-heavy pods to simulate node resource exhaustion
+
+setup: |
+  set -e
+
+  # Create namespace (reusing scheduling namespace)
+  kubectl create namespace scheduling --dry-run=client -o yaml | kubectl apply -f -
+
+  # Delete any existing PriorityClasses
+  kubectl delete priorityclass high-priority low-priority 2>/dev/null || true
+
+  # # Create the PriorityClasses
+  # kubectl create -f - <<EOF
+  # apiVersion: scheduling.k8s.io/v1
+  # kind: PriorityClass
+  # metadata:
+  #   name: high-priority
+  # value: 1000
+  # globalDefault: false
+  # description: "High priority class for testing"
+  # ---
+  # apiVersion: scheduling.k8s.io/v1
+  # kind: PriorityClass
+  # metadata:
+  #   name: low-priority
+  # value: 100
+  # globalDefault: false
+  # description: "Low priority class for testing"
+  # EOF
+
+checks:
+  - name: PriorityClasses exist with correct priorities
+    weight: 2
+    run: |
+      set -e
+
+      # Check high priority class
+      kubectl get priorityclass high-priority || {
+          echo "PriorityClass high-priority not found"
+          exit 1
+      }
+
+      # Check low priority class
+      kubectl get priorityclass low-priority || {
+          echo "PriorityClass low-priority not found"
+          exit 1
+      }
+
+      # Check high priority value
+      HIGH_VALUE=$(kubectl get priorityclass high-priority -o jsonpath='{.value}')
+      if [[ "$HIGH_VALUE" != "1000" ]]; then
+          echo "Incorrect priority value for high-priority. Expected 1000, got $HIGH_VALUE"
+          exit 1
+      fi
+
+      # Check low priority value
+      LOW_VALUE=$(kubectl get priorityclass low-priority -o jsonpath='{.value}')
+      if [[ "$LOW_VALUE" != "100" ]]; then
+          echo "Incorrect priority value for low-priority. Expected 100, got $LOW_VALUE"
+          exit 1
+      fi
+
+      # Check that neither is set as default
+      HIGH_DEFAULT=$(kubectl get priorityclass high-priority -o jsonpath='{.globalDefault}')
+      LOW_DEFAULT=$(kubectl get priorityclass low-priority -o jsonpath='{.globalDefault}')
+
+      if [[ "$HIGH_DEFAULT" == "true" ]] || [[ "$LOW_DEFAULT" == "true" ]]; then
+          echo "PriorityClasses should not be set as default"
+          exit 1
+      fi
+
+      echo "PriorityClass validation successful"
+      exit 0
+  - name: Pods are created with correct specifications
+    weight: 2
+    run: |
+      set -e
+
+      # Check high priority pod
+      kubectl get pod high-priority -n scheduling || {
+          echo "Pod high-priority not found in namespace scheduling"
+          exit 1
+      }
+
+      # Check low priority pod
+      kubectl get pod low-priority -n scheduling || {
+          echo "Pod low-priority not found in namespace scheduling"
+          exit 1
+      }
+
+      # Check high priority pod configuration
+      HIGH_PRIORITY_CLASS=$(kubectl get pod high-priority -n scheduling -o jsonpath='{.spec.priorityClassName}')
+      if [[ "$HIGH_PRIORITY_CLASS" != "high-priority" ]]; then
+          echo "High priority pod not using correct PriorityClass"
+          exit 1
+      fi
+
+      # Check low priority pod configuration
+      LOW_PRIORITY_CLASS=$(kubectl get pod low-priority -n scheduling -o jsonpath='{.spec.priorityClassName}')
+      if [[ "$LOW_PRIORITY_CLASS" != "low-priority" ]]; then
+          echo "Low priority pod not using correct PriorityClass"
+          exit 1
+      fi
+
+      # Check if pods are running
+      for POD in high-priority low-priority; do
+          STATUS=$(kubectl get pod $POD -n scheduling -o jsonpath='{.status.phase}')
+          if [[ "$STATUS" != "Running" ]]; then
+              echo "Pod $POD is not running. Current status: $STATUS"
+              exit 1
+          fi
+      done
+
+      echo "Pods validation successful"
+      exit 0
+  - name: Anti-affinity rules are enforced correctly
+    run: |
+      set -e
+
+      # Get pod nodes
+      HIGH_NODE=$(kubectl get pod high-priority -n scheduling -o jsonpath='{.spec.nodeName}')
+      LOW_NODE=$(kubectl get pod low-priority -n scheduling -o jsonpath='{.spec.nodeName}')
+
+      # Check if pods are on different nodes
+      if [[ "$HIGH_NODE" == "$LOW_NODE" ]]; then
+          echo "Pods are scheduled on the same node: $HIGH_NODE"
+          exit 1
+      fi
+
+      # Check anti-affinity configuration for high priority pod
+      HIGH_AFFINITY=$(kubectl get pod high-priority -n scheduling -o json | jq -r '.spec.affinity.podAntiAffinity')
+      if [[ -z "$HIGH_AFFINITY" ]]; then
+          echo "High priority pod does not have pod anti-affinity configured"
+          exit 1
+      fi
+
+      # Check anti-affinity configuration for low priority pod
+      LOW_AFFINITY=$(kubectl get pod low-priority -n scheduling -o json | jq -r '.spec.affinity.podAntiAffinity')
+      if [[ -z "$LOW_AFFINITY" ]]; then
+          echo "Low priority pod does not have pod anti-affinity configured"
+          exit 1
+      fi
+
+      # Check if anti-affinity is using the correct topology key
+      HIGH_TOPOLOGY=$(kubectl get pod high-priority -n scheduling -o jsonpath='{.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey}')
+      if [[ "$HIGH_TOPOLOGY" != "kubernetes.io/hostname" ]]; then
+          echo "High priority pod using incorrect topology key"
+          exit 1
+      fi
+
+      LOW_TOPOLOGY=$(kubectl get pod low-priority -n scheduling -o jsonpath='{.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey}')
+      if [[ "$LOW_TOPOLOGY" != "kubernetes.io/hostname" ]]; then
+          echo "Low priority pod using incorrect topology key"
+          exit 1
+      fi
+
+      echo "Anti-affinity validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: scheduling.k8s.io/v1
+    kind: PriorityClass
+    metadata:
+      name: high-priority
+    value: 1000
+    ---
+    apiVersion: scheduling.k8s.io/v1
+    kind: PriorityClass
+    metadata:
+      name: low-priority
+    value: 100
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: high-priority
+      namespace: scheduling
+      labels:
+        priority: high  # ✅ Add this
+    spec:
+      priorityClassName: high-priority
+      containers:
+      - name: nginx
+        image: nginx
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: priority
+                operator: In
+                values:
+                - high
+                - low
+            topologyKey: kubernetes.io/hostname
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: low-priority
+      namespace: scheduling
+      labels:
+        priority: low  # ✅ Add this
+    spec:
+      priorityClassName: low-priority
+      containers:
+      - name: nginx
+        image: nginx
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: priority
+                operator: In
+                values:
+                - high
+                - low
+            topologyKey: kubernetes.io/hostname
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: "true  # TODO: commands that solve the task"

@@ -44,7 +44,7 @@ pub fn lint(pack: &LoadedPack) -> Vec<Finding> {
         for qid in &exam.questions {
             match pack.questions.get(qid) {
                 None => add(Level::Error, file, format!("{id}: unknown question '{qid}'")),
-                Some(q) if !q.value.certifications.contains(&exam.certification) => add(
+                Some(q) if !q.value.certifications.contains_key(&exam.certification) => add(
                     Level::Warning,
                     file,
                     format!("{id}: question '{qid}' is not tagged for {}", exam.certification),
@@ -62,7 +62,7 @@ pub fn lint(pack: &LoadedPack) -> Vec<Finding> {
             let available = pack
                 .questions
                 .iter()
-                .filter(|(qid, q)| q.value.certifications.contains(&exam.certification) && !exam.questions.contains(qid))
+                .filter(|(qid, q)| q.value.certifications.contains_key(&exam.certification) && !exam.questions.contains(qid))
                 .count() as u32;
             if available < draw.count {
                 add(
@@ -84,11 +84,11 @@ fn lint_question(pack: &LoadedPack, q: &Question) -> Vec<String> {
     if q.certifications.is_empty() {
         errors.push("lists no certification".into());
     }
-    for cert in &q.certifications {
+    for (cert, domain) in &q.certifications {
         match pack.pack.certifications.get(cert) {
             None => errors.push(format!("unknown certification '{cert}'")),
-            Some(c) if !c.domains.contains_key(&q.domain) => {
-                errors.push(format!("'{}' is not a {cert} domain ({})", q.domain, c.domains.keys().cloned().collect::<Vec<_>>().join(", ")))
+            Some(c) if !c.domains.contains_key(domain) => {
+                errors.push(format!("'{domain}' is not a {cert} domain ({})", c.domains.keys().cloned().collect::<Vec<_>>().join(", ")))
             }
             Some(_) => {}
         }

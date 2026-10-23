@@ -1,0 +1,175 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X ckad-002 question 11
+title: Security Context
+certifications:  # review: domains guessed from concepts
+  ckad: application-design-build
+difficulty: hard
+namespace: security
+tags: [security-context, pod-security, container-security]
+
+statement: |
+  Create a Pod named `secure-app` in the `security` namespace with the following security configurations:
+
+  1. Run as non-root user (UID: `1000`)
+  2. Set security context to drop all capabilities
+  3. Set `readOnlyRootFilesystem` to true
+  4. Add a security context to the container to run as non-root
+  5. Use the `nginx:alpine` image
+
+  Ensure the namespace exists before creating the pod.
+
+setup: |
+  # Delete the security namespace if it exists
+  echo "Setting up environment for Question 11 (Security Context)..."
+  kubectl delete namespace security --ignore-not-found=true
+
+  # Wait for deletion to complete
+  sleep 2
+
+  # Confirm environment is ready
+  echo "Environment ready for Question 11"
+  exit 0
+
+checks:
+  - name: Namespace is created
+    run: |
+      # Validate that the security namespace exists
+      NS=$(kubectl get namespace security -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$NS" == "security" ]]; then
+          # Namespace exists
+          exit 0
+      else
+          # Namespace does not exist
+          echo "Namespace 'security' does not exist"
+          exit 1
+      fi
+  - name: Pod is created with correct name and image
+    run: |
+      # Validate that the secure-app pod exists
+      POD=$(kubectl get pod secure-app -n security -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$POD" == "secure-app" ]]; then
+          # Pod exists, now check the image
+          IMAGE=$(kubectl get pod secure-app -n security -o jsonpath='{.spec.containers[0].image}' 2>/dev/null)
+          if [[ "$IMAGE" == "nginx:alpine" ]]; then
+              # Image is correct
+              exit 0
+          else
+              echo "Pod 'secure-app' does not use the 'nginx:alpine' image. Found: $IMAGE"
+              exit 1
+          fi
+      else
+          # Pod does not exist
+          echo "Pod 'secure-app' does not exist in the 'security' namespace"
+          exit 1
+      fi
+  - name: Pod runs as non-root user
+    weight: 2
+    run: |
+      # Validate that the secure-app pod runs as non-root user (UID 1000)
+      POD_SECURITY_CONTEXT=$(kubectl get pod secure-app -n security -o jsonpath='{.spec.securityContext.runAsUser}' 2>/dev/null)
+
+      if [[ "$POD_SECURITY_CONTEXT" == "1000" ]]; then
+          # Pod runs with UID 1000
+          exit 0
+      else
+          # Not running as UID 1000 at pod level, check container level
+          CONTAINER_SECURITY_CONTEXT=$(kubectl get pod secure-app -n security -o jsonpath='{.spec.containers[0].securityContext.runAsUser}' 2>/dev/null)
+
+          if [[ "$CONTAINER_SECURITY_CONTEXT" == "1000" ]]; then
+              # Container runs with UID 1000
+              exit 0
+          else
+              echo "Pod 'secure-app' does not run as UID 1000. Found pod: $POD_SECURITY_CONTEXT, container: $CONTAINER_SECURITY_CONTEXT"
+              exit 1
+          fi
+      fi
+  - name: Security context is configured correctly
+    weight: 3
+    run: |
+      # Validate that security context is configured correctly
+      # Check readOnlyRootFilesystem
+      READONLY_ROOT=$(kubectl get pod secure-app -n security -o jsonpath='{.spec.containers[0].securityContext.readOnlyRootFilesystem}' 2>/dev/null)
+
+      # Check if capabilities are dropped
+      DROP_ALL=$(kubectl get pod secure-app -n security -o jsonpath='{.spec.containers[0].securityContext.capabilities.drop}' 2>/dev/null)
+
+      if [[ "$READONLY_ROOT" == "true" ]]; then
+          # readOnlyRootFilesystem is configured correctly
+          if [[ "$DROP_ALL" == *"ALL"* ]]; then
+              # Capabilities are dropped correctly
+              exit 0
+          else
+              echo "Pod 'secure-app' does not drop all capabilities. Found: $DROP_ALL"
+              exit 1
+          fi
+      else
+          echo "Pod 'secure-app' does not have readOnlyRootFilesystem set to true. Found: $READONLY_ROOT"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    Create a Pod with security configurations:
+
+    ```bash
+    # Create namespace
+    kubectl create namespace security
+
+    # Create secure pod
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: security
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: secure-app
+      namespace: security
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+    EOF
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    # Create namespace
+    kubectl create namespace security
+
+    # Create secure pod
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: security
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: secure-app
+      namespace: security
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+    EOF

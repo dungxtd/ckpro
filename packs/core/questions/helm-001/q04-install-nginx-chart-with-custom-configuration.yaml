@@ -1,0 +1,118 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X helm-001 question 4
+title: Install Nginx Chart with Custom Configuration
+certifications:  # review: domains guessed from concepts
+  cka: services-networking
+  ckad: services-networking
+difficulty: medium
+namespace: default
+tags: [helm, chart installation, value overrides]
+
+statement: |
+  Install the Bitnami nginx chart with the release name `web-server` in the `default` namespace.
+
+  Ensure the service type is set to `NodePort` and the port is set to `30080`. Only modify the necessary values without changing other default settings.
+
+setup: |
+  # Setup environment for Question 4 - Install Nginx Chart
+
+  # No specific setup needed for this question
+  # The student needs to install the Bitnami nginx chart with release name web-server
+  # They should set the service type to NodePort and port to 30080
+  # The expected commands would be something like:
+  # helm install web-server bitnami/nginx --set service.type=NodePort --set service.nodePorts.http=30080
+
+  echo "Environment setup complete for Question 4"
+  exit 0
+
+checks:
+  - name: Nginx chart is installed as web-server
+    weight: 2
+    run: |
+      # Validate script for Question 4, Step 1: Check if nginx chart is installed
+
+      # Check if helm command is available
+      if ! command -v helm &> /dev/null; then
+        echo "❌ Helm command not found in PATH"
+        exit 1
+      fi
+
+      # Check if the release exists
+      release_info=$(helm list -n default -f "web-server" 2>&1)
+
+      if [ $? -ne 0 ] || ! echo "$release_info" | grep -q "web-server"; then
+        echo "❌ Release 'web-server' not found in namespace 'default'"
+        echo "Current releases:"
+        helm list -n default
+        exit 1
+      fi
+
+      # Check if it's using the Bitnami nginx chart
+      if ! helm get values web-server -n default | grep -q "nginx"; then
+        echo "❌ Release 'web-server' does not appear to be using the nginx chart"
+        echo "Release information:"
+        echo "$release_info"
+        exit 1
+      fi
+
+      echo "✅ Nginx chart is installed with release name 'web-server'"
+      echo "Release information:"
+      echo "$release_info"
+      exit 0
+  - name: Service type is NodePort with port 30080
+    weight: 2
+    run: |
+      # Validate script for Question 4, Step 2: Check if service is configured correctly
+
+      # Check if kubernetes command is available
+      if ! command -v kubectl &> /dev/null; then
+        echo "❌ kubectl command not found in PATH"
+        exit 1
+      fi
+
+      # Get the service information
+      service_name="web-server-nginx"
+      service_info=$(kubectl get service $service_name -n default -o json 2>&1)
+
+      if [ $? -ne 0 ]; then
+        echo "❌ Service '$service_name' not found in namespace 'default'"
+        echo "Available services:"
+        kubectl get services -n default
+        exit 1
+      fi
+
+      # Check if the service type is NodePort
+      service_type=$(echo "$service_info" | jq -r '.spec.type')
+      if [ "$service_type" != "NodePort" ]; then
+        echo "❌ Service type is '$service_type', expected 'NodePort'"
+        exit 1
+      fi
+
+      # Check if the port is configured correctly
+      nodeport=$(echo "$service_info" | jq -r '.spec.ports[] | select(.nodePort) | .nodePort')
+      if [ "$nodeport" != "30080" ]; then
+        echo "❌ NodePort is '$nodeport', expected '30080'"
+        echo "Service ports configuration:"
+        echo "$service_info" | jq '.spec.ports'
+        exit 1
+      fi
+
+      echo "✅ Service is correctly configured with type NodePort and port 30080"
+      echo "Service information:"
+      kubectl get service $service_name -n default -o wide
+      exit 0
+
+solution:
+  explain: |
+    ```bash
+    # Install nginx chart with custom service configuration
+    helm install web-server bitnami/nginx \
+      --set service.type=NodePort \
+      --set service.nodePorts.http=30080
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    # Install nginx chart with custom service configuration
+    helm install web-server bitnami/nginx \
+      --set service.type=NodePort \
+      --set service.nodePorts.http=30080

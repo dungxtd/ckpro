@@ -1,0 +1,194 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+# Converted from CK-X helm-001 question 12
+title: Debug a Problematic Release
+certifications:  # review: domains guessed from concepts
+  cka: troubleshooting
+  ckad: application-observability-maintenance
+difficulty: medium
+namespace: default
+tags: [helm, debugging, troubleshooting]
+
+statement: |
+  Debug an existing problematic release named `buggy-app` in the `default` namespace.
+
+  1. Use Helm's debug capabilities to identify the issue
+  2. Create a file at `/tmp/exam/q12/diagnosis.txt` explaining the problem
+  3. Fix the release by performing the necessary upgrade or reinstallation
+
+checks:
+  - name: Diagnosis file created with analysis
+    weight: 2
+    run: |
+      # Validate script for Question 12, Step 1: Check if diagnosis file is created with analysis
+
+      # Check if the diagnosis file exists
+      if [ ! -f /tmp/exam/q12/diagnosis.txt ]; then
+        echo "❌ Diagnosis file does not exist at /tmp/exam/q12/diagnosis.txt"
+        exit 1
+      fi
+
+      # Check if the file has content
+      if [ ! -s /tmp/exam/q12/diagnosis.txt ]; then
+        echo "❌ Diagnosis file exists but is empty"
+        exit 1
+      fi
+
+      # Check if the file contains debugging information
+      # Look for common debugging terms and commands that would be used
+      if ! grep -E -i "(error|issue|problem|failed|debug|helm|not found|missing|incorrect)" /tmp/exam/q12/diagnosis.txt > /dev/null; then
+        echo "❌ Diagnosis file does not appear to contain debugging analysis"
+        echo "Expected to find error/issue descriptions"
+        echo "File content:"
+        cat /tmp/exam/q12/diagnosis.txt
+        exit 1
+      fi
+
+      # Check if the diagnosis contains helm debug commands or output
+      if ! grep -E -i "(helm get|helm status|helm debug|helm history|kubectl describe)" /tmp/exam/q12/diagnosis.txt > /dev/null; then
+        echo "❌ Diagnosis does not show evidence of using Helm debugging commands"
+        echo "Expected to find mentions of 'helm get', 'helm status', etc."
+        echo "File content:"
+        cat /tmp/exam/q12/diagnosis.txt
+        exit 1
+      fi
+
+      echo "✅ Diagnosis file has been created with debugging analysis"
+      echo "File content:"
+      cat /tmp/exam/q12/diagnosis.txt
+      exit 0
+  - name: Release issue fixed
+    weight: 2
+    run: |
+      # Validate script for Question 12, Step 2: Check if release issue is fixed
+
+      # Check if helm command is available
+      if ! command -v helm &> /dev/null; then
+        echo "❌ Helm command not found in PATH"
+        exit 1
+      fi
+
+      # Check if the release exists
+      release_info=$(helm list -n default -f "buggy-app" 2>&1)
+
+      if [ $? -ne 0 ] || ! echo "$release_info" | grep -q "buggy-app"; then
+        echo "❌ Release 'buggy-app' not found in namespace 'default'"
+        echo "Current releases:"
+        helm list -n default
+        exit 1
+      fi
+
+      # Check if the release status is deployed/succeeded
+      status=$(helm list -n default -f "buggy-app" -o json | jq -r '.[0].status')
+      if [ "$status" != "deployed" ]; then
+        echo "❌ Release 'buggy-app' is not in 'deployed' status (current: $status)"
+        exit 1
+      fi
+
+      # Check if the pods are running
+      deploy_name=$(kubectl get deployments -n default -o custom-columns=NAME:.metadata.name | grep "buggy-app" | head -1)
+      if [ -z "$deploy_name" ]; then
+        echo "❌ Could not find any deployment for 'buggy-app'"
+        echo "Available deployments:"
+        kubectl get deployments -n default
+        exit 1
+      fi
+
+      # Check pod status
+      pod_status=$(kubectl get pods -n default -l app.kubernetes.io/instance=buggy-app -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+
+      if [ -z "$pod_status" ]; then
+        echo "❌ No pods found for 'buggy-app'"
+        echo "Available pods:"
+        kubectl get pods -n default
+        exit 1
+      fi
+
+      if [ "$pod_status" != "Running" ]; then
+        echo "❌ Pod for 'buggy-app' is not running (status: $pod_status)"
+        echo "Pod details:"
+        kubectl get pods -n default -l app.kubernetes.io/instance=buggy-app -o wide
+        exit 1
+      fi
+
+      echo "✅ 'buggy-app' release has been fixed and is running correctly"
+      echo "Release status: $status"
+      echo "Pod status: $pod_status"
+      exit 0
+
+solution:
+  explain: |
+    First, diagnose the issue:
+
+    ```bash
+    # Check the release status
+    helm status buggy-app
+
+    # Look at the pods
+    kubectl get pods -l app.kubernetes.io/instance=buggy-app
+
+    # Check why pods are failing
+    kubectl describe pod -l app.kubernetes.io/instance=buggy-app
+    ```
+
+    Create a diagnosis file:
+
+    ```bash
+    cat > /tmp/exam/q12/diagnosis.txt << EOF
+    The buggy-app release is failing because it's using a non-existent image tag "nonexistenttag".
+    The pods can't start because the container image "nginx:nonexistenttag" cannot be pulled.
+
+    Steps taken to diagnose:
+    1. Used "helm status buggy-app" to check the release status
+    2. Used "kubectl get pods" to see pod status (ImagePullBackOff or ErrImagePull)
+    3. Used "kubectl describe pod" to see detailed error messages
+    EOF
+    ```
+
+    Fix the issue:
+
+    ```bash
+    # Upgrade the release with a valid image tag
+    helm upgrade buggy-app buggy-app --set image.tag=latest
+    ```
+
+    Alternatively, if you don't have access to the original chart:
+
+    ```bash
+    # Create a new values file to override the problematic values
+    cat > /tmp/fixed-values.yaml << EOF
+    image:
+      tag: latest
+    EOF
+
+    # Upgrade using the new values file
+    helm upgrade buggy-app buggy-app -f /tmp/fixed-values.yaml
+    ```
+  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  run: |
+    # Check the release status
+    helm status buggy-app
+
+    # Look at the pods
+    kubectl get pods -l app.kubernetes.io/instance=buggy-app
+
+    # Check why pods are failing
+    kubectl describe pod -l app.kubernetes.io/instance=buggy-app
+    cat > /tmp/exam/q12/diagnosis.txt << EOF
+    The buggy-app release is failing because it's using a non-existent image tag "nonexistenttag".
+    The pods can't start because the container image "nginx:nonexistenttag" cannot be pulled.
+
+    Steps taken to diagnose:
+    1. Used "helm status buggy-app" to check the release status
+    2. Used "kubectl get pods" to see pod status (ImagePullBackOff or ErrImagePull)
+    3. Used "kubectl describe pod" to see detailed error messages
+    EOF
+    # Upgrade the release with a valid image tag
+    helm upgrade buggy-app buggy-app --set image.tag=latest
+    # Create a new values file to override the problematic values
+    cat > /tmp/fixed-values.yaml << EOF
+    image:
+      tag: latest
+    EOF
+
+    # Upgrade using the new values file
+    helm upgrade buggy-app buggy-app -f /tmp/fixed-values.yaml
