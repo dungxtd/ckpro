@@ -1,0 +1,78 @@
+{
+  "$defs": {
+    "Certification": {
+      "additionalProperties": false,
+      "properties": {
+        "domains": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "Curriculum domains and their weight in percent",
+          "type": "object"
+        },
+        "duration": {
+          "$ref": "#/$defs/Duration",
+          "description": "Exam length, e.g. \"120m\""
+        },
+        "kubernetes": {
+          "description": "Kubernetes minor version the exam runs, e.g. \"1.35\"",
+          "type": "string"
+        },
+        "passScore": {
+          "description": "Passing score in percent",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "kubernetes",
+        "passScore",
+        "duration",
+        "domains"
+      ],
+      "type": "object"
+    },
+    "Duration": {
+      "description": "A length like \"120m\", \"2h\" or \"90s\"",
+      "pattern": "^\\d+(s|m|h)$",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`pack.yaml`",
+  "properties": {
+    "certifications": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Certification"
+      },
+      "default": {},
+      "description": "Certification blueprints, keyed by exam id (`cka`, `ckad`, `cks`)",
+      "type": "object"
+    },
+    "id": {
+      "description": "Prefix of every question and exam id in the pack, e.g. `core`",
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "version"
+  ],
+  "title": "Pack",
+  "type": "object"
+}

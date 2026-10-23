@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: RBAC for a CI/CD ServiceAccount
+certifications: [cka]
+domain: cluster-architecture
+difficulty: medium
+estimate: 6m
+namespace: "{{ns}}"
+tags: [rbac, clusterrole, rolebinding, serviceaccount]
+vars:
+  ns: { pick: [app-team1, ci-builds, payments] }
+
+statement: |
+  You are asked to set up RBAC for a CI/CD pipeline.
+
+  Create a new ClusterRole named `deployment-clusterrole` which only allows the
+  **creation** of the following resource types:
+
+  - `Deployment`
+  - `StatefulSet`
+  - `DaemonSet`
+
+  Create a new ServiceAccount named `cicd-token` in the existing namespace `{{ns}}`.
+
+  Bind the ClusterRole `deployment-clusterrole` to the ServiceAccount `cicd-token`,
+  limited to the namespace `{{ns}}`.
+
+setup: |
+  kubectl create namespace {{ns}} --dry-run=client -o yaml | kubectl apply -f -
+
+checks:
+  - name: ClusterRole deployment-clusterrole only allows create
+    weight: 3
+    jsonpath:
+      resource: clusterrole/deployment-clusterrole
+      path: "{.rules[*].verbs[*]}"
+      equals: create
+  - name: ClusterRole covers deployments, statefulsets and daemonsets
+    weight: 1
+    run: |
+      kubectl get clusterrole deployment-clusterrole -o json \
+        | jq -e '[.rules[].resources[]] | (index("deployments") and index("statefulsets") and index("daemonsets"))'
+  - name: ServiceAccount cicd-token exists in {{ns}}
+    exists: { resource: serviceaccount/cicd-token, namespace: "{{ns}}" }
+  - name: cicd-token can create Deployments in {{ns}}
+    weight: 2
+    canI: { as: "system:serviceaccount:{{ns}}:cicd-token", verb: create, resource: deployments, namespace: "{{ns}}" }
+  - name: The binding is limited to {{ns}}
+    weight: 2
+    canI: { as: "system:serviceaccount:{{ns}}:cicd-token", verb: create, resource: deployments, namespace: default, expect: false }
+
+hints:
+  - A ClusterRole can be granted inside a single namespace.
+  - Use a RoleBinding (not a ClusterRoleBinding) that references the ClusterRole.
+
+solution:
+  explain: |
+    A ClusterRole only grants permissions where it is *bound*. Binding it with a
+    RoleBinding in `{{ns}}` limits the ServiceAccount to that namespace, which is
+    the standard way to reuse one ClusterRole across many namespaces.
+  run: |
+    kubectl create clusterrole deployment-clusterrole \
+      --verb=create --resource=deployments,statefulsets,daemonsets
+    kubectl create serviceaccount cicd-token -n {{ns}}
+    kubectl create rolebinding cicd-token-binding -n {{ns}} \
+      --clusterrole=deployment-clusterrole --serviceaccount={{ns}}:cicd-token
+
+references:
+  - https://kubernetes.io/docs/reference/access-authn-authz/rbac/#rolebinding-and-clusterrolebinding

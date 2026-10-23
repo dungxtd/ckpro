@@ -1,0 +1,424 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "app-team1",
+      "machineHostname": "ckad9999",
+      "question": "You are asked to set up RBAC for a CI/CD pipeline.\n\nCreate a new ClusterRole named `deployment-clusterrole` which only allows the creation of the following resource types:\n\n- `Deployment`\n- `StatefulSet`\n- `DaemonSet`\n\nCreate a new ServiceAccount named `cicd-token` in the existing namespace `app-team1`.\n\nBind the new ClusterRole `deployment-clusterrole` to the new ServiceAccount `cicd-token`, limited to the namespace `app-team1`.\n\nNote: the binding must restrict the ServiceAccount to the `app-team1` namespace only - it must not be able to create Deployments in any other namespace.",
+      "concepts": [
+        "rbac",
+        "clusterrole",
+        "rolebinding",
+        "serviceaccount"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "ClusterRole deployment-clusterrole exists with only 'create' on deployments/statefulsets/daemonsets",
+          "verificationScriptFile": "q1_s1_validate_clusterrole.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "ServiceAccount cicd-token exists in app-team1",
+          "verificationScriptFile": "q1_s2_validate_sa.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "Binding is namespace-scoped to app-team1 (RoleBinding to the ClusterRole), not cluster-wide",
+          "verificationScriptFile": "q1_s3_validate_binding_scope.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "node-ops",
+      "machineHostname": "ckad9999",
+      "question": "A node in the cluster has been labeled `drain-target=true` and is currently running workloads from the `node-ops/drain-target` Deployment.\n\nMark the node labeled `drain-target=true` as unschedulable, and safely evict/reschedule all non-DaemonSet pods running on it, so that its workloads continue running elsewhere in the cluster.\n\nUse the standard `kubectl cordon` and `kubectl drain` workflow (the node should remain cordoned afterwards).",
+      "concepts": [
+        "node-maintenance",
+        "cordon",
+        "drain",
+        "eviction"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The node labeled drain-target=true is cordoned (spec.unschedulable=true)",
+          "verificationScriptFile": "q2_s1_validate_cordon.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "All drain-target Deployment pods are rescheduled off the cordoned node and Running",
+          "verificationScriptFile": "q2_s2_validate_rescheduled.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "default",
+      "machineHostname": "ckad9999",
+      "question": "First, create a snapshot of the running etcd cluster and save it to `/tmp/exam/etcd-snapshot.db`.\n\nThen, verify the snapshot is valid by restoring it into a new local data directory `/tmp/exam/etcd-restored`.\n\nThis environment is not the real exam environment: use etcd endpoint `https://k8s-control-plane:2379`, with client certificates located at:\n\n- CA cert: `/root/.ckdry/etcd/k8s/ca.crt`\n- Client cert: `/root/.ckdry/etcd/k8s/client.crt`\n- Client key: `/root/.ckdry/etcd/k8s/client.key`\n\nExample commands:\n\n`ETCDCTL_API=3 etcdctl snapshot save /tmp/exam/etcd-snapshot.db --endpoints=https://k8s-control-plane:2379 --cacert=/root/.ckdry/etcd/k8s/ca.crt --cert=/root/.ckdry/etcd/k8s/client.crt --key=/root/.ckdry/etcd/k8s/client.key`\n\n`ETCDCTL_API=3 etcdctl snapshot restore /tmp/exam/etcd-snapshot.db --data-dir=/tmp/exam/etcd-restored`",
+      "concepts": [
+        "etcd",
+        "backup",
+        "restore",
+        "disaster-recovery"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "/tmp/exam/etcd-snapshot.db exists, is a non-trivial size, and passes 'etcdctl snapshot status'",
+          "verificationScriptFile": "q3_s1_validate_snapshot.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "/tmp/exam/etcd-restored is a structurally valid etcd data directory produced by 'etcdctl snapshot restore'",
+          "verificationScriptFile": "q3_s2_validate_restore.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "fubar",
+      "machineHostname": "ckad9999",
+      "question": "Create a NetworkPolicy named `allow-port-from-namespace` in namespace `fubar` which allows pods in namespace `internal` to connect to port `9000` of pods in namespace `fubar`.\n\nMore specifically, ensure that:\n\n- The policy allows pods in the `internal` namespace to connect to port `9000/tcp` of ALL pods in namespace `fubar`.\n- The policy does NOT allow access from any other namespace.\n- The policy does NOT allow access to any other port.\n\nTip: every namespace already carries the built-in immutable label `kubernetes.io/metadata.name` equal to its own name, so you can select the `internal` namespace with a `namespaceSelector` without labeling it yourself.",
+      "concepts": [
+        "networkpolicy",
+        "networking",
+        "namespace-isolation"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "NetworkPolicy allow-port-from-namespace exists in fubar",
+          "verificationScriptFile": "q4_s1_validate_netpol_exists.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Ingress rule restricts source to namespace 'internal' and port 9000/TCP only",
+          "verificationScriptFile": "q4_s2_validate_rule.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "podSelector is empty, applying the policy to all pods in fubar",
+          "verificationScriptFile": "q4_s3_validate_podselector.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "default",
+      "machineHostname": "ckad9999",
+      "question": "Reconfigure the existing Deployment `front-end` (container `nginx`) to add a named container port called `http` exposing container port `80/tcp`.\n\nThen create a new Service named `front-end-svc` which exposes this Deployment's Pods via the `http` container port, and additionally configure the Service so it is accessible via NodePort on every node in the cluster.",
+      "concepts": [
+        "deployments",
+        "services",
+        "nodeport",
+        "named-ports"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "front-end Deployment's nginx container has a port named 'http' = 80/TCP",
+          "verificationScriptFile": "q5_s1_validate_port.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Service front-end-svc is type NodePort, targets the 'http' port, and matches front-end pods",
+          "verificationScriptFile": "q5_s2_validate_service.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "default",
+      "machineHostname": "ckad9999",
+      "question": "Scale the existing Deployment `presentation` to exactly `3` replicas.",
+      "concepts": [
+        "deployments",
+        "scaling"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Deployment presentation has spec.replicas=3 and 3 readyReplicas",
+          "verificationScriptFile": "q6_s1_validate_replicas.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "namespace": "scheduling",
+      "machineHostname": "ckad9999",
+      "question": "Schedule a Pod as follows:\n\n- Name: `nginx-kusc00401`\n- Image: `nginx`\n- Node selector: the pod should only run on nodes labeled `disk=ssd`\n\nA node in the cluster has already been labeled `disk=ssd` for you.",
+      "concepts": [
+        "scheduling",
+        "node-selector"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Pod nginx-kusc00401 has nodeSelector disk=ssd in its spec",
+          "verificationScriptFile": "q7_s1_validate_nodeselector.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Pod is Running and actually scheduled onto the disk=ssd node",
+          "verificationScriptFile": "q7_s2_validate_placement.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "namespace": "default",
+      "machineHostname": "ckad9999",
+      "question": "Check how many nodes in the cluster are in `Ready` state, EXCLUDING any nodes that are tainted `NoSchedule`.\n\nWrite the count (just the number, nothing else) to `/tmp/exam/ready-node-count.txt`.",
+      "concepts": [
+        "nodes",
+        "taints",
+        "cluster-inspection"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "File contains the correct count of Ready nodes without a NoSchedule taint",
+          "verificationScriptFile": "q8_s1_validate_ready_count.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "namespace": "multi-container",
+      "machineHostname": "ckad9999",
+      "question": "Schedule a Pod as follows:\n\n- Name: `kucc8`\n- 2 containers, named and imaged as follows:\n  - `nginx` using image `nginx`\n  - `consul` using image `hashicorp/consul:1.15`",
+      "concepts": [
+        "multi-container-pods"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Pod kucc8 has exactly 2 containers with the correct names/images",
+          "verificationScriptFile": "q9_s1_validate_containers.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "Pod kucc8 is Running",
+          "verificationScriptFile": "q9_s2_validate_running.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "namespace": "storage-pv",
+      "machineHostname": "ckad9999",
+      "question": "Create a PersistentVolume named `app-data` with the following specifications:\n\n- Capacity: `2Gi`\n- Access mode: `ReadWriteOnce`\n- Volume type: hostPath, at path `/srv/app-data`",
+      "concepts": [
+        "persistent-volumes",
+        "hostpath"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "PersistentVolume app-data exists with the exact capacity/accessMode/hostPath.path",
+          "verificationScriptFile": "q10_s1_validate_pv.sh",
+          "expectedOutput": "0",
+          "weightage": 7
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "namespace": "logging",
+      "machineHostname": "ckad9999",
+      "question": "Pod `foo` is running and periodically writing log lines, some of which contain the literal string `error file-not-found`.\n\nExtract only the log lines containing the literal string `error file-not-found` from pod `foo`'s logs and write them to `/tmp/exam/foo-errors.log` (the file already exists, currently empty).\n\nDo not include any non-matching lines in the file.",
+      "concepts": [
+        "logging",
+        "kubectl-logs",
+        "grep"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "foo-errors.log contains only 'error file-not-found' lines and at least one is present",
+          "verificationScriptFile": "q11_s1_validate_errorlog.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "namespace": "logging",
+      "machineHostname": "ckad9999",
+      "question": "Pod `big-corp-app` has a single container which writes to the file `/var/log/big-corp-app.log`, via an `emptyDir` volume already mounted at `/var/log`.\n\nAdd a second, \"sidecar\" container named `sidecar` to the Pod `big-corp-app`, using image `busybox`, which continuously tails (`tail -f`) that same log file.\n\nNote: containers cannot be added to a running Pod - you will need to delete and recreate the Pod `big-corp-app` with the additional container, keeping the existing container and volume configuration intact.",
+      "concepts": [
+        "multi-container-pods",
+        "sidecar-pattern",
+        "emptydir",
+        "logging"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Pod big-corp-app has exactly 2 containers",
+          "verificationScriptFile": "q12_s1_validate_containercount.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "A container named 'sidecar' uses image busybox and mounts the same volume at /var/log",
+          "verificationScriptFile": "q12_s2_validate_sidecar.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "'kubectl logs big-corp-app -c sidecar' returns non-empty log output",
+          "verificationScriptFile": "q12_s3_validate_logs.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "13",
+      "namespace": "monitoring",
+      "machineHostname": "ckad9999",
+      "question": "Several Pods labeled `name=overloaded-cpu` are running in the `monitoring` namespace, each consuming a different amount of CPU.\n\nFind the Pod (among those labeled `name=overloaded-cpu`) that is consuming the most CPU (via `kubectl top pod`), and write just its name to `/tmp/exam/top-cpu-pod.txt` (the file already exists, currently empty).",
+      "concepts": [
+        "metrics-server",
+        "kubectl-top",
+        "resource-monitoring"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "top-cpu-pod.txt contains the name of the pod with the highest CPU usage",
+          "verificationScriptFile": "q13_s1_validate_topcpu.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        }
+      ]
+    },
+    {
+      "id": "14",
+      "namespace": "storage-pvc",
+      "machineHostname": "ckad9999",
+      "question": "Create a new StorageClass named `csi-hostpath-sc` with `allowVolumeExpansion: true`.\n\nNote: this environment uses the kind built-in `rancher.io/local-path` provisioner in place of the real exam's `csi-hostpath-driver`, since no CSI driver is pre-installed - use provisioner `rancher.io/local-path` and you must also set `volumeBindingMode: WaitForFirstConsumer` on the StorageClass - `rancher.io/local-path` requires it to know which node to provision the volume on, and the PVC will stay stuck `Pending` without it.\n\nCreate a PersistentVolumeClaim named `pv-volume` using that StorageClass, requesting `10Mi` of storage with access mode `ReadWriteOnce`.\n\nCreate a Pod named `web-server` using image `nginx` which mounts that PersistentVolumeClaim at `/usr/share/nginx/html`.\n\nFinally, expand the PersistentVolumeClaim `pv-volume` to `70Mi` (edit/patch its requested storage).",
+      "concepts": [
+        "storageclass",
+        "pvc",
+        "dynamic-provisioning",
+        "volume-expansion"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "StorageClass csi-hostpath-sc exists with allowVolumeExpansion=true",
+          "verificationScriptFile": "q14_s1_validate_storageclass.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "PVC pv-volume uses csi-hostpath-sc with access mode ReadWriteOnce",
+          "verificationScriptFile": "q14_s2_validate_pvc.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "PVC pv-volume is Bound",
+          "verificationScriptFile": "q14_s3_validate_bound.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "Pod web-server mounts pv-volume at /usr/share/nginx/html and is Running",
+          "verificationScriptFile": "q14_s4_validate_pod.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "5",
+          "description": "PVC pv-volume requested storage was patched to 70Mi",
+          "verificationScriptFile": "q14_s5_validate_expansion.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "15",
+      "namespace": "ing-internal",
+      "machineHostname": "ckad9999",
+      "question": "Create an Ingress resource named `pong` in namespace `ing-internal` as follows:\n\n- Uses the `nginx` IngressClass\n- Exposes the existing Service `hello` (ClusterIP, port `5678`) on path `/hello`\n- Uses pathType `Prefix`\n\nAn ingress-nginx controller is already installed in the cluster, and the `hello` Service/Deployment already exist in `ing-internal`.",
+      "concepts": [
+        "ingress",
+        "ingress-nginx",
+        "networking"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Ingress pong exists in ing-internal",
+          "verificationScriptFile": "q15_s1_validate_ingress_exists.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "Ingress uses the nginx ingress class",
+          "verificationScriptFile": "q15_s2_validate_class.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "Ingress has a Prefix rule for /hello routing to service hello:5678",
+          "verificationScriptFile": "q15_s3_validate_rule.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    }
+  ]
+}

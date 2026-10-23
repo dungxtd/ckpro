@@ -1,3 +1,4 @@
+mod cli;
 mod cluster;
 mod commands;
 mod error;
@@ -38,6 +39,16 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
 
 fn typescript() -> specta_typescript::Typescript {
     specta_typescript::Typescript::default().header("// @ts-nocheck")
+}
+
+/// CLI subcommands run headless; otherwise start the app.
+pub fn main() -> std::process::ExitCode {
+    let args: Vec<String> = std::env::args().collect();
+    if cli::is_cli(&args) {
+        return cli::main();
+    }
+    run();
+    std::process::ExitCode::SUCCESS
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
