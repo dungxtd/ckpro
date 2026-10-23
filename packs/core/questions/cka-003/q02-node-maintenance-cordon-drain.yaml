@@ -35,7 +35,7 @@ setup: |
   # candidate-authored bare Pods with no controller, e.g. Q9's kucc8, and other
   # setup-created bare Pods, e.g. Q13's overloaded-cpu-*) can never land on this
   # node. This does not block Q2's own drain-target Deployment below - it
-  # explicitly tolerates all taints (`operator: "Exists"`) - and it doesn't
+  # explicitly tolerates this taint - and it doesn't
   # block cordon/drain themselves, which only affect NEW scheduling decisions,
   # not eviction. A softer PreferNoSchedule taint was tried first but is only a
   # scheduler preference, not a guarantee, and still let unrelated bare Pods land
@@ -66,8 +66,14 @@ setup: |
       spec:
         nodeSelector:
           drain-target: "true"
+        # Only this question's taint: tolerating everything would also
+        # tolerate the cordon (node.kubernetes.io/unschedulable) and put
+        # replacement pods back on the drained node
         tolerations:
-          - operator: "Exists"
+          - key: drain-target
+            operator: Equal
+            value: "true"
+            effect: NoSchedule
         containers:
           - name: pause
             image: busybox:1.36

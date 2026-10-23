@@ -152,7 +152,11 @@ solution:
     Kubernetes does not allow adding/removing containers on a running Pod (`spec.containers` is immutable), so the only way to add a sidecar to an existing Pod is to delete and recreate it with the updated spec. Mounting the same `emptyDir` volume (`varlog`) into both containers lets the new `sidecar` container tail the exact file the original `count` container is writing to.
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
-    kubectl get pod big-corp-app -n logging -o yaml > /tmp/exam/big-corp-app.yaml
-    # edit /tmp/exam/big-corp-app.yaml to add the sidecar container below, then:
-    kubectl delete pod big-corp-app -n logging
-    kubectl apply -f /tmp/exam/big-corp-app.yaml
+    # The edit, scripted: the same pod with the sidecar appended
+    mkdir -p /tmp/exam
+    kubectl get pod big-corp-app -n logging -o json \
+      | jq '.spec.containers += [{"name": "sidecar", "image": "busybox",
+          "command": ["/bin/sh", "-c", "tail -f /var/log/big-corp-app.log"],
+          "volumeMounts": [{"name": "varlog", "mountPath": "/var/log"}]}]' \
+      > /tmp/exam/big-corp-app.json
+    kubectl replace --force -f /tmp/exam/big-corp-app.json

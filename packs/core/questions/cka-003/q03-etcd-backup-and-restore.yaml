@@ -52,9 +52,6 @@ checks:
       fi
 
       ETCDCTL_API=3 etcdutl snapshot status "$SNAPSHOT" \
-        --cacert={{etcd_certs}}/ca.crt \
-        --cert={{etcd_certs}}/client.crt \
-        --key={{etcd_certs}}/client.key \
         --write-out=table > /dev/null 2>&1 || {
           echo "etcdutl snapshot status reported the snapshot file is not a valid etcd snapshot"
           exit 1

@@ -180,6 +180,8 @@ solution:
 
     Expand the PVC:
     ```bash
+    # Only a bound claim can be resized
+    kubectl wait --for=jsonpath='{.status.phase}'=Bound pvc/pv-volume -n storage-pvc --timeout=120s
     kubectl patch pvc pv-volume -n storage-pvc \
       -p '{"spec":{"resources":{"requests":{"storage":"70Mi"}}}}'
     ```
@@ -230,5 +232,7 @@ solution:
             claimName: pv-volume
     MANIFEST
 
+    # Only a bound claim can be resized
+    kubectl wait --for=jsonpath='{.status.phase}'=Bound pvc/pv-volume -n storage-pvc --timeout=120s
     kubectl patch pvc pv-volume -n storage-pvc \
       -p '{"spec":{"resources":{"requests":{"storage":"70Mi"}}}}'
