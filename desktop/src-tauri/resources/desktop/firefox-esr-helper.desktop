@@ -1,0 +1,13 @@
+# Xfce's "Web Browser" (the dock, links): its firefox helper looks for a firefox
+# binary, Debian ships firefox-esr, so it asked which browser to use
+[Desktop Entry]
+NoDisplay=true
+Version=1.0
+Encoding=UTF-8
+Type=X-XFCE-Helper
+X-XFCE-Category=WebBrowser
+X-XFCE-CommandsWithParameter=firefox-esr "%s";
+Icon=firefox-esr
+Name=Firefox ESR
+X-XFCE-Commands=firefox-esr;
+X-XFCE-Binaries=firefox-esr;

@@ -25,6 +25,7 @@ The Remote Desktop is the machine **base**. It has no Kubernetes tools: every ta
 ### Desktop
 
 - **Terminal**: copy with **Ctrl+Shift+C**, paste with **Ctrl+Shift+V** (or the right-click menu). Other apps use Ctrl+C / Ctrl+V.
+- **vim**: type \`:set paste\` before typing or pasting YAML, or auto-indent adds to your indentation.
 - **Firefox**: only the allowed documentation opens (kubernetes.io/docs and blog, helm.sh/docs…, and each task's Quick Reference). Search on kubernetes.io works; external results do not open.
 - **VSCodium**: a code editor on **base** (not on the task hosts). Extensions cannot be installed.
 - **Virtual Keyboard**: for keys that do not reach the desktop.

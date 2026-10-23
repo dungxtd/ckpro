@@ -12,6 +12,10 @@ declare module "@novnc/novnc" {
 		clipViewport: boolean;
 		focusOnClick: boolean;
 		background: string;
+		/** JPEG quality for photo-like areas, 0-9 */
+		qualityLevel: number;
+		/** zlib compression, 0 (fastest) to 9 */
+		compressionLevel: number;
 		disconnect(): void;
 		focus(options?: FocusOptions): void;
 		/** Put text on the remote clipboard */

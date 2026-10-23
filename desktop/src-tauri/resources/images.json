@@ -13,12 +13,12 @@
       "KUBECTL_VERSION": "v1.35.8",
       "YQ_VERSION": "v4.54.1"
     },
-    "image": "ghcr.io/dungxtd/ckdry-jumphost:cedf0571",
+    "image": "ghcr.io/dungxtd/ckdry-jumphost:6ec1bfa4",
     "name": "jumphost"
   },
   {
     "args": {},
-    "image": "ghcr.io/dungxtd/ckdry-desktop:811255d6",
+    "image": "ghcr.io/dungxtd/ckdry-desktop:d5983572",
     "name": "desktop"
   }
 ]

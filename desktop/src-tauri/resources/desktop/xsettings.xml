@@ -11,5 +11,8 @@
     <property name="DoubleClickDistance" type="int" value="12"/>
     <property name="DoubleClickTime" type="int" value="500"/>
     <property name="DndDragThreshold" type="int" value="16"/>
+    <!-- Over VNC, animations and blinking cursors are frames to send -->
+    <property name="EnableAnimations" type="bool" value="false"/>
+    <property name="CursorBlink" type="bool" value="false"/>
   </property>
 </channel>

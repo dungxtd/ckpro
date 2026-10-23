@@ -5,4 +5,6 @@
   <property name="color-foreground" type="string" value="#dcdcdc"/>
   <property name="color-background" type="string" value="#1e1e1e"/>
   <property name="color-cursor" type="string" value="#dcdcdc"/>
+  <!-- A blinking cursor redraws the screen twice a second, idle or not -->
+  <property name="misc-cursor-blinks" type="bool" value="false"/>
 </channel>

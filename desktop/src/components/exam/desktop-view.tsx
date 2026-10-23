@@ -72,6 +72,10 @@ export function DesktopView({
 			rfb.scaleViewport = true;
 			rfb.focusOnClick = true;
 			rfb.background = "#1e1e1e";
+			// Local only (127.0.0.1): bandwidth is free, CPU is not. No zlib
+			// work on either side, and sharp text and images
+			rfb.compressionLevel = 0;
+			rfb.qualityLevel = 8;
 			rfb.addEventListener("connect", () => {
 				setConnected(true);
 				// Without preventScroll the browser scrolls the page to the canvas,

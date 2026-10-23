@@ -96,10 +96,13 @@ pub const DESKTOP_IMAGE: Image = Image {
         ("xsettings.xml", include_bytes!("../../resources/desktop/xsettings.xml")),
         ("gtk.css", include_bytes!("../../resources/desktop/gtk.css")),
         ("xfce4-terminal.xml", include_bytes!("../../resources/desktop/xfce4-terminal.xml")),
+        ("xfwm4.xml", include_bytes!("../../resources/desktop/xfwm4.xml")),
+        ("vscodium-settings.json", include_bytes!("../../resources/desktop/vscodium-settings.json")),
         ("xfce-stripes.png", include_bytes!("../../resources/desktop/xfce-stripes.png")),
         ("xfce4-desktop.xml", include_bytes!("../../resources/desktop/xfce4-desktop.xml")),
         ("trust-launchers.sh", include_bytes!("../../resources/desktop/trust-launchers.sh")),
         ("helpers.rc", include_bytes!("../../resources/desktop/helpers.rc")),
+        ("firefox-esr-helper.desktop", include_bytes!("../../resources/desktop/firefox-esr-helper.desktop")),
         ("terminal.desktop", include_bytes!("../../resources/desktop/terminal.desktop")),
         ("firefox.desktop", include_bytes!("../../resources/desktop/firefox.desktop")),
         ("keyboard.desktop", include_bytes!("../../resources/desktop/keyboard.desktop")),
@@ -243,6 +246,9 @@ async fn remove_older(docker: &Docker, current: &str, log: &(dyn Fn(String) + Sy
 async fn remove_untagged(docker: &Docker, log: &(dyn Fn(String) + Sync)) {
     let filters = HashMap::from([
         ("dangling".to_string(), vec!["true".to_string()]),
+        // Not a build running elsewhere (verify from the CLI while the app
+        // builds): its latest layer is untagged until the next step
+        ("until".to_string(), vec!["30m".to_string()]),
         ("label".to_string(), vec![format!("com.docker.compose.project={}", super::docker::COMPOSE_PROJECT)]),
     ]);
     if let Ok(pruned) = docker
@@ -314,7 +320,19 @@ async fn obtain(docker: &Docker, image: &Image, log: &(dyn Fn(String) + Sync)) -
         Ok(()) => log(format!("Pulled {tag}")),
         Err(e) => {
             log(format!("Not on the registry yet ({e}): building {tag} here"));
-            build(docker, &tag, image, log).await?;
+            // Docker's classic builder on a containerd image store (OrbStack)
+            // now and then loses a lease mid-build; layers built so far are
+            // cached, so trying again is cheap
+            let mut attempt = 1;
+            loop {
+                match build(docker, &tag, image, log).await {
+                    Err(e) if attempt < 3 && e.to_string().contains("lease does not exist") => {
+                        log(format!("Build interrupted by Docker ({e}): trying again"));
+                        attempt += 1;
+                    }
+                    result => break result?,
+                }
+            }
         }
     }
     remove_older(docker, &tag, log).await;

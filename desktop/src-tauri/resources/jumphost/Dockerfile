@@ -11,12 +11,15 @@ ARG ETCD_VERSION
 ARG HELM_VERSION
 ARG YQ_VERSION
 
-# Man pages too (the slim image leaves them out)
+# Man pages too: the slim image leaves them out, also for the tools it ships
+# (coreutils, grep...), which are reinstalled to get theirs
 RUN rm -f /etc/dpkg/dpkg.cfg.d/docker \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
       bash-completion ca-certificates curl wget jq less man-db manpages nano \
       openssh-client openssh-server vim \
+ && apt-get install -y --reinstall --no-install-recommends \
+      bash coreutils findutils grep gzip sed tar util-linux \
  && rm -rf /var/lib/apt/lists/*
 
 RUN arch=$(dpkg --print-architecture) \

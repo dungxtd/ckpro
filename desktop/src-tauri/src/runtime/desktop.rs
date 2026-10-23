@@ -131,8 +131,15 @@ fn firefox_policies(allowed: &[String]) -> String {
             "WebsiteFilter": { "Block": ["<all_urls>"], "Exceptions": exceptions },
             "Homepage": { "URL": allowed.first().cloned().unwrap_or_default(), "StartPage": "homepage", "Locked": true },
             "DisplayBookmarksToolbar": "always",
-            // First run opens Mozilla's privacy notice, which is blocked
-            "Preferences": { "datareporting.policy.firstRunURL": { "Value": "", "Status": "locked" } },
+            // First run opens Mozilla's privacy notice, which is blocked.
+            // Over VNC, smooth scrolling and animations are many frames for
+            // one scroll; the page jumps instead (still adjustable)
+            "Preferences": {
+                "datareporting.policy.firstRunURL": { "Value": "", "Status": "locked" },
+                "general.smoothScroll": { "Value": false, "Status": "default" },
+                "ui.prefersReducedMotion": { "Value": 1, "Status": "default" },
+                "toolkit.cosmeticAnimations.enabled": { "Value": false, "Status": "default" },
+            },
             "ManagedBookmarks": quick_links(allowed),
             "OverrideFirstRunPage": "",
             "OverridePostUpdatePage": "",

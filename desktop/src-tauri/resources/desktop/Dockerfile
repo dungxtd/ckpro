@@ -47,9 +47,11 @@ RUN useradd -m -s /bin/bash -c "Exam Candidate" candidate \
 
 COPY start.sh /usr/local/bin/start-desktop
 COPY trust-launchers.sh /usr/local/bin/trust-launchers
-COPY xsettings.xml xfce4-desktop.xml xfce4-terminal.xml /home/candidate/.config/xfce4/xfconf/xfce-perchannel-xml/
+COPY xsettings.xml xfce4-desktop.xml xfce4-terminal.xml xfwm4.xml /home/candidate/.config/xfce4/xfconf/xfce-perchannel-xml/
+COPY vscodium-settings.json /home/candidate/.config/VSCodium/User/settings.json
 COPY xfce-stripes.png /usr/share/backgrounds/xfce/xfce-stripes.png
 COPY helpers.rc /home/candidate/.config/xfce4/helpers.rc
+COPY firefox-esr-helper.desktop /home/candidate/.local/share/xfce4/helpers/firefox-esr.desktop
 COPY gtk.css /home/candidate/.config/gtk-3.0/gtk.css
 # The exam's desktop icons (xfdesktop opens them through Thunar's service)
 COPY terminal.desktop firefox.desktop codium.desktop keyboard.desktop /home/candidate/Desktop/

@@ -398,24 +398,76 @@ mod tests {
 
     /// A whole attempt through the exam engine, both modes, on a one-question
     /// exam: `cargo test exam_engine -- --ignored --nocapture`
-    #[tokio::test]
-    #[ignore]
-    async fn exam_engine_practice_and_exam_modes() {
-        use lab::exam::{ExamState, Exams, Mode};
-        let pack_dir = std::env::temp_dir().join("ckdry-e2e-pack");
+    /// A pack with one exam ("core/one") of one question, on `cluster`
+    fn one_question_pack(name: &str, cluster: &str) -> (std::path::PathBuf, lab::load::LoadedPack) {
+        let pack_dir = std::env::temp_dir().join(format!("ckdry-e2e-pack-{name}"));
         let _ = std::fs::remove_dir_all(&pack_dir);
         let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/core");
         std::fs::create_dir_all(pack_dir.join("questions/cka")).unwrap();
         std::fs::create_dir_all(pack_dir.join("exams")).unwrap();
         std::fs::copy(core.join("pack.yaml"), pack_dir.join("pack.yaml")).unwrap();
-        // A cluster of its own: kind names are global, and `k8s` is the app's
-        // (a running exam's cluster would be replaced)
-        let cluster = "ckdry-e2e-exam";
         let question_yaml = std::fs::read_to_string(core.join("questions/cka/rbac-ci-token.yaml")).unwrap();
         std::fs::write(pack_dir.join("questions/cka/rbac-ci-token.yaml"), format!("{question_yaml}\ncluster: {cluster}\n")).unwrap();
         std::fs::write(pack_dir.join("exams/one.yaml"), "title: One\ncertification: cka\nquestions: [core/cka/rbac-ci-token]\n").unwrap();
         let (pack, findings) = lab::load::load(&pack_dir);
         assert!(findings.is_empty(), "{:?}", findings.iter().map(|f| &f.message).collect::<Vec<_>>());
+        (pack_dir, pack.unwrap())
+    }
+
+    /// A practice exam held open for driving its desktop over VNC like a
+    /// candidate (tools/vnc-flows): its connection goes to
+    /// $TMPDIR/ckdry-vnc-session.json; touching $TMPDIR/ckdry-vnc-done ends
+    /// it (30 minutes at most) and removes everything.
+    /// `cargo test vnc_session -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn vnc_session() {
+        use lab::exam::{ExamState, Exams, Mode};
+        let cluster = "ckdry-vnc";
+        let desktop = "ckdry-desktop-vnc";
+        let (_, pack) = one_question_pack("vnc", cluster);
+        let tmp = std::env::temp_dir();
+        let (session_file, done_file) = (tmp.join("ckdry-vnc-session.json"), tmp.join("ckdry-vnc-done"));
+        let _ = std::fs::remove_file(&session_file);
+        let _ = std::fs::remove_file(&done_file);
+        let db = tmp.join("ckdry-vnc.db");
+        let _ = std::fs::remove_file(&db);
+        let f = fixture("vnc");
+        let exams = Arc::new(Exams::new(pack, f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, Arc::new(store::Store::open(&db).unwrap()), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}"))));
+        exams.start("core/one", Mode::Practice, true).await.unwrap();
+        eventually("the exam is ready", 300, async || match exams.state() {
+            ExamState::Failed { message, .. } => panic!("exam failed: {message}"),
+            state => matches!(state, ExamState::Running { .. }),
+        })
+        .await;
+        let docker = runtime::docker::connect().await.unwrap();
+        let session = runtime::desktop::session(&docker, desktop).await.unwrap().unwrap();
+        let info = serde_json::json!({
+            "desktop": desktop, "password": session.password, "port": session.port,
+            "jumphost": f.jumphost.name, "host": cluster, "cluster": cluster,
+        });
+        std::fs::write(&session_file, info.to_string()).unwrap();
+        println!("ready: {info}");
+        for _ in 0..(30 * 60) {
+            if done_file.exists() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        exams.end().await.unwrap();
+        f.teardown().await;
+        let _ = std::fs::remove_file(&session_file);
+        println!("ok: session over, cleaned up");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn exam_engine_practice_and_exam_modes() {
+        use lab::exam::{ExamState, Exams, Mode};
+        // A cluster of its own: kind names are global, and `k8s` is the app's
+        // (a running exam's cluster would be replaced)
+        let cluster = "ckdry-e2e-exam";
+        let (pack_dir, pack) = one_question_pack("exam", cluster);
 
         let db = std::env::temp_dir().join("ckdry-e2e-exam.db");
         for suffix in ["", "-wal", "-shm"] {
@@ -424,7 +476,7 @@ mod tests {
         let store = Arc::new(store::Store::open(&db).unwrap());
         let f = fixture("exam");
         let desktop = "ckdry-desktop-test-exam";
-        let exams = Arc::new(Exams::new(pack.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, store.clone(), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}"))));
+        let exams = Arc::new(Exams::new(pack, f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, store.clone(), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}"))));
         let question = "core/cka/rbac-ci-token";
         let wait_running = async || {
             for _ in 0..300 {
@@ -438,8 +490,10 @@ mod tests {
         };
 
         // Practice: check, solve, check, submit
+        let started = std::time::Instant::now();
         exams.start("core/one", Mode::Practice, true).await.unwrap();
         wait_running().await;
+        println!("ok: exam ready in {:.1} s (cluster, task host, desktop, setup)", started.elapsed().as_secs_f64());
         let ExamState::Running { attempt, ends_at, .. } = exams.state() else { unreachable!() };
         assert!(ends_at.is_none() && !attempt.questions[0].hints.is_empty());
         assert!(exams.check_question(question).await.unwrap().iter().all(|c| !c.passed));
@@ -463,11 +517,69 @@ mod tests {
         let out = on_base("cat /usr/share/firefox-esr/distribution/policies.json").await;
         assert!(out.text.contains("https://kubernetes.io/docs*") && out.text.contains("https://gateway-api.sigs.k8s.io*"), "{}", out.text);
         println!("ok: Firefox allows the CKA documentation only");
+
+        // The candidate's day on base: ssh to the task host and the nodes, the
+        // hosts' tools, the browser, the editor, the keyboard; how fast, how big
+        let started = std::time::Instant::now();
+        let out = on_base(&format!("ssh -o BatchMode=yes {cluster} true")).await;
+        assert_eq!(out.exit_code, 0, "{}", out.text);
+        println!("ok: ssh to the task host in {} ms", started.elapsed().as_millis());
+        let out = on_base(&format!(
+            "ssh -o BatchMode=yes {cluster}-control-plane 'test -f /etc/kubernetes/manifests/etcd.yaml && echo static-pods' \
+             && ssh -o BatchMode=yes {cluster}-worker hostname"
+        ))
+        .await;
+        assert!(out.exit_code == 0 && out.text.contains("static-pods") && out.text.contains(&format!("{cluster}-worker")), "{}", out.text);
+        println!("ok: ssh from base to the nodes");
+        let out = on_base(&format!(
+            "ssh -o BatchMode=yes {cluster} bash -s <<'EOF'\n\
+             bash -ic 'type k; complete -p k' 2>/dev/null\n\
+             helm version --short\n\
+             etcdctl version | head -1\n\
+             etcdutl version | head -1\n\
+             man -w ls\n\
+             EOF"
+        ))
+        .await;
+        for expected in ["k is aliased to `kubectl'", "complete", "v3.", "etcdctl version", "etcdutl version", "/usr/share/man"] {
+            assert!(out.text.contains(expected), "no {expected:?} in {}", out.text);
+        }
+        println!("ok: the task host has k (with completion), helm, etcdctl, etcdutl, man");
+        let out = on_base(
+            "python3 -c \"import urllib.request as u; print(u.urlopen('https://kubernetes.io/pagefind/pagefind-entry.json', timeout=20).status)\"",
+        )
+        .await;
+        assert_eq!(out.text.trim(), "200", "{}", out.text);
+        println!("ok: kubernetes.io search (Pagefind) is reachable from base");
+        let out = on_base(
+            "codium --no-sandbox --version | head -1 && ! grep -q extensionsGallery /usr/share/codium/resources/app/product.json && command -v onboard",
+        )
+        .await;
+        assert_eq!(out.exit_code, 0, "{}", out.text);
+        println!("ok: VSCodium {} (no extension marketplace) and the virtual keyboard", out.text.lines().next().unwrap_or_default());
+        let started = std::time::Instant::now();
+        assert_eq!(on_base("DISPLAY=:1 nohup firefox-esr >/tmp/firefox.log 2>&1 &").await.exit_code, 0);
+        eventually("Firefox runs on the desktop", 30, async || {
+            on_base("pgrep -f firefox-esr >/dev/null && ! grep -qiE 'crash|segfault' /tmp/firefox.log").await.exit_code == 0
+        })
+        .await;
+        println!("  firefox up in {} ms", started.elapsed().as_millis());
+        let stats = std::process::Command::new("docker")
+            .env("PATH", runtime::docker::cli_path())
+            .args(["stats", "--no-stream", "--format", "{{.Name}} {{.MemUsage}} {{.CPUPerc}}"])
+            .output()
+            .unwrap();
+        let containers = [desktop.to_string(), f.jumphost.name.clone(), format!("{cluster}-control-plane"), format!("{cluster}-worker")];
+        for line in String::from_utf8_lossy(&stats.stdout).lines().filter(|l| containers.iter().any(|c| l.starts_with(&format!("{c} ")))) {
+            println!("  {line}");
+        }
         assert_eq!(on_base("command -v codium").await.exit_code, 0);
         runtime::desktop::reset(&docker, desktop).await.unwrap();
-        eventually("Reset desktop brings it back with VSCodium and the same allowed docs", 30, async || {
+        // VNC itself must be back, not just the container (a stale X lock once
+        // kept Xvnc down while websockify kept the container up)
+        eventually("Reset desktop brings back VNC, VSCodium and the same allowed docs", 30, async || {
             runtime::desktop::session(&docker, desktop).await.ok().flatten().is_some()
-                && on_base("grep -q kubernetes.io/docs /usr/share/firefox-esr/distribution/policies.json").await.exit_code == 0
+                && on_base("exec 3<>/dev/tcp/127.0.0.1/5901 && grep -q kubernetes.io/docs /usr/share/firefox-esr/distribution/policies.json").await.exit_code == 0
         })
         .await;
         let solution = exams.solution(question).unwrap();
@@ -536,6 +648,10 @@ mod tests {
         .unwrap();
         assert!(exit == 0 && out.contains("in-progress") && out.contains("configmap/work-in-progress"), "{out}");
         println!("ok: the work on the task host and in the cluster survived");
+        eventually("the desktop's VNC is back after the restart", 30, async || {
+            exec::run(&docker, desktop, &["bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/5901"], &[], None).await.is_ok_and(|o| o.exit_code == 0)
+        })
+        .await;
         exams.submit().unwrap();
         eventually("exam graded, unsolved fails", 60, async || {
             matches!(exams.state(), ExamState::Finished { ref result, .. } if !result.passed)
