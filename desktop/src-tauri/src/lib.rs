@@ -49,6 +49,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     ])
 }
 
+/// Bindings are exported by debug builds (and checked by a test)
+#[cfg(debug_assertions)]
 fn typescript() -> specta_typescript::Typescript {
     specta_typescript::Typescript::default().header("// @ts-nocheck")
 }
