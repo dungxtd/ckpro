@@ -236,6 +236,7 @@ solution:
         projected:
           sources:
           - serviceAccountToken:
+              path: token
               expirationSeconds: 3600
               audience: kubernetes.default.svc
     ```
@@ -297,6 +298,7 @@ solution:
         projected:
           sources:
           - serviceAccountToken:
+              path: token
               expirationSeconds: 3600
               audience: kubernetes.default.svc
     MANIFEST

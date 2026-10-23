@@ -3,8 +3,10 @@
 title: Pod Priority and Anti-affinity
 certifications:  # review: domains guessed from concepts
   cka: workloads-scheduling
+# q07 taints {{worker2}} in the same cluster; anti-affinity needs two
+# schedulable workers besides it
+workers: 3
 difficulty: hard
-workers: 2
 namespace: scheduling
 tags: [scheduling, priority, anti-affinity]
 

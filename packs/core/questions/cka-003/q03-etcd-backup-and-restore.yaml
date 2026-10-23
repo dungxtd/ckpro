@@ -13,15 +13,15 @@ statement: |
 
   Then, verify the snapshot is valid by restoring it into a new local data directory `/tmp/exam/etcd-restored`.
 
-  This environment is not the real exam environment: use etcd endpoint `https://k8s-control-plane:2379`, with client certificates located at:
+  This environment is not the real exam environment: use etcd endpoint `https://{{control_plane}}:2379`, with client certificates located at:
 
-  - CA cert: `/root/.ckdry/etcd/k8s/ca.crt`
-  - Client cert: `/root/.ckdry/etcd/k8s/client.crt`
-  - Client key: `/root/.ckdry/etcd/k8s/client.key`
+  - CA cert: `{{etcd_certs}}/ca.crt`
+  - Client cert: `{{etcd_certs}}/client.crt`
+  - Client key: `{{etcd_certs}}/client.key`
 
   Example commands:
 
-  `ETCDCTL_API=3 etcdctl snapshot save /tmp/exam/etcd-snapshot.db --endpoints=https://k8s-control-plane:2379 --cacert=/root/.ckdry/etcd/k8s/ca.crt --cert=/root/.ckdry/etcd/k8s/client.crt --key=/root/.ckdry/etcd/k8s/client.key`
+  `ETCDCTL_API=3 etcdctl snapshot save /tmp/exam/etcd-snapshot.db --endpoints=https://{{control_plane}}:2379 --cacert={{etcd_certs}}/ca.crt --cert={{etcd_certs}}/client.crt --key={{etcd_certs}}/client.key`
 
   `ETCDCTL_API=3 etcdutl snapshot restore /tmp/exam/etcd-snapshot.db --data-dir=/tmp/exam/etcd-restored`
 
@@ -29,7 +29,7 @@ setup: |
   set -e
 
   # The real etcd cluster (Part A infra change) and client certs at
-  # /root/.ckdry/etcd/k8s already exist cluster-wide, nothing to provision here.
+  # {{etcd_certs}} already exist cluster-wide, nothing to provision here.
   mkdir -p /tmp/exam
 
 checks:
@@ -52,9 +52,9 @@ checks:
       fi
 
       ETCDCTL_API=3 etcdutl snapshot status "$SNAPSHOT" \
-        --cacert=/root/.ckdry/etcd/k8s/ca.crt \
-        --cert=/root/.ckdry/etcd/k8s/client.crt \
-        --key=/root/.ckdry/etcd/k8s/client.key \
+        --cacert={{etcd_certs}}/ca.crt \
+        --cert={{etcd_certs}}/client.crt \
+        --key={{etcd_certs}}/client.key \
         --write-out=table > /dev/null 2>&1 || {
           echo "etcdutl snapshot status reported the snapshot file is not a valid etcd snapshot"
           exit 1
@@ -92,10 +92,10 @@ solution:
     ### Solution
     ```bash
     ETCDCTL_API=3 etcdctl snapshot save /tmp/exam/etcd-snapshot.db \
-      --endpoints=https://k8s-control-plane:2379 \
-      --cacert=/root/.ckdry/etcd/k8s/ca.crt \
-      --cert=/root/.ckdry/etcd/k8s/client.crt \
-      --key=/root/.ckdry/etcd/k8s/client.key
+      --endpoints=https://{{control_plane}}:2379 \
+      --cacert={{etcd_certs}}/ca.crt \
+      --cert={{etcd_certs}}/client.crt \
+      --key={{etcd_certs}}/client.key
 
     ETCDCTL_API=3 etcdutl snapshot status /tmp/exam/etcd-snapshot.db --write-out=table
 
@@ -104,16 +104,16 @@ solution:
     ```
 
     ### Environment-specific adaptation
-    On the real CKA exam you run these commands **on the control-plane node itself** (`ssh k8s-control-plane` here), with etcd listening on `https://127.0.0.1:2379` and certs under `/etc/kubernetes/pki/etcd/`. That works in this simulator too. For convenience the jumphost can also reach etcd at `k8s-control-plane:2379`, with a client cert copied to `/root/.ckdry/etcd/k8s/`; the commands above use that.
+    On the real CKA exam you run these commands **on the control-plane node itself** (`ssh {{control_plane}}` here), with etcd listening on `https://127.0.0.1:2379` and certs under `/etc/kubernetes/pki/etcd/`. That works in this simulator too. For convenience the jumphost can also reach etcd at `{{control_plane}}:2379`, with a client cert copied to `{{etcd_certs}}/`; the commands above use that.
 
-    Also note: verification in this lab only checks that `etcdutl snapshot restore` produced a **structurally valid** etcd data directory (i.e. it contains a `member/snap` subdirectory). To practise the full restore, ssh to `k8s-control-plane` and point `/etc/kubernetes/manifests/etcd.yaml` at the restored data directory.
+    Also note: verification in this lab only checks that `etcdutl snapshot restore` produced a **structurally valid** etcd data directory (i.e. it contains a `member/snap` subdirectory). To practise the full restore, ssh to `{{control_plane}}` and point `/etc/kubernetes/manifests/etcd.yaml` at the restored data directory.
   # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     ETCDCTL_API=3 etcdctl snapshot save /tmp/exam/etcd-snapshot.db \
-      --endpoints=https://k8s-control-plane:2379 \
-      --cacert=/root/.ckdry/etcd/k8s/ca.crt \
-      --cert=/root/.ckdry/etcd/k8s/client.crt \
-      --key=/root/.ckdry/etcd/k8s/client.key
+      --endpoints=https://{{control_plane}}:2379 \
+      --cacert={{etcd_certs}}/ca.crt \
+      --cert={{etcd_certs}}/client.crt \
+      --key={{etcd_certs}}/client.key
 
     ETCDCTL_API=3 etcdutl snapshot status /tmp/exam/etcd-snapshot.db --write-out=table
 

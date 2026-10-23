@@ -8,36 +8,36 @@ namespace: default
 tags: [static-pods, kubelet, nodes]
 
 statement: |
-  Create a static pod named `static-web` on the node `k8s-worker`, using the
+  Create a static pod named `static-web` on the node `{{worker1}}`, using the
   image `nginx:1.19` and exposing container port `80`.
 
   The kubelet on that node must run it from its static pod manifest directory.
 
 checks:
-  - name: Mirror pod static-web-k8s-worker runs on k8s-worker
+  - name: Mirror pod static-web-{{worker1}} runs on {{worker1}}
     weight: 3
     jsonpath:
-      resource: pod/static-web-k8s-worker
+      resource: pod/static-web-{{worker1}}
       namespace: default
       path: "{.spec.nodeName}"
-      equals: k8s-worker
+      equals: "{{worker1}}"
   - name: It runs the image nginx:1.19
     jsonpath:
-      resource: pod/static-web-k8s-worker
+      resource: pod/static-web-{{worker1}}
       namespace: default
       path: "{.spec.containers[0].image}"
       equals: "nginx:1.19"
   - name: It exposes container port 80
     jsonpath:
-      resource: pod/static-web-k8s-worker
+      resource: pod/static-web-{{worker1}}
       namespace: default
       path: "{.spec.containers[*].ports[*].containerPort}"
       equals: "80"
   - name: The manifest lives in the kubelet's static pod directory
     run: |
-      path=$(ssh k8s-worker "grep staticPodPath /var/lib/kubelet/config.yaml | awk '{print \$2}'")
-      ssh k8s-worker "grep -l 'name: static-web' ${path:-/etc/kubernetes/manifests}/*.yaml" >/dev/null 2>&1 \
-        || { echo "no static-web manifest in ${path:-/etc/kubernetes/manifests} on k8s-worker"; exit 1; }
+      path=$(ssh {{worker1}} "grep staticPodPath /var/lib/kubelet/config.yaml | awk '{print \$2}'")
+      ssh {{worker1}} "grep -l 'name: static-web' ${path:-/etc/kubernetes/manifests}/*.yaml" >/dev/null 2>&1 \
+        || { echo "no static-web manifest in ${path:-/etc/kubernetes/manifests} on {{worker1}}"; exit 1; }
 
 hints:
   - Static pods are started by the kubelet of one node, not by the API server. Get onto that node first.
@@ -45,11 +45,11 @@ hints:
 
 solution:
   explain: |
-    The kubelet on `k8s-worker` watches `staticPodPath` (`/etc/kubernetes/manifests`
+    The kubelet on `{{worker1}}` watches `staticPodPath` (`/etc/kubernetes/manifests`
     on kubeadm nodes) and runs every Pod manifest it finds there. The API server
     shows a read-only *mirror pod* named `<pod>-<node>`.
   run: |
-    ssh k8s-worker 'cat > /etc/kubernetes/manifests/static-web.yaml' <<'MANIFEST'
+    ssh {{worker1}} 'cat > /etc/kubernetes/manifests/static-web.yaml' <<'MANIFEST'
     apiVersion: v1
     kind: Pod
     metadata:

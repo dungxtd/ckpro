@@ -4,7 +4,7 @@
 
 use super::model::{CanICheck, Check, CheckKind, Expectation, JsonpathCheck, ResourceRef};
 use crate::error::AppResult;
-use crate::runtime::{exec, infra};
+use crate::runtime::exec;
 use bollard::Docker;
 use serde::Serialize;
 
@@ -18,14 +18,16 @@ pub struct CheckResult {
 }
 
 /// Run a script on the jumphost against `cluster`; (exit code, output).
-pub async fn run_script(docker: &Docker, cluster: &str, script: &str) -> AppResult<(i64, String)> {
+/// Passed as an argument, not on stdin: commands in the script that read
+/// stdin (`ssh node ...`) would otherwise swallow the rest of the script.
+pub async fn run_script(docker: &Docker, jumphost: &str, cluster: &str, script: &str) -> AppResult<(i64, String)> {
     let wrapped = format!("{}\n{script}", scoped_kubeconfig(cluster));
-    let out = exec::run(docker, infra::JUMPHOST, &["bash", "-s"], &[], Some(wrapped.as_bytes())).await?;
+    let out = exec::run(docker, jumphost, &["bash", "-c", &wrapped], &[], None).await?;
     Ok((out.exit_code, out.text))
 }
 
-pub async fn run_check(docker: &Docker, cluster: &str, check: &Check) -> AppResult<CheckResult> {
-    let (exit, output) = run_script(docker, cluster, &script(&check.kind)).await?;
+pub async fn run_check(docker: &Docker, jumphost: &str, cluster: &str, check: &Check) -> AppResult<CheckResult> {
+    let (exit, output) = run_script(docker, jumphost, cluster, &script(&check.kind)).await?;
     let last_line = output.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim().to_string();
     Ok(CheckResult {
         name: check.name.clone(),

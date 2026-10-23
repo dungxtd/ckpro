@@ -1,6 +1,6 @@
 //! Infrastructure shared by every exam, created once and kept between exams:
 //! the `kind` network, pull-through registry caches, the exam node image
-//! (kind node + sshd) and the jumphost the candidate works from.
+//! (kind node + sshd) and the jumphost image (see `runtime::jumphost`).
 
 use super::docker::compose_labels;
 use crate::error::{AppError, AppResult};
@@ -18,7 +18,6 @@ pub const NETWORK: &str = "kind";
 pub const KIND_NODE_BASE: &str = "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0";
 pub const NODE_IMAGE: &str = "ckdry/node:v1.35.8";
 pub const JUMPHOST_IMAGE: &str = "ckdry/jumphost:v1.35.8";
-pub const JUMPHOST: &str = "ckdry-jumphost";
 
 /// Tools on the jumphost, in step with the cluster version (CKA runs v1.35)
 const KUBECTL_VERSION: &str = "v1.35.8";
@@ -48,11 +47,6 @@ impl Infra {
     /// containerd registry config mounted into every node
     pub fn certs_dir(&self) -> PathBuf {
         self.dir.join("certs.d")
-    }
-
-    /// Files the app writes for the jumphost, mounted at /root/.ckdry
-    pub fn jumphost_dir(&self) -> PathBuf {
-        self.dir.join("jumphost")
     }
 
     /// Create whatever is missing. Idempotent and cheap once everything exists.
@@ -87,7 +81,7 @@ impl Infra {
             )
             .await?;
         }
-        self.ensure_jumphost(docker, log).await
+        Ok(())
     }
 
     fn write_certs_d(&self) -> AppResult<()> {
@@ -125,72 +119,10 @@ impl Infra {
         pull_if_missing(docker, "registry:2").await?;
         create_and_start(docker, name, config).await
     }
-
-    async fn ensure_jumphost(&self, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
-        std::fs::create_dir_all(self.jumphost_dir()).map_err(|e| AppError::io("creating jumphost dir", e))?;
-        // A jumphost from another data dir (older install, tests) would show
-        // the wrong clusters: replace it
-        let source = self.jumphost_dir().display().to_string();
-        if let Ok(info) = docker.inspect_container(JUMPHOST, None).await {
-            let mounted = info
-                .mounts
-                .unwrap_or_default()
-                .iter()
-                .any(|m| m.source.as_deref() == Some(source.as_str()) && m.rw == Some(true));
-            if !mounted {
-                log(format!("Replacing {JUMPHOST} (outdated data directory mount)"));
-                docker
-                    .remove_container(
-                        JUMPHOST,
-                        Some(bollard::query_parameters::RemoveContainerOptions { force: true, ..Default::default() }),
-                    )
-                    .await?;
-            }
-        }
-        if start_existing(docker, JUMPHOST).await? {
-            return Ok(());
-        }
-        log(format!("Starting {JUMPHOST}"));
-        let config = ContainerCreateBody {
-            image: Some(JUMPHOST_IMAGE.into()),
-            hostname: Some("jumphost".into()),
-            labels: Some(compose_labels(JUMPHOST).into_iter().collect()),
-            host_config: Some(HostConfig {
-                // read-write: `kubectl config use-context` writes the kubeconfig
-                binds: Some(vec![format!("{}:/root/.ckdry", self.jumphost_dir().display())]),
-                network_mode: Some(NETWORK.into()),
-                restart_policy: Some(RestartPolicy {
-                    name: Some(RestartPolicyNameEnum::UNLESS_STOPPED),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        create_and_start(docker, JUMPHOST, config).await
-    }
-}
-
-impl Infra {
-    /// A fresh jumphost for a new exam: files the previous candidate left
-    /// (manifests, snapshots, history) must not leak into the next attempt.
-    pub async fn reset_jumphost(&self, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
-        match docker
-            .remove_container(
-                JUMPHOST,
-                Some(bollard::query_parameters::RemoveContainerOptions { force: true, ..Default::default() }),
-            )
-            .await
-        {
-            Ok(()) | Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => {}
-            Err(e) => return Err(e.into()),
-        }
-        self.ensure_jumphost(docker, log).await
-    }
 }
 
 /// Start the container if it exists; false when it does not.
-async fn start_existing(docker: &Docker, name: &str) -> AppResult<bool> {
+pub(crate) async fn start_existing(docker: &Docker, name: &str) -> AppResult<bool> {
     match docker.inspect_container(name, None).await {
         Ok(info) => {
             if !info.state.and_then(|s| s.running).unwrap_or(false) {
@@ -203,7 +135,7 @@ async fn start_existing(docker: &Docker, name: &str) -> AppResult<bool> {
     }
 }
 
-async fn create_and_start(docker: &Docker, name: &str, config: ContainerCreateBody) -> AppResult<()> {
+pub(crate) async fn create_and_start(docker: &Docker, name: &str, config: ContainerCreateBody) -> AppResult<()> {
     docker
         .create_container(Some(CreateContainerOptions { name: Some(name.into()), ..Default::default() }), config)
         .await?;

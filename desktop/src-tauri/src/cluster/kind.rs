@@ -10,14 +10,21 @@ use tokio::process::Command;
 
 const KIND_VERSION: &str = "v0.33.0";
 
-/// Where the app keeps kind, cluster configs and kubeconfigs.
+/// Where the app keeps kind (`bin_dir`) and the configs and kubeconfigs of
+/// the clusters it owns (`dir`).
 pub struct Kind {
+    bin_dir: PathBuf,
     dir: PathBuf,
 }
 
 impl Kind {
     pub fn new(data_dir: PathBuf) -> Self {
-        Self { dir: data_dir }
+        Self { bin_dir: data_dir.clone(), dir: data_dir }
+    }
+
+    /// Clusters owned by one verify run, kept apart from the app's
+    pub fn scoped(data_dir: PathBuf, state_dir: PathBuf) -> Self {
+        Self { bin_dir: data_dir, dir: state_dir }
     }
 
     pub fn kubeconfig(&self, cluster: &str) -> PathBuf {
@@ -33,6 +40,18 @@ impl Kind {
             .collect()
     }
 
+    /// Every kind cluster on this machine, managed by ckdry or not (a run
+    /// interrupted before kind wrote its kubeconfig leaves one unmanaged).
+    pub async fn all_clusters(&self) -> AppResult<Vec<String>> {
+        let output = Command::new(self.binary().await?)
+            .args(["get", "clusters"])
+            .env("PATH", self.kind_path()?)
+            .output()
+            .await
+            .map_err(|e| AppError::cluster(format!("starting kind: {e}")))?;
+        Ok(String::from_utf8_lossy(&output.stdout).lines().map(str::to_string).collect())
+    }
+
     /// Drop the app's files for a cluster that no longer exists.
     pub fn forget(&self, cluster: &str) {
         let _ = std::fs::remove_file(self.kubeconfig(cluster));
@@ -41,11 +60,11 @@ impl Kind {
 
     /// Path to the pinned kind binary, downloaded on first use.
     async fn binary(&self) -> AppResult<PathBuf> {
-        let bin = self.dir.join(format!("kind-{KIND_VERSION}"));
+        let bin = self.bin_dir.join(format!("kind-{KIND_VERSION}"));
         if bin.exists() {
             return Ok(bin);
         }
-        std::fs::create_dir_all(&self.dir).map_err(|e| AppError::io("creating data dir", e))?;
+        std::fs::create_dir_all(&self.bin_dir).map_err(|e| AppError::io("creating data dir", e))?;
         let url = format!(
             "https://github.com/kubernetes-sigs/kind/releases/download/{KIND_VERSION}/{}",
             release_asset()?
@@ -77,7 +96,7 @@ impl Kind {
         let real = docker::cli().ok_or_else(|| AppError::DockerUnavailable {
             message: "The docker CLI was not found. Install OrbStack or Docker Desktop.".into(),
         })?;
-        let shim_dir = self.dir.join("shim");
+        let shim_dir = self.bin_dir.join("shim");
         std::fs::create_dir_all(&shim_dir).map_err(|e| AppError::io("creating docker shim", e))?;
         let labels: String = docker::compose_labels("$name")
             .into_iter()

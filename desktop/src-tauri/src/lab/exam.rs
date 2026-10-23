@@ -11,6 +11,7 @@ use super::model::{Exam, Question, Solution};
 use super::render;
 use crate::cluster::{kind::Kind, lifecycle};
 use crate::error::{AppError, AppResult};
+use crate::runtime::jumphost::{self, Jumphost};
 use crate::runtime::{docker, infra::Infra};
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
@@ -125,6 +126,7 @@ pub struct Exams {
     pack: LoadedPack,
     kind: Arc<Kind>,
     infra: Arc<Infra>,
+    jumphost: Arc<Jumphost>,
     history_dir: PathBuf,
     state: Mutex<ExamState>,
     /// Rendered questions of the current attempt (with solutions)
@@ -138,6 +140,7 @@ impl Exams {
         pack: LoadedPack,
         kind: Arc<Kind>,
         infra: Arc<Infra>,
+        jumphost: Arc<Jumphost>,
         history_dir: PathBuf,
         publish: impl Fn(&ExamState) + Send + Sync + 'static,
     ) -> Self {
@@ -145,6 +148,7 @@ impl Exams {
             pack,
             kind,
             infra,
+            jumphost,
             history_dir,
             state: Mutex::new(ExamState::Idle),
             session: Mutex::new(Vec::new()),
@@ -184,7 +188,7 @@ impl Exams {
 
     /// Start an attempt. Clusters with the names the exam needs must not exist
     /// unless `replace` (they are deleted).
-    pub fn start(self: &Arc<Self>, exam_id: &str, mode: Mode, replace: bool) -> AppResult<()> {
+    pub async fn start(self: &Arc<Self>, exam_id: &str, mode: Mode, replace: bool) -> AppResult<()> {
         if matches!(self.state(), ExamState::Preparing { .. } | ExamState::Running { .. } | ExamState::Grading { .. }) {
             return Err(AppError::invalid("an exam is already in progress"));
         }
@@ -194,7 +198,8 @@ impl Exams {
 
         let questions = self.draw(&exam);
         let clusters = topology(&questions);
-        let taken: Vec<&String> = clusters.keys().filter(|c| self.kind.owned_clusters().contains(*c)).collect();
+        let existing = self.kind.all_clusters().await?;
+        let taken: Vec<&String> = clusters.keys().filter(|c| existing.contains(*c)).collect();
         if !taken.is_empty() && !replace {
             return Err(AppError::invalid(format!(
                 "cluster {} already exists; starting the exam replaces it",
@@ -281,7 +286,8 @@ impl Exams {
         ids.into_iter()
             .filter_map(|id| {
                 let q = &self.pack.questions.get(&id)?.value;
-                Some((id, render::render(q, &render::pick(q, false))))
+                // The app's clusters keep their logical names
+                Some((id, render::render(q, &render::pick(q, false), &q.cluster)))
             })
             .collect()
     }
@@ -297,9 +303,9 @@ impl Exams {
         let log = |line: String| tracing::info!(attempt = %attempt.id, "{line}");
 
         for (name, workers) in clusters {
-            if replace && self.kind.owned_clusters().contains(name) {
+            if replace && self.kind.all_clusters().await?.contains(name) {
                 step(format!("Removing the old cluster {name}"), done);
-                lifecycle::delete(&self.kind, &self.infra, name, &log).await?;
+                lifecycle::delete(&self.kind, name, &log).await?;
             }
             step(format!("Creating cluster {name} (1 control plane, {workers} workers)"), done);
             lifecycle::create(&self.kind, &self.infra, name, *workers, &log, &Default::default()).await?;
@@ -307,11 +313,13 @@ impl Exams {
         }
         let docker = docker::connect().await?;
         step("Preparing the jumphost".into(), done);
-        self.infra.reset_jumphost(&docker, &log).await?;
+        self.jumphost.reset(&docker, &log).await?;
+        self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await?;
         done += 1;
         for (i, (id, q)) in setups.iter().enumerate() {
             step(format!("Setting up question {} of {}", i + 1, setups.len()), done);
-            let (exit, output) = checks::run_script(&docker, &q.cluster, q.setup.as_deref().unwrap_or_default()).await?;
+            let (exit, output) =
+                checks::run_script(&docker, &self.jumphost.name, &q.cluster, q.setup.as_deref().unwrap_or_default()).await?;
             if exit != 0 {
                 return Err(AppError::invalid(format!(
                     "setup of {id} failed: {}",
@@ -364,7 +372,7 @@ impl Exams {
             let mut check_results = Vec::new();
             for check in &q.checks {
                 self.set(ExamState::Grading { attempt: attempt.clone(), done, total });
-                check_results.push(checks::run_check(&docker, &q.cluster, check).await?);
+                check_results.push(checks::run_check(&docker, &self.jumphost.name, &q.cluster, check).await?);
                 done += 1;
             }
             results.push(QuestionResult {
@@ -403,7 +411,7 @@ impl Exams {
         let docker = docker::connect().await?;
         let mut results = Vec::new();
         for check in &question.checks {
-            results.push(checks::run_check(&docker, &question.cluster, check).await?);
+            results.push(checks::run_check(&docker, &self.jumphost.name, &question.cluster, check).await?);
         }
         Ok(results)
     }
@@ -450,10 +458,13 @@ impl Exams {
         let log = |line: String| tracing::info!("{line}");
         for name in clusters {
             if self.kind.owned_clusters().contains(name) {
-                if let Err(e) = lifecycle::delete(&self.kind, &self.infra, name, &log).await {
+                if let Err(e) = lifecycle::delete(&self.kind, name, &log).await {
                     tracing::warn!(cluster = %name, error = %e, "deleting exam cluster");
                 }
             }
+        }
+        if let Ok(docker) = docker::connect().await {
+            let _ = self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await;
         }
     }
 

@@ -3,7 +3,8 @@
 
 use crate::cluster::jobs::Jobs;
 use crate::cluster::{kind::Kind, lifecycle};
-use crate::runtime::infra::{self, Infra};
+use crate::runtime::infra::Infra;
+use crate::runtime::jumphost::{Jumphost, app_placement};
 use crate::error::{AppError, AppResult};
 use crate::lab::script::ScriptResult;
 use crate::runtime::model::{DockerState, Env, EnvState};
@@ -34,6 +35,7 @@ pub fn preflight(env: State<'_, Arc<Env>>, name: String, workers: u8) -> Vec<Che
 pub async fn create_cluster(
     kind: State<'_, Arc<Kind>>,
     infra: State<'_, Arc<Infra>>,
+    jumphost: State<'_, Arc<Jumphost>>,
     jobs: State<'_, Jobs>,
     env: State<'_, Arc<Env>>,
     name: String,
@@ -52,7 +54,13 @@ pub async fn create_cluster(
     let send = |line: String| {
         let _ = log.send(line);
     };
-    let result = lifecycle::create(&kind, &infra, &name, workers, &send, &token).await;
+    let result = async {
+        lifecycle::create(&kind, &infra, &name, workers, &send, &token).await?;
+        let docker = crate::runtime::docker::connect().await?;
+        jumphost.ensure(&docker, &send).await?;
+        jumphost.refresh_access(&docker, &kind, &app_placement(&kind)).await
+    }
+    .await;
     jobs.end(&name);
     env.request_resync();
     result
@@ -62,7 +70,7 @@ pub async fn create_cluster(
 #[specta::specta]
 pub async fn delete_cluster(
     kind: State<'_, Arc<Kind>>,
-    infra: State<'_, Arc<Infra>>,
+    jumphost: State<'_, Arc<Jumphost>>,
     jobs: State<'_, Jobs>,
     name: String,
     log: Channel<String>,
@@ -71,7 +79,11 @@ pub async fn delete_cluster(
     let send = |line: String| {
         let _ = log.send(line);
     };
-    let result = lifecycle::delete(&kind, &infra, &name, &send).await;
+    let result = async {
+        lifecycle::delete(&kind, &name, &send).await?;
+        jumphost.refresh_access(&crate::runtime::docker::connect().await?, &kind, &app_placement(&kind)).await
+    }
+    .await;
     jobs.end(&name);
     result
 }
@@ -89,10 +101,15 @@ pub fn cancel_cluster(jobs: State<'_, Jobs>, name: String) -> bool {
 pub async fn adopt_cluster(
     kind: State<'_, Arc<Kind>>,
     infra: State<'_, Arc<Infra>>,
+    jumphost: State<'_, Arc<Jumphost>>,
     env: State<'_, Arc<Env>>,
     name: String,
 ) -> AppResult<()> {
-    lifecycle::adopt(&kind, &infra, &name, &|line| tracing::info!("{line}")).await?;
+    let log = |line: String| tracing::info!("{line}");
+    lifecycle::adopt(&kind, &infra, &name, &log).await?;
+    let docker = crate::runtime::docker::connect().await?;
+    jumphost.ensure(&docker, &log).await?;
+    jumphost.refresh_access(&docker, &kind, &app_placement(&kind)).await?;
     env.request_resync();
     Ok(())
 }
@@ -108,8 +125,8 @@ pub async fn repair_cluster(name: String) -> AppResult<()> {
 /// Run a lab script on the jumphost.
 #[tauri::command]
 #[specta::specta]
-pub async fn run_script(path: String) -> AppResult<ScriptResult> {
-    crate::lab::script::run(&path).await
+pub async fn run_script(jumphost: State<'_, Arc<Jumphost>>, path: String) -> AppResult<ScriptResult> {
+    crate::lab::script::run(&jumphost.name, &path).await
 }
 
 /// Shell on the jumphost (no `container`) or directly on a cluster node.
@@ -117,10 +134,11 @@ pub async fn run_script(path: String) -> AppResult<ScriptResult> {
 #[specta::specta]
 pub async fn terminal_open(
     terminals: State<'_, Terminals>,
+    jumphost: State<'_, Arc<Jumphost>>,
     container: Option<String>,
     events: Channel<TerminalEvent>,
 ) -> AppResult<String> {
-    let container = container.unwrap_or_else(|| infra::JUMPHOST.into());
+    let container = container.unwrap_or_else(|| jumphost.name.clone());
     terminals.open(&container, vec!["TERM=xterm-256color".into()], events).await
 }
 
@@ -171,8 +189,8 @@ pub fn exam_state(exams: State<'_, Arc<Exams>>) -> ExamState {
 /// names the exam needs.
 #[tauri::command]
 #[specta::specta]
-pub fn start_exam(exams: State<'_, Arc<Exams>>, id: String, mode: Mode, replace: bool) -> AppResult<()> {
-    exams.inner().start(&id, mode, replace)
+pub async fn start_exam(exams: State<'_, Arc<Exams>>, id: String, mode: Mode, replace: bool) -> AppResult<()> {
+    exams.inner().start(&id, mode, replace).await
 }
 
 #[tauri::command]

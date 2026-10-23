@@ -175,6 +175,10 @@ solution:
   explain: |
     ### Solution
 
+    Current Kustomize uses `resources` (not the deprecated `bases`) and `labels`
+    (not `commonLabels`); the commands below write the three files and apply
+    the overlay.
+
     First, create the directory structure:
     ```bash
     mkdir -p /tmp/exam/kustomize/base
@@ -250,13 +254,9 @@ solution:
     kubectl get configmaps -n kustomize
     kubectl get pods -n kustomize
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
-    mkdir -p /tmp/exam/kustomize/base
-    mkdir -p /tmp/exam/kustomize/overlays/production
-
-    kubectl apply -f - <<'MANIFEST'
-    # /tmp/exam/kustomize/base/deployment.yaml
+    mkdir -p /tmp/exam/kustomize/base /tmp/exam/kustomize/overlays/production
+    cat > /tmp/exam/kustomize/base/deployment.yaml <<'EOF'
     apiVersion: apps/v1
     kind: Deployment
     metadata:
@@ -272,47 +272,44 @@ solution:
             app: nginx
         spec:
           containers:
-          - name: nginx
-            image: nginx
-            volumeMounts:
-            - name: nginx-index
-              mountPath: /usr/share/nginx/html/
+            - name: nginx
+              image: nginx
+              volumeMounts:
+                - name: nginx-index
+                  mountPath: /usr/share/nginx/html/
           volumes:
-          - name: nginx-index
-            configMap:
-              name: nginx-config
-
-    # /tmp/exam/kustomize/base/kustomization.yaml
+            - name: nginx-index
+              configMap:
+                name: nginx-config
+    EOF
+    cat > /tmp/exam/kustomize/base/kustomization.yaml <<'EOF'
     apiVersion: kustomize.config.k8s.io/v1beta1
     kind: Kustomization
     resources:
-    - deployment.yaml
-
-    # /tmp/exam/kustomize/overlays/production/kustomization.yaml
+      - deployment.yaml
+    EOF
+    cat > /tmp/exam/kustomize/overlays/production/kustomization.yaml <<'EOF'
     apiVersion: kustomize.config.k8s.io/v1beta1
     kind: Kustomization
     namespace: kustomize
-    bases:
-    - ../../base
+    resources:
+      - ../../base
+    labels:
+      - pairs:
+          environment: production
+        includeSelectors: true
     patches:
-    - patch: |
-        - op: replace
-          path: /spec/replicas
-          value: 3
-      target:
-        kind: Deployment
-        name: nginx
-    commonLabels:
-      environment: production
+      - target:
+          kind: Deployment
+          name: nginx
+        patch: |
+          - op: replace
+            path: /spec/replicas
+            value: 3
     configMapGenerator:
-    - name: nginx-config
-      literals:
-      - index.html=Welcome to Production
-    MANIFEST
-
-    kubectl create namespace kustomize
+      - name: nginx-config
+        literals:
+          - index.html=Welcome to Production
+    EOF
+    kubectl create namespace kustomize --dry-run=client -o yaml | kubectl apply -f -
     kubectl apply -k /tmp/exam/kustomize/overlays/production/
-
-    kubectl get deployments -n kustomize
-    kubectl get configmaps -n kustomize
-    kubectl get pods -n kustomize

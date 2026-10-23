@@ -119,18 +119,21 @@ pub fn run() {
             builder.mount_events(app);
             let data_dir = data_dir();
             let kind = Arc::new(cluster::kind::Kind::new(data_dir.clone()));
-            app.manage(Arc::new(runtime::infra::Infra::new(data_dir)));
+            app.manage(Arc::new(runtime::infra::Infra::new(data_dir.clone())));
+            app.manage(Arc::new(runtime::jumphost::Jumphost::app(&data_dir)));
             let handle = app.handle().clone();
             let env = Arc::new(Env::new(move |state| {
                 let _ = EnvChanged(state.clone()).emit(&handle);
             }));
             runtime::monitor::start(env.clone(), kind.clone());
             let infra = app.state::<Arc<runtime::infra::Infra>>().inner().clone();
+            let jumphost = app.state::<Arc<runtime::jumphost::Jumphost>>().inner().clone();
             let exams_handle = app.handle().clone();
             let exams = Arc::new(lab::exam::Exams::new(
                 load_pack(app.path().resource_dir().ok()),
                 kind.clone(),
                 infra,
+                jumphost,
                 crate::data_dir().join("history"),
                 move |state| {
                     let _ = ExamChanged(state.clone()).emit(&exams_handle);
@@ -165,24 +168,47 @@ mod tests {
     struct Fixture {
         kind: Arc<cluster::kind::Kind>,
         infra: Arc<infra::Infra>,
+        jumphost: Arc<runtime::jumphost::Jumphost>,
     }
 
-    fn fixture(dir: &str) -> Fixture {
-        let dir = std::env::temp_dir().join(dir);
+    /// Clusters, kind state and a jumphost of the test's own
+    fn fixture(name: &str) -> Fixture {
+        let dir = std::env::temp_dir().join(format!("ckdry-e2e-{name}"));
         Fixture {
             kind: Arc::new(cluster::kind::Kind::new(dir.clone())),
-            infra: Arc::new(infra::Infra::new(dir)),
+            infra: Arc::new(infra::Infra::new(dir.clone())),
+            jumphost: Arc::new(runtime::jumphost::Jumphost::for_run(&dir, &format!("test-{name}"))),
+        }
+    }
+
+    impl Fixture {
+        /// Create a cluster and give the jumphost access to it
+        async fn create(&self, cluster: &str, workers: u8) {
+            cluster::lifecycle::create(&self.kind, &self.infra, cluster, workers, &log, &Default::default()).await.unwrap();
+            self.refresh().await;
+        }
+
+        async fn delete(&self, cluster: &str) {
+            cluster::lifecycle::delete(&self.kind, cluster, &log).await.unwrap();
+            self.refresh().await;
+        }
+
+        async fn refresh(&self) {
+            let docker = runtime::docker::connect().await.unwrap();
+            self.jumphost.ensure(&docker, &log).await.unwrap();
+            let placement = runtime::jumphost::app_placement(&self.kind);
+            self.jumphost.refresh_access(&docker, &self.kind, &placement).await.unwrap();
+        }
+
+        /// Shell command on the jumphost, as the candidate would type it
+        async fn on_jumphost(&self, cmd: &str) -> exec::Output {
+            let docker = runtime::docker::connect().await.unwrap();
+            exec::run(&docker, &self.jumphost.name, &["bash", "-lc", cmd], &[], None).await.unwrap()
         }
     }
 
     fn log(line: String) {
         println!("  | {line}");
-    }
-
-    /// Shell command on the jumphost, as the candidate would type it.
-    async fn on_jumphost(cmd: &str) -> exec::Output {
-        let docker = runtime::docker::connect().await.unwrap();
-        exec::run(&docker, infra::JUMPHOST, &["bash", "-lc", cmd], &[], None).await.unwrap()
     }
 
     async fn eventually(what: &str, attempts: u32, check: impl AsyncFn() -> bool) {
@@ -202,31 +228,31 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn exam_cluster_from_the_jumphost() {
-        let f = fixture("ckdry-e2e");
+        let f = fixture("cluster");
         let name = "ckdry-e2e";
         let started = std::time::Instant::now();
-        cluster::lifecycle::create(&f.kind, &f.infra, name, 1, &log, &Default::default()).await.unwrap();
+        f.create(name, 1).await;
         println!("created in {:?}", started.elapsed());
 
         let docker = runtime::docker::connect().await.unwrap();
-        for container in [format!("{name}-control-plane"), format!("{name}-worker"), infra::JUMPHOST.into()] {
+        for container in [format!("{name}-control-plane"), format!("{name}-worker"), f.jumphost.name.clone()] {
             let labels = docker.inspect_container(&container, None).await.unwrap().config.unwrap().labels.unwrap();
             assert_eq!(labels.get("com.docker.compose.project").map(String::as_str), Some("ckdry"), "{container}");
         }
         println!("ok: nodes and jumphost are in the ckdry compose project");
 
-        let out = on_jumphost("kubectl config current-context && kubectl get nodes --no-headers | wc -l").await;
+        let out = f.on_jumphost("kubectl config current-context && kubectl get nodes --no-headers | wc -l").await;
         assert_eq!(out.text.split_whitespace().collect::<Vec<_>>(), [name, "2"], "{}", out.text);
         println!("ok: jumphost kubectl has context {name} with 2 nodes");
 
-        let out = on_jumphost(&format!(
+        let out = f.on_jumphost(&format!(
             "ssh {name}-worker hostname && ssh {name}-control-plane 'ls /etc/kubernetes/manifests; systemctl is-active kubelet'"
         ))
         .await;
         assert!(out.text.contains(&format!("{name}-worker")) && out.text.contains("etcd.yaml") && out.text.contains("active"), "{}", out.text);
         println!("ok: ssh to nodes, static pods and kubelet visible");
 
-        let out = on_jumphost(&format!(
+        let out = f.on_jumphost(&format!(
             "d=/root/.ckdry/etcd/{name}; etcdctl --endpoints=https://{name}-control-plane:2379 --cacert=$d/ca.crt --cert=$d/client.crt --key=$d/client.key endpoint health"
         ))
         .await;
@@ -234,11 +260,11 @@ mod tests {
         println!("ok: etcdctl from the jumphost");
 
         eventually("kubectl top nodes (metrics-server)", 60, async || {
-            on_jumphost("kubectl top nodes").await.exit_code == 0
+            f.on_jumphost("kubectl top nodes").await.exit_code == 0
         })
         .await;
 
-        let out = on_jumphost("kubectl run web --image=nginx:alpine && kubectl wait --for=condition=Ready pod/web --timeout=180s").await;
+        let out = f.on_jumphost("kubectl run web --image=nginx:alpine && kubectl wait --for=condition=Ready pod/web --timeout=180s").await;
         assert_eq!(out.exit_code, 0, "{}", out.text);
         let catalog = exec::run(&docker, infra::MIRRORS[0].0, &["wget", "-qO-", "http://127.0.0.1:5000/v2/_catalog"], &[], None).await.unwrap();
         assert!(catalog.text.contains("library/nginx"), "{}", catalog.text);
@@ -246,13 +272,13 @@ mod tests {
 
         // A CK-X validation script, graded on the jumphost: FAIL, then PASS
         let ckx = "/Users/d/pwd/CK-X/facilitator/assets/exams/cka/001/scripts/validation/q1_s1_validate_namespace.sh";
-        assert_ne!(lab::script::run(ckx).await.unwrap().exit_code, 0);
-        assert_eq!(on_jumphost("kubectl create namespace app-team1").await.exit_code, 0);
-        assert_eq!(lab::script::run(ckx).await.unwrap().exit_code, 0);
+        assert_ne!(lab::script::run(&f.jumphost.name, ckx).await.unwrap().exit_code, 0);
+        assert_eq!(f.on_jumphost("kubectl create namespace app-team1").await.exit_code, 0);
+        assert_eq!(lab::script::run(&f.jumphost.name, ckx).await.unwrap().exit_code, 0);
         println!("ok: lab script graded on the jumphost");
 
-        cluster::lifecycle::delete(&f.kind, &f.infra, name, &log).await.unwrap();
-        let out = on_jumphost("kubectl config get-contexts -o name 2>&1").await;
+        f.delete(name).await;
+        let out = f.on_jumphost("kubectl config get-contexts -o name 2>&1").await;
         assert!(!out.text.contains(name), "{}", out.text);
         println!("ok: context removed from the jumphost");
     }
@@ -263,10 +289,10 @@ mod tests {
     #[ignore]
     async fn monitor_tracks_node_failure_and_repair() {
         use runtime::model::{ContainerStatus, Readiness};
-        let f = fixture("ckdry-e2e-monitor");
+        let f = fixture("monitor");
         let name = "ckdry-mon";
         let env = Arc::new(Env::new(|_| {}));
-        cluster::lifecycle::create(&f.kind, &f.infra, name, 1, &log, &Default::default()).await.unwrap();
+        f.create(name, 1).await;
         runtime::monitor::start(env.clone(), f.kind.clone());
         let worker = format!("{name}-worker");
 
@@ -291,7 +317,7 @@ mod tests {
         })
         .await;
 
-        cluster::lifecycle::delete(&f.kind, &f.infra, name, &log).await.unwrap();
+        f.delete(name).await;
         eventually("cluster gone from the state", 30, async || env.snapshot().clusters.is_empty()).await;
     }
 
@@ -313,8 +339,8 @@ mod tests {
         assert!(findings.is_empty(), "{:?}", findings.iter().map(|f| &f.message).collect::<Vec<_>>());
 
         let _ = std::fs::remove_dir_all(std::env::temp_dir().join("ckdry-e2e-history"));
-        let f = fixture("ckdry-e2e-exam");
-        let exams = Arc::new(Exams::new(pack.unwrap(), f.kind.clone(), f.infra.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |s: &ExamState| {
+        let f = fixture("exam");
+        let exams = Arc::new(Exams::new(pack.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |s: &ExamState| {
             if let ExamState::Preparing { step, .. } = s { println!("  | {step}"); }
         }));
         let question = "core/cka/rbac-ci-token";
@@ -330,7 +356,7 @@ mod tests {
         };
 
         // Practice: check, solve, check, submit
-        exams.start("core/one", Mode::Practice, true).unwrap();
+        exams.start("core/one", Mode::Practice, true).await.unwrap();
         wait_running().await;
         let ExamState::Running { attempt, ends_at, .. } = exams.state() else { unreachable!() };
         assert!(ends_at.is_none() && !attempt.questions[0].hints.is_empty());
@@ -338,7 +364,7 @@ mod tests {
         println!("ok: practice check fails before solving");
         let solution = exams.solution(question).unwrap();
         let docker = runtime::docker::connect().await.unwrap();
-        let (exit, out) = lab::checks::run_script(&docker, "k8s", &solution.run).await.unwrap();
+        let (exit, out) = lab::checks::run_script(&docker, &f.jumphost.name, "k8s", &solution.run).await.unwrap();
         assert_eq!(exit, 0, "{out}");
         assert!(exams.check_question(question).await.unwrap().iter().all(|c| c.passed));
         println!("ok: practice check passes after solving");
@@ -352,7 +378,7 @@ mod tests {
         println!("ok: ending removes the clusters");
 
         // Exam: nothing hidden leaks, nothing to check, unsolved scores 0
-        exams.start("core/one", Mode::Exam, true).unwrap();
+        exams.start("core/one", Mode::Exam, true).await.unwrap();
         wait_running().await;
         let ExamState::Running { attempt, ends_at, .. } = exams.state() else { unreachable!() };
         assert!(ends_at.is_some() && attempt.questions[0].hints.is_empty());

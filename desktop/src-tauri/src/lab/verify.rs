@@ -1,8 +1,11 @@
-//! `ckdry lab verify`: prove a pack grades correctly. For the selected
-//! questions it builds their clusters, runs every setup like an exam does,
-//! then per question: all checks must FAIL, the solution must succeed, and
-//! all checks must PASS. A check that passes before the solution cannot tell
-//! a solved task from an unsolved one.
+//! `ckdry lab verify`: prove a pack grades correctly. Each run is isolated:
+//! its own kind clusters (`<logical>-v<run>`), kubeconfigs and jumphost, so
+//! runs go in parallel and never touch the app's exam clusters.
+//!
+//! For the selected questions a run builds their clusters, runs every setup
+//! like an exam does, then per question: all checks must FAIL, the solution
+//! must succeed, and all checks must PASS. A check that passes before the
+//! solution cannot tell a solved task from an unsolved one.
 
 use super::checks::{self, CheckResult};
 use super::load::LoadedPack;
@@ -10,9 +13,12 @@ use super::model::Question;
 use super::render;
 use crate::cluster::{kind::Kind, lifecycle};
 use crate::error::{AppError, AppResult};
+use crate::runtime::jumphost::{Jumphost, Placement};
 use crate::runtime::{docker, infra::Infra};
 use serde::Serialize;
 use std::collections::BTreeMap;
+use std::path::Path;
+use std::time::{Duration, Instant};
 
 #[derive(Serialize)]
 pub struct Report {
@@ -23,116 +29,125 @@ pub struct Report {
     pub after: Vec<CheckResult>,
 }
 
-pub struct Options {
-    /// Keep the clusters afterwards for inspection
-    pub keep: bool,
-    /// Delete clusters that already use the questions' cluster names
-    pub replace: bool,
-}
-
 type Log<'a> = &'a (dyn Fn(String) + Sync);
 
+/// Verify `ids` in a run of their own. `keep` leaves the run's clusters and
+/// jumphost for inspection.
 pub async fn verify(
     pack: &LoadedPack,
     ids: &[String],
-    kind: &Kind,
+    data_dir: &Path,
     infra: &Infra,
-    options: &Options,
+    keep: bool,
     log: Log<'_>,
 ) -> AppResult<Vec<Report>> {
+    let run = format!("{:04x}", rand::random::<u16>());
+    let run_dir = data_dir.join("runs").join(&run);
+    let kind = Kind::scoped(data_dir.to_path_buf(), run_dir.join("kind"));
+    let jumphost = Jumphost::for_run(data_dir, &run);
+
+    // One cluster per logical name, as large as its most demanding question
+    let mut topology: BTreeMap<String, u8> = BTreeMap::new();
+    for id in ids {
+        let q = &pack.questions.get(id).ok_or_else(|| AppError::not_found(format!("no question '{id}'")))?.value;
+        let workers = topology.entry(q.cluster.clone()).or_default();
+        *workers = (*workers).max(q.workers);
+    }
+    let placement: Placement = topology.keys().map(|c| (c.clone(), format!("{c}-v{run}"))).collect();
     let questions: Vec<(String, Question)> = ids
         .iter()
         .map(|id| {
-            let q = pack.questions.get(id).ok_or_else(|| AppError::not_found(format!("no question '{id}'")))?;
-            Ok((id.clone(), render::render(&q.value, &render::pick(&q.value, true))))
+            let q = &pack.questions[id].value;
+            (id.clone(), render::render(q, &render::pick(q, true), &placement[&q.cluster]))
         })
-        .collect::<AppResult<_>>()?;
-
-    // One cluster per name, as large as its most demanding question
-    let mut clusters: BTreeMap<String, u8> = BTreeMap::new();
-    for (_, q) in &questions {
-        let workers = clusters.entry(q.cluster.clone()).or_default();
-        *workers = (*workers).max(q.workers);
-    }
-    for name in clusters.keys() {
-        if kind.owned_clusters().contains(name) {
-            if !options.replace {
-                return Err(AppError::invalid(format!(
-                    "cluster '{name}' already exists (an exam in the app?). Delete it or pass --replace."
-                )));
-            }
-            lifecycle::delete(kind, infra, name, log).await?;
-        }
-    }
+        .collect();
 
     let docker = docker::connect().await?;
-    let mut reports = Vec::new();
     let result = async {
-        for (name, workers) in &clusters {
-            log(format!("Creating cluster {name} with {workers} workers"));
-            lifecycle::create(kind, infra, name, *workers, log, &Default::default()).await?;
+        for (logical, workers) in &topology {
+            let physical = &placement[logical];
+            log(format!("[{run}] creating cluster {logical} ({physical}) with {workers} workers"));
+            lifecycle::create(&kind, infra, physical, *workers, log, &Default::default()).await?;
         }
-        infra.reset_jumphost(&docker, log).await?;
-
-        // Like an exam: every task is set up before the candidate starts
-        let mut setup_failed = BTreeMap::new();
-        for (id, q) in &questions {
-            if let Some(setup) = &q.setup {
-                log(format!("Setting up {id}"));
-                let (exit, output) = checks::run_script(&docker, &q.cluster, setup).await?;
-                if exit != 0 {
-                    setup_failed.insert(id.clone(), tail(&output));
-                }
-            }
-        }
-
-        for (id, q) in &questions {
-            log(format!("Verifying {id}"));
-            let mut problems = Vec::new();
-            if let Some(output) = setup_failed.get(id) {
-                problems.push(format!("setup failed: {output}"));
-            }
-            let mut before = Vec::new();
-            for check in &q.checks {
-                before.push(checks::run_check(&docker, &q.cluster, check).await?);
-            }
-            for c in before.iter().filter(|c| c.passed) {
-                problems.push(format!("check passes before the solution: {}", c.name));
-            }
-            let (exit, output) = checks::run_script(&docker, &q.cluster, &q.solution.run).await?;
-            if exit != 0 {
-                problems.push(format!("solution failed (exit {exit}): {}", tail(&output)));
-            }
-            // Grading happens minutes after the candidate's last command; give
-            // pods, rollouts and mirror pods up to a minute to settle
-            let mut after = Vec::new();
-            for attempt in 0..12 {
-                after.clear();
-                for check in &q.checks {
-                    after.push(checks::run_check(&docker, &q.cluster, check).await?);
-                }
-                if after.iter().all(|c| c.passed) || attempt == 11 {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-            }
-            for c in after.iter().filter(|c| !c.passed) {
-                problems.push(format!("check fails after the solution: {} ({})", c.name, c.detail));
-            }
-            reports.push(Report { question: id.clone(), ok: problems.is_empty(), problems, before, after });
-        }
-        Ok::<_, AppError>(())
+        jumphost.ensure(&docker, log).await?;
+        jumphost.refresh_access(&docker, &kind, &placement).await?;
+        run_questions(&docker, &jumphost.name, &questions, &run, log).await
     }
     .await;
 
-    if !options.keep {
-        for name in clusters.keys() {
-            if let Err(e) = lifecycle::delete(kind, infra, name, log).await {
-                log(format!("could not delete cluster {name}: {e}"));
+    if keep {
+        log(format!("[{run}] kept clusters {:?} and {}", placement.values().collect::<Vec<_>>(), jumphost.name));
+    } else {
+        for physical in placement.values() {
+            if let Err(e) = lifecycle::delete(&kind, physical, log).await {
+                log(format!("[{run}] could not delete cluster {physical}: {e}"));
+            }
+        }
+        let _ = jumphost.remove(&docker).await;
+        let _ = std::fs::remove_dir_all(&run_dir);
+    }
+    result
+}
+
+async fn run_questions(
+    docker: &bollard::Docker,
+    jumphost: &str,
+    questions: &[(String, Question)],
+    run: &str,
+    log: Log<'_>,
+) -> AppResult<Vec<Report>> {
+    // Like an exam: every task is set up before the candidate starts
+    let mut setup_failed = BTreeMap::new();
+    for (id, q) in questions {
+        if let Some(setup) = &q.setup {
+            log(format!("[{run}] setting up {id}"));
+            let (exit, output) = checks::run_script(docker, jumphost, &q.cluster, setup).await?;
+            if exit != 0 {
+                setup_failed.insert(id.clone(), tail(&output));
             }
         }
     }
-    result.map(|_| reports)
+
+    let mut reports = Vec::new();
+    for (id, q) in questions {
+        log(format!("[{run}] verifying {id}"));
+        let mut problems = Vec::new();
+        if let Some(output) = setup_failed.get(id) {
+            problems.push(format!("setup failed: {output}"));
+        }
+        let mut before = Vec::new();
+        for check in &q.checks {
+            before.push(checks::run_check(docker, jumphost, &q.cluster, check).await?);
+        }
+        for c in before.iter().filter(|c| c.passed) {
+            problems.push(format!("check passes before the solution: {}", c.name));
+        }
+        let (exit, output) = checks::run_script(docker, jumphost, &q.cluster, &q.solution.run).await?;
+        if exit != 0 {
+            problems.push(format!("solution failed (exit {exit}): {}", tail(&output)));
+        }
+        // Grading happens minutes after the candidate's last command: give
+        // pods, rollouts and mirror pods up to a minute to settle, re-running
+        // only the checks that still fail
+        let mut after = Vec::new();
+        for check in &q.checks {
+            after.push(checks::run_check(docker, jumphost, &q.cluster, check).await?);
+        }
+        let deadline = Instant::now() + Duration::from_secs(60);
+        while after.iter().any(|c| !c.passed) && Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            for (result, check) in after.iter_mut().zip(&q.checks) {
+                if !result.passed {
+                    *result = checks::run_check(docker, jumphost, &q.cluster, check).await?;
+                }
+            }
+        }
+        for c in after.iter().filter(|c| !c.passed) {
+            problems.push(format!("check fails after the solution: {} ({})", c.name, c.detail));
+        }
+        reports.push(Report { question: id.clone(), ok: problems.is_empty(), problems, before, after });
+    }
+    Ok(reports)
 }
 
 /// Last few lines of a script's output

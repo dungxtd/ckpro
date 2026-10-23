@@ -1,7 +1,6 @@
 //! `ckdry <command>`: the same binary as the app, run headless. Used by lab
 //! authors, CI and AI agents (Claude Code) to check their work.
 
-use crate::cluster::kind::Kind;
 use crate::lab::{lint, load, verify};
 use crate::runtime::infra::Infra;
 use clap::{Parser, Subcommand};
@@ -51,12 +50,13 @@ enum LabCommand {
         /// Verify a question (repeatable), e.g. cka/rbac-ci-token
         #[arg(long = "question")]
         questions: Vec<String>,
-        /// Keep the clusters afterwards for inspection
+        /// Keep the clusters and jumphost of each run for inspection
         #[arg(long)]
         keep: bool,
-        /// Delete existing clusters that use the same names
-        #[arg(long)]
-        replace: bool,
+        /// Runs at once: each --exam is a run, --question ones form one run.
+        /// Each run needs about 2 GB of Docker memory.
+        #[arg(long, default_value_t = 1)]
+        parallel: usize,
         /// Machine-readable report
         #[arg(long)]
         json: bool,
@@ -74,8 +74,8 @@ pub fn is_cli(args: &[String]) -> bool {
 pub fn main() -> ExitCode {
     match Cli::parse().command {
         Command::Lab { command: LabCommand::Lint { pack, json } } => lint_pack(&pack, json),
-        Command::Lab { command: LabCommand::Verify { pack, exams, questions, keep, replace, json } } => {
-            verify_pack(&pack, &exams, &questions, verify::Options { keep, replace }, json)
+        Command::Lab { command: LabCommand::Verify { pack, exams, questions, keep, parallel, json } } => {
+            verify_pack(&pack, &exams, &questions, keep, parallel.max(1), json)
         }
         Command::Schema { out } => write_schemas(&out),
     }
@@ -107,13 +107,7 @@ fn lint_pack(root: &PathBuf, json: bool) -> ExitCode {
     if errors == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE }
 }
 
-fn verify_pack(
-    root: &PathBuf,
-    exams: &[String],
-    questions: &[String],
-    options: verify::Options,
-    json: bool,
-) -> ExitCode {
+fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: bool, parallel: usize, json: bool) -> ExitCode {
     let (pack, mut findings) = load::load(root);
     let Some(pack) = pack else {
         return lint_pack(root, false);
@@ -124,50 +118,93 @@ fn verify_pack(
         return ExitCode::FAILURE;
     }
     // Ids may omit the pack prefix
-    let full = |id: &String| if id.contains('/') && id.starts_with(&format!("{}/", pack.pack.id)) { id.clone() } else { format!("{}/{id}", pack.pack.id) };
-    let mut ids: Vec<String> = Vec::new();
+    let prefix = format!("{}/", pack.pack.id);
+    let full = |id: &String| if id.starts_with(&prefix) { id.clone() } else { format!("{prefix}{id}") };
+
+    // One isolated run per exam, plus one for loose questions
+    let mut runs: Vec<(String, Vec<String>)> = Vec::new();
     for exam in exams {
         match pack.exams.get(&full(exam)) {
-            Some(e) => ids.extend(e.value.questions.iter().cloned()),
+            Some(e) => runs.push((full(exam), e.value.questions.clone())),
             None => {
                 eprintln!("error: no exam '{exam}'");
                 return ExitCode::FAILURE;
             }
         }
     }
-    ids.extend(questions.iter().map(full));
-    ids.dedup();
-    if ids.is_empty() {
+    if !questions.is_empty() {
+        runs.push(("questions".into(), questions.iter().map(full).collect()));
+    }
+    if runs.is_empty() {
         eprintln!("error: choose what to verify with --exam or --question");
         return ExitCode::FAILURE;
     }
 
     let data_dir = crate::data_dir();
-    let (kind, infra) = (Kind::new(data_dir.clone()), Infra::new(data_dir));
+    let infra = Infra::new(data_dir.clone());
     let log = |line: String| {
         if !json {
             eprintln!("  | {line}");
         }
     };
     let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
-    let reports = match runtime.block_on(verify::verify(&pack, &ids, &kind, &infra, &options, &log)) {
-        Ok(reports) => reports,
-        Err(e) => {
-            eprintln!("error: {e}");
-            return ExitCode::FAILURE;
-        }
-    };
-    let failed = reports.iter().filter(|r| !r.ok).count();
-    if json {
-        println!("{}", serde_json::to_string_pretty(&reports).unwrap_or_default());
-    } else {
-        for r in &reports {
-            println!("{} {}", if r.ok { "ok  " } else { "FAIL" }, r.question);
-            for p in &r.problems {
-                println!("       - {p}");
+    let results: Vec<(String, Result<Vec<verify::Report>, String>)> = runtime.block_on(async {
+        use futures_util::StreamExt;
+        // Shared infrastructure first, so parallel runs do not race to build it
+        if let Ok(docker) = crate::runtime::docker::connect().await {
+            if let Err(e) = infra.ensure(&docker, &log).await {
+                eprintln!("error: {e}");
             }
         }
-        println!("{} verified, {failed} failed", reports.len());
+        futures_util::stream::iter(runs.iter())
+            .map(|(label, ids)| {
+                let (pack, data_dir, infra, log) = (&pack, &data_dir, &infra, &log);
+                async move {
+                    let result = verify::verify(pack, ids, data_dir, infra, keep, log).await.map_err(|e| e.to_string());
+                    (label.clone(), result)
+                }
+            })
+            .buffer_unordered(parallel)
+            .collect()
+            .await
+    });
+
+    let mut failed = 0;
+    let mut total = 0;
+    for (_, result) in &results {
+        match result {
+            Ok(reports) => {
+                total += reports.len();
+                failed += reports.iter().filter(|r| !r.ok).count();
+            }
+            Err(_) => failed += 1,
+        }
+    }
+    if json {
+        let out: std::collections::BTreeMap<_, _> = results
+            .iter()
+            .map(|(label, r)| (label.clone(), match r {
+                Ok(reports) => serde_json::to_value(reports).unwrap_or_default(),
+                Err(e) => serde_json::json!({ "error": e }),
+            }))
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+    } else {
+        for (label, result) in &results {
+            match result {
+                Ok(reports) => {
+                    println!("{label}: {}/{} ok", reports.iter().filter(|r| r.ok).count(), reports.len());
+                    for r in reports.iter().filter(|r| !r.ok) {
+                        println!("  FAIL {}", r.question);
+                        for p in &r.problems {
+                            println!("       - {p}");
+                        }
+                    }
+                }
+                Err(e) => println!("{label}: error: {e}"),
+            }
+        }
+        println!("{total} verified, {failed} failed");
     }
     if failed == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE }
 }

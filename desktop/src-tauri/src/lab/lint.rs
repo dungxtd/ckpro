@@ -133,8 +133,13 @@ fn lint_question(pack: &LoadedPack, q: &Question) -> Vec<String> {
             errors.push(format!("var '{name}' has nothing to pick"));
         }
     }
+    for name in q.vars.keys() {
+        if super::render::BUILTINS.contains(&name.as_str()) {
+            errors.push(format!("var '{name}' shadows a built-in"));
+        }
+    }
     for used in placeholders(&texts(q).join("\n")) {
-        if !q.vars.contains_key(&used) {
+        if !q.vars.contains_key(&used) && !super::render::BUILTINS.contains(&used.as_str()) {
             errors.push(format!("uses undefined var '{{{{{used}}}}}'"));
         }
     }

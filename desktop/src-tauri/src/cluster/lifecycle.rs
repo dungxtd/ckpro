@@ -1,5 +1,5 @@
-//! Cluster operations end to end: shared infrastructure, kind, add-ons and
-//! the jumphost's access, in the right order.
+//! Cluster operations end to end: shared infrastructure, kind and add-ons.
+//! Callers then refresh the jumphost(s) that should reach the cluster.
 
 use super::{access, kind::Kind};
 use crate::error::{AppError, AppResult};
@@ -31,18 +31,14 @@ pub async fn create(
     };
     created?;
     log("Installing metrics-server".into());
-    access::install_addons(&docker, name).await?;
-    access::refresh(&docker, kind, infra).await
+    access::install_addons(&docker, name).await
 }
 
-pub async fn delete(kind: &Kind, infra: &Infra, name: &str, log: Log<'_>) -> AppResult<()> {
-    kind.delete(name, log).await?;
-    access::refresh(&docker::connect().await?, kind, infra).await
+pub async fn delete(kind: &Kind, name: &str, log: Log<'_>) -> AppResult<()> {
+    kind.delete(name, log).await
 }
 
 pub async fn adopt(kind: &Kind, infra: &Infra, name: &str, log: Log<'_>) -> AppResult<()> {
-    let docker = docker::connect().await?;
-    infra.ensure(&docker, log).await?;
-    kind.adopt(name).await?;
-    access::refresh(&docker, kind, infra).await
+    infra.ensure(&docker::connect().await?, log).await?;
+    kind.adopt(name).await
 }

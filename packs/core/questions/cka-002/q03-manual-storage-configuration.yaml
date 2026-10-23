@@ -14,7 +14,7 @@ statement: |
   - Storage: `1Gi`
   - Access Mode: `ReadWriteOnce`
   - Host Path: `/mnt/data`
-  - Node Affinity: Must run on node `k8s-worker`
+  - Node Affinity: Must run on node `{{worker1}}`
 
   Then create a PersistentVolumeClaim named `manual-pvc` that binds to this PV.
 
@@ -30,7 +30,7 @@ setup: |
   mkdir -p /mnt/data
 
   # Label the node for identification
-  kubectl label node k8s-worker kubernetes.io/hostname=k8s-worker --overwrite
+  kubectl label node {{worker1}} kubernetes.io/hostname={{worker1}} --overwrite
 
 checks:
   - name: PV exists with correct specifications
@@ -67,8 +67,8 @@ checks:
 
       # Validate node affinity
       NODE_HOSTNAME=$(kubectl get pv manual-pv -o jsonpath='{.spec.nodeAffinity.required.nodeSelectorTerms[0].matchExpressions[?(@.key=="kubernetes.io/hostname")].values[0]}')
-      if [[ "$NODE_HOSTNAME" != "k8s-worker" ]]; then
-          echo "Incorrect node affinity. Expected 'k8s-worker', got '$NODE_HOSTNAME'"
+      if [[ "$NODE_HOSTNAME" != "{{worker1}}" ]]; then
+          echo "Incorrect node affinity. Expected '{{worker1}}', got '$NODE_HOSTNAME'"
           exit 1
       fi
 
@@ -191,7 +191,7 @@ solution:
             - key: kubernetes.io/hostname
               operator: In
               values:
-              - k8s-worker
+              - "{{worker1}}"
     ---
     apiVersion: v1
     kind: PersistentVolumeClaim
@@ -245,7 +245,7 @@ solution:
             - key: kubernetes.io/hostname
               operator: In
               values:
-              - k8s-worker
+              - "{{worker1}}"
     ---
     apiVersion: v1
     kind: PersistentVolumeClaim
