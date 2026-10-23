@@ -136,25 +136,10 @@ solution:
     # Verify the fix
     kubectl rollout status deployment/broken-deployment -n troubleshooting
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  # Diagnosis (ImagePullBackOff on nginx:1.19-invalid-tag, 1 replica instead of
+  # 3), then the fix
   run: |
-    # First check what's wrong with the deployment
-    kubectl describe deployment broken-deployment -n troubleshooting
-
-    # Common fixes might include:
-
-    # Fix 1: Correct the image if it's incorrect
-    kubectl set image deployment/broken-deployment nginx=nginx:1.19 -n troubleshooting
-
-    # Fix 2: If resource requests are too high
-    kubectl patch deployment broken-deployment -n troubleshooting --patch '{"spec":{"template":{"spec":{"containers":[{"name":"nginx","resources":{"requests":{"cpu":"100m","memory":"128Mi"},"limits":{"cpu":"200m","memory":"256Mi"}}}]}}}}'
-
-    # Fix 3: If there's a configuration issue in the pod template
-    kubectl edit deployment broken-deployment -n troubleshooting
-
-    # Fix 4: If a network policy is blocking traffic
-    kubectl get networkpolicies -n troubleshooting
-    kubectl delete networkpolicy restrictive-policy -n troubleshooting
-
-    # Verify the fix
-    kubectl rollout status deployment/broken-deployment -n troubleshooting
+    kubectl describe pods -n troubleshooting -l app=nginx | grep -iE "image|failed" | head -5
+    kubectl set image deployment/broken-deployment -n troubleshooting nginx=nginx:1.19
+    kubectl scale deployment/broken-deployment -n troubleshooting --replicas=3
+    kubectl rollout status deployment/broken-deployment -n troubleshooting --timeout=180s

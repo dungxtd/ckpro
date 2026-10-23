@@ -154,6 +154,11 @@ checks:
 
 solution:
   explain: |
+    NetworkPolicies are allow-lists for the pods they select: a policy that
+    selects only `role=admin` pods leaves every other pod unrestricted. Select
+    the non-admin pods instead and allow their egress everywhere except the API
+    server (the `kubernetes` Service IP and the endpoint behind it).
+
     Create NetworkPolicy and test pods:
 
     ```bash
@@ -235,78 +240,31 @@ solution:
     ```bash
     kubectl apply -f api-server-policy.yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  # A NetworkPolicy only restricts the pods it selects, so select every pod
+  # except the admins and allow egress anywhere but the API server (its
+  # Service IP and the endpoint behind it)
   run: |
-    API_SERVER_IP=$(kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}')
-
-    cat <<EOF > api-server-policy.yaml
-    # 1. Deny access to API server for all pods
+    kubectl create namespace api-restrict --dry-run=client -o yaml | kubectl apply -f -
+    API_IP=$(kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}')
+    ENDPOINT_IP=$(kubectl get endpoints kubernetes -n default -o jsonpath='{.subsets[0].addresses[0].ip}')
+    kubectl apply -f - <<EOF
     apiVersion: networking.k8s.io/v1
     kind: NetworkPolicy
     metadata:
       name: api-server-policy
       namespace: api-restrict
     spec:
-      podSelector: {}
-      policyTypes:
-      - Egress
-      egress:
-      - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-            - ${API_SERVER_IP}/32
-
-    ---
-    # 2. Allow access to API server for pods with label role=admin
-    apiVersion: networking.k8s.io/v1
-    kind: NetworkPolicy
-    metadata:
-      name: allow-admin-api-egress
-      namespace: api-restrict
-    spec:
       podSelector:
-        matchLabels:
-          role: admin
-      policyTypes:
-      - Egress
+        matchExpressions:
+          - { key: role, operator: NotIn, values: [admin] }
+      policyTypes: [Egress]
       egress:
-      - to:
-        - ipBlock:
-            cidr: ${API_SERVER_IP}/32
-        ports:
-        - protocol: TCP
-          port: 443
-
-    ---
-    # admin-pod (can access API server)
-    apiVersion: v1
-    kind: Pod
-    metadata:
-      name: admin-pod
-      namespace: api-restrict
-      labels:
-        role: admin
-    spec:
-      containers:
-      - name: busybox
-        image: busybox
-        command: ["sleep", "3600"]
-
-    ---
-    # restricted-pod (blocked from API server)
-    apiVersion: v1
-    kind: Pod
-    metadata:
-      name: restricted-pod
-      namespace: api-restrict
-      labels:
-        role: restricted
-    spec:
-      containers:
-      - name: busybox
-        image: busybox
-        command: ["sleep", "3600"]
+        - to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+                except: ["${API_IP}/32", "${ENDPOINT_IP}/32"]
     EOF
-
-    kubectl apply -f api-server-policy.yaml
+    for role in admin restricted; do
+      kubectl run ${role}-pod -n api-restrict --image=busybox --labels=role=$role -- sleep 3600
+    done
+    kubectl wait -n api-restrict --for=condition=Ready pod/admin-pod pod/restricted-pod --timeout=120s

@@ -156,7 +156,7 @@ fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: boo
                 eprintln!("error: {e}");
             }
         }
-        futures_util::stream::iter(runs.iter())
+        let mut stream = futures_util::stream::iter(runs.iter())
             .map(|(label, ids)| {
                 let (pack, data_dir, infra, log) = (&pack, &data_dir, &infra, &log);
                 async move {
@@ -164,9 +164,16 @@ fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: boo
                     (label.clone(), result)
                 }
             })
-            .buffer_unordered(parallel)
-            .collect()
-            .await
+            .buffer_unordered(parallel);
+        // Report each run as it finishes, so an interrupted batch keeps them
+        let mut results = Vec::new();
+        while let Some((label, result)) = stream.next().await {
+            if !json {
+                print_run(&label, &result);
+            }
+            results.push((label, result));
+        }
+        results
     });
 
     let mut failed = 0;
@@ -190,23 +197,24 @@ fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: boo
             .collect();
         println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
     } else {
-        for (label, result) in &results {
-            match result {
-                Ok(reports) => {
-                    println!("{label}: {}/{} ok", reports.iter().filter(|r| r.ok).count(), reports.len());
-                    for r in reports.iter().filter(|r| !r.ok) {
-                        println!("  FAIL {}", r.question);
-                        for p in &r.problems {
-                            println!("       - {p}");
-                        }
-                    }
-                }
-                Err(e) => println!("{label}: error: {e}"),
-            }
-        }
         println!("{total} verified, {failed} failed");
     }
     if failed == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+}
+
+fn print_run(label: &str, result: &Result<Vec<verify::Report>, String>) {
+    match result {
+        Ok(reports) => {
+            println!("{label}: {}/{} ok", reports.iter().filter(|r| r.ok).count(), reports.len());
+            for r in reports.iter().filter(|r| !r.ok) {
+                println!("  FAIL {}", r.question);
+                for p in &r.problems {
+                    println!("       - {p}");
+                }
+            }
+        }
+        Err(e) => println!("{label}: error: {e}"),
+    }
 }
 
 fn write_schemas(out: &PathBuf) -> ExitCode {

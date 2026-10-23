@@ -129,22 +129,9 @@ solution:
        ```bash
        kubectl patch deployment broken-app -n troubleshooting -p '{"spec":{"template":{"spec":{"containers":[{"name":"container-name","resources":{"limits":{"memory":"512Mi"}}}]}}}}'
        ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  # Diagnosis (kubectl get/describe pods: ImagePullBackOff on nginx:nonexistentversion),
+  # then the fix
   run: |
-    # Check the pods in the troubleshooting namespace
-    kubectl get pods -n troubleshooting
-
-    # Check the pod details for errors
-    kubectl describe pod -l app=broken-app -n troubleshooting
-
-    # Check logs of the failing pod
-    kubectl logs <pod-name> -n troubleshooting
-
-       kubectl set image deployments -n troubleshooting broken-app app=nginx:latest
-
-
-       kubectl edit deployment broken-app -n troubleshooting
-
-
-       kubectl patch deployment broken-app -n troubleshooting -p '{"spec":{"template":{"spec":{"containers":[{"name":"container-name","resources":{"limits":{"memory":"512Mi"}}}]}}}}'
-
+    kubectl describe pods -n troubleshooting -l app=broken-app | grep -iE "image|failed" | head -5
+    kubectl set image deployment/broken-app -n troubleshooting app=nginx:latest
+    kubectl rollout status deployment/broken-app -n troubleshooting --timeout=180s

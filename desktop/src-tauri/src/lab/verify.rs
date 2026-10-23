@@ -101,7 +101,7 @@ async fn run_questions(
     for (id, q) in questions {
         if let Some(setup) = &q.setup {
             log(format!("[{run}] setting up {id}"));
-            let (exit, output) = checks::run_script(docker, jumphost, &q.cluster, setup).await?;
+            let (exit, output) = checks::run_script(docker, jumphost, &q.cluster, setup, checks::SCRIPT_TIMEOUT_SECS).await?;
             if exit != 0 {
                 setup_failed.insert(id.clone(), tail(&output));
             }
@@ -122,7 +122,8 @@ async fn run_questions(
         for c in before.iter().filter(|c| c.passed) {
             problems.push(format!("check passes before the solution: {}", c.name));
         }
-        let (exit, output) = checks::run_script(docker, jumphost, &q.cluster, &q.solution.run).await?;
+        let (exit, output) =
+            checks::run_script(docker, jumphost, &q.cluster, &q.solution.run, checks::SCRIPT_TIMEOUT_SECS).await?;
         if exit != 0 {
             problems.push(format!("solution failed (exit {exit}): {}", tail(&output)));
         }

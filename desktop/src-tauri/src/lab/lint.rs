@@ -128,6 +128,15 @@ fn lint_question(pack: &LoadedPack, q: &Question) -> Vec<String> {
     if q.solution.run.trim().is_empty() {
         errors.push("solution.run is empty".into());
     }
+    // Scripts run unattended: anything waiting for a person hangs
+    for (what, script) in [("solution.run", Some(&q.solution.run)), ("setup", q.setup.as_ref())] {
+        let Some(script) = script else { continue };
+        for line in script.lines().map(str::trim).filter(|l| !l.starts_with('#')) {
+            if let Some(problem) = interactive(line) {
+                errors.push(format!("{what} {problem}: `{line}`"));
+            }
+        }
+    }
     for (name, var) in &q.vars {
         if var.pick.is_empty() {
             errors.push(format!("var '{name}' has nothing to pick"));
@@ -144,6 +153,26 @@ fn lint_question(pack: &LoadedPack, q: &Question) -> Vec<String> {
         }
     }
     errors
+}
+
+/// Why a script line needs a person at a keyboard, if it does
+fn interactive(line: &str) -> Option<&'static str> {
+    let words: Vec<&str> = line.split_whitespace().collect();
+    if line.contains("kubectl edit") {
+        Some("opens an editor (use kubectl patch, set or apply)")
+    } else if words.iter().any(|w| matches!(*w, "-it" | "-ti" | "--tty" | "-t")) && line.contains("kubectl") {
+        Some("asks for a terminal (drop -it)")
+    } else if words.first().is_some_and(|w| matches!(*w, "vi" | "vim" | "nano" | "less" | "more")) {
+        Some("opens an interactive program")
+    } else if line.contains('<') && line.split('<').skip(1).any(|rest| {
+        let name: String = rest.chars().take_while(|c| *c != '>').collect();
+        // <pod-name>, <node-name>; not HTML tags like <body> in a heredoc
+        rest.contains('>') && name.contains('-') && name.chars().all(|c| c.is_ascii_lowercase() || c == '-')
+    }) {
+        Some("contains a placeholder like <pod-name> (compute the value)")
+    } else {
+        None
+    }
 }
 
 /// Every text and script that may contain `{{var}}`

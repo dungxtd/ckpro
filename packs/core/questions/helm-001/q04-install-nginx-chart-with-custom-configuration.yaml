@@ -48,7 +48,8 @@ checks:
       fi
 
       # Check if it's using the Bitnami nginx chart
-      if ! helm get values web-server -n default | grep -q "nginx"; then
+      # The chart name is in the release list; `helm get values` only shows user values
+      if ! helm list -n default -o json | jq -e '.[] | select(.name=="web-server") | .chart | startswith("nginx-")' > /dev/null; then
         echo "❌ Release 'web-server' does not appear to be using the nginx chart"
         echo "Release information:"
         echo "$release_info"
@@ -89,7 +90,8 @@ checks:
       fi
 
       # Check if the port is configured correctly
-      nodeport=$(echo "$service_info" | jq -r '.spec.ports[] | select(.nodePort) | .nodePort')
+      # The chart exposes http and https; the task is about the http port
+      nodeport=$(echo "$service_info" | jq -r '.spec.ports[] | select(.name=="http") | .nodePort')
       if [ "$nodeport" != "30080" ]; then
         echo "❌ NodePort is '$nodeport', expected '30080'"
         echo "Service ports configuration:"

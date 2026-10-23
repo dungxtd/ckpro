@@ -174,7 +174,8 @@ solution:
     kubectl get pod sidecar-pod -n troubleshooting
 
     # Verify the shared volume is mounted and the log file is being written
-    kubectl exec -it sidecar-pod -n troubleshooting -c nginx -- cat /var/my-log/date.log
+    kubectl wait --for=condition=Ready pod/sidecar-pod -n troubleshooting --timeout=120s
+    kubectl exec sidecar-pod -n troubleshooting -c nginx -- cat /var/my-log/date.log
 
     # Check events related to the pod
     kubectl describe pod sidecar-pod -n troubleshooting
@@ -211,7 +212,8 @@ solution:
     kubectl get pod sidecar-pod -n troubleshooting
 
     # Verify the shared volume is mounted and the log file is being written
-    kubectl exec -it sidecar-pod -n troubleshooting -c nginx -- cat /var/my-log/date.log
+    kubectl wait --for=condition=Ready pod/sidecar-pod -n troubleshooting --timeout=120s
+    kubectl exec sidecar-pod -n troubleshooting -c nginx -- cat /var/my-log/date.log
 
     # Check events related to the pod
     kubectl describe pod sidecar-pod -n troubleshooting

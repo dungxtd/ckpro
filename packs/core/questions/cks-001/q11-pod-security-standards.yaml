@@ -224,7 +224,8 @@ solution:
           allowPrivilegeEscalation: false
     MANIFEST
 
-    kubectl apply -f - <<'MANIFEST'
+    # Expected to be rejected: keep the admission error as the documentation
+    kubectl apply -f - <<'MANIFEST' 2> /tmp/violation.txt || true
     apiVersion: v1
     kind: Pod
     metadata:
@@ -237,3 +238,4 @@ solution:
         securityContext:
           privileged: true
     MANIFEST
+    grep -q "violates PodSecurity" /tmp/violation.txt

@@ -319,7 +319,14 @@ impl Exams {
         for (i, (id, q)) in setups.iter().enumerate() {
             step(format!("Setting up question {} of {}", i + 1, setups.len()), done);
             let (exit, output) =
-                checks::run_script(&docker, &self.jumphost.name, &q.cluster, q.setup.as_deref().unwrap_or_default()).await?;
+                checks::run_script(
+                    &docker,
+                    &self.jumphost.name,
+                    &q.cluster,
+                    q.setup.as_deref().unwrap_or_default(),
+                    checks::SCRIPT_TIMEOUT_SECS,
+                )
+                .await?;
             if exit != 0 {
                 return Err(AppError::invalid(format!(
                     "setup of {id} failed: {}",

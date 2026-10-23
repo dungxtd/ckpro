@@ -17,12 +17,15 @@ pub const NETWORK: &str = "kind";
 
 pub const KIND_NODE_BASE: &str = "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0";
 pub const NODE_IMAGE: &str = "ckdry/node:v1.35.8";
-pub const JUMPHOST_IMAGE: &str = "ckdry/jumphost:v1.35.8";
+/// Tagged with its tool versions so a version change builds a new image
+pub const JUMPHOST_IMAGE: &str = "ckdry/jumphost:v1.35.8-helm3.22.1";
 
 /// Tools on the jumphost, in step with the cluster version (CKA runs v1.35)
 const KUBECTL_VERSION: &str = "v1.35.8";
 const ETCD_VERSION: &str = "v3.6.6";
-const HELM_VERSION: &str = "v4.3.1";
+/// Helm 3: what the exam's allowed documentation (helm.sh/docs) and most
+/// existing tasks are written for
+const HELM_VERSION: &str = "v3.22.1";
 
 /// Pull-through caches: (container and volume name, upstream, registry host)
 pub const MIRRORS: [(&str, &str, &str); 4] = [

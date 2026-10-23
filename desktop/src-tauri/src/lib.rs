@@ -364,7 +364,8 @@ mod tests {
         println!("ok: practice check fails before solving");
         let solution = exams.solution(question).unwrap();
         let docker = runtime::docker::connect().await.unwrap();
-        let (exit, out) = lab::checks::run_script(&docker, &f.jumphost.name, "k8s", &solution.run).await.unwrap();
+        let (exit, out) =
+            lab::checks::run_script(&docker, &f.jumphost.name, "k8s", &solution.run, 300).await.unwrap();
         assert_eq!(exit, 0, "{out}");
         assert!(exams.check_question(question).await.unwrap().iter().all(|c| c.passed));
         println!("ok: practice check passes after solving");

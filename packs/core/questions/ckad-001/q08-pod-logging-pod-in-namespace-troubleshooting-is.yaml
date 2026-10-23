@@ -142,6 +142,11 @@ checks:
 solution:
   explain: |
     Solution:
+    `kubectl top pod logging-pod --containers` shows `cpu-consumer` (a busy
+    shell loop) using the CPU. Container resources of a running pod cannot be
+    edited, so recreate the pod with `kubectl replace --force` and limits on
+    that container. The original answer, for reference:
+
     1. After identifying which container is causing high CPU usage, edit the pod to add resource limits:
 
     ```yaml
@@ -164,22 +169,14 @@ solution:
     ```
     kubectl replace -f tmp/<file.yaml> --force
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
+  # Find the busy container, then recreate the pod (resources of a running
+  # pod cannot be changed in place) with limits on that container only
   run: |
-    kubectl apply -f - <<'MANIFEST'
-    apiVersion: v1
-    kind: Pod
-    metadata:
-      name: logging-pod
-      namespace: troubleshooting
-    spec:
-      containers:
-      - name: <container-name>
-        # ... existing container configuration ...
-        resources:
-          limits:
-            cpu: 100m
-            memory: 50Mi
-    MANIFEST
-
-    kubectl replace -f tmp/<file.yaml> --force
+    kubectl top pod logging-pod -n troubleshooting --containers || true
+    kubectl get pod logging-pod -n troubleshooting -o json \
+      | jq '.spec.containers |= map(if .name == "cpu-consumer"
+              then .resources = {limits: {cpu: "100m", memory: "50Mi"}} else . end)
+            | del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .status)' \
+      > /tmp/logging-pod.json
+    kubectl replace --force -f /tmp/logging-pod.json
+    kubectl wait --for=condition=Ready pod/logging-pod -n troubleshooting --timeout=120s

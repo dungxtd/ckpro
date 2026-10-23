@@ -17,17 +17,44 @@ pub struct CheckResult {
     pub detail: String,
 }
 
+/// Longest a setup or solution script may run
+pub const SCRIPT_TIMEOUT_SECS: u32 = 300;
+/// Longest one check may run
+pub const CHECK_TIMEOUT_SECS: u32 = 120;
+
 /// Run a script on the jumphost against `cluster`; (exit code, output).
-/// Passed as an argument, not on stdin: commands in the script that read
-/// stdin (`ssh node ...`) would otherwise swallow the rest of the script.
-pub async fn run_script(docker: &Docker, jumphost: &str, cluster: &str, script: &str) -> AppResult<(i64, String)> {
+///
+/// - Passed as an argument, not on stdin: commands that read stdin (`ssh node
+///   ...`) would otherwise swallow the rest of the script.
+/// - Killed after `timeout_secs` (exit 124) and no editor: a script must never
+///   hang an exam or a verify run (`kubectl edit`, waits without a timeout).
+pub async fn run_script(
+    docker: &Docker,
+    jumphost: &str,
+    cluster: &str,
+    script: &str,
+    timeout_secs: u32,
+) -> AppResult<(i64, String)> {
     let wrapped = format!("{}\n{script}", scoped_kubeconfig(cluster));
-    let out = exec::run(docker, jumphost, &["bash", "-c", &wrapped], &[], None).await?;
-    Ok((out.exit_code, out.text))
+    let timeout = timeout_secs.to_string();
+    let out = exec::run(
+        docker,
+        jumphost,
+        &["timeout", "--kill-after=10", &timeout, "bash", "-c", &wrapped],
+        &["EDITOR=false", "KUBE_EDITOR=false", "VISUAL=false"],
+        None,
+    )
+    .await?;
+    let text = if out.exit_code == 124 {
+        format!("{}\ntimed out after {timeout_secs}s", out.text)
+    } else {
+        out.text
+    };
+    Ok((out.exit_code, text))
 }
 
 pub async fn run_check(docker: &Docker, jumphost: &str, cluster: &str, check: &Check) -> AppResult<CheckResult> {
-    let (exit, output) = run_script(docker, jumphost, cluster, &script(&check.kind)).await?;
+    let (exit, output) = run_script(docker, jumphost, cluster, &script(&check.kind), CHECK_TIMEOUT_SECS).await?;
     let last_line = output.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim().to_string();
     Ok(CheckResult {
         name: check.name.clone(),
