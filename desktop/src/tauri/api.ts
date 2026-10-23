@@ -2,6 +2,7 @@
 // failed command throws an `ApiError` carrying the Rust `AppError` code.
 import { Channel } from "@tauri-apps/api/core";
 import {
+	type Activity_Serialize,
 	type AppError,
 	commands,
 	type EnvState,
@@ -13,6 +14,9 @@ import {
 
 /** What the generated command functions resolve to. */
 type Result<T, E> = { status: "ok"; data: T } | { status: "error"; error: E };
+
+/** A long operation as the app sends it */
+export type Activity = Activity_Serialize;
 
 /** Exam state as the app sends it */
 export type ExamState = ExamState_Serialize;
@@ -90,6 +94,16 @@ export const terminalApi = {
 	close: (id: string) => unwrap(commands.terminalClose(id)),
 };
 
+export const activityApi = {
+	/** The last long operations, with their logs. */
+	list: () => commands.activities() as Promise<Activity[]>,
+	/** An activity started or moved on (its `log` is empty here). */
+	onChanged: async (on: (activity: Activity) => void) =>
+		events.activityChanged.listen(event => on(event.payload as Activity)),
+	onLog: async (on: (id: number, line: string) => void) =>
+		events.activityLog.listen(event => on(event.payload.id, event.payload.line)),
+};
+
 export const desktopApi = {
 	/** VNC websocket port and password of the exam desktop; null until it runs. */
 	session: () => unwrap(commands.desktopSession()),
@@ -101,9 +115,6 @@ export const examApi = {
 	/** Calls `onChange` with every new exam state; returns the unsubscribe. */
 	subscribe: async (onChange: (state: ExamState) => void) =>
 		events.examChanged.listen(event => onChange(event.payload as ExamState)),
-	/** Calls `onLine` with each progress line while an attempt is prepared. */
-	onLog: async (onLine: (line: string) => void) =>
-		events.examLog.listen(event => onLine(event.payload)),
 	start: (id: string, mode: Mode, replace: boolean) =>
 		unwrap(commands.startExam(id, mode, replace)),
 	submit: () => unwrap(commands.submitExam()),

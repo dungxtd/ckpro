@@ -6,6 +6,7 @@ use crate::cluster::{kind::Kind, lifecycle};
 use crate::runtime::infra::Infra;
 use crate::runtime::jumphost::{Jumphost, app_placement};
 use crate::error::{AppError, AppResult};
+use crate::runtime::activity::Activities;
 use crate::lab::script::ScriptResult;
 use crate::runtime::model::{DockerState, Env, EnvState};
 use crate::runtime::preflight::{self, Check};
@@ -38,6 +39,7 @@ pub async fn create_cluster(
     jumphost: State<'_, Arc<Jumphost>>,
     jobs: State<'_, Jobs>,
     env: State<'_, Arc<Env>>,
+    activities: State<'_, Arc<Activities>>,
     name: String,
     workers: u8,
     log: Channel<String>,
@@ -51,11 +53,18 @@ pub async fn create_cluster(
         return Err(AppError::invalid(check.detail));
     }
     let token = jobs.begin(&name)?;
+    let plural = if workers == 1 { "" } else { "s" };
+    let op = activities.begin(
+        format!("Creating cluster {name}"),
+        vec![format!("Creating cluster {name}: 1 control plane, {workers} worker{plural}"), "Updating the task host".into()],
+    );
     let send = |line: String| {
+        op.log(line.clone());
         let _ = log.send(line);
     };
     let result = async {
         lifecycle::create(&kind, &infra, &name, workers, &send, &token).await?;
+        op.step(1, None);
         let docker = crate::runtime::docker::connect().await?;
         jumphost.ensure(&docker, &send).await?;
         jumphost.refresh_access(&docker, &kind, &app_placement(&kind)).await
@@ -63,7 +72,7 @@ pub async fn create_cluster(
     .await;
     jobs.end(&name);
     env.request_resync();
-    result
+    op.end(result)
 }
 
 #[tauri::command]
@@ -72,20 +81,27 @@ pub async fn delete_cluster(
     kind: State<'_, Arc<Kind>>,
     jumphost: State<'_, Arc<Jumphost>>,
     jobs: State<'_, Jobs>,
+    activities: State<'_, Arc<Activities>>,
     name: String,
     log: Channel<String>,
 ) -> AppResult<()> {
     jobs.begin(&name)?;
+    let op = activities.begin(
+        format!("Removing cluster {name}"),
+        vec![format!("Removing cluster {name}"), "Updating the task host".into()],
+    );
     let send = |line: String| {
+        op.log(line.clone());
         let _ = log.send(line);
     };
     let result = async {
         lifecycle::delete(&kind, &name, &send).await?;
+        op.step(1, None);
         jumphost.refresh_access(&crate::runtime::docker::connect().await?, &kind, &app_placement(&kind)).await
     }
     .await;
     jobs.end(&name);
-    result
+    op.end(result)
 }
 
 /// Cancel the operation running on a cluster; false when there is none.
@@ -103,23 +119,33 @@ pub async fn adopt_cluster(
     infra: State<'_, Arc<Infra>>,
     jumphost: State<'_, Arc<Jumphost>>,
     env: State<'_, Arc<Env>>,
+    activities: State<'_, Arc<Activities>>,
     name: String,
 ) -> AppResult<()> {
-    let log = |line: String| tracing::info!("{line}");
-    lifecycle::adopt(&kind, &infra, &name, &log).await?;
-    let docker = crate::runtime::docker::connect().await?;
-    jumphost.ensure(&docker, &log).await?;
-    jumphost.refresh_access(&docker, &kind, &app_placement(&kind)).await?;
+    let op = activities.begin(
+        format!("Taking over cluster {name}"),
+        vec![format!("Taking over cluster {name}"), "Updating the task host".into()],
+    );
+    let log = |line: String| op.log(line);
+    let result = async {
+        lifecycle::adopt(&kind, &infra, &name, &log).await?;
+        op.step(1, None);
+        let docker = crate::runtime::docker::connect().await?;
+        jumphost.ensure(&docker, &log).await?;
+        jumphost.refresh_access(&docker, &kind, &app_placement(&kind)).await
+    }
+    .await;
     env.request_resync();
-    Ok(())
+    op.end(result)
 }
 
 /// Start a cluster's stopped nodes.
 #[tauri::command]
 #[specta::specta]
-pub async fn repair_cluster(name: String) -> AppResult<()> {
-    let docker = crate::runtime::docker::connect().await?;
-    crate::runtime::reconcile::repair(&docker, &name).await
+pub async fn repair_cluster(activities: State<'_, Arc<Activities>>, name: String) -> AppResult<()> {
+    let op = activities.begin(format!("Starting cluster {name}"), vec![format!("Starting the stopped nodes of {name}")]);
+    let result = async { crate::runtime::reconcile::repair(&crate::runtime::docker::connect().await?, &name).await }.await;
+    op.end(result)
 }
 
 /// Run a lab script on the jumphost.
@@ -176,6 +202,14 @@ use crate::lab::model::Solution;
 #[specta::specta]
 pub fn list_exams(exams: State<'_, Arc<Exams>>) -> Vec<ExamSummary> {
     exams.catalog()
+}
+
+/// The last long operations, with their logs (later changes arrive as
+/// `ActivityChanged` and `ActivityLog`).
+#[tauri::command]
+#[specta::specta]
+pub fn activities(activities: State<'_, Arc<Activities>>) -> Vec<crate::runtime::activity::Activity> {
+    activities.list()
 }
 
 /// How to connect to the exam desktop (VNC over a websocket on 127.0.0.1),

@@ -20,11 +20,11 @@ use tokio::task::JoinHandle;
 const CLUSTER_LABEL: &str = "io.x-k8s.kind.cluster";
 const ROLE_LABEL: &str = "io.x-k8s.kind.role";
 
-pub fn start(env: Arc<Env>, kind: Arc<Kind>) {
-    tauri::async_runtime::spawn(run(env, kind));
+pub fn start(env: Arc<Env>, kind: Arc<Kind>, activities: Arc<super::activity::Activities>) {
+    tauri::async_runtime::spawn(run(env, kind, activities));
 }
 
-async fn run(env: Arc<Env>, kind: Arc<Kind>) {
+async fn run(env: Arc<Env>, kind: Arc<Kind>, activities: Arc<super::activity::Activities>) {
     let mut watchers: HashMap<String, JoinHandle<()>> = HashMap::new();
     let mut reconciled = false;
     loop {
@@ -52,7 +52,7 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>) {
         tracing::info!("connected to docker");
 
         if !reconciled {
-            reconcile::on_startup(&docker, &kind).await;
+            reconcile::on_startup(&docker, &kind, &activities).await;
             reconciled = true;
         }
         sync(&docker, &env, &kind, &mut watchers).await;

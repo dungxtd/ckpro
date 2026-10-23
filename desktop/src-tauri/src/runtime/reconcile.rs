@@ -2,33 +2,69 @@
 //! machine or the app restarted) and when the user asks for a repair. Quitting
 //! the app stops them, so an idle exam costs no memory or CPU.
 
+use super::activity::Activities;
 use crate::cluster::kind::Kind;
 use crate::error::AppResult;
 use bollard::Docker;
 use bollard::query_parameters::ListContainersOptions;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Forget clusters whose nodes are gone, start the ones that are stopped,
-/// and the cache and jumphost they work with.
-pub async fn on_startup(docker: &Docker, kind: &Kind) {
+/// and the cache, task host and desktop they work with. Shown as an activity
+/// when there is something to start (the app reopened after quitting).
+pub async fn on_startup(docker: &Docker, kind: &Kind, activities: &Arc<Activities>) {
+    let mut stopped_services = Vec::new();
     for name in [super::infra::MIRROR, super::jumphost::APP_NAME, super::desktop::NAME] {
-        if let Err(e) = super::infra::start_existing(docker, name).await {
-            tracing::warn!(container = %name, error = %e, "starting");
+        if let Ok(info) = docker.inspect_container(name, None).await
+            && !info.state.and_then(|s| s.running).unwrap_or(false)
+        {
+            stopped_services.push(name);
         }
     }
+    let mut stopped_clusters = Vec::new();
     for name in kind.owned_clusters() {
         match nodes(docker, &name).await {
             Ok(nodes) if nodes.is_empty() => {
                 tracing::info!(cluster = %name, "forgetting cluster without nodes");
                 kind.forget(&name);
             }
-            Ok(_) => {
-                if let Err(e) = repair(docker, &name).await {
-                    tracing::warn!(cluster = %name, error = %e, "starting cluster");
-                }
-            }
+            Ok(nodes) if nodes.iter().any(|(_, _, state)| state != "running") => stopped_clusters.push(name),
+            Ok(_) => {}
             Err(e) => tracing::warn!(cluster = %name, error = %e, "inspecting cluster"),
         }
+    }
+    if stopped_services.is_empty() && stopped_clusters.is_empty() {
+        return;
+    }
+
+    let mut steps: Vec<String> = stopped_clusters.iter().map(|c| format!("Starting cluster {c}")).collect();
+    if !stopped_services.is_empty() {
+        steps.push("Starting the registry cache, task host and desktop".into());
+    }
+    let op = activities.begin("Starting your environment", steps);
+    let mut failed = Vec::new();
+    for (i, name) in stopped_clusters.iter().enumerate() {
+        op.step(i as u32, None);
+        if let Err(e) = repair(docker, name).await {
+            op.log(format!("could not start {name}: {e}"));
+            failed.push(name.clone());
+        }
+    }
+    if !stopped_services.is_empty() {
+        op.step(stopped_clusters.len() as u32, None);
+        for name in stopped_services {
+            op.log(format!("starting {name}"));
+            if let Err(e) = super::infra::start_existing(docker, name).await {
+                op.log(format!("could not start {name}: {e}"));
+                failed.push(name.to_string());
+            }
+        }
+    }
+    if failed.is_empty() {
+        op.done();
+    } else {
+        op.fail(format!("could not start {}", failed.join(", ")));
     }
 }
 

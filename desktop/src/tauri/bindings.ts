@@ -38,6 +38,11 @@ export const commands = {
 	 */
 	desktopSession: () => typedError<DesktopSession | null, AppError>(__TAURI_INVOKE("desktop_session")),
 	/**
+	 *  The last long operations, with their logs (later changes arrive as
+	 *  `ActivityChanged` and `ActivityLog`).
+	 */
+	activities: () => __TAURI_INVOKE<Activity_Serialize[]>("activities"),
+	/**
 	 *  Start preparing an attempt. `replace` deletes existing clusters with the
 	 *  names the exam needs.
 	 */
@@ -54,12 +59,72 @@ export const commands = {
 
 /** Events */
 export const events = {
+	activityChanged: makeEvent<ActivityChanged_Serialize, ActivityChanged_Deserialize>("activity-changed"),
+	activityLog: makeEvent<ActivityLog, ActivityLog>("activity-log"),
 	envChanged: makeEvent<EnvChanged, EnvChanged>("env-changed"),
 	examChanged: makeEvent<ExamChanged_Serialize, ExamChanged_Deserialize>("exam-changed"),
-	examLog: makeEvent<ExamLog, ExamLog>("exam-log"),
 };
 
 /* Types */
+export type Activity = Activity_Serialize | Activity_Deserialize;
+
+/**  A long operation started or moved on (without its log). */
+export type ActivityChanged = ActivityChanged_Serialize | ActivityChanged_Deserialize;
+
+/**  A long operation started or moved on (without its log). */
+export type ActivityChanged_Deserialize = Activity_Deserialize;
+
+/**  A long operation started or moved on (without its log). */
+export type ActivityChanged_Serialize = Activity_Serialize;
+
+/**  A log line of a long operation. */
+export type ActivityLog = {
+	id: number,
+	line: string,
+};
+
+export type ActivityStatus = "running" | "done" | "failed";
+
+export type Activity_Deserialize = {
+	id: number,
+	title: string,
+	/**
+	 *  The whole plan; `current` is the step in progress (all done when the
+	 *  activity is)
+	 */
+	steps: string[],
+	current: number,
+	/**  Where in the current step ("Task 3 of 15: ...") */
+	detail?: string | null,
+	status: ActivityStatus,
+	error?: string | null,
+	/**  Unix milliseconds */
+	started_at: number | null,
+	finished_at?: number | null,
+	/**  Last lines (empty in `ActivityChanged`) */
+	log: string[],
+};
+
+export type Activity_Serialize = {
+	id: number,
+	title: string,
+	/**
+	 *  The whole plan; `current` is the step in progress (all done when the
+	 *  activity is)
+	 */
+	steps: string[],
+	current: number,
+	/**  Where in the current step ("Task 3 of 15: ...") */
+	detail: string | null,
+	status: ActivityStatus,
+	error: string | null,
+	/**  Unix milliseconds */
+	started_at: number | null,
+	finished_at: number | null,
+	/**  Last lines (empty in `ActivityChanged`) */
+	log: string[],
+};
+
 export type AppError = 
 /**  No reachable Docker engine. */
 { code: "docker_unavailable"; message: string } | 
@@ -161,9 +226,6 @@ export type ExamChanged_Deserialize = ExamState_Deserialize;
 /**  Pushed to the UI on every exam state change. */
 export type ExamChanged_Serialize = ExamState_Serialize;
 
-/**  A progress line while an attempt is prepared (kind, image builds, setups). */
-export type ExamLog = string;
-
 export type ExamResult = {
 	score: number | null,
 	passed: boolean,
@@ -176,22 +238,38 @@ export type ExamResult = {
 export type ExamState = ExamState_Serialize | ExamState_Deserialize;
 
 export type ExamState_Deserialize = { phase: "idle" } | 
-/**
- *  `steps` is the whole plan, `current` the one in progress; `detail`
- *  says where in it (which question is being set up)
- */
-{ phase: "preparing"; attempt: Attempt_Deserialize; steps: string[]; current: number; detail?: string | null } | 
+/**  Creating its clusters, desktop and tasks; progress in `activity` */
+{ phase: "preparing"; attempt: Attempt_Deserialize; activity: number } | 
+/**  Starting its clusters and desktop again after the app reopened */
+{ phase: "resuming"; attempt: Attempt_Deserialize; activity: number } | 
 /**  `ends_at` is unset in practice mode (no time limit) */
-{ phase: "running"; attempt: Attempt_Deserialize; started_at: number | null; ends_at?: number | null } | { phase: "grading"; attempt: Attempt_Deserialize; done: number; total: number } | { phase: "finished"; attempt: Attempt_Deserialize; result: ExamResult } | { phase: "failed"; attempt?: Attempt_Deserialize | null; message: string };
+{ phase: "running"; attempt: Attempt_Deserialize; started_at: number | null; ends_at?: number | null } | 
+/**
+ *  `scores` fills in as each question is graded; `note` says why grading
+ *  started when the candidate did not submit (time ran out while closed)
+ */
+{ phase: "grading"; attempt: Attempt_Deserialize; activity: number; scores: (QuestionScore | null)[]; note?: string | null } | 
+/**  Removing the attempt's clusters and desktop */
+{ phase: "ending"; attempt: Attempt_Deserialize; activity: number } | { phase: "finished"; attempt: Attempt_Deserialize; result: ExamResult } | 
+/**  `activity` has the log of what failed */
+{ phase: "failed"; attempt?: Attempt_Deserialize | null; message: string; activity?: number | null };
 
 export type ExamState_Serialize = { phase: "idle" } | 
-/**
- *  `steps` is the whole plan, `current` the one in progress; `detail`
- *  says where in it (which question is being set up)
- */
-{ phase: "preparing"; attempt: Attempt_Serialize; steps: string[]; current: number; detail: string | null } | 
+/**  Creating its clusters, desktop and tasks; progress in `activity` */
+{ phase: "preparing"; attempt: Attempt_Serialize; activity: number } | 
+/**  Starting its clusters and desktop again after the app reopened */
+{ phase: "resuming"; attempt: Attempt_Serialize; activity: number } | 
 /**  `ends_at` is unset in practice mode (no time limit) */
-{ phase: "running"; attempt: Attempt_Serialize; started_at: number | null; ends_at: number | null } | { phase: "grading"; attempt: Attempt_Serialize; done: number; total: number } | { phase: "finished"; attempt: Attempt_Serialize; result: ExamResult } | { phase: "failed"; attempt: Attempt_Serialize | null; message: string };
+{ phase: "running"; attempt: Attempt_Serialize; started_at: number | null; ends_at: number | null } | 
+/**
+ *  `scores` fills in as each question is graded; `note` says why grading
+ *  started when the candidate did not submit (time ran out while closed)
+ */
+{ phase: "grading"; attempt: Attempt_Serialize; activity: number; scores: (QuestionScore | null)[]; note: string | null } | 
+/**  Removing the attempt's clusters and desktop */
+{ phase: "ending"; attempt: Attempt_Serialize; activity: number } | { phase: "finished"; attempt: Attempt_Serialize; result: ExamResult } | 
+/**  `activity` has the log of what failed */
+{ phase: "failed"; attempt: Attempt_Serialize | null; message: string; activity: number | null };
 
 export type ExamSummary = {
 	id: string,
@@ -240,6 +318,11 @@ export type QuestionResult = {
 	points: number,
 	max_points: number,
 	checks: CheckResult[],
+};
+
+export type QuestionScore = {
+	points: number,
+	max_points: number,
 };
 
 /**  What the candidate sees of a question. */

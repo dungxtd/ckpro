@@ -19,8 +19,6 @@ interface AttemptUi {
 	hintsShown: Record<string, number>;
 	checks: Record<string, CheckResult[] | "running">;
 	solutions: Record<string, Solution>;
-	/** Progress lines while the attempt is prepared (last 500) */
-	log: string[];
 }
 
 interface ExamStore extends AttemptUi {
@@ -51,7 +49,6 @@ const freshAttempt = (attemptId: string | null): AttemptUi => ({
 	hintsShown: {},
 	checks: {},
 	solutions: {},
-	log: [],
 });
 
 const attemptId = (state: ExamState) => ("attempt" in state ? (state.attempt?.id ?? null) : null);
@@ -74,17 +71,8 @@ export const useExam = create<ExamStore>()(
 						if (id && id !== s.attemptId) Object.assign(s, freshAttempt(id));
 					});
 				const unsubscribe = await examApi.subscribe(apply);
-				const stopLog = await examApi.onLog(line =>
-					set(s => {
-						s.log.push(line);
-						if (s.log.length > 500) s.log.splice(0, s.log.length - 500);
-					})
-				);
 				apply(await examApi.state());
-				return () => {
-					unsubscribe();
-					stopLog();
-				};
+				return unsubscribe;
 			},
 
 			loadCatalog: async () => {

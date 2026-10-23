@@ -1,3 +1,4 @@
+pub mod activity;
 pub mod desktop;
 pub mod docker;
 pub mod exec;

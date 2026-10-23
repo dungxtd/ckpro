@@ -12,6 +12,7 @@ use super::render;
 use crate::cluster::{kind::Kind, lifecycle};
 use crate::error::{AppError, AppResult};
 use crate::runtime::jumphost::{self, Jumphost};
+use crate::runtime::activity::Activities;
 use crate::runtime::{desktop, docker, infra::Infra};
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
@@ -92,14 +93,26 @@ pub struct ExamResult {
 pub enum ExamState {
     #[default]
     Idle,
-    /// `steps` is the whole plan, `current` the one in progress; `detail`
-    /// says where in it (which question is being set up)
-    Preparing { attempt: Attempt, steps: Vec<String>, current: u32, detail: Option<String> },
+    /// Creating its clusters, desktop and tasks; progress in `activity`
+    Preparing { attempt: Attempt, activity: u32 },
+    /// Starting its clusters and desktop again after the app reopened
+    Resuming { attempt: Attempt, activity: u32 },
     /// `ends_at` is unset in practice mode (no time limit)
     Running { attempt: Attempt, started_at: f64, ends_at: Option<f64> },
-    Grading { attempt: Attempt, done: u32, total: u32 },
+    /// `scores` fills in as each question is graded; `note` says why grading
+    /// started when the candidate did not submit (time ran out while closed)
+    Grading { attempt: Attempt, activity: u32, scores: Vec<Option<QuestionScore>>, note: Option<String> },
+    /// Removing the attempt's clusters and desktop
+    Ending { attempt: Attempt, activity: u32 },
     Finished { attempt: Attempt, result: ExamResult },
-    Failed { attempt: Option<Attempt>, message: String },
+    /// `activity` has the log of what failed
+    Failed { attempt: Option<Attempt>, message: String, activity: Option<u32> },
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, specta::Type)]
+pub struct QuestionScore {
+    pub points: u32,
+    pub max_points: u32,
 }
 
 impl ExamState {
@@ -107,8 +120,10 @@ impl ExamState {
         match self {
             ExamState::Idle => None,
             ExamState::Preparing { attempt, .. }
+            | ExamState::Resuming { attempt, .. }
             | ExamState::Running { attempt, .. }
             | ExamState::Grading { attempt, .. }
+            | ExamState::Ending { attempt, .. }
             | ExamState::Finished { attempt, .. } => Some(attempt),
             ExamState::Failed { attempt, .. } => attempt.as_ref(),
         }
@@ -145,8 +160,7 @@ pub struct Exams {
     session: Mutex<Vec<(String, Question)>>,
     cancel: Mutex<CancellationToken>,
     publish: Box<dyn Fn(&ExamState) + Send + Sync>,
-    /// Progress lines while preparing (kind, image builds, setups)
-    log: Box<dyn Fn(&str) + Send + Sync>,
+    activities: Arc<Activities>,
 }
 
 impl Exams {
@@ -157,7 +171,7 @@ impl Exams {
         jumphost: Arc<Jumphost>,
         history_dir: PathBuf,
         publish: impl Fn(&ExamState) + Send + Sync + 'static,
-        log: impl Fn(&str) + Send + Sync + 'static,
+        activities: Arc<Activities>,
     ) -> Self {
         Self {
             pack,
@@ -170,7 +184,7 @@ impl Exams {
             session: Mutex::new(Vec::new()),
             cancel: Mutex::new(CancellationToken::new()),
             publish: Box::new(publish),
-            log: Box::new(log),
+            activities,
         }
     }
 
@@ -199,7 +213,8 @@ impl Exams {
                     std::fs::rename(&tmp, &self.attempt_file)
                 })
             }
-            ExamState::Grading { .. } => Ok(()),
+            // Resumed (and graded) at the next start
+            ExamState::Grading { .. } | ExamState::Resuming { .. } => Ok(()),
             _ => match std::fs::remove_file(&self.attempt_file) {
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
                 other => other,
@@ -210,8 +225,9 @@ impl Exams {
         }
     }
 
-    /// Resume the attempt that was running when the app quit. Its clusters are
-    /// still there; an exam whose time ran out meanwhile is submitted now.
+    /// Resume the attempt that was running when the app quit: start its
+    /// clusters, task host and desktop again and wait for the clusters. An
+    /// exam whose time ran out meanwhile is graded then.
     pub fn restore(self: &Arc<Self>) {
         let Some(saved) = std::fs::read(&self.attempt_file)
             .ok()
@@ -219,14 +235,70 @@ impl Exams {
         else {
             return;
         };
-        let ExamState::Running { attempt, ends_at, .. } = &saved.state else { return };
+        let ExamState::Running { attempt, started_at, ends_at } = saved.state else { return };
         tracing::info!(attempt = %attempt.id, "resuming the running attempt");
         *self.session.lock().unwrap_or_else(|p| p.into_inner()) = saved.questions;
-        let (id, ends_at) = (attempt.id.clone(), *ends_at);
-        self.set(saved.state);
-        if let Some(ends_at) = ends_at {
-            self.submit_at(id, ends_at);
+
+        let mut steps: Vec<String> = attempt.clusters.iter().map(|c| format!("Starting cluster {c}")).collect();
+        steps.extend(["Starting the task host", "Starting the exam desktop", "Waiting for the clusters"].map(String::from));
+        let op = self.activities.begin("Resuming your exam", steps);
+        self.set(ExamState::Resuming { attempt: attempt.clone(), activity: op.id() });
+        let this = self.clone();
+        tauri::async_runtime::spawn(async move {
+            let id = op.id();
+            match op.end(this.resume(&attempt, id).await) {
+                Ok(()) => match ends_at {
+                    Some(ends_at) if ends_at <= now_ms() => {
+                        this.grade_and_finish(attempt, started_at, Some("Time ran out while ckdry was closed".into())).await
+                    }
+                    _ => {
+                        let attempt_id = attempt.id.clone();
+                        this.set(ExamState::Running { attempt, started_at, ends_at });
+                        if let Some(ends_at) = ends_at {
+                            this.submit_at(attempt_id, ends_at);
+                        }
+                    }
+                },
+                Err(e) => this.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string(), activity: Some(id) }),
+            }
+        });
+    }
+
+    async fn resume(&self, attempt: &Attempt, activity: u32) -> AppResult<()> {
+        let op = self.activities.handle(activity);
+        let docker = docker::connect().await?;
+        let mut step = 0;
+        for cluster in &attempt.clusters {
+            op.step(step, None);
+            // Startup reconciliation may be starting them too
+            if let Err(e) = crate::runtime::reconcile::repair(&docker, cluster).await {
+                op.log(format!("  {e}"));
+            }
+            step += 1;
         }
+        for name in [self.jumphost.name.as_str(), desktop::NAME] {
+            op.step(step, None);
+            crate::runtime::infra::start_existing(&docker, name).await?;
+            step += 1;
+        }
+        op.step(step, None);
+        for cluster in &attempt.clusters {
+            op.detail(format!("Waiting for the API server of {cluster}"));
+            let mut ready = false;
+            for _ in 0..60 {
+                let (exit, _) =
+                    checks::run_script(&docker, &self.jumphost.name, cluster, "kubectl get --raw=/readyz >/dev/null", 15).await?;
+                if exit == 0 {
+                    ready = true;
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            }
+            if !ready {
+                return Err(AppError::cluster(format!("cluster {cluster} did not come back within 2 minutes")));
+            }
+        }
+        Ok(())
     }
 
     pub fn catalog(&self) -> Vec<ExamSummary> {
@@ -257,7 +329,14 @@ impl Exams {
     /// Start an attempt. Clusters with the names the exam needs must not exist
     /// unless `replace` (they are deleted).
     pub async fn start(self: &Arc<Self>, exam_id: &str, mode: Mode, replace: bool) -> AppResult<()> {
-        if matches!(self.state(), ExamState::Preparing { .. } | ExamState::Running { .. } | ExamState::Grading { .. }) {
+        if matches!(
+            self.state(),
+            ExamState::Preparing { .. }
+                | ExamState::Resuming { .. }
+                | ExamState::Running { .. }
+                | ExamState::Grading { .. }
+                | ExamState::Ending { .. }
+        ) {
             return Err(AppError::invalid("an exam is already in progress"));
         }
         let exam = self.pack.exams.get(exam_id).ok_or_else(|| AppError::not_found(format!("no exam '{exam_id}'")))?;
@@ -310,13 +389,34 @@ impl Exams {
         *self.cancel.lock().unwrap_or_else(|p| p.into_inner()) = token.clone();
         let duration = exam.duration.as_ref().unwrap_or(&cert.duration).seconds().unwrap_or(7200);
 
+        // The whole plan up front, so the candidate sees what is coming
+        let setups = self.session.lock().unwrap_or_else(|p| p.into_inner()).iter().filter(|(_, q)| q.setup.is_some()).count();
+        let replacing: Vec<String> = clusters.keys().filter(|c| existing.contains(*c)).cloned().collect();
+        let mut steps = vec!["Preparing images and the registry cache".to_string()];
+        for (name, workers) in &clusters {
+            if replacing.contains(name) {
+                steps.push(format!("Removing the old cluster {name}"));
+            }
+            let plural = if *workers == 1 { "" } else { "s" };
+            steps.push(format!("Creating cluster {name}: 1 control plane, {workers} worker{plural}"));
+        }
+        steps.push("Preparing the task host".into());
+        steps.push("Starting the exam desktop".into());
+        if setups > 0 {
+            let plural = if setups == 1 { "" } else { "s" };
+            steps.push(format!("Setting up {setups} task{plural}"));
+        }
+        let op = self.activities.begin(format!("Setting up {}", attempt.title), steps);
+        self.set(ExamState::Preparing { attempt: attempt.clone(), activity: op.id() });
+
         let this = self.clone();
         tauri::async_runtime::spawn(async move {
+            let id = op.id();
             let prepared = tokio::select! {
-                result = this.prepare(&attempt, &clusters, replace, &allowed) => result,
+                result = this.prepare(&attempt, &clusters, &replacing, &allowed, id) => result,
                 _ = token.cancelled() => Err(AppError::Cancelled { message: "preparation cancelled".into() }),
             };
-            match prepared {
+            match op.end(prepared) {
                 Ok(()) => {
                     let started_at = now_ms();
                     let ends_at = (mode == Mode::Exam).then(|| started_at + duration as f64 * 1000.0);
@@ -326,10 +426,10 @@ impl Exams {
                     }
                 }
                 Err(AppError::Cancelled { .. }) => {
-                    this.remove_clusters(&attempt.clusters).await;
+                    this.cleanup(&attempt).await;
                     this.set(ExamState::Idle);
                 }
-                Err(e) => this.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string() }),
+                Err(e) => this.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string(), activity: Some(id) }),
             }
         });
         Ok(())
@@ -373,49 +473,31 @@ impl Exams {
             .collect()
     }
 
+    /// Create the attempt's clusters, task host and desktop and set up its
+    /// tasks, reporting into the activity `activity` (planned in `start`).
     async fn prepare(
         &self,
         attempt: &Attempt,
         clusters: &BTreeMap<String, u8>,
-        replace: bool,
+        replacing: &[String],
         allowed: &[String],
+        activity: u32,
     ) -> AppResult<()> {
+        let op = self.activities.handle(activity);
+        let log = |line: String| op.log(line);
         let questions = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
         let setups: Vec<&(String, Question)> = questions.iter().filter(|(_, q)| q.setup.is_some()).collect();
-        let existing = if replace { self.kind.all_clusters().await? } else { Vec::new() };
-
-        // The whole plan up front, so the candidate sees what is coming
-        let mut steps = vec!["Preparing images and the registry cache".to_string()];
-        for (name, workers) in clusters {
-            if existing.contains(name) {
-                steps.push(format!("Removing the old cluster {name}"));
-            }
-            let plural = if *workers == 1 { "" } else { "s" };
-            steps.push(format!("Creating cluster {name}: 1 control plane, {workers} worker{plural}"));
-        }
-        steps.push("Preparing the task host".into());
-        steps.push("Starting the exam desktop".into());
-        if !setups.is_empty() {
-            let plural = if setups.len() == 1 { "" } else { "s" };
-            steps.push(format!("Setting up {} task{plural}", setups.len()));
-        }
-        let mut current = 0u32;
-        let log = |line: String| {
-            tracing::info!(attempt = %attempt.id, "{line}");
-            (self.log)(&line);
-        };
+        let mut step = 0;
         let mut next = |detail: Option<String>| {
-            // State first: the UI starts a new log when it sees a new attempt
-            self.set(ExamState::Preparing { attempt: attempt.clone(), steps: steps.clone(), current, detail });
-            log(format!("▸ {}", steps[current as usize]));
-            current += 1;
+            op.step(step, detail);
+            step += 1;
         };
 
         let docker = docker::connect().await?;
         next(Some("The first exam builds them, which takes a few minutes".into()));
         self.infra.ensure(&docker, &log).await?;
         for (name, workers) in clusters {
-            if existing.contains(name) {
+            if replacing.contains(name) {
                 next(None);
                 lifecycle::delete(&self.kind, name, &log).await?;
             }
@@ -427,16 +509,11 @@ impl Exams {
         self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await?;
         next(None);
         desktop::start(&docker, allowed, &attempt.clusters, &self.jumphost.name).await?;
-        let setup_step = current;
+        if !setups.is_empty() {
+            next(None);
+        }
         for (i, (id, q)) in setups.iter().enumerate() {
-            let detail = format!("Task {} of {}: {}", i + 1, setups.len(), q.title);
-            log(detail.clone());
-            self.set(ExamState::Preparing {
-                attempt: attempt.clone(),
-                steps: steps.clone(),
-                current: setup_step,
-                detail: Some(detail),
-            });
+            op.detail(format!("Task {} of {}: {}", i + 1, setups.len(), q.title));
             let (exit, output) = checks::run_script(
                 &docker,
                 &self.jumphost.name,
@@ -446,8 +523,8 @@ impl Exams {
             )
             .await?;
             if exit != 0 {
-                for line in output.lines().rev().take(10).collect::<Vec<_>>().into_iter().rev() {
-                    log(format!("  {line}"));
+                for line in output.lines().rev().take(15).collect::<Vec<_>>().into_iter().rev() {
+                    op.log(format!("  {line}"));
                 }
                 return Err(AppError::invalid(format!(
                     "setup of {id} failed: {}",
@@ -455,7 +532,6 @@ impl Exams {
                 )));
             }
         }
-        log("✓ Ready".into());
         Ok(())
     }
 
@@ -478,28 +554,70 @@ impl Exams {
             return Err(AppError::invalid("no exam is running"));
         };
         let this = self.clone();
-        tauri::async_runtime::spawn(async move {
-            match this.grade(&attempt, started_at).await {
-                Ok(result) => {
-                    this.save_history(&attempt, &result);
-                    this.set(ExamState::Finished { attempt, result });
-                }
-                Err(e) => this.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string() }),
-            }
-        });
+        tauri::async_runtime::spawn(async move { this.grade_and_finish(attempt, started_at, None).await });
         Ok(())
     }
 
-    async fn grade(&self, attempt: &Attempt, started_at: f64) -> AppResult<ExamResult> {
+    async fn grade_and_finish(&self, attempt: Attempt, started_at: f64, note: Option<String>) {
+        let op = self.activities.begin(format!("Grading {}", attempt.title), vec!["Running every check".into()]);
+        let id = op.id();
+        match op.end(self.grade(&attempt, started_at, note, id).await) {
+            Ok(result) => {
+                self.save_history(&attempt, &result);
+                self.set(ExamState::Finished { attempt, result });
+            }
+            Err(e) => self.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string(), activity: Some(id) }),
+        }
+    }
+
+    async fn grade(&self, attempt: &Attempt, started_at: f64, note: Option<String>, activity: u32) -> AppResult<ExamResult> {
+        let op = self.activities.handle(activity);
         let questions = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        let total = questions.iter().map(|(_, q)| q.checks.len() as u32).sum();
         let docker = docker::connect().await?;
-        self.set(ExamState::Grading { attempt: attempt.clone(), done: 0, total });
-        let done = std::sync::atomic::AtomicU32::new(0);
+        let grading = |scores: Vec<Option<QuestionScore>>| ExamState::Grading {
+            attempt: attempt.clone(),
+            activity,
+            scores,
+            note: note.clone(),
+        };
+        self.set(grading(vec![None; questions.len()]));
+        if let Some(note) = &note {
+            op.log(note.clone());
+        }
+
+        // Every check at once; a question's score shows as soon as its last
+        // check is in
+        let owner: Vec<usize> = questions.iter().enumerate().flat_map(|(i, (_, q))| q.checks.iter().map(move |_| i)).collect();
+        let progress = Mutex::new((
+            questions.iter().map(|(_, q)| vec![None; q.checks.len()]).collect::<Vec<Vec<Option<(bool, u32)>>>>(),
+            vec![None; questions.len()],
+        ));
+        let starts: Vec<usize> = questions
+            .iter()
+            .scan(0, |next, (_, q)| {
+                let start = *next;
+                *next += q.checks.len();
+                Some(start)
+            })
+            .collect();
         let all: Vec<_> = questions.iter().flat_map(|(_, q)| q.checks.iter().map(|c| (q.cluster.as_str(), c))).collect();
-        let mut graded = checks::run_checks(&docker, &self.jumphost.name, all, || {
-            let done = done.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-            self.set(ExamState::Grading { attempt: attempt.clone(), done, total });
+        let mut graded = checks::run_checks(&docker, &self.jumphost.name, all, |index, result| {
+            let question = owner[index];
+            let mut state = progress.lock().unwrap_or_else(|p| p.into_inner());
+            state.0[question][index - starts[question]] = Some((result.passed, result.weight));
+            if state.0[question].iter().all(Option::is_some) {
+                let (points, max_points) = state.0[question]
+                    .iter()
+                    .flatten()
+                    .fold((0, 0), |(p, m), (passed, w)| (p + if *passed { *w } else { 0 }, m + w));
+                state.1[question] = Some(QuestionScore { points, max_points });
+                let mark = if points == max_points { "✓" } else { "✗" };
+                op.log(format!("{mark} {}: {points}/{max_points}", questions[question].1.title));
+                let done = state.1.iter().filter(|s| s.is_some()).count();
+                self.set(grading(state.1.clone()));
+                drop(state);
+                op.detail(format!("{done} of {} questions graded", questions.len()));
+            }
         })
         .await?
         .into_iter();
@@ -521,6 +639,7 @@ impl Exams {
             .map(|(r, view)| if r.max_points == 0 { 0.0 } else { view.weight * f64::from(r.points) / f64::from(r.max_points) })
             .sum();
         let score = (score * 10.0).round() / 10.0;
+        op.log(format!("Score {score}% (pass {}%)", attempt.pass_score));
         Ok(ExamResult {
             score,
             passed: score >= f64::from(attempt.pass_score),
@@ -540,7 +659,7 @@ impl Exams {
         }
         let question = self.question(question_id)?;
         let docker = docker::connect().await?;
-        checks::run_checks(&docker, &self.jumphost.name, question.checks.iter().map(|c| (question.cluster.as_str(), c)), || {})
+        checks::run_checks(&docker, &self.jumphost.name, question.checks.iter().map(|c| (question.cluster.as_str(), c)), |_, _| {})
             .await
     }
 
@@ -567,33 +686,56 @@ impl Exams {
     /// Stop preparing, or close the attempt and delete its clusters.
     pub async fn end(&self) -> AppResult<()> {
         let state = self.state();
-        if let ExamState::Preparing { .. } = state {
-            self.cancel.lock().unwrap_or_else(|p| p.into_inner()).cancel();
-            return Ok(());
-        }
-        if let ExamState::Grading { .. } = state {
-            return Err(AppError::invalid("wait for grading to finish"));
+        match &state {
+            // Its task cleans up once cancelled
+            ExamState::Preparing { .. } => {
+                self.cancel.lock().unwrap_or_else(|p| p.into_inner()).cancel();
+                return Ok(());
+            }
+            ExamState::Grading { .. } | ExamState::Resuming { .. } | ExamState::Ending { .. } => {
+                return Err(AppError::invalid("wait for the exam to finish what it is doing"));
+            }
+            _ => {}
         }
         if let Some(attempt) = state.attempt() {
-            self.remove_clusters(&attempt.clusters).await;
+            self.cleanup(attempt).await;
         }
         self.session.lock().unwrap_or_else(|p| p.into_inner()).clear();
         self.set(ExamState::Idle);
         Ok(())
     }
 
-    async fn remove_clusters(&self, clusters: &[String]) {
-        let log = |line: String| tracing::info!("{line}");
+    /// Remove the attempt's clusters and desktop, shown as the Ending phase.
+    /// Best effort: what cannot be removed stays listed under Environment.
+    async fn cleanup(&self, attempt: &Attempt) {
+        let owned = self.kind.owned_clusters();
+        let clusters: Vec<&String> = attempt.clusters.iter().filter(|c| owned.contains(c)).collect();
+        let mut steps: Vec<String> = clusters.iter().map(|c| format!("Removing cluster {c}")).collect();
+        steps.extend(["Removing the exam desktop", "Updating the task host"].map(String::from));
+        let op = self.activities.begin("Cleaning up", steps);
+        self.set(ExamState::Ending { attempt: attempt.clone(), activity: op.id() });
+        let log = |line: String| op.log(line);
+        let mut step = 0;
         for name in clusters {
-            if self.kind.owned_clusters().contains(name) {
-                if let Err(e) = lifecycle::delete(&self.kind, name, &log).await {
-                    tracing::warn!(cluster = %name, error = %e, "deleting exam cluster");
-                }
+            op.step(step, None);
+            if let Err(e) = lifecycle::delete(&self.kind, name, &log).await {
+                op.log(format!("could not remove {name}: {e}"));
             }
+            step += 1;
         }
-        if let Ok(docker) = docker::connect().await {
-            let _ = desktop::remove(&docker).await;
-            let _ = self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await;
+        op.step(step, None);
+        match docker::connect().await {
+            Ok(docker) => {
+                if let Err(e) = desktop::remove(&docker).await {
+                    op.log(format!("could not remove the desktop: {e}"));
+                }
+                op.step(step + 1, None);
+                if let Err(e) = self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await {
+                    op.log(format!("could not update the task host: {e}"));
+                }
+                op.done();
+            }
+            Err(e) => op.fail(e),
         }
     }
 

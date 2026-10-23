@@ -69,18 +69,22 @@ pub async fn run_check(docker: &Docker, jumphost: &str, cluster: &str, check: &C
 const CHECK_CONCURRENCY: usize = 8;
 
 /// Run `(cluster, check)` pairs concurrently; results in input order.
-/// `on_done` is called as each one finishes (grading progress).
+/// `on_done` gets each one's index and result as it finishes (grading progress).
 pub async fn run_checks<'a>(
     docker: &Docker,
     jumphost: &str,
     checks: impl IntoIterator<Item = (&'a str, &'a Check)>,
-    on_done: impl Fn(),
+    on_done: impl Fn(usize, &CheckResult),
 ) -> AppResult<Vec<CheckResult>> {
     use futures_util::{StreamExt, TryStreamExt};
     // Futures built up front: a closure inside the stream would make it
     // non-Send for spawned tasks (rust-lang/rust#64552)
     let on_done = &on_done;
-    let runs: Vec<_> = checks.into_iter().map(|(cluster, check)| checked(docker, jumphost, cluster, check, on_done)).collect();
+    let runs: Vec<_> = checks
+        .into_iter()
+        .enumerate()
+        .map(|(index, (cluster, check))| checked(docker, jumphost, cluster, check, index, on_done))
+        .collect();
     futures_util::stream::iter(runs).buffered(CHECK_CONCURRENCY).try_collect().await
 }
 
@@ -89,11 +93,12 @@ async fn checked(
     jumphost: &str,
     cluster: &str,
     check: &Check,
-    on_done: &impl Fn(),
+    index: usize,
+    on_done: &impl Fn(usize, &CheckResult),
 ) -> AppResult<CheckResult> {
-    let result = run_check(docker, jumphost, cluster, check).await;
-    on_done();
-    result
+    let result = run_check(docker, jumphost, cluster, check).await?;
+    on_done(index, &result);
+    Ok(result)
 }
 
 /// A private kubeconfig whose current context is `cluster`, for this script only.

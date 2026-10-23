@@ -3,10 +3,12 @@ import { cn } from "@ckdry/ui/lib/utils";
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { HashRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation } from "react-router";
+import { ActivityChip } from "@/components/activity/activity-chip";
 import { CatalogRoute } from "@/routes/catalog";
 import { EnvironmentRoute } from "@/routes/environment";
 import { ExamRoute } from "@/routes/exam";
 import { HistoryRoute } from "@/routes/history";
+import { useActivities } from "@/stores/activity";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import "./index.css";
@@ -39,6 +41,7 @@ function Layout() {
 						</NavLink>
 					))}
 				</nav>
+				<ActivityChip />
 			</header>
 			<main className="min-h-0 flex-1 overflow-auto">
 				<Outlet />
@@ -58,13 +61,15 @@ function ExamGuard() {
 function App() {
 	const connectEnv = useEnvironment(s => s.connect);
 	const connectExam = useExam(s => s.connect);
-	// Follow the Rust environment and exam state for the life of the app
+	const connectActivities = useActivities(s => s.connect);
+	// Follow the Rust environment, exam state and long operations for the
+	// life of the app
 	useEffect(() => {
-		const stops = [connectEnv(), connectExam()];
+		const stops = [connectEnv(), connectExam(), connectActivities()];
 		return () => {
 			for (const stop of stops) stop.then(fn => fn());
 		};
-	}, [connectEnv, connectExam]);
+	}, [connectEnv, connectExam, connectActivities]);
 
 	return (
 		<>

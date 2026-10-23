@@ -1,6 +1,8 @@
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router";
+import { ActivityList } from "@/components/activity/activity-list";
 import { ClusterCard } from "@/components/environment/cluster-card";
 import { CreateClusterForm } from "@/components/environment/create-cluster-form";
 import { ForeignClusters } from "@/components/environment/foreign-clusters";
@@ -42,6 +44,12 @@ export function EnvironmentRoute() {
 	const [shell, setShell] = useState<{ node: string | null; session: number } | null>(null);
 	const openShell = (node: string | null) =>
 		setShell(s => ({ node, session: (s?.session ?? 0) + 1 }));
+	// "All activity" from the top bar
+	const { hash } = useLocation();
+	useEffect(() => {
+		if (hash === "#activity")
+			document.getElementById("activity")?.scrollIntoView({ behavior: "smooth" });
+	}, [hash]);
 	if (!env) return null;
 
 	return (
@@ -58,6 +66,10 @@ export function EnvironmentRoute() {
 				<ForeignClusters names={env.foreign_clusters} />
 				<CreateClusterForm />
 				{env.clusters.length > 0 && <ScriptCard />}
+				<section id="activity" className="flex flex-col gap-2">
+					<h2 className="font-semibold text-sm">Activity</h2>
+					<ActivityList />
+				</section>
 			</div>
 			<section className="flex min-w-0 flex-1 flex-col rounded-lg border border-border bg-card p-2">
 				<h2 className="mb-1 flex items-center gap-2 px-1 font-semibold text-sm">

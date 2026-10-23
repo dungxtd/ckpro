@@ -1,50 +1,16 @@
 import { Button } from "@ckdry/ui/components/button";
 import { Navigate } from "react-router";
-import { Preparing } from "@/components/exam/preparing";
+import { ActivityPage } from "@/components/activity/activity-progress";
+import { Grading } from "@/components/exam/grading";
 import { Results } from "@/components/exam/results";
 import { RunningExam } from "@/components/exam/running-exam";
 import { useExam } from "@/stores/exam";
 
-function Progress({
-	title,
-	step,
-	done,
-	total,
-	onCancel,
-}: {
-	title: string;
-	step: string;
-	done: number;
-	total: number;
-	onCancel?: () => void;
-}) {
-	const percent = total === 0 ? 0 : Math.round((done / total) * 100);
-	return (
-		<div className="flex h-full items-center justify-center">
-			<section className="w-[420px] rounded-lg border border-border bg-card p-6">
-				<div className="font-semibold">{title}</div>
-				<div className="mt-1 text-muted-foreground text-sm">{step}</div>
-				<div className="mt-4 h-2 overflow-hidden rounded bg-muted">
-					<div className="h-full bg-primary transition-all" style={{ width: `${percent}%` }} />
-				</div>
-				<div className="mt-2 flex items-center text-muted-foreground text-xs">
-					<span>
-						{done}/{total}
-					</span>
-					{onCancel && (
-						<Button size="sm" variant="ghost" className="ml-auto" onClick={onCancel}>
-							Cancel
-						</Button>
-					)}
-				</div>
-			</section>
-		</div>
-	);
-}
+const modeLabel = (mode: string) => (mode === "exam" ? "Exam mode" : "Practice mode");
 
 /** The current attempt, whatever phase it is in. */
 export function ExamRoute() {
-	const { state, end } = useExam();
+	const { state, end, start } = useExam();
 	if (!state) return null;
 
 	switch (state.phase) {
@@ -52,11 +18,18 @@ export function ExamRoute() {
 			return <Navigate to="/" replace />;
 		case "preparing":
 			return (
-				<Preparing
-					attempt={state.attempt}
-					steps={state.steps}
-					current={state.current}
-					detail={state.detail ?? null}
+				<ActivityPage id={state.activity} subtitle={modeLabel(state.attempt.mode)}>
+					<Button size="sm" variant="ghost" onClick={end}>
+						Cancel
+					</Button>
+				</ActivityPage>
+			);
+		case "resuming":
+			return (
+				<ActivityPage
+					id={state.activity}
+					subtitle={state.attempt.title}
+					note="ckdry was closed during this exam. Its clusters and desktop are starting again; the exam timer kept running."
 				/>
 			);
 		case "running":
@@ -69,26 +42,50 @@ export function ExamRoute() {
 			);
 		case "grading":
 			return (
-				<Progress
-					title="Grading"
-					step="Running every check"
-					done={state.done}
-					total={state.total}
+				<Grading
+					attempt={state.attempt}
+					activity={state.activity}
+					scores={state.scores}
+					note={state.note ?? null}
 				/>
 			);
+		case "ending":
+			return <ActivityPage id={state.activity} subtitle={state.attempt.title} />;
 		case "finished":
 			return <Results attempt={state.attempt} result={state.result} />;
-		case "failed":
-			return (
+		case "failed": {
+			const attempt = state.attempt;
+			const retry = attempt
+				? async () => {
+						await end();
+						await start(attempt.exam_id, attempt.mode, true);
+					}
+				: undefined;
+			const actions = (
+				<>
+					<Button size="sm" variant="outline" onClick={end}>
+						Close and clean up
+					</Button>
+					{retry && (
+						<Button size="sm" onClick={retry}>
+							Retry
+						</Button>
+					)}
+				</>
+			);
+			return state.activity != null ? (
+				<ActivityPage id={state.activity} subtitle={attempt?.title}>
+					{actions}
+				</ActivityPage>
+			) : (
 				<div className="flex h-full items-center justify-center">
 					<section className="w-[480px] rounded-lg border border-red-500/50 bg-card p-6">
 						<div className="font-semibold">The exam could not run</div>
 						<div className="mt-2 text-sm">{state.message}</div>
-						<Button className="mt-4" variant="outline" onClick={end}>
-							Close and clean up
-						</Button>
+						<div className="mt-4 flex justify-end gap-2">{actions}</div>
 					</section>
 				</div>
 			);
+		}
 	}
 }

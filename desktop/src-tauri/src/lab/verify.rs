@@ -186,7 +186,7 @@ async fn run_questions(
             problems.push(format!("setup failed: {output}"));
         }
         let all = || q.checks.iter().map(|c| (q.cluster.as_str(), c));
-        let before = checks::run_checks(docker, jumphost, all(), || {}).await?;
+        let before = checks::run_checks(docker, jumphost, all(), |_, _| {}).await?;
         for c in before.iter().filter(|c| c.passed) {
             problems.push(format!("check passes before the solution: {}", c.name));
         }
@@ -198,13 +198,13 @@ async fn run_questions(
         // Grading happens minutes after the candidate's last command: give
         // pods, rollouts and mirror pods up to a minute to settle, re-running
         // only the checks that still fail
-        let mut after = checks::run_checks(docker, jumphost, all(), || {}).await?;
+        let mut after = checks::run_checks(docker, jumphost, all(), |_, _| {}).await?;
         let deadline = Instant::now() + Duration::from_secs(60);
         while after.iter().any(|c| !c.passed) && Instant::now() < deadline {
             tokio::time::sleep(Duration::from_secs(3)).await;
             let failing: Vec<usize> = (0..after.len()).filter(|&i| !after[i].passed).collect();
             let rerun = failing.iter().map(|&i| (q.cluster.as_str(), &q.checks[i]));
-            for (i, result) in failing.iter().zip(checks::run_checks(docker, jumphost, rerun, || {}).await?) {
+            for (i, result) in failing.iter().zip(checks::run_checks(docker, jumphost, rerun, |_, _| {}).await?) {
                 after[*i] = result;
             }
         }

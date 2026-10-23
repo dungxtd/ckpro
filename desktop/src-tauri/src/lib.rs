@@ -17,9 +17,16 @@ use tauri_specta::Event;
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct ExamChanged(lab::exam::ExamState);
 
-/// A progress line while an attempt is prepared (kind, image builds, setups).
+/// A long operation started or moved on (without its log).
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
-pub struct ExamLog(String);
+pub struct ActivityChanged(runtime::activity::Activity);
+
+/// A log line of a long operation.
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct ActivityLog {
+    pub id: u32,
+    pub line: String,
+}
 
 /// Pushed to the UI on every environment change.
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
@@ -28,7 +35,7 @@ pub struct EnvChanged(EnvState);
 /// Typed IPC: debug builds regenerate `desktop/src/tauri/bindings.ts`.
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ExamLog])
+        .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ActivityChanged, ActivityLog])
         .commands(tauri_specta::collect_commands![
         commands::env_state,
         commands::preflight,
@@ -45,6 +52,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::list_exams,
         commands::exam_state,
         commands::desktop_session,
+        commands::activities,
         commands::start_exam,
         commands::submit_exam,
         commands::end_exam,
@@ -128,15 +136,24 @@ pub fn run() {
             let kind = Arc::new(cluster::kind::Kind::new(data_dir.clone()));
             app.manage(Arc::new(runtime::infra::Infra::new(data_dir.clone())));
             app.manage(Arc::new(runtime::jumphost::Jumphost::app(&data_dir)));
+            let (changed, line) = (app.handle().clone(), app.handle().clone());
+            let activities = runtime::activity::Activities::new(
+                move |activity| {
+                    let _ = ActivityChanged(activity.clone()).emit(&changed);
+                },
+                move |id, text| {
+                    let _ = ActivityLog { id, line: text.to_string() }.emit(&line);
+                },
+            );
+            app.manage(activities.clone());
             let handle = app.handle().clone();
             let env = Arc::new(Env::new(move |state| {
                 let _ = EnvChanged(state.clone()).emit(&handle);
             }));
-            runtime::monitor::start(env.clone(), kind.clone());
+            runtime::monitor::start(env.clone(), kind.clone(), activities.clone());
             let infra = app.state::<Arc<runtime::infra::Infra>>().inner().clone();
             let jumphost = app.state::<Arc<runtime::jumphost::Jumphost>>().inner().clone();
             let exams_handle = app.handle().clone();
-            let log_handle = app.handle().clone();
             let exams = Arc::new(lab::exam::Exams::new(
                 load_pack(app.path().resource_dir().ok()),
                 kind.clone(),
@@ -146,9 +163,7 @@ pub fn run() {
                 move |state| {
                     let _ = ExamChanged(state.clone()).emit(&exams_handle);
                 },
-                move |line| {
-                    let _ = ExamLog(line.to_string()).emit(&log_handle);
-                },
+                activities,
             ));
             exams.restore();
             app.manage(exams);
@@ -306,7 +321,7 @@ mod tests {
             true
         })
         .await;
-        runtime::reconcile::on_startup(&docker, &f.kind).await;
+        runtime::reconcile::on_startup(&docker, &f.kind, &runtime::activity::Activities::silent()).await;
         eventually("starting again brings back the nodes and the pod", 90, async || {
             let out = f.on_jumphost("kubectl get nodes --no-headers | grep -cw Ready; kubectl get pod web -o jsonpath='{.status.phase}'").await;
             out.text.split_whitespace().collect::<Vec<_>>() == ["2", "Running"]
@@ -329,7 +344,7 @@ mod tests {
         let name = "ckdry-mon";
         let env = Arc::new(Env::new(|_| {}));
         f.create(name, 1).await;
-        runtime::monitor::start(env.clone(), f.kind.clone());
+        runtime::monitor::start(env.clone(), f.kind.clone(), runtime::activity::Activities::silent());
         let worker = format!("{name}-worker");
 
         eventually("all nodes Ready", 120, async || {
@@ -376,9 +391,7 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(std::env::temp_dir().join("ckdry-e2e-history"));
         let f = fixture("exam");
-        let exams = Arc::new(Exams::new(pack.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |s: &ExamState| {
-            if let ExamState::Preparing { steps, current, .. } = s { println!("  | step {}: {}", current + 1, steps[*current as usize]); }
-        }, |line: &str| println!("  | {line}")));
+        let exams = Arc::new(Exams::new(pack.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}"))));
         let question = "core/cka/rbac-ci-token";
         let wait_running = async || {
             for _ in 0..300 {
@@ -443,13 +456,17 @@ mod tests {
         println!("ok: exam mode hides hints, checks and solutions");
         // Quitting the app mid-exam: a new engine on the same data resumes it
         let reopen = || {
-            Arc::new(Exams::new(lab::load::load(&pack_dir).0.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |_: &ExamState| {}, |_: &str| {}))
+            Arc::new(Exams::new(lab::load::load(&pack_dir).0.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |_: &ExamState| {}, runtime::activity::Activities::silent()))
         };
         let resumed = reopen();
         resumed.restore();
-        let ExamState::Running { attempt: again, ends_at: again_ends, .. } = resumed.state() else { panic!("not resumed") };
-        assert!(again.id == attempt.id && again_ends == ends_at && resumed.solution(question).is_err());
-        println!("ok: a running exam survives restarting the app");
+        assert!(matches!(resumed.state(), ExamState::Resuming { .. }));
+        eventually("a running exam survives restarting the app (resuming, then running)", 90, async || {
+            matches!(resumed.state(), ExamState::Running { attempt: ref again, ends_at: again_ends, .. }
+                if again.id == attempt.id && again_ends == ends_at)
+        })
+        .await;
+        assert!(resumed.solution(question).is_err());
         exams.submit().unwrap();
         eventually("exam graded, unsolved fails", 60, async || {
             matches!(exams.state(), ExamState::Finished { ref result, .. } if !result.passed)
