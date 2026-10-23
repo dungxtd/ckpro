@@ -4,7 +4,6 @@ title: Troubleshooting Application
 certifications:  # review: domains guessed from concepts
   cka: troubleshooting
 difficulty: hard
-workers: 2
 namespace: troubleshoot
 tags: [troubleshooting, debugging, deployment-configuration]
 

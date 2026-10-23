@@ -4,7 +4,6 @@ title: Basic DNS Service Discovery
 certifications:  # review: domains guessed from concepts
   cka: workloads-scheduling
 difficulty: hard
-workers: 2
 namespace: dns-config
 tags: [dns, service-discovery, networking]
 

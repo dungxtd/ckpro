@@ -4,7 +4,6 @@ title: Manual Storage Configuration
 certifications:  # review: domains guessed from concepts
   cka: storage
 difficulty: hard
-workers: 2
 namespace: manual-storage
 tags: [storage, persistent-volumes, node-affinity]
 

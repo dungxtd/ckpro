@@ -127,9 +127,11 @@ touches the app's clusters. On failure:
 3. Run it again.
 
 With `--keep`, inspect the cluster with
-`docker exec ckdry-jumphost-<run> kubectl ...`. Afterwards, remove its
-containers (`docker rm -f` on the `*-v<run>-*` nodes and
-`ckdry-jumphost-<run>`) and `~/Library/Application Support/dev.ckdry.app/runs/<run>`.
+`docker exec ckdry-jumphost-<run> kubectl ...`. When done, delete
+`~/Library/Application Support/dev.ckdry.app/runs/<run>/keep`; the next
+verify removes the run (its cluster, node volumes and jumphost). Verify also
+cleans up after runs that were killed or crashed. Never remove kind nodes
+with a bare `docker rm -f`, which leaves a ~1 GB volume per node behind.
 
 ## 5. Put it in an exam (optional)
 

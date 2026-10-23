@@ -4,7 +4,6 @@ title: Adding a Sidecar Container to Tail Logs
 certifications:  # review: domains guessed from concepts
   cka: storage
 difficulty: hard
-workers: 3
 namespace: logging
 tags: [multi-container-pods, sidecar-pattern, emptydir, logging]
 

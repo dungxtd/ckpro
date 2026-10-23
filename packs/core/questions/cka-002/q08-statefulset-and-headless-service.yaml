@@ -4,7 +4,6 @@ title: StatefulSet and Headless Service
 certifications:  # review: domains guessed from concepts
   cka: storage
 difficulty: hard
-workers: 2
 namespace: stateful
 tags: [statefulsets, headless-services, storage]
 

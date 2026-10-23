@@ -152,10 +152,10 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             if let RunEvent::Exit = event {
-                // Shells die with the app; clusters are left for the next
-                // start to reconcile
+                // Shells die with the app; clusters stop until the next start
                 let terminals = app.state::<terminal::Terminals>();
                 tauri::async_runtime::block_on(terminals.close_all());
+                runtime::reconcile::on_exit(&app.state::<Arc<cluster::kind::Kind>>());
             }
         });
 }
@@ -269,7 +269,7 @@ mod tests {
 
         let out = f.on_jumphost("kubectl run web --image=nginx:alpine && kubectl wait --for=condition=Ready pod/web --timeout=180s").await;
         assert_eq!(out.exit_code, 0, "{}", out.text);
-        let catalog = exec::run(&docker, infra::MIRRORS[0].0, &["wget", "-qO-", "http://127.0.0.1:5000/v2/_catalog"], &[], None).await.unwrap();
+        let catalog = exec::run(&docker, infra::MIRROR, &["wget", "-qO-", "http://127.0.0.1:5000/v2/_catalog"], &[], None).await.unwrap();
         assert!(catalog.text.contains("library/nginx"), "{}", catalog.text);
         println!("ok: image pulled through the docker.io cache");
 
@@ -279,6 +279,30 @@ mod tests {
         assert_eq!(f.on_jumphost("kubectl create namespace app-team1").await.exit_code, 0);
         assert_eq!(lab::script::run(&f.jumphost.name, ckx).await.unwrap().exit_code, 0);
         println!("ok: lab script graded on the jumphost");
+
+        // Quitting the app stops the cluster and cache (and the app's own
+        // jumphost, not this test's); starting it again brings them back,
+        // workloads included
+        let containers = [format!("{name}-control-plane"), format!("{name}-worker"), infra::MIRROR.to_string()];
+        let running = async |container: &str| {
+            docker.inspect_container(container, None).await.ok().and_then(|c| c.state?.running).unwrap_or(false)
+        };
+        runtime::reconcile::on_exit(&f.kind);
+        eventually("quitting stops the nodes and cache", 30, async || {
+            for c in &containers {
+                if running(c).await {
+                    return false;
+                }
+            }
+            true
+        })
+        .await;
+        runtime::reconcile::on_startup(&docker, &f.kind).await;
+        eventually("starting again brings back the nodes and the pod", 90, async || {
+            let out = f.on_jumphost("kubectl get nodes --no-headers | grep -cw Ready; kubectl get pod web -o jsonpath='{.status.phase}'").await;
+            out.text.split_whitespace().collect::<Vec<_>>() == ["2", "Running"]
+        })
+        .await;
 
         f.delete(name).await;
         let out = f.on_jumphost("kubectl config get-contexts -o name 2>&1").await;

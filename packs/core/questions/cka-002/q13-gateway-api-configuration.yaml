@@ -4,7 +4,6 @@ title: Gateway API Configuration
 certifications:  # review: domains guessed from concepts
   cka: services-networking
 difficulty: hard
-workers: 2
 namespace: gateway
 tags: [gateway-api, networking]
 

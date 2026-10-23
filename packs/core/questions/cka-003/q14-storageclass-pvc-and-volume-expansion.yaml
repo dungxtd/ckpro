@@ -4,7 +4,6 @@ title: StorageClass, PVC and Volume Expansion
 certifications:  # review: domains guessed from concepts
   cka: storage
 difficulty: hard
-workers: 3
 namespace: storage-pvc
 tags: [storageclass, pvc, dynamic-provisioning, volume-expansion]
 

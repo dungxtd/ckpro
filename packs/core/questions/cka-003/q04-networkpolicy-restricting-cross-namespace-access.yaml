@@ -4,7 +4,6 @@ title: NetworkPolicy Restricting Cross-Namespace Access
 certifications:  # review: domains guessed from concepts
   cka: services-networking
 difficulty: hard
-workers: 3
 namespace: fubar
 tags: [networkpolicy, networking, namespace-isolation]
 

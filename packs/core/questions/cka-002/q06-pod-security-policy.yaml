@@ -4,7 +4,6 @@ title: Pod Security Policy
 certifications:  # review: domains guessed from concepts
   cka: storage
 difficulty: hard
-workers: 2
 namespace: security
 tags: [security, pod-security-policy]
 

@@ -13,7 +13,7 @@ use super::model::Question;
 use super::render;
 use crate::cluster::{kind::Kind, lifecycle};
 use crate::error::{AppError, AppResult};
-use crate::runtime::jumphost::{Jumphost, Placement};
+use crate::runtime::jumphost::{self, Jumphost, Placement};
 use crate::runtime::{docker, infra::Infra};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -45,6 +45,10 @@ pub async fn verify(
     let run_dir = data_dir.join("runs").join(&run);
     let kind = Kind::scoped(data_dir.to_path_buf(), run_dir.join("kind"));
     let jumphost = Jumphost::for_run(data_dir, &run);
+    // Marks the run as in use; `sweep_stale` cleans up after a run whose
+    // process is gone, `keep` ones excepted
+    std::fs::create_dir_all(&run_dir).map_err(|e| AppError::io("creating run dir", e))?;
+    std::fs::write(run_dir.join("pid"), std::process::id().to_string()).map_err(|e| AppError::io("creating run dir", e))?;
 
     // One cluster per logical name, as large as its most demanding question
     let mut topology: BTreeMap<String, u8> = BTreeMap::new();
@@ -76,6 +80,7 @@ pub async fn verify(
     .await;
 
     if keep {
+        let _ = std::fs::write(run_dir.join("keep"), "");
         log(format!("[{run}] kept clusters {:?} and {}", placement.values().collect::<Vec<_>>(), jumphost.name));
     } else {
         for physical in placement.values() {
@@ -87,6 +92,71 @@ pub async fn verify(
         let _ = std::fs::remove_dir_all(&run_dir);
     }
     result
+}
+
+/// Remove what verify runs left behind when their process was killed or
+/// crashed: clusters (with their node volumes, ~1 GB per node), jumphosts and
+/// files. Runs still in progress and `--keep` runs are left alone.
+pub async fn sweep_stale(data_dir: &Path, log: Log<'_>) {
+    let runs = data_dir.join("runs");
+    let in_use = |run: &str| {
+        let dir = runs.join(run);
+        dir.join("keep").exists()
+            || std::fs::read_to_string(dir.join("pid"))
+                .ok()
+                .and_then(|pid| pid.trim().parse::<u32>().ok())
+                .is_some_and(process_alive)
+    };
+
+    let kind = Kind::new(data_dir.to_path_buf());
+    let app_clusters = kind.owned_clusters();
+    for cluster in kind.all_clusters().await.unwrap_or_default() {
+        let Some(run) = run_of_cluster(&cluster) else { continue };
+        if !app_clusters.contains(&cluster) && !in_use(run) {
+            log(format!("removing cluster {cluster} left by an interrupted verify run"));
+            if let Err(e) = lifecycle::delete(&kind, &cluster, log).await {
+                log(format!("could not remove {cluster}: {e}"));
+            }
+        }
+    }
+    if let Ok(docker) = docker::connect().await {
+        let jumphosts = docker
+            .list_containers(Some(bollard::query_parameters::ListContainersOptions {
+                all: true,
+                filters: Some(std::collections::HashMap::from([("name".to_string(), vec![jumphost::RUN_PREFIX.to_string()])])),
+                ..Default::default()
+            }))
+            .await
+            .unwrap_or_default();
+        for name in jumphosts.into_iter().flat_map(|c| c.names.unwrap_or_default()) {
+            let name = name.trim_start_matches('/');
+            if let Some(run) = name.strip_prefix(jumphost::RUN_PREFIX).filter(|run| !in_use(run)) {
+                log(format!("removing {name} left by an interrupted verify run"));
+                let _ = Jumphost::for_run(data_dir, run).remove(&docker).await;
+            }
+        }
+    }
+    for entry in std::fs::read_dir(&runs).into_iter().flatten().flatten() {
+        let run = entry.file_name().to_string_lossy().into_owned();
+        if !in_use(&run) {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+/// `k8s-v1a2b` → `1a2b`
+fn run_of_cluster(cluster: &str) -> Option<&str> {
+    let (_, run) = cluster.rsplit_once("-v")?;
+    (run.len() == 4 && run.bytes().all(|b| b.is_ascii_hexdigit())).then_some(run)
+}
+
+fn process_alive(pid: u32) -> bool {
+    pid == std::process::id()
+        || std::process::Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
 }
 
 async fn run_questions(

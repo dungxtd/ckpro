@@ -4,7 +4,6 @@ title: Horizontal Pod Autoscaling
 certifications:  # review: domains guessed from concepts
   cka: workloads-scheduling
 difficulty: hard
-workers: 2
 namespace: monitoring
 tags: [monitoring, resource-management, autoscaling]
 

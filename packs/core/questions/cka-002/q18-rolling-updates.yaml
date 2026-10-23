@@ -4,7 +4,6 @@ title: Rolling Updates
 certifications:  # review: domains guessed from concepts
   cka: workloads-scheduling
 difficulty: hard
-workers: 2
 namespace: upgrade
 tags: [deployments, rolling-updates, rollback]
 

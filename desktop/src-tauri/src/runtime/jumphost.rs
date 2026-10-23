@@ -27,6 +27,10 @@ pub fn app_placement(kind: &Kind) -> Placement {
     kind.owned_clusters().into_iter().map(|c| (c.clone(), c)).collect()
 }
 
+pub const APP_NAME: &str = "ckdry-jumphost";
+/// A verify run's jumphost is `ckdry-jumphost-<run>`
+pub const RUN_PREFIX: &str = "ckdry-jumphost-";
+
 pub struct Jumphost {
     pub name: String,
     /// Mounted read-write at /root/.ckdry (`kubectl config use-context` writes)
@@ -36,12 +40,12 @@ pub struct Jumphost {
 impl Jumphost {
     /// The app's jumphost
     pub fn app(data_dir: &Path) -> Self {
-        Self { name: "ckdry-jumphost".into(), dir: data_dir.join("jumphost") }
+        Self { name: APP_NAME.into(), dir: data_dir.join("jumphost") }
     }
 
     /// A jumphost of its own for one verify run
     pub fn for_run(data_dir: &Path, run: &str) -> Self {
-        Self { name: format!("ckdry-jumphost-{run}"), dir: data_dir.join("runs").join(run).join("jumphost") }
+        Self { name: format!("{RUN_PREFIX}{run}"), dir: data_dir.join("runs").join(run).join("jumphost") }
     }
 
     /// Where etcd client certs for a logical cluster are, on the jumphost
@@ -103,7 +107,7 @@ impl Jumphost {
 
     async fn remove_container(&self, docker: &Docker) -> AppResult<()> {
         match docker
-            .remove_container(&self.name, Some(RemoveContainerOptions { force: true, ..Default::default() }))
+            .remove_container(&self.name, Some(RemoveContainerOptions { force: true, v: true, ..Default::default() }))
             .await
         {
             Ok(()) | Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => Ok(()),

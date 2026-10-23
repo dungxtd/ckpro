@@ -4,7 +4,6 @@ title: Extracting Matching Log Lines
 certifications:  # review: domains guessed from concepts
   cka: troubleshooting
 difficulty: hard
-workers: 3
 namespace: logging
 tags: [logging, kubectl-logs, grep]
 

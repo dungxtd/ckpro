@@ -4,7 +4,6 @@ title: Network Policies
 certifications:  # review: domains guessed from concepts
   cka: workloads-scheduling
 difficulty: hard
-workers: 2
 namespace: network
 tags: [networking, network-policies, security]
 

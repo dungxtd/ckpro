@@ -4,7 +4,6 @@ title: Helm Chart Deployment
 certifications:  # review: domains guessed from concepts
   cka: workloads-scheduling
 difficulty: hard
-workers: 2
 namespace: helm-test
 tags: [helm, package-management]
 

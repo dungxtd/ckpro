@@ -172,6 +172,7 @@ fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: boo
                 eprintln!("error: {e}");
             }
         }
+        verify::sweep_stale(&data_dir, &log).await;
         let mut stream = futures_util::stream::iter(runs.iter())
             .map(|(label, ids)| {
                 let (pack, data_dir, infra, log) = (&pack, &data_dir, &infra, &log);

@@ -4,7 +4,6 @@ title: Storage Class Configuration
 certifications:  # review: domains guessed from concepts
   cka: storage
 difficulty: hard
-workers: 2
 namespace: storage-class
 tags: [storage, storage-classes]
 

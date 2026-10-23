@@ -4,7 +4,6 @@ title: DNS Configuration and Debugging
 certifications:  # review: domains guessed from concepts
   cka: workloads-scheduling
 difficulty: hard
-workers: 2
 namespace: dns-debug
 tags: [dns, service-discovery, networking]
 

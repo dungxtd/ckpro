@@ -27,12 +27,17 @@ const ETCD_VERSION: &str = "v3.6.6";
 /// existing tasks are written for
 const HELM_VERSION: &str = "v3.22.1";
 
-/// Pull-through caches: (container and volume name, upstream, registry host)
-pub const MIRRORS: [(&str, &str, &str); 4] = [
-    ("ckdry-mirror-docker-io", "https://registry-1.docker.io", "docker.io"),
-    ("ckdry-mirror-registry-k8s-io", "https://registry.k8s.io", "registry.k8s.io"),
-    ("ckdry-mirror-ghcr-io", "https://ghcr.io", "ghcr.io"),
-    ("ckdry-mirror-quay-io", "https://quay.io", "quay.io"),
+/// Pull-through cache for every upstream, in one container and one volume.
+/// A registry proxies a single upstream, so it runs one registry process per
+/// upstream, each on its own port and its own directory in the volume.
+pub const MIRROR: &str = "ckdry-mirror";
+const MIRROR_IMAGE: &str = "registry:2";
+/// (port, upstream, registry host)
+const UPSTREAMS: [(u16, &str, &str); 4] = [
+    (5000, "https://registry-1.docker.io", "docker.io"),
+    (5001, "https://registry.k8s.io", "registry.k8s.io"),
+    (5002, "https://ghcr.io", "ghcr.io"),
+    (5003, "https://quay.io", "quay.io"),
 ];
 
 const NODE_DOCKERFILE: &str = include_str!("../../resources/node/Dockerfile");
@@ -62,16 +67,15 @@ impl Infra {
         }
 
         self.write_certs_d()?;
-        for (name, upstream, _) in MIRRORS {
-            if let Err(e) = self.ensure_mirror(docker, name, upstream).await {
-                // Best effort: containerd falls back to the upstream registry
-                log(format!("Registry cache {name} unavailable ({e}); pulling directly"));
-            }
+        if let Err(e) = ensure_mirror(docker).await {
+            // Best effort: containerd falls back to the upstream registries
+            log(format!("Registry cache unavailable ({e}); pulling directly"));
         }
 
         if docker.inspect_image(NODE_IMAGE).await.is_err() {
             log(format!("Building {NODE_IMAGE} (first run only)"));
             build(docker, NODE_IMAGE, NODE_DOCKERFILE, &[("BASE", KIND_NODE_BASE)], log).await?;
+            remove_older(docker, NODE_IMAGE, log).await;
         }
         if docker.inspect_image(JUMPHOST_IMAGE).await.is_err() {
             log(format!("Building {JUMPHOST_IMAGE} (first run only)"));
@@ -83,44 +87,74 @@ impl Infra {
                 log,
             )
             .await?;
+            remove_older(docker, JUMPHOST_IMAGE, log).await;
         }
         Ok(())
     }
 
     fn write_certs_d(&self) -> AppResult<()> {
-        for (name, upstream, host) in MIRRORS {
+        for (port, upstream, host) in UPSTREAMS {
             let dir = self.certs_dir().join(host);
             std::fs::create_dir_all(&dir).map_err(|e| AppError::io("writing registry config", e))?;
             let toml = format!(
                 "# Pull through the ckdry cache; containerd falls back to the upstream\n\
-                 server = \"{upstream}\"\n\n[host.\"http://{name}:5000\"]\n  capabilities = [\"pull\", \"resolve\"]\n"
+                 server = \"{upstream}\"\n\n[host.\"http://{MIRROR}:{port}\"]\n  capabilities = [\"pull\", \"resolve\"]\n"
             );
             std::fs::write(dir.join("hosts.toml"), toml).map_err(|e| AppError::io("writing registry config", e))?;
         }
         Ok(())
     }
+}
 
-    async fn ensure_mirror(&self, docker: &Docker, name: &str, upstream: &str) -> AppResult<()> {
-        if start_existing(docker, name).await? {
-            return Ok(());
-        }
-        let config = ContainerCreateBody {
-            image: Some("registry:2".into()),
-            env: Some(vec![format!("REGISTRY_PROXY_REMOTEURL={upstream}")]),
-            labels: Some(compose_labels(name).into_iter().collect()),
-            host_config: Some(HostConfig {
-                binds: Some(vec![format!("{name}:/var/lib/registry")]),
-                network_mode: Some(NETWORK.into()),
-                restart_policy: Some(RestartPolicy {
-                    name: Some(RestartPolicyNameEnum::UNLESS_STOPPED),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
+async fn ensure_mirror(docker: &Docker) -> AppResult<()> {
+    if start_existing(docker, MIRROR).await? {
+        return Ok(());
+    }
+    // One registry per upstream; the container stops (and its restart
+    // policy restarts it) as soon as one of them exits
+    let mut script = String::new();
+    for (port, upstream, host) in UPSTREAMS {
+        script.push_str(&format!(
+            "REGISTRY_HTTP_ADDR=:{port} REGISTRY_PROXY_REMOTEURL={upstream} \
+             REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY=/var/lib/registry/{host} \
+             registry serve /etc/docker/registry/config.yml &\n"
+        ));
+    }
+    script.push_str("wait -n\n");
+    let config = ContainerCreateBody {
+        image: Some(MIRROR_IMAGE.into()),
+        entrypoint: Some(vec!["sh".into(), "-c".into(), script]),
+        cmd: Some(vec![]),
+        labels: Some(compose_labels(MIRROR).into_iter().collect()),
+        host_config: Some(HostConfig {
+            binds: Some(vec![format!("{MIRROR}:/var/lib/registry")]),
+            network_mode: Some(NETWORK.into()),
+            restart_policy: Some(RestartPolicy { name: Some(RestartPolicyNameEnum::UNLESS_STOPPED), ..Default::default() }),
             ..Default::default()
-        };
-        pull_if_missing(docker, "registry:2").await?;
-        create_and_start(docker, name, config).await
+        }),
+        ..Default::default()
+    };
+    pull_if_missing(docker, MIRROR_IMAGE).await?;
+    create_and_start(docker, MIRROR, config).await
+}
+
+/// Drop the other tags of `current`'s repository, left by an older version of
+/// the app. One still used by a container stays (removal fails harmlessly).
+async fn remove_older(docker: &Docker, current: &str, log: &(dyn Fn(String) + Sync)) {
+    let repository = current.split(':').next().unwrap_or(current);
+    let Ok(images) = docker
+        .list_images(Some(bollard::query_parameters::ListImagesOptions {
+            filters: Some(HashMap::from([("reference".to_string(), vec![repository.to_string()])])),
+            ..Default::default()
+        }))
+        .await
+    else {
+        return;
+    };
+    for tag in images.into_iter().flat_map(|i| i.repo_tags).filter(|t| t != current) {
+        if docker.remove_image(&tag, None::<bollard::query_parameters::RemoveImageOptions>, None).await.is_ok() {
+            log(format!("Removed {tag} (replaced by {current})"));
+        }
     }
 }
 

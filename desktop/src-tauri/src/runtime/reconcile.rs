@@ -1,5 +1,6 @@
-//! Bring owned clusters back to a usable state: on startup (after Docker or
-//! the machine restarted) and when the user asks for a repair.
+//! Bring owned clusters back to a usable state: on startup (after Docker, the
+//! machine or the app restarted) and when the user asks for a repair. Quitting
+//! the app stops them, so an idle exam costs no memory or CPU.
 
 use crate::cluster::kind::Kind;
 use crate::error::AppResult;
@@ -7,8 +8,14 @@ use bollard::Docker;
 use bollard::query_parameters::ListContainersOptions;
 use std::collections::HashMap;
 
-/// Forget clusters whose nodes are gone, start the ones that are stopped.
+/// Forget clusters whose nodes are gone, start the ones that are stopped,
+/// and the cache and jumphost they work with.
 pub async fn on_startup(docker: &Docker, kind: &Kind) {
+    for name in [super::infra::MIRROR, super::jumphost::APP_NAME] {
+        if let Err(e) = super::infra::start_existing(docker, name).await {
+            tracing::warn!(container = %name, error = %e, "starting");
+        }
+    }
     for name in kind.owned_clusters() {
         match nodes(docker, &name).await {
             Ok(nodes) if nodes.is_empty() => {
@@ -62,4 +69,28 @@ async fn nodes(docker: &Docker, cluster: &str) -> AppResult<Vec<(String, String,
             )
         })
         .collect())
+}
+
+/// Stop the app's clusters, jumphost and cache when it quits; `on_startup`
+/// starts them again. Handed to a detached `docker stop` so quitting is
+/// instant (verify runs from the CLI are not touched).
+pub fn on_exit(kind: &Kind) {
+    let clusters = kind.owned_clusters();
+    let script = format!(
+        "{{ for c in \"$@\"; do docker ps -q --filter label=io.x-k8s.kind.cluster=$c; done; \
+         echo {mirror}; echo {jumphost}; }} | xargs docker stop -t 5 >/dev/null 2>&1",
+        mirror = super::infra::MIRROR,
+        jumphost = super::jumphost::APP_NAME,
+    );
+    let spawned = std::process::Command::new("sh")
+        .args(["-c", &script, "sh"])
+        .args(&clusters)
+        .env("PATH", super::docker::cli_path())
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    if let Err(e) = spawned {
+        tracing::warn!(error = %e, "stopping clusters on exit");
+    }
 }

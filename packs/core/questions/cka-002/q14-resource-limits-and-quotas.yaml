@@ -4,7 +4,6 @@ title: Resource Limits and Quotas
 certifications:  # review: domains guessed from concepts
   cka: workloads-scheduling
 difficulty: hard
-workers: 2
 namespace: limits
 tags: [resource-management, limitrange, resourcequota]
 

@@ -4,7 +4,6 @@ title: PersistentVolume with hostPath
 certifications:  # review: domains guessed from concepts
   cka: storage
 difficulty: hard
-workers: 3
 namespace: storage-pv
 tags: [persistent-volumes, hostpath]
 

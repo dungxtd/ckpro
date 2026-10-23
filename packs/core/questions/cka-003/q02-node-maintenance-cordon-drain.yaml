@@ -4,7 +4,7 @@ title: "Node Maintenance (Cordon + Drain)"
 certifications:  # review: domains guessed from concepts
   cka: workloads-scheduling
 difficulty: hard
-workers: 3
+workers: 2
 namespace: node-ops
 tags: [node-maintenance, cordon, drain, eviction]
 

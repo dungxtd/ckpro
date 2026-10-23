@@ -4,7 +4,6 @@ title: Finding the Top CPU Consumer via Metrics
 certifications:  # review: domains guessed from concepts
   cka: troubleshooting
 difficulty: hard
-workers: 3
 namespace: monitoring
 tags: [metrics-server, kubectl-top, resource-monitoring]
 

@@ -4,7 +4,6 @@ title: RBAC Configuration
 certifications:  # review: domains guessed from concepts
   cka: workloads-scheduling
 difficulty: hard
-workers: 2
 namespace: cluster-admin
 tags: [rbac, service-accounts, security]
 

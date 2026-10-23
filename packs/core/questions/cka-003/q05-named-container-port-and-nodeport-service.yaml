@@ -4,7 +4,6 @@ title: Named Container Port and NodePort Service
 certifications:  # review: domains guessed from concepts
   cka: services-networking
 difficulty: hard
-workers: 3
 namespace: default
 tags: [deployments, services, nodeport, named-ports]
 

@@ -4,7 +4,6 @@ title: Scaling a Deployment
 certifications:  # review: domains guessed from concepts
   cka: workloads-scheduling
 difficulty: hard
-workers: 3
 namespace: default
 tags: [deployments, scaling]
 
