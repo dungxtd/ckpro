@@ -20,6 +20,14 @@ pub fn lint(pack: &LoadedPack) -> Vec<Finding> {
         if cert.duration.seconds().is_none() {
             add(Level::Error, &pack.root.join("pack.yaml"), format!("{id}: bad duration '{}'", cert.duration.0));
         }
+        for url in &cert.resources {
+            if !url.starts_with("https://") || url.trim_start_matches("https://").split('/').next().is_none_or(str::is_empty) {
+                add(Level::Error, &pack.root.join("pack.yaml"), format!("{id}: resource '{url}' is not an https:// URL"));
+            }
+        }
+        if cert.resources.is_empty() {
+            add(Level::Warning, &pack.root.join("pack.yaml"), format!("{id}: no resources: the exam browser opens nothing"));
+        }
     }
 
     for (id, q) in &pack.questions {

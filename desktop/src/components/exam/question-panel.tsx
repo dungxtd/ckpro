@@ -1,5 +1,4 @@
 import { Button } from "@ckdry/ui/components/button";
-import { Flag } from "lucide-react";
 import { Markdown } from "@/components/markdown";
 import { useExam } from "@/stores/exam";
 import type { Attempt, QuestionView } from "@/tauri/api";
@@ -15,40 +14,31 @@ export function QuestionPanel({
 	question: QuestionView;
 	index: number;
 }) {
-	const { flagged, hintsShown, checks, solutions } = useExam();
-	const { toggleFlag, showHint, check, loadSolution } = useExam();
+	const { hintsShown, checks, solutions } = useExam();
+	const { showHint, check, loadSolution } = useExam();
 	const practice = attempt.mode === "practice";
-	const multiCluster = attempt.clusters.length > 1;
 	const hints = question.hints.slice(0, hintsShown[question.id] ?? 0);
 	const result = checks[question.id];
 	const solution = solutions[question.id];
 
 	return (
 		<div className="flex flex-col gap-3">
-			<header className="flex items-start gap-2">
-				<div className="flex-1">
-					<div className="text-muted-foreground text-xs">
-						Question {index + 1} of {attempt.questions.length} · weight {(question.weight ?? 0).toFixed(0)}
-						%
-					</div>
-					<h2 className="font-semibold">{question.title}</h2>
+			<header>
+				<div className="text-muted-foreground text-xs">
+					Question {index + 1} · weight {(question.weight ?? 0).toFixed(0)}%
 				</div>
-				<Button
-					size="sm"
-					variant={flagged.includes(question.id) ? "default" : "outline"}
-					onClick={() => toggleFlag(question.id)}
-				>
-					<Flag className="size-4" /> Flag
-				</Button>
+				<h2 className="font-semibold">{question.title}</h2>
 			</header>
 
-			<div className="rounded-md border border-border bg-muted/40 p-2 font-mono text-xs">
-				{multiCluster && <div>kubectl config use-context {question.cluster}</div>}
+			{/* The exam's task infobox: where to solve it */}
+			<div className="rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-sm">
+				<div>You must connect to the correct host.</div>
+				<div>Failure to do so may result in a zero score.</div>
+				<pre className="mt-2 select-text font-mono text-xs">
+					[candidate@base] $ ssh {question.host}
+				</pre>
 				{question.namespace && (
-					<div className="text-muted-foreground"># namespace: {question.namespace}</div>
-				)}
-				{!multiCluster && !question.namespace && (
-					<div className="text-muted-foreground"># cluster: {question.cluster}</div>
+					<div className="mt-1 text-muted-foreground text-xs">Namespace: {question.namespace}</div>
 				)}
 			</div>
 
@@ -56,7 +46,7 @@ export function QuestionPanel({
 
 			{question.references.length > 0 && (
 				<div className="text-xs">
-					<div className="text-muted-foreground">Allowed documentation</div>
+					<div className="text-muted-foreground">Quick Reference</div>
 					{question.references.map(url => (
 						<div key={url} className="truncate font-mono">
 							{url}

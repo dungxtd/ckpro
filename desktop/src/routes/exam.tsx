@@ -1,5 +1,6 @@
 import { Button } from "@ckdry/ui/components/button";
 import { Navigate } from "react-router";
+import { Preparing } from "@/components/exam/preparing";
 import { Results } from "@/components/exam/results";
 import { RunningExam } from "@/components/exam/running-exam";
 import { useExam } from "@/stores/exam";
@@ -51,12 +52,11 @@ export function ExamRoute() {
 			return <Navigate to="/" replace />;
 		case "preparing":
 			return (
-				<Progress
-					title={`Preparing ${state.attempt.title}`}
-					step={state.step}
-					done={state.done}
-					total={state.total}
-					onCancel={end}
+				<Preparing
+					attempt={state.attempt}
+					steps={state.steps}
+					current={state.current}
+					detail={state.detail ?? null}
 				/>
 			);
 		case "running":

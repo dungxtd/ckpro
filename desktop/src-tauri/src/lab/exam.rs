@@ -12,7 +12,7 @@ use super::render;
 use crate::cluster::{kind::Kind, lifecycle};
 use crate::error::{AppError, AppResult};
 use crate::runtime::jumphost::{self, Jumphost};
-use crate::runtime::{docker, infra::Infra};
+use crate::runtime::{desktop, docker, infra::Infra};
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -44,6 +44,8 @@ pub struct QuestionView {
     pub id: String,
     pub title: String,
     pub cluster: String,
+    /// Where to solve it, from the exam desktop: `ssh <host>`
+    pub host: String,
     pub namespace: Option<String>,
     /// Share of the exam's points, in percent
     pub weight: f64,
@@ -90,7 +92,9 @@ pub struct ExamResult {
 pub enum ExamState {
     #[default]
     Idle,
-    Preparing { attempt: Attempt, step: String, done: u32, total: u32 },
+    /// `steps` is the whole plan, `current` the one in progress; `detail`
+    /// says where in it (which question is being set up)
+    Preparing { attempt: Attempt, steps: Vec<String>, current: u32, detail: Option<String> },
     /// `ends_at` is unset in practice mode (no time limit)
     Running { attempt: Attempt, started_at: f64, ends_at: Option<f64> },
     Grading { attempt: Attempt, done: u32, total: u32 },
@@ -141,6 +145,8 @@ pub struct Exams {
     session: Mutex<Vec<(String, Question)>>,
     cancel: Mutex<CancellationToken>,
     publish: Box<dyn Fn(&ExamState) + Send + Sync>,
+    /// Progress lines while preparing (kind, image builds, setups)
+    log: Box<dyn Fn(&str) + Send + Sync>,
 }
 
 impl Exams {
@@ -151,6 +157,7 @@ impl Exams {
         jumphost: Arc<Jumphost>,
         history_dir: PathBuf,
         publish: impl Fn(&ExamState) + Send + Sync + 'static,
+        log: impl Fn(&str) + Send + Sync + 'static,
     ) -> Self {
         Self {
             pack,
@@ -163,6 +170,7 @@ impl Exams {
             session: Mutex::new(Vec::new()),
             cancel: Mutex::new(CancellationToken::new()),
             publish: Box::new(publish),
+            log: Box::new(log),
         }
     }
 
@@ -281,6 +289,7 @@ impl Exams {
                     id: id.clone(),
                     title: q.title.clone(),
                     cluster: q.cluster.clone(),
+                    host: q.cluster.clone(),
                     namespace: q.namespace.clone(),
                     weight: if total_points == 0 { 0.0 } else {
                         f64::from(q.checks.iter().map(|c| c.weight).sum::<u32>()) * 100.0 / f64::from(total_points)
@@ -292,6 +301,10 @@ impl Exams {
                 .collect(),
             clusters: clusters.keys().cloned().collect(),
         };
+        // The certification's allowed docs plus the tasks' own references
+        let mut allowed = cert.resources.clone();
+        allowed.extend(questions.iter().flat_map(|(_, q)| q.references.iter().cloned()));
+        allowed.dedup();
         *self.session.lock().unwrap_or_else(|p| p.into_inner()) = questions;
         let token = CancellationToken::new();
         *self.cancel.lock().unwrap_or_else(|p| p.into_inner()) = token.clone();
@@ -300,7 +313,7 @@ impl Exams {
         let this = self.clone();
         tauri::async_runtime::spawn(async move {
             let prepared = tokio::select! {
-                result = this.prepare(&attempt, &clusters, replace) => result,
+                result = this.prepare(&attempt, &clusters, replace, &allowed) => result,
                 _ = token.cancelled() => Err(AppError::Cancelled { message: "preparation cancelled".into() }),
             };
             match prepared {
@@ -360,49 +373,89 @@ impl Exams {
             .collect()
     }
 
-    async fn prepare(&self, attempt: &Attempt, clusters: &BTreeMap<String, u8>, replace: bool) -> AppResult<()> {
+    async fn prepare(
+        &self,
+        attempt: &Attempt,
+        clusters: &BTreeMap<String, u8>,
+        replace: bool,
+        allowed: &[String],
+    ) -> AppResult<()> {
         let questions = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
         let setups: Vec<&(String, Question)> = questions.iter().filter(|(_, q)| q.setup.is_some()).collect();
-        let total = (clusters.len() + 1 + setups.len()) as u32;
-        let mut done = 0;
-        let step = |step: String, done: u32| {
-            self.set(ExamState::Preparing { attempt: attempt.clone(), step, done, total });
-        };
-        let log = |line: String| tracing::info!(attempt = %attempt.id, "{line}");
+        let existing = if replace { self.kind.all_clusters().await? } else { Vec::new() };
 
+        // The whole plan up front, so the candidate sees what is coming
+        let mut steps = vec!["Preparing images and the registry cache".to_string()];
         for (name, workers) in clusters {
-            if replace && self.kind.all_clusters().await?.contains(name) {
-                step(format!("Removing the old cluster {name}"), done);
+            if existing.contains(name) {
+                steps.push(format!("Removing the old cluster {name}"));
+            }
+            let plural = if *workers == 1 { "" } else { "s" };
+            steps.push(format!("Creating cluster {name}: 1 control plane, {workers} worker{plural}"));
+        }
+        steps.push("Preparing the task host".into());
+        steps.push("Starting the exam desktop".into());
+        if !setups.is_empty() {
+            let plural = if setups.len() == 1 { "" } else { "s" };
+            steps.push(format!("Setting up {} task{plural}", setups.len()));
+        }
+        let mut current = 0u32;
+        let log = |line: String| {
+            tracing::info!(attempt = %attempt.id, "{line}");
+            (self.log)(&line);
+        };
+        let mut next = |detail: Option<String>| {
+            // State first: the UI starts a new log when it sees a new attempt
+            self.set(ExamState::Preparing { attempt: attempt.clone(), steps: steps.clone(), current, detail });
+            log(format!("▸ {}", steps[current as usize]));
+            current += 1;
+        };
+
+        let docker = docker::connect().await?;
+        next(Some("The first exam builds them, which takes a few minutes".into()));
+        self.infra.ensure(&docker, &log).await?;
+        for (name, workers) in clusters {
+            if existing.contains(name) {
+                next(None);
                 lifecycle::delete(&self.kind, name, &log).await?;
             }
-            step(format!("Creating cluster {name} (1 control plane, {workers} workers)"), done);
+            next(None);
             lifecycle::create(&self.kind, &self.infra, name, *workers, &log, &Default::default()).await?;
-            done += 1;
         }
-        let docker = docker::connect().await?;
-        step("Preparing the jumphost".into(), done);
+        next(None);
         self.jumphost.reset(&docker, &log).await?;
         self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await?;
-        done += 1;
+        next(None);
+        desktop::start(&docker, allowed, &attempt.clusters, &self.jumphost.name).await?;
+        let setup_step = current;
         for (i, (id, q)) in setups.iter().enumerate() {
-            step(format!("Setting up question {} of {}", i + 1, setups.len()), done);
-            let (exit, output) =
-                checks::run_script(
-                    &docker,
-                    &self.jumphost.name,
-                    &q.cluster,
-                    q.setup.as_deref().unwrap_or_default(),
-                    checks::SCRIPT_TIMEOUT_SECS,
-                )
-                .await?;
+            let detail = format!("Task {} of {}: {}", i + 1, setups.len(), q.title);
+            log(detail.clone());
+            self.set(ExamState::Preparing {
+                attempt: attempt.clone(),
+                steps: steps.clone(),
+                current: setup_step,
+                detail: Some(detail),
+            });
+            let (exit, output) = checks::run_script(
+                &docker,
+                &self.jumphost.name,
+                &q.cluster,
+                q.setup.as_deref().unwrap_or_default(),
+                checks::SCRIPT_TIMEOUT_SECS,
+            )
+            .await?;
             if exit != 0 {
+                for line in output.lines().rev().take(10).collect::<Vec<_>>().into_iter().rev() {
+                    log(format!("  {line}"));
+                }
                 return Err(AppError::invalid(format!(
                     "setup of {id} failed: {}",
                     output.lines().last().unwrap_or_default()
                 )));
             }
-            done += 1;
         }
+        log("✓ Ready".into());
         Ok(())
     }
 
@@ -539,6 +592,7 @@ impl Exams {
             }
         }
         if let Ok(docker) = docker::connect().await {
+            let _ = desktop::remove(&docker).await;
             let _ = self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await;
         }
     }

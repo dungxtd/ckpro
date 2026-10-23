@@ -90,12 +90,20 @@ export const terminalApi = {
 	close: (id: string) => unwrap(commands.terminalClose(id)),
 };
 
+export const desktopApi = {
+	/** VNC websocket port and password of the exam desktop; null until it runs. */
+	session: () => unwrap(commands.desktopSession()),
+};
+
 export const examApi = {
 	list: () => commands.listExams(),
 	state: () => commands.examState() as Promise<ExamState>,
 	/** Calls `onChange` with every new exam state; returns the unsubscribe. */
 	subscribe: async (onChange: (state: ExamState) => void) =>
 		events.examChanged.listen(event => onChange(event.payload as ExamState)),
+	/** Calls `onLine` with each progress line while an attempt is prepared. */
+	onLog: async (onLine: (line: string) => void) =>
+		events.examLog.listen(event => onLine(event.payload)),
 	start: (id: string, mode: Mode, replace: boolean) =>
 		unwrap(commands.startExam(id, mode, replace)),
 	submit: () => unwrap(commands.submitExam()),

@@ -15,17 +15,64 @@ use std::path::PathBuf;
 /// the jumphost can join it before the first cluster exists.
 pub const NETWORK: &str = "kind";
 
-pub const KIND_NODE_BASE: &str = "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0";
-pub const NODE_IMAGE: &str = "ckdry/node:v1.35.8";
-/// Tagged with its tool versions so a version change builds a new image
-pub const JUMPHOST_IMAGE: &str = "ckdry/jumphost:v1.35.8-helm3.22.1";
+const KIND_NODE_BASE: &str = "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0";
 
-/// Tools on the jumphost, in step with the cluster version (CKA runs v1.35)
-const KUBECTL_VERSION: &str = "v1.35.8";
-const ETCD_VERSION: &str = "v3.6.6";
-/// Helm 3: what the exam's allowed documentation (helm.sh/docs) and most
-/// existing tasks are written for
-const HELM_VERSION: &str = "v3.22.1";
+/// An image ckdry builds. Its tag is a hash of everything it is built from,
+/// so changing a file or a version builds a new image (and drops the old one).
+pub struct Image {
+    pub repository: &'static str,
+    /// (name in the build context, content); the first is the Dockerfile
+    files: &'static [(&'static str, &'static str)],
+    args: &'static [(&'static str, &'static str)],
+}
+
+impl Image {
+    pub fn tag(&self) -> String {
+        // FNV-1a: stable across Rust versions, unlike std's hasher
+        let mut hash: u64 = 0xcbf29ce484222325;
+        for part in self.files.iter().chain(self.args).flat_map(|(a, b)| [a, b]) {
+            for byte in part.bytes().chain([0]) {
+                hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+            }
+        }
+        format!("{}:{:08x}", self.repository, hash as u32)
+    }
+}
+
+/// kind node + sshd (`ssh <node>`)
+pub const NODE_IMAGE: Image = Image {
+    repository: "ckdry/node",
+    files: &[("Dockerfile", include_str!("../../resources/node/Dockerfile"))],
+    args: &[("BASE", KIND_NODE_BASE)],
+};
+
+/// The task host: kubectl, helm, etcdctl, yq in step with the clusters
+/// (CKA runs v1.35); Helm 3, what helm.sh/docs and the tasks are written for
+pub const JUMPHOST_IMAGE: Image = Image {
+    repository: "ckdry/jumphost",
+    files: &[("Dockerfile", include_str!("../../resources/jumphost/Dockerfile"))],
+    args: &[
+        ("KUBECTL_VERSION", "v1.35.8"),
+        ("ETCD_VERSION", "v3.6.6"),
+        ("HELM_VERSION", "v3.22.1"),
+        ("YQ_VERSION", "v4.54.1"),
+    ],
+};
+
+/// The exam's remote desktop, the `base` machine (runtime/desktop.rs)
+pub const DESKTOP_IMAGE: Image = Image {
+    repository: "ckdry/desktop",
+    files: &[
+        ("Dockerfile", include_str!("../../resources/desktop/Dockerfile")),
+        ("start.sh", include_str!("../../resources/desktop/start.sh")),
+        ("xfce4-panel.xml", include_str!("../../resources/desktop/xfce4-panel.xml")),
+        ("helpers.rc", include_str!("../../resources/desktop/helpers.rc")),
+        ("terminal.desktop", include_str!("../../resources/desktop/terminal.desktop")),
+        ("firefox.desktop", include_str!("../../resources/desktop/firefox.desktop")),
+        ("keyboard.desktop", include_str!("../../resources/desktop/keyboard.desktop")),
+    ],
+    args: &[],
+};
 
 /// Pull-through cache for every upstream, in one container and one volume.
 /// A registry proxies a single upstream, so it runs one registry process per
@@ -40,8 +87,6 @@ const UPSTREAMS: [(u16, &str, &str); 4] = [
     (5003, "https://quay.io", "quay.io"),
 ];
 
-const NODE_DOCKERFILE: &str = include_str!("../../resources/node/Dockerfile");
-const JUMPHOST_DOCKERFILE: &str = include_str!("../../resources/jumphost/Dockerfile");
 
 pub struct Infra {
     dir: PathBuf,
@@ -72,22 +117,8 @@ impl Infra {
             log(format!("Registry cache unavailable ({e}); pulling directly"));
         }
 
-        if docker.inspect_image(NODE_IMAGE).await.is_err() {
-            log(format!("Building {NODE_IMAGE} (first run only)"));
-            build(docker, NODE_IMAGE, NODE_DOCKERFILE, &[("BASE", KIND_NODE_BASE)], log).await?;
-            remove_older(docker, NODE_IMAGE, log).await;
-        }
-        if docker.inspect_image(JUMPHOST_IMAGE).await.is_err() {
-            log(format!("Building {JUMPHOST_IMAGE} (first run only)"));
-            build(
-                docker,
-                JUMPHOST_IMAGE,
-                JUMPHOST_DOCKERFILE,
-                &[("KUBECTL_VERSION", KUBECTL_VERSION), ("ETCD_VERSION", ETCD_VERSION), ("HELM_VERSION", HELM_VERSION)],
-                log,
-            )
-            .await?;
-            remove_older(docker, JUMPHOST_IMAGE, log).await;
+        for image in [&NODE_IMAGE, &JUMPHOST_IMAGE, &DESKTOP_IMAGE] {
+            build_if_missing(docker, image, log).await?;
         }
         Ok(())
     }
@@ -195,22 +226,30 @@ async fn pull_if_missing(docker: &Docker, image: &str) -> AppResult<()> {
     Ok(())
 }
 
-/// Build `tag` from a single Dockerfile, streaming the build output to `log`.
-async fn build(
-    docker: &Docker,
-    tag: &str,
-    dockerfile: &str,
-    args: &[(&str, &str)],
-    log: &(dyn Fn(String) + Sync),
-) -> AppResult<()> {
+/// Build `image` unless its tag exists, then drop its older tags.
+async fn build_if_missing(docker: &Docker, image: &Image, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
+    let tag = image.tag();
+    if docker.inspect_image(&tag).await.is_ok() {
+        return Ok(());
+    }
+    log(format!("Building {tag} (first run, or after an update)"));
+    build(docker, &tag, image, log).await?;
+    remove_older(docker, &tag, log).await;
+    Ok(())
+}
+
+/// Build `tag` from the image's files, streaming the build output to `log`.
+async fn build(docker: &Docker, tag: &str, image: &Image, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
     let mut context = tar::Builder::new(Vec::new());
-    let mut header = tar::Header::new_gnu();
-    header.set_size(dockerfile.len() as u64);
-    header.set_mode(0o644);
-    header.set_cksum();
-    context
-        .append_data(&mut header, "Dockerfile", dockerfile.as_bytes())
-        .map_err(|e| AppError::io("packing build context", e))?;
+    for (name, content) in image.files {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        context
+            .append_data(&mut header, name, content.as_bytes())
+            .map_err(|e| AppError::io("packing build context", e))?;
+    }
     let context = context.into_inner().map_err(|e| AppError::io("packing build context", e))?;
 
     let options = BuildImageOptions {
@@ -218,7 +257,7 @@ async fn build(
         t: Some(tag.into()),
         rm: true,
         forcerm: true,
-        buildargs: Some(args.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<HashMap<_, _>>()),
+        buildargs: Some(image.args.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<HashMap<_, _>>()),
         labels: Some(compose_labels(tag).into_iter().collect()),
         ..Default::default()
     };

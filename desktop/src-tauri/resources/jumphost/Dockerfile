@@ -1,16 +1,22 @@
-# The candidate's machine, like the exam's base host: kubectl with every
-# exam cluster as a context, ssh to every node by name, etcdctl and helm.
-# Built once by ckdry (runtime/infra.rs); per-exam files are mounted at
-# /root/.ckdry by the app.
+# The task host: where the candidate solves tasks and checks grade them.
+# Reached from the exam desktop (`base`) with `ssh <host>`, one host name per
+# cluster, which logs in with that cluster's kubectl context. kubectl (k,
+# completion), helm, etcdctl, yq, curl, wget and man, like the exam's hosts;
+# ssh to every node by name. Built by ckdry (runtime/infra.rs); per-exam
+# files are mounted at /root/.ckdry by the app.
 FROM debian:trixie-slim
 
 ARG KUBECTL_VERSION
 ARG ETCD_VERSION
 ARG HELM_VERSION
+ARG YQ_VERSION
 
-RUN apt-get update \
+# Man pages too (the slim image leaves them out)
+RUN rm -f /etc/dpkg/dpkg.cfg.d/docker \
+ && apt-get update \
  && apt-get install -y --no-install-recommends \
-      bash-completion ca-certificates curl jq less nano openssh-client vim \
+      bash-completion ca-certificates curl wget jq less man-db manpages nano \
+      openssh-client openssh-server vim \
  && rm -rf /var/lib/apt/lists/*
 
 RUN arch=$(dpkg --print-architecture) \
@@ -19,7 +25,9 @@ RUN arch=$(dpkg --print-architecture) \
  && curl -fsSL "https://github.com/etcd-io/etcd/releases/download/${ETCD_VERSION}/etcd-${ETCD_VERSION}-linux-${arch}.tar.gz" \
       | tar -xz -C /usr/local/bin --strip-components=1 "etcd-${ETCD_VERSION}-linux-${arch}/etcdctl" "etcd-${ETCD_VERSION}-linux-${arch}/etcdutl" \
  && curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-${arch}.tar.gz" \
-      | tar -xz -C /usr/local/bin --strip-components=1 "linux-${arch}/helm"
+      | tar -xz -C /usr/local/bin --strip-components=1 "linux-${arch}/helm" \
+ && curl -fsSLo /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_${arch}" \
+ && chmod +x /usr/local/bin/yq
 
 # kubeconfig and etcd certs come from the app (read-only mount)
 RUN mkdir -p /root/.kube /root/.ssh \
@@ -34,5 +42,19 @@ RUN mkdir -p /root/.kube /root/.ssh \
       'source <(helm completion bash)' \
       >> /root/.bashrc
 
+# sshd for the exam desktop, on the private exam network only. The desktop
+# sends CKDRY_HOST (the host name it used): login switches to that cluster
+# and shows it in the prompt
+RUN passwd -d root \
+ && mkdir -p /run/sshd \
+ && printf '%s\n' 'PermitRootLogin yes' 'PermitEmptyPasswords yes' 'UsePAM no' 'AcceptEnv CKDRY_HOST' \
+      > /etc/ssh/sshd_config.d/ckdry.conf \
+ && printf '%s\n' \
+      'if [ -n "$CKDRY_HOST" ]; then' \
+      '  kubectl config use-context "$CKDRY_HOST" >/dev/null 2>&1' \
+      '  PS1="\u@$CKDRY_HOST:\w\\$ "' \
+      'fi' \
+      >> /root/.bashrc
+
 WORKDIR /root
-CMD ["sleep", "infinity"]
+CMD ["/usr/sbin/sshd", "-D", "-e"]

@@ -178,6 +178,14 @@ pub fn list_exams(exams: State<'_, Arc<Exams>>) -> Vec<ExamSummary> {
     exams.catalog()
 }
 
+/// How to connect to the exam desktop (VNC over a websocket on 127.0.0.1),
+/// or nothing when no attempt has one.
+#[tauri::command]
+#[specta::specta]
+pub async fn desktop_session() -> AppResult<Option<crate::runtime::desktop::DesktopSession>> {
+    crate::runtime::desktop::session(&crate::runtime::docker::connect().await?).await
+}
+
 /// Current attempt; later changes arrive as `ExamChanged` events.
 #[tauri::command]
 #[specta::specta]

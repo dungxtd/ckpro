@@ -26,6 +26,14 @@
           "minimum": 0,
           "type": "integer"
         },
+        "resources": {
+          "default": [],
+          "description": "Documentation the exam desktop's browser may open (URL prefixes, the\ncertification's \"Resources Allowed\"); a question's `references` are\nadded during its exam. Search on these sites is allowed.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "title": {
           "type": "string"
         }

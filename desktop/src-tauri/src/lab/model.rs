@@ -36,6 +36,11 @@ pub struct Certification {
     pub duration: Duration,
     /// Curriculum domains and their weight in percent
     pub domains: BTreeMap<String, u32>,
+    /// Documentation the exam desktop's browser may open (URL prefixes, the
+    /// certification's "Resources Allowed"); a question's `references` are
+    /// added during its exam. Search on these sites is allowed.
+    #[serde(default)]
+    pub resources: Vec<String>,
 }
 
 /// One task. `{{var}}` placeholders in text and scripts are filled from `vars`.

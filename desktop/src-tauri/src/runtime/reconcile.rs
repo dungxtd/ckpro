@@ -11,7 +11,7 @@ use std::collections::HashMap;
 /// Forget clusters whose nodes are gone, start the ones that are stopped,
 /// and the cache and jumphost they work with.
 pub async fn on_startup(docker: &Docker, kind: &Kind) {
-    for name in [super::infra::MIRROR, super::jumphost::APP_NAME] {
+    for name in [super::infra::MIRROR, super::jumphost::APP_NAME, super::desktop::NAME] {
         if let Err(e) = super::infra::start_existing(docker, name).await {
             tracing::warn!(container = %name, error = %e, "starting");
         }
@@ -78,9 +78,10 @@ pub fn on_exit(kind: &Kind) {
     let clusters = kind.owned_clusters();
     let script = format!(
         "{{ for c in \"$@\"; do docker ps -q --filter label=io.x-k8s.kind.cluster=$c; done; \
-         echo {mirror}; echo {jumphost}; }} | xargs docker stop -t 5 >/dev/null 2>&1",
+         echo {mirror}; echo {jumphost}; echo {desktop}; }} | xargs docker stop -t 5 >/dev/null 2>&1",
         mirror = super::infra::MIRROR,
         jumphost = super::jumphost::APP_NAME,
+        desktop = super::desktop::NAME,
     );
     let spawned = std::process::Command::new("sh")
         .args(["-c", &script, "sh"])

@@ -17,6 +17,10 @@ use tauri_specta::Event;
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct ExamChanged(lab::exam::ExamState);
 
+/// A progress line while an attempt is prepared (kind, image builds, setups).
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct ExamLog(String);
+
 /// Pushed to the UI on every environment change.
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct EnvChanged(EnvState);
@@ -24,7 +28,7 @@ pub struct EnvChanged(EnvState);
 /// Typed IPC: debug builds regenerate `desktop/src/tauri/bindings.ts`.
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .events(tauri_specta::collect_events![EnvChanged, ExamChanged])
+        .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ExamLog])
         .commands(tauri_specta::collect_commands![
         commands::env_state,
         commands::preflight,
@@ -40,6 +44,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::terminal_close,
         commands::list_exams,
         commands::exam_state,
+        commands::desktop_session,
         commands::start_exam,
         commands::submit_exam,
         commands::end_exam,
@@ -131,6 +136,7 @@ pub fn run() {
             let infra = app.state::<Arc<runtime::infra::Infra>>().inner().clone();
             let jumphost = app.state::<Arc<runtime::jumphost::Jumphost>>().inner().clone();
             let exams_handle = app.handle().clone();
+            let log_handle = app.handle().clone();
             let exams = Arc::new(lab::exam::Exams::new(
                 load_pack(app.path().resource_dir().ok()),
                 kind.clone(),
@@ -139,6 +145,9 @@ pub fn run() {
                 crate::data_dir().join("history"),
                 move |state| {
                     let _ = ExamChanged(state.clone()).emit(&exams_handle);
+                },
+                move |line| {
+                    let _ = ExamLog(line.to_string()).emit(&log_handle);
                 },
             ));
             exams.restore();
@@ -368,8 +377,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(std::env::temp_dir().join("ckdry-e2e-history"));
         let f = fixture("exam");
         let exams = Arc::new(Exams::new(pack.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |s: &ExamState| {
-            if let ExamState::Preparing { step, .. } = s { println!("  | {step}"); }
-        }));
+            if let ExamState::Preparing { steps, current, .. } = s { println!("  | step {}: {}", current + 1, steps[*current as usize]); }
+        }, |line: &str| println!("  | {line}")));
         let question = "core/cka/rbac-ci-token";
         let wait_running = async || {
             for _ in 0..300 {
@@ -389,6 +398,25 @@ mod tests {
         assert!(ends_at.is_none() && !attempt.questions[0].hints.is_empty());
         assert!(exams.check_question(question).await.unwrap().iter().all(|c| !c.passed));
         println!("ok: practice check fails before solving");
+
+        // The exam desktop, as the candidate uses it
+        let docker = runtime::docker::connect().await.unwrap();
+        let session = runtime::desktop::session(&docker).await.unwrap().expect("a desktop session");
+        assert!(tokio::net::TcpStream::connect(("127.0.0.1", session.port)).await.is_ok() && session.password.len() == 8);
+        println!("ok: desktop VNC on 127.0.0.1:{} behind a password", session.port);
+        let on_base = async |cmd: &str| {
+            exec::run(&docker, runtime::desktop::NAME, &["bash", "-lc", cmd], &[], None).await.unwrap()
+        };
+        let out = on_base("hostname; whoami; command -v kubectl || echo no-kubectl").await;
+        assert_eq!(out.text.split_whitespace().collect::<Vec<_>>(), ["base", "candidate", "no-kubectl"], "{}", out.text);
+        println!("ok: the desktop is candidate@base, without kubectl");
+        let out = on_base("ssh -o BatchMode=yes k8s 'kubectl config current-context && kubectl get nodes --no-headers | wc -l && yq --version'").await;
+        let lines: Vec<&str> = out.text.lines().collect();
+        assert!(out.exit_code == 0 && lines.first() == Some(&"k8s") && out.text.contains("mikefarah"), "{}", out.text);
+        println!("ok: `ssh k8s` from base reaches the task host on context k8s, with yq");
+        let out = on_base("cat /usr/share/firefox-esr/distribution/policies.json").await;
+        assert!(out.text.contains("https://kubernetes.io/docs*") && out.text.contains("https://gateway-api.sigs.k8s.io*"), "{}", out.text);
+        println!("ok: Firefox allows the CKA documentation only");
         let solution = exams.solution(question).unwrap();
         let docker = runtime::docker::connect().await.unwrap();
         let (exit, out) =
@@ -403,7 +431,8 @@ mod tests {
         .await;
         exams.end().await.unwrap();
         assert!(matches!(exams.state(), ExamState::Idle) && !f.kind.owned_clusters().contains(&"k8s".to_string()));
-        println!("ok: ending removes the clusters");
+        assert!(runtime::desktop::session(&runtime::docker::connect().await.unwrap()).await.unwrap().is_none());
+        println!("ok: ending removes the clusters and the desktop");
 
         // Exam: nothing hidden leaks, nothing to check, unsolved scores 0
         exams.start("core/one", Mode::Exam, true).await.unwrap();
@@ -414,7 +443,7 @@ mod tests {
         println!("ok: exam mode hides hints, checks and solutions");
         // Quitting the app mid-exam: a new engine on the same data resumes it
         let reopen = || {
-            Arc::new(Exams::new(lab::load::load(&pack_dir).0.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |_: &ExamState| {}))
+            Arc::new(Exams::new(lab::load::load(&pack_dir).0.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), std::env::temp_dir().join("ckdry-e2e-history"), |_: &ExamState| {}, |_: &str| {}))
         };
         let resumed = reopen();
         resumed.restore();

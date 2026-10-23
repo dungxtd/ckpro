@@ -55,17 +55,19 @@ impl Jumphost {
 
     pub async fn ensure(&self, docker: &Docker, log: Log<'_>) -> AppResult<()> {
         std::fs::create_dir_all(&self.dir).map_err(|e| AppError::io("creating jumphost dir", e))?;
-        // One mounting another data dir (older install) would show the wrong
-        // clusters: replace it
+        // One from an older image (an app update), or mounting another data
+        // dir (older install, showing the wrong clusters): replace it
         let source = self.dir.display().to_string();
+        let image = JUMPHOST_IMAGE.tag();
         if let Ok(info) = docker.inspect_container(&self.name, None).await {
+            let current = info.config.and_then(|c| c.image).as_deref() == Some(image.as_str());
             let mounted = info
                 .mounts
                 .unwrap_or_default()
                 .iter()
                 .any(|m| m.source.as_deref() == Some(source.as_str()) && m.rw == Some(true));
-            if !mounted {
-                log(format!("Replacing {} (outdated data directory mount)", self.name));
+            if !current || !mounted {
+                log(format!("Replacing {} (outdated)", self.name));
                 self.remove_container(docker).await?;
             }
         }
@@ -74,7 +76,7 @@ impl Jumphost {
         }
         log(format!("Starting {}", self.name));
         let config = ContainerCreateBody {
-            image: Some(JUMPHOST_IMAGE.into()),
+            image: Some(image),
             hostname: Some("jumphost".into()),
             labels: Some(compose_labels(&self.name).into_iter().collect()),
             host_config: Some(HostConfig {

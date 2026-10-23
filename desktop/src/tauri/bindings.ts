@@ -33,6 +33,11 @@ export const commands = {
 	/**  Current attempt; later changes arrive as `ExamChanged` events. */
 	examState: () => __TAURI_INVOKE<ExamState_Serialize>("exam_state"),
 	/**
+	 *  How to connect to the exam desktop (VNC over a websocket on 127.0.0.1),
+	 *  or nothing when no attempt has one.
+	 */
+	desktopSession: () => typedError<DesktopSession | null, AppError>(__TAURI_INVOKE("desktop_session")),
+	/**
 	 *  Start preparing an attempt. `replace` deletes existing clusters with the
 	 *  names the exam needs.
 	 */
@@ -51,6 +56,7 @@ export const commands = {
 export const events = {
 	envChanged: makeEvent<EnvChanged, EnvChanged>("env-changed"),
 	examChanged: makeEvent<ExamChanged_Serialize, ExamChanged_Deserialize>("exam-changed"),
+	examLog: makeEvent<ExamLog, ExamLog>("exam-log"),
 };
 
 /* Types */
@@ -119,6 +125,13 @@ export type ContainerStatus = { state: "running" } | { state: "stopped" } |
 /**  created, restarting, paused, dead, ... */
 { state: "other"; status: string };
 
+/**  What the app's VNC client needs to connect */
+export type DesktopSession = {
+	/**  websocket on 127.0.0.1 */
+	port: number,
+	password: string,
+};
+
 export type DockerState = { state: "connecting" } | { state: "down"; reason: string } | { state: "up"; engine: string; version: string; cpus: number; memory_mb: number };
 
 /**  Pushed to the UI on every environment change. */
@@ -148,6 +161,9 @@ export type ExamChanged_Deserialize = ExamState_Deserialize;
 /**  Pushed to the UI on every exam state change. */
 export type ExamChanged_Serialize = ExamState_Serialize;
 
+/**  A progress line while an attempt is prepared (kind, image builds, setups). */
+export type ExamLog = string;
+
 export type ExamResult = {
 	score: number | null,
 	passed: boolean,
@@ -159,11 +175,21 @@ export type ExamResult = {
 
 export type ExamState = ExamState_Serialize | ExamState_Deserialize;
 
-export type ExamState_Deserialize = { phase: "idle" } | { phase: "preparing"; attempt: Attempt_Deserialize; step: string; done: number; total: number } | 
+export type ExamState_Deserialize = { phase: "idle" } | 
+/**
+ *  `steps` is the whole plan, `current` the one in progress; `detail`
+ *  says where in it (which question is being set up)
+ */
+{ phase: "preparing"; attempt: Attempt_Deserialize; steps: string[]; current: number; detail?: string | null } | 
 /**  `ends_at` is unset in practice mode (no time limit) */
 { phase: "running"; attempt: Attempt_Deserialize; started_at: number | null; ends_at?: number | null } | { phase: "grading"; attempt: Attempt_Deserialize; done: number; total: number } | { phase: "finished"; attempt: Attempt_Deserialize; result: ExamResult } | { phase: "failed"; attempt?: Attempt_Deserialize | null; message: string };
 
-export type ExamState_Serialize = { phase: "idle" } | { phase: "preparing"; attempt: Attempt_Serialize; step: string; done: number; total: number } | 
+export type ExamState_Serialize = { phase: "idle" } | 
+/**
+ *  `steps` is the whole plan, `current` the one in progress; `detail`
+ *  says where in it (which question is being set up)
+ */
+{ phase: "preparing"; attempt: Attempt_Serialize; steps: string[]; current: number; detail: string | null } | 
 /**  `ends_at` is unset in practice mode (no time limit) */
 { phase: "running"; attempt: Attempt_Serialize; started_at: number | null; ends_at: number | null } | { phase: "grading"; attempt: Attempt_Serialize; done: number; total: number } | { phase: "finished"; attempt: Attempt_Serialize; result: ExamResult } | { phase: "failed"; attempt: Attempt_Serialize | null; message: string };
 
@@ -224,6 +250,8 @@ export type QuestionView_Deserialize = {
 	id: string,
 	title: string,
 	cluster: string,
+	/**  Where to solve it, from the exam desktop: `ssh <host>` */
+	host: string,
 	namespace?: string | null,
 	/**  Share of the exam's points, in percent */
 	weight: number | null,
@@ -238,6 +266,8 @@ export type QuestionView_Serialize = {
 	id: string,
 	title: string,
 	cluster: string,
+	/**  Where to solve it, from the exam desktop: `ssh <host>` */
+	host: string,
 	namespace: string | null,
 	/**  Share of the exam's points, in percent */
 	weight: number | null,

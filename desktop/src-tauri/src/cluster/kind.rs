@@ -187,7 +187,7 @@ impl Kind {
         let kubeconfig = self.kubeconfig(name);
         self.run(
             &[
-                "create", "cluster", "--name", name, "--image", infra::NODE_IMAGE,
+                "create", "cluster", "--name", name, "--image", &infra::NODE_IMAGE.tag(),
                 "--config", path_str(&config)?, "--kubeconfig", path_str(&kubeconfig)?,
                 "--wait", "120s",
             ],
