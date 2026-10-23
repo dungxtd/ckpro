@@ -1,12 +1,16 @@
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
-import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
+import { ChevronLeft, ChevronRight, Flag, Minus, Plus } from "lucide-react";
 import { useRef, useState } from "react";
 import { useExam } from "@/stores/exam";
 import type { Attempt } from "@/tauri/api";
 import { DesktopView } from "./desktop-view";
 import { QuestionPanel } from "./question-panel";
 import { Timer } from "./timer";
+
+/** The ExamUI's +/-: how much larger the desktop is drawn */
+const ZOOMS = [1, 1.25, 1.5, 1.75, 2];
+const ZOOM_KEY = "ckdry.desktopZoom";
 
 /**
  * The exam desk, laid out like the exam's ExamUI: navigation and time on
@@ -25,6 +29,15 @@ export function RunningExam({
 	const { current, flagged, select, toggleFlag, submit, end } = useExam();
 	const [confirming, setConfirming] = useState(false);
 	const [width, setWidth] = useState(34);
+	const [zoom, setZoom] = useState(() => {
+		const saved = Number(localStorage.getItem(ZOOM_KEY));
+		return ZOOMS.includes(saved) ? saved : 1;
+	});
+	const changeZoom = (step: number) => {
+		const next = ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, ZOOMS.indexOf(zoom) + step))] ?? 1;
+		localStorage.setItem(ZOOM_KEY, String(next));
+		setZoom(next);
+	};
 	const desk = useRef<HTMLDivElement>(null);
 	const question = attempt.questions[current];
 	const count = attempt.questions.length;
@@ -90,6 +103,27 @@ export function RunningExam({
 						</Button>
 					)}
 				</div>
+				<div className="flex items-center gap-0.5" title="Desktop size">
+					<Button
+						size="sm"
+						variant="ghost"
+						disabled={zoom === ZOOMS[0]}
+						onClick={() => changeZoom(-1)}
+					>
+						<Minus className="size-4" />
+					</Button>
+					<span className="w-10 text-center text-muted-foreground text-xs tabular-nums">
+						{Math.round(zoom * 100)}%
+					</span>
+					<Button
+						size="sm"
+						variant="ghost"
+						disabled={zoom === ZOOMS[ZOOMS.length - 1]}
+						onClick={() => changeZoom(1)}
+					>
+						<Plus className="size-4" />
+					</Button>
+				</div>
 				<span className="text-sm">
 					<Timer startedAt={startedAt} endsAt={endsAt} />
 				</span>
@@ -127,7 +161,7 @@ export function RunningExam({
 				/>
 				<section className="min-w-0 flex-1">
 					{/* A new attempt is a new desktop */}
-					<DesktopView key={attempt.id} />
+					<DesktopView key={attempt.id} zoom={zoom} />
 				</section>
 			</div>
 		</div>
