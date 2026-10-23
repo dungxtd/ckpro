@@ -386,15 +386,18 @@ impl Exams {
         let questions = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
         let total = questions.iter().map(|(_, q)| q.checks.len() as u32).sum();
         let docker = docker::connect().await?;
-        let mut done = 0;
+        self.set(ExamState::Grading { attempt: attempt.clone(), done: 0, total });
+        let done = std::sync::atomic::AtomicU32::new(0);
+        let all: Vec<_> = questions.iter().flat_map(|(_, q)| q.checks.iter().map(|c| (q.cluster.as_str(), c))).collect();
+        let mut graded = checks::run_checks(&docker, &self.jumphost.name, all, || {
+            let done = done.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+            self.set(ExamState::Grading { attempt: attempt.clone(), done, total });
+        })
+        .await?
+        .into_iter();
         let mut results = Vec::new();
         for (id, q) in &questions {
-            let mut check_results = Vec::new();
-            for check in &q.checks {
-                self.set(ExamState::Grading { attempt: attempt.clone(), done, total });
-                check_results.push(checks::run_check(&docker, &self.jumphost.name, &q.cluster, check).await?);
-                done += 1;
-            }
+            let check_results: Vec<_> = graded.by_ref().take(q.checks.len()).collect();
             results.push(QuestionResult {
                 id: id.clone(),
                 title: q.title.clone(),
@@ -429,11 +432,8 @@ impl Exams {
         }
         let question = self.question(question_id)?;
         let docker = docker::connect().await?;
-        let mut results = Vec::new();
-        for check in &question.checks {
-            results.push(checks::run_check(&docker, &self.jumphost.name, &question.cluster, check).await?);
-        }
-        Ok(results)
+        checks::run_checks(&docker, &self.jumphost.name, question.checks.iter().map(|c| (question.cluster.as_str(), c)), || {})
+            .await
     }
 
     /// The reference answer: in practice mode, or once the result is in.

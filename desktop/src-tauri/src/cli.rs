@@ -54,8 +54,8 @@ enum LabCommand {
         #[arg(long)]
         keep: bool,
         /// Runs at once: each --exam is a run, --question ones form one run.
-        /// Each run needs about 2 GB of Docker memory.
-        #[arg(long, default_value_t = 1)]
+        /// Each run needs about 2 GB of Docker memory: lower it on small machines.
+        #[arg(long, default_value_t = 4)]
         parallel: usize,
         /// Machine-readable report
         #[arg(long)]

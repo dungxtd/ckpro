@@ -124,6 +124,13 @@ fn lint_question(pack: &LoadedPack, q: &Question) -> Vec<String> {
         if resource.is_some_and(|r| r.split('/').filter(|p| !p.is_empty()).count() != 2) {
             errors.push(format!("check '{}': resource must be kind/name", check.name));
         }
+        // A check is a point-in-time probe: grading and verify own the waiting,
+        // and a check that polls makes every unsolved question slow to grade
+        if let CheckKind::Run(script) = &check.kind
+            && script.lines().map(str::trim).any(|l| l.starts_with("sleep ") && !l.starts_with('#'))
+        {
+            errors.push(format!("check '{}' sleeps: checks must not poll", check.name));
+        }
     }
     if q.solution.run.trim().is_empty() {
         errors.push("solution.run is empty".into());

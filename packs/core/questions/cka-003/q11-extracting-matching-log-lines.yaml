@@ -68,16 +68,6 @@ checks:
 
       FILE=/tmp/exam/foo-errors.log
 
-      # Pod foo logs continuously; give the candidate's extraction some tolerance/retry window
-      WAIT_COUNT=0
-      while [ $WAIT_COUNT -lt 60 ]; do
-          if [[ -s "$FILE" ]]; then
-              break
-          fi
-          WAIT_COUNT=$((WAIT_COUNT+5))
-          sleep 5
-      done
-
       if [[ ! -s "$FILE" ]]; then
           echo "File $FILE is missing or empty"
           exit 1
