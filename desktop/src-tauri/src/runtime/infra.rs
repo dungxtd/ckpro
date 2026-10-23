@@ -28,7 +28,7 @@ pub struct Image {
     /// Its directory under `resources/`, and its package name `ckdry-<name>`
     pub name: &'static str,
     /// (name in the build context, content); the first is the Dockerfile
-    files: &'static [(&'static str, &'static str)],
+    files: &'static [(&'static str, &'static [u8])],
     args: &'static [(&'static str, &'static str)],
 }
 
@@ -36,8 +36,10 @@ impl Image {
     pub fn tag(&self) -> String {
         // FNV-1a: stable across Rust versions, unlike std's hasher
         let mut hash: u64 = 0xcbf29ce484222325;
-        for part in self.files.iter().chain(self.args).flat_map(|(a, b)| [a, b]) {
-            for byte in part.bytes().chain([0]) {
+        let files = self.files.iter().flat_map(|(name, content)| [name.as_bytes(), *content]);
+        let args = self.args.iter().flat_map(|(k, v)| [k.as_bytes(), v.as_bytes()]);
+        for part in files.chain(args) {
+            for &byte in part.iter().chain(&[0]) {
                 hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
             }
         }
@@ -68,7 +70,7 @@ pub fn manifest() -> serde_json::Value {
 /// kind node + sshd (`ssh <node>`)
 pub const NODE_IMAGE: Image = Image {
     name: "node",
-    files: &[("Dockerfile", include_str!("../../resources/node/Dockerfile"))],
+    files: &[("Dockerfile", include_bytes!("../../resources/node/Dockerfile"))],
     args: &[("BASE", KIND_NODE_BASE)],
 };
 
@@ -76,7 +78,7 @@ pub const NODE_IMAGE: Image = Image {
 /// (CKA runs v1.35); Helm 3, what helm.sh/docs and the tasks are written for
 pub const JUMPHOST_IMAGE: Image = Image {
     name: "jumphost",
-    files: &[("Dockerfile", include_str!("../../resources/jumphost/Dockerfile"))],
+    files: &[("Dockerfile", include_bytes!("../../resources/jumphost/Dockerfile"))],
     args: &[
         ("KUBECTL_VERSION", "v1.35.8"),
         ("ETCD_VERSION", "v3.6.6"),
@@ -89,16 +91,18 @@ pub const JUMPHOST_IMAGE: Image = Image {
 pub const DESKTOP_IMAGE: Image = Image {
     name: "desktop",
     files: &[
-        ("Dockerfile", include_str!("../../resources/desktop/Dockerfile")),
-        ("start.sh", include_str!("../../resources/desktop/start.sh")),
-        ("xfce4-panel.xml", include_str!("../../resources/desktop/xfce4-panel.xml")),
-        ("xfce4-desktop.xml", include_str!("../../resources/desktop/xfce4-desktop.xml")),
-        ("trust-launchers.sh", include_str!("../../resources/desktop/trust-launchers.sh")),
-        ("helpers.rc", include_str!("../../resources/desktop/helpers.rc")),
-        ("terminal.desktop", include_str!("../../resources/desktop/terminal.desktop")),
-        ("firefox.desktop", include_str!("../../resources/desktop/firefox.desktop")),
-        ("keyboard.desktop", include_str!("../../resources/desktop/keyboard.desktop")),
-        ("codium.desktop", include_str!("../../resources/desktop/codium.desktop")),
+        ("Dockerfile", include_bytes!("../../resources/desktop/Dockerfile")),
+        ("start.sh", include_bytes!("../../resources/desktop/start.sh")),
+        ("xsettings.xml", include_bytes!("../../resources/desktop/xsettings.xml")),
+        ("xfce4-terminal.xml", include_bytes!("../../resources/desktop/xfce4-terminal.xml")),
+        ("xfce-stripes.png", include_bytes!("../../resources/desktop/xfce-stripes.png")),
+        ("xfce4-desktop.xml", include_bytes!("../../resources/desktop/xfce4-desktop.xml")),
+        ("trust-launchers.sh", include_bytes!("../../resources/desktop/trust-launchers.sh")),
+        ("helpers.rc", include_bytes!("../../resources/desktop/helpers.rc")),
+        ("terminal.desktop", include_bytes!("../../resources/desktop/terminal.desktop")),
+        ("firefox.desktop", include_bytes!("../../resources/desktop/firefox.desktop")),
+        ("keyboard.desktop", include_bytes!("../../resources/desktop/keyboard.desktop")),
+        ("codium.desktop", include_bytes!("../../resources/desktop/codium.desktop")),
     ],
     args: &[],
 };
@@ -326,7 +330,7 @@ async fn build(docker: &Docker, tag: &str, image: &Image, log: &(dyn Fn(String) 
         header.set_mode(0o644);
         header.set_cksum();
         context
-            .append_data(&mut header, name, content.as_bytes())
+            .append_data(&mut header, name, *content)
             .map_err(|e| AppError::io("packing build context", e))?;
     }
     let context = context.into_inner().map_err(|e| AppError::io("packing build context", e))?;

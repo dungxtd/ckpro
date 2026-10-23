@@ -338,6 +338,8 @@ export type QuestionView_Deserialize = {
 	/**  Where to solve it, from the exam desktop: `ssh <host>` */
 	host: string,
 	namespace?: string | null,
+	/**  What it is about ("Concepts"); absent in attempts saved before it */
+	tags?: string[],
 	/**  Share of the exam's points, in percent */
 	weight: number | null,
 	statement: string,
@@ -354,6 +356,8 @@ export type QuestionView_Serialize = {
 	/**  Where to solve it, from the exam desktop: `ssh <host>` */
 	host: string,
 	namespace: string | null,
+	/**  What it is about ("Concepts"); absent in attempts saved before it */
+	tags: string[],
 	/**  Share of the exam's points, in percent */
 	weight: number | null,
 	statement: string,

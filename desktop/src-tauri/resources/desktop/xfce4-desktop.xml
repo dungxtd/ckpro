@@ -1,18 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- A plain dark desktop with the exam's app icons (no files, home or trash) -->
+<!-- The exam's blue Xfce wallpaper and app icons (no files, home or trash) -->
 <channel name="xfce4-desktop" version="1.0">
   <property name="backdrop" type="empty">
     <property name="screen0" type="empty">
       <property name="monitorVNC-0" type="empty">
         <property name="workspace0" type="empty">
-          <property name="color-style" type="int" value="0"/>
-          <property name="image-style" type="int" value="0"/>
-          <property name="rgba1" type="array">
-            <value type="double" value="0.11"/>
-            <value type="double" value="0.13"/>
-            <value type="double" value="0.17"/>
-            <value type="double" value="1"/>
-          </property>
+          <property name="image-style" type="int" value="5"/>
+          <property name="last-image" type="string" value="/usr/share/backgrounds/xfce/xfce-stripes.png"/>
         </property>
       </property>
     </property>

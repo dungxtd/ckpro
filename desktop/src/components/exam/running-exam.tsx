@@ -1,7 +1,7 @@
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { cn } from "@ckdry/ui/lib/utils";
-import { ChevronLeft, ChevronRight, Flag, Minus, Plus } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Flag, Minus, Monitor, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useExam } from "@/stores/exam";
@@ -46,9 +46,9 @@ const savedResolution = (): [number, number] | null => {
 };
 
 /**
- * The exam desk, laid out like the exam's ExamUI: navigation and time on
- * top, the task on the left (drag the border to resize), the remote desktop
- * on the right.
+ * The exam desk: time and the exam's controls on top, the task on the left
+ * (navigation, where to solve it, the text, flag and next; drag the border to
+ * resize), the remote desktop (or its Readme) on the right.
  */
 export function RunningExam({
 	attempt,
@@ -99,142 +99,164 @@ export function RunningExam({
 
 	return (
 		<div className="flex h-full flex-col">
-			<header className="flex items-center gap-2 border-border border-b px-3 py-1.5">
-				<strong className="truncate">{attempt.title}</strong>
-				<Badge variant={attempt.mode === "exam" ? "solid" : "subtle"}>
-					{attempt.mode === "exam" ? "Exam" : "Practice"}
-				</Badge>
-				<div className="mx-auto flex items-center gap-1">
-					<Button
-						size="sm"
-						variant="ghost"
-						disabled={current === 0}
-						onClick={() => select(current - 1)}
-					>
-						<ChevronLeft className="size-4" />
-					</Button>
-					<select
-						className="rounded-md border border-border bg-background px-2 py-1 text-sm tabular-nums"
-						value={current}
-						onChange={e => select(Number(e.target.value))}
-						aria-label="Question"
-					>
-						{attempt.questions.map((q, i) => (
-							<option key={q.id} value={i}>
-								Question {i + 1} of {count}
-								{flagged.includes(q.id) ? " ⚑" : ""}
-							</option>
-						))}
-					</select>
-					<Button
-						size="sm"
-						variant="ghost"
-						disabled={current === count - 1}
-						onClick={() => select(current + 1)}
-					>
-						<ChevronRight className="size-4" />
-					</Button>
-					{question && (
+			{/* Labels give way to icons as the window narrows (container queries) */}
+			<header className="@container flex items-center gap-3 border-border border-b px-3 py-2">
+				<div className="shrink-0">
+					<Timer startedAt={startedAt} endsAt={endsAt} />
+				</div>
+				<strong className="min-w-0 flex-1 truncate text-base">{attempt.title}</strong>
+				{attempt.mode === "practice" && (
+					<Badge variant="subtle" className="hidden shrink-0 @2xl:inline-flex">
+						Practice
+					</Badge>
+				)}
+				<div className="flex shrink-0 items-center gap-1.5">
+					<div className="flex items-center" title="Desktop size">
 						<Button
 							size="sm"
-							variant={flagged.includes(question.id) ? "default" : "outline"}
-							onClick={() => toggleFlag(question.id)}
+							variant="ghost"
+							disabled={zoom === ZOOMS[0]}
+							onClick={() => changeZoom(-1)}
 						>
-							<Flag className="size-4" /> Flag
+							<Minus className="size-4" />
+						</Button>
+						<span className="hidden w-10 text-center text-muted-foreground text-xs tabular-nums @3xl:inline">
+							{Math.round(zoom * 100)}%
+						</span>
+						<Button
+							size="sm"
+							variant="ghost"
+							disabled={zoom === ZOOMS[ZOOMS.length - 1]}
+							onClick={() => changeZoom(1)}
+						>
+							<Plus className="size-4" />
+						</Button>
+					</div>
+					<Button
+						size="sm"
+						variant={tab === "desktop" ? "outline" : "ghost"}
+						onClick={() => setTab("desktop")}
+					>
+						<Monitor className="size-4" /> <span className="hidden @4xl:inline">Desktop</span>
+					</Button>
+					<Button
+						size="sm"
+						variant={tab === "readme" ? "outline" : "ghost"}
+						onClick={() => setTab("readme")}
+					>
+						<BookOpen className="size-4" /> <span className="hidden @4xl:inline">Readme</span>
+					</Button>
+					{confirming ? (
+						<>
+							<span className="hidden text-sm @5xl:inline">End the exam and grade it?</span>
+							<Button size="sm" variant="destructive" onClick={submit}>
+								End exam
+							</Button>
+							<Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+								Keep working
+							</Button>
+						</>
+					) : (
+						<Button
+							size="sm"
+							variant="outline"
+							className="border-red-500/60 text-red-500 hover:bg-red-500/10"
+							onClick={() => setConfirming(true)}
+						>
+							<X className="size-4" /> <span className="hidden @2xl:inline">End Exam</span>
 						</Button>
 					)}
-				</div>
-				<div className="flex items-center gap-0.5" title="Desktop size">
-					<Button
-						size="sm"
-						variant="ghost"
-						disabled={zoom === ZOOMS[0]}
-						onClick={() => changeZoom(-1)}
-					>
-						<Minus className="size-4" />
-					</Button>
-					<span className="w-10 text-center text-muted-foreground text-xs tabular-nums">
-						{Math.round(zoom * 100)}%
-					</span>
-					<Button
-						size="sm"
-						variant="ghost"
-						disabled={zoom === ZOOMS[ZOOMS.length - 1]}
-						onClick={() => changeZoom(1)}
-					>
-						<Plus className="size-4" />
-					</Button>
+					{attempt.mode === "practice" && (
+						<Button size="sm" variant="ghost" onClick={end}>
+							Quit
+						</Button>
+					)}
 					<ExamSettings resolution={resolution} onResolution={changeResolution} />
 				</div>
-				<span className="text-sm">
-					<Timer startedAt={startedAt} endsAt={endsAt} />
-				</span>
-				{confirming ? (
-					<>
-						<span className="text-sm">Submit and grade now?</span>
-						<Button size="sm" onClick={submit}>
-							Submit
-						</Button>
-						<Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
-							Keep working
-						</Button>
-					</>
-				) : (
-					<>
-						<Button size="sm" onClick={() => setConfirming(true)}>
-							End exam
-						</Button>
-						{attempt.mode === "practice" && (
-							<Button size="sm" variant="ghost" onClick={end}>
-								Quit
-							</Button>
-						)}
-					</>
-				)}
 			</header>
 			<div ref={desk} className="flex min-h-0 flex-1">
-				<section className="shrink-0 overflow-auto p-4" style={{ width: `${width}%` }}>
-					{question && <QuestionPanel attempt={attempt} question={question} index={current} />}
+				<section
+					className="@container flex min-w-[300px] max-w-[70%] shrink-0 flex-col"
+					style={{ width: `${width}%` }}
+				>
+					<div className="flex items-center gap-2 p-3">
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={current === 0}
+							onClick={() => select(current - 1)}
+							aria-label="Previous question"
+						>
+							<ChevronLeft className="size-4" />
+						</Button>
+						<select
+							className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-center text-sm tabular-nums"
+							value={current}
+							onChange={e => select(Number(e.target.value))}
+							aria-label="Question"
+						>
+							{attempt.questions.map((q, i) => (
+								<option key={q.id} value={i}>
+									Question {i + 1} of {count}
+									{flagged.includes(q.id) ? "  ⚑ flagged" : ""}
+								</option>
+							))}
+						</select>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={current === count - 1}
+							onClick={() => select(current + 1)}
+							aria-label="Next question"
+						>
+							<ChevronRight className="size-4" />
+						</Button>
+					</div>
+					<div className="min-h-0 flex-1 overflow-auto px-4 pb-4">
+						{question && <QuestionPanel attempt={attempt} question={question} />}
+					</div>
+					{question && (
+						<div className="flex gap-2 border-border border-t p-3">
+							<Button
+								variant={flagged.includes(question.id) ? "default" : "outline"}
+								className="flex-1"
+								onClick={() => toggleFlag(question.id)}
+							>
+								<Flag className="size-4" />
+								<span className="hidden @sm:inline">
+									{flagged.includes(question.id) ? "Flagged for review" : "Flag for review"}
+								</span>
+								<span className="@sm:hidden">
+									{flagged.includes(question.id) ? "Flagged" : "Flag"}
+								</span>
+							</Button>
+							<Button
+								className="flex-1"
+								disabled={current === count - 1}
+								onClick={() => select(current + 1)}
+							>
+								<span className="hidden @sm:inline">Satisfied with answer</span>
+								<span className="@sm:hidden">Next</span>
+								<ChevronRight className="size-4" />
+							</Button>
+						</div>
+					)}
 				</section>
 				<div
 					onPointerDown={drag}
 					className="w-1.5 shrink-0 cursor-col-resize bg-border hover:bg-primary/40"
 					title="Drag to resize"
 				/>
-				<section className="flex min-w-0 flex-1 flex-col">
-					<div className="flex gap-1 border-border border-b px-2 pt-1">
-						{(
-							[
-								["readme", "ReadMe"],
-								["desktop", "Remote Desktop"],
-							] as const
-						).map(([id, label]) => (
-							<button
-								key={id}
-								type="button"
-								onClick={() => setTab(id)}
-								className={cn(
-									"-mb-px rounded-t-md border border-transparent px-3 py-1 text-sm",
-									tab === id
-										? "border-border border-b-background bg-background font-medium"
-										: "text-muted-foreground"
-								)}
-							>
-								{label}
-							</button>
-						))}
+				<section className="relative min-w-0 flex-1">
+					{/* Stays connected behind the Readme; a new attempt is a new desktop */}
+					<div className={cn("absolute inset-0", tab !== "desktop" && "invisible")}>
+						<DesktopView key={attempt.id} zoom={zoom} resolution={resolution} />
 					</div>
-					<div className="relative min-h-0 flex-1">
-						{/* Stays connected behind the ReadMe; a new attempt is a new desktop */}
-						<div className={cn("absolute inset-0", tab !== "desktop" && "invisible")}>
-							<DesktopView key={attempt.id} zoom={zoom} resolution={resolution} />
+					{tab === "readme" && (
+						<div className="absolute inset-0 bg-background">
+							<ReadMe attempt={attempt} />
 						</div>
-						{tab === "readme" && (
-							<div className="absolute inset-0 bg-background">
-								<ReadMe attempt={attempt} />
-							</div>
-						)}
-					</div>
+					)}
 				</section>
 			</div>
 		</div>

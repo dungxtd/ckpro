@@ -1,46 +1,71 @@
 import { Button } from "@ckdry/ui/components/button";
+import { cn } from "@ckdry/ui/lib/utils";
+import { useState } from "react";
 import { Markdown } from "@/components/markdown";
 import { useExam } from "@/stores/exam";
 import type { Attempt, QuestionView } from "@/tauri/api";
 import { CheckList } from "./check-list";
 
+/** Question text sizes (the A- A A+ buttons), remembered */
+const SIZES = ["text-[13px]", "text-sm", "text-base", "text-lg"];
+const SIZE_KEY = "ckdry.questionSize";
+
 /** One task as the exam shows it, plus the practice-mode aids. */
-export function QuestionPanel({
-	attempt,
-	question,
-	index,
-}: {
-	attempt: Attempt;
-	question: QuestionView;
-	index: number;
-}) {
+export function QuestionPanel({ attempt, question }: { attempt: Attempt; question: QuestionView }) {
 	const { hintsShown, checks, solutions } = useExam();
 	const { showHint, check, loadSolution } = useExam();
 	const practice = attempt.mode === "practice";
 	const hints = question.hints.slice(0, hintsShown[question.id] ?? 0);
 	const result = checks[question.id];
 	const solution = solutions[question.id];
+	const [size, setSize] = useState(() => {
+		const saved = Number(localStorage.getItem(SIZE_KEY));
+		return saved >= 0 && saved < SIZES.length ? saved : 1;
+	});
+	const changeSize = (next: number) => {
+		localStorage.setItem(SIZE_KEY, String(next));
+		setSize(next);
+	};
+	const code = "rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-pink-400";
 
 	return (
-		<div className="flex flex-col gap-3">
-			<header>
-				<div className="text-muted-foreground text-xs">
-					Question {index + 1} · weight {(question.weight ?? 0).toFixed(0)}%
+		<div className={cn("flex flex-col gap-3", SIZES[size])}>
+			<div className="flex flex-wrap items-center gap-2">
+				<span>Solve this question on instance:</span>
+				<code className={cn(code, "select-all")}>ssh {question.host}</code>
+				<div className="ml-auto flex overflow-hidden rounded-md border border-border text-xs">
+					{(["A−", "A", "A+"] as const).map((label, i) => {
+						const next =
+							i === 0 ? Math.max(0, size - 1) : i === 1 ? 1 : Math.min(SIZES.length - 1, size + 1);
+						return (
+							<button
+								key={label}
+								type="button"
+								className="px-2 py-1 hover:bg-accent"
+								onClick={() => changeSize(next)}
+								aria-label={["Smaller text", "Default text size", "Larger text"][i]}
+							>
+								{label}
+							</button>
+						);
+					})}
 				</div>
-				<h2 className="font-semibold">{question.title}</h2>
-			</header>
-
-			{/* The exam's task infobox: where to solve it */}
-			<div className="rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-sm">
-				<div>You must connect to the correct host.</div>
-				<div>Failure to do so may result in a zero score.</div>
-				<pre className="mt-2 select-text font-mono text-xs">
-					[candidate@base] $ ssh {question.host}
-				</pre>
-				{question.namespace && (
-					<div className="mt-1 text-muted-foreground text-xs">Namespace: {question.namespace}</div>
-				)}
 			</div>
+			{question.namespace && (
+				<div>
+					Namespace: <code className={code}>{question.namespace}</code>
+				</div>
+			)}
+			{question.tags.length > 0 && (
+				<div>
+					Concepts: <span className="font-mono text-sky-400">{question.tags.join(", ")}</span>
+				</div>
+			)}
+			<div className="text-muted-foreground text-xs">
+				Weight {(question.weight ?? 0).toFixed(0)}% · You must connect to the correct host; working
+				on the wrong one may score zero.
+			</div>
+			<hr className="border-border" />
 
 			<Markdown>{question.statement}</Markdown>
 

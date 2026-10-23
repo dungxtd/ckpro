@@ -48,6 +48,9 @@ pub struct QuestionView {
     /// Where to solve it, from the exam desktop: `ssh <host>`
     pub host: String,
     pub namespace: Option<String>,
+    /// What it is about ("Concepts"); absent in attempts saved before it
+    #[serde(default)]
+    pub tags: Vec<String>,
     /// Share of the exam's points, in percent
     pub weight: f64,
     pub statement: String,
@@ -370,6 +373,7 @@ impl Exams {
                     cluster: q.cluster.clone(),
                     host: q.cluster.clone(),
                     namespace: q.namespace.clone(),
+                    tags: q.tags.clone(),
                     weight: if total_points == 0 { 0.0 } else {
                         f64::from(q.checks.iter().map(|c| c.weight).sum::<u32>()) * 100.0 / f64::from(total_points)
                     },

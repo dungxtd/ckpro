@@ -14,8 +14,9 @@ RUN apt-get update \
       xfce4-session xfwm4 xfce4-panel xfdesktop4 xfce4-settings xfce4-terminal xfconf \
       adwaita-icon-theme elementary-xfce-icon-theme fonts-dejavu-core fonts-liberation \
       firefox-esr onboard openssh-client vim nano less gvfs libglib2.0-bin thunar \
+      greybird-gtk-theme xfce4-appfinder \
  && rm -rf /var/lib/apt/lists/* \
- && rm -rf /usr/share/icons/elementary-xfce-hidpi /usr/share/backgrounds/xfce
+ && rm -rf /usr/share/icons/elementary-xfce-hidpi
 
 # VSCodium, like the exam's: no marketplace, so no extensions can be
 # installed; English only and without the Mermaid diagram previews (~90 MB).
@@ -38,7 +39,7 @@ RUN apt-get update \
 
 # The candidate: no sudo, no tools; `ssh <host>` reaches the task hosts and
 # nodes as root, without host key prompts
-RUN useradd -m -s /bin/bash candidate \
+RUN useradd -m -s /bin/bash -c "Exam Candidate" candidate \
  && printf '%s\n' 'Host *' '  User root' '  StrictHostKeyChecking no' \
       '  UserKnownHostsFile /dev/null' '  LogLevel ERROR' > /etc/ssh/ssh_config.d/00-exam.conf \
  && mkdir -p /etc/firefox/policies /etc/firefox-esr/policies /home/candidate/.vnc \
@@ -46,10 +47,23 @@ RUN useradd -m -s /bin/bash candidate \
 
 COPY start.sh /usr/local/bin/start-desktop
 COPY trust-launchers.sh /usr/local/bin/trust-launchers
-COPY xfce4-panel.xml xfce4-desktop.xml /home/candidate/.config/xfce4/xfconf/xfce-perchannel-xml/
+COPY xsettings.xml xfce4-desktop.xml xfce4-terminal.xml /home/candidate/.config/xfce4/xfconf/xfce-perchannel-xml/
+COPY xfce-stripes.png /usr/share/backgrounds/xfce/xfce-stripes.png
 COPY helpers.rc /home/candidate/.config/xfce4/helpers.rc
 # The exam's desktop icons (xfdesktop opens them through Thunar's service)
 COPY terminal.desktop firefox.desktop codium.desktop keyboard.desktop /home/candidate/Desktop/
+# Xfce's own default panels, as on the exam: the dark top bar (menu, windows,
+# clock with the date, the user) and the dock (show desktop, terminal, files,
+# browser, app finder, folders). Copied, not migrated, so no first-run dialog
+RUN conf=/home/candidate/.config/xfce4 \
+ && cp /etc/xdg/xfce4/panel/default.xml $conf/xfconf/xfce-perchannel-xml/xfce4-panel.xml \
+ && sed -i 's|<property name="plugin-8" type="string" value="clock"/>|<property name="plugin-8" type="string" value="clock"><property name="digital-layout" type="uint" value="3"/><property name="digital-time-format" type="string" value="%a %d %b, %H:%M"/></property>|' \
+      $conf/xfconf/xfce-perchannel-xml/xfce4-panel.xml \
+ && for launcher in 13:xfce4-terminal-emulator 14:xfce4-file-manager 15:xfce4-web-browser 16:xfce4-appfinder; do \
+      mkdir -p $conf/panel/launcher-${launcher%%:*} \
+      && cp /usr/share/applications/${launcher#*:}.desktop $conf/panel/launcher-${launcher%%:*}/; \
+    done
+
 RUN mkdir -m 1777 -p /tmp/.ICE-unix \
  && chmod +x /usr/local/bin/start-desktop /usr/local/bin/trust-launchers /home/candidate/Desktop/*.desktop \
  && chown -R candidate:candidate /home/candidate
