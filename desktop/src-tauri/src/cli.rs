@@ -44,7 +44,8 @@ enum LabCommand {
     Verify {
         /// Pack directory (contains pack.yaml)
         pack: PathBuf,
-        /// Verify the fixed questions of an exam (repeatable), e.g. cka-003
+        /// Verify the fixed questions of an exam (repeatable), e.g. cka-003.
+        /// With neither --exam nor --question, the whole pack
         #[arg(long = "exam")]
         exams: Vec<String>,
         /// Verify a question (repeatable), e.g. cka/rbac-ci-token
@@ -135,9 +136,14 @@ fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: boo
     if !questions.is_empty() {
         runs.push(("questions".into(), questions.iter().map(full).collect()));
     }
+    // Nothing chosen: the whole pack, every exam plus the questions none lists
     if runs.is_empty() {
-        eprintln!("error: choose what to verify with --exam or --question");
-        return ExitCode::FAILURE;
+        runs = pack.exams.iter().map(|(id, e)| (id.clone(), e.value.questions.clone())).collect();
+        let listed: std::collections::BTreeSet<&String> = runs.iter().flat_map(|(_, ids)| ids).collect();
+        let loose: Vec<String> = pack.questions.keys().filter(|id| !listed.contains(id)).cloned().collect();
+        if !loose.is_empty() {
+            runs.push(("questions".into(), loose));
+        }
     }
     // Questions needing what ckdry cannot offer yet are skipped, not failed
     for (label, ids) in &mut runs {

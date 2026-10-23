@@ -135,17 +135,14 @@ fn exists(r: &ResourceRef) -> String {
 
 fn ready(r: &ResourceRef) -> String {
     let kind = r.resource.split('/').next().unwrap_or_default().to_lowercase();
-    let condition = match kind.as_str() {
-        "pod" | "pods" | "po" => "Ready",
-        "deployment" | "deployments" | "deploy" => "Available",
-        _ => "",
-    };
     let target = format!("{}{}", quote(&r.resource), ns(&r.namespace));
-    if condition.is_empty() {
-        format!("kubectl rollout status {target} --timeout=10s >/dev/null 2>&1 || {{ echo '{} is not ready'; exit 1; }}", r.resource)
+    if matches!(kind.as_str(), "pod" | "pods" | "po") {
+        format!("kubectl wait --for=condition=Ready {target} --timeout=10s >/dev/null 2>&1 || {{ echo '{} is not Ready'; exit 1; }}", r.resource)
     } else {
+        // Every replica updated and available. A Deployment's Available
+        // condition only means minimum availability (maxUnavailable)
         format!(
-            "kubectl wait --for=condition={condition} {target} --timeout=10s >/dev/null 2>&1 || {{ echo '{} is not {condition}'; exit 1; }}",
+            "kubectl rollout status {target} --timeout=10s >/dev/null 2>&1 || {{ echo '{} does not have all replicas updated and available'; exit 1; }}",
             r.resource
         )
     }
