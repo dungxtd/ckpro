@@ -4,5 +4,12 @@
   <property name="Net" type="empty">
     <property name="ThemeName" type="string" value="Greybird"/>
     <property name="IconThemeName" type="string" value="elementary-xfce-dark"/>
+    <!-- The desktop runs at the screen's native resolution (2x on HiDPI), so
+         a small hand movement is twice the pixels: GTK's defaults (5 px for a
+         double-click, 8 px to start a drag) turned double-clicks into drags
+         that selected every icon, or into two launches -->
+    <property name="DoubleClickDistance" type="int" value="12"/>
+    <property name="DoubleClickTime" type="int" value="500"/>
+    <property name="DndDragThreshold" type="int" value="16"/>
   </property>
 </channel>
