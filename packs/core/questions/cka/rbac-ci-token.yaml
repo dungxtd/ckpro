@@ -46,7 +46,12 @@ checks:
     canI: { as: "system:serviceaccount:{{ns}}:cicd-token", verb: create, resource: deployments, namespace: "{{ns}}" }
   - name: The binding is limited to {{ns}}
     weight: 2
-    canI: { as: "system:serviceaccount:{{ns}}:cicd-token", verb: create, resource: deployments, namespace: default, expect: false }
+    # Only meaningful once the binding works in {{ns}}: an unbound account
+    # cannot create anywhere, which would pass a "no" in default for free
+    run: |
+      sa=system:serviceaccount:{{ns}}:cicd-token
+      [ "$(kubectl auth can-i create deployments -n {{ns}} --as=$sa)" = yes ] || { echo "cicd-token cannot create Deployments in {{ns}} yet"; exit 1; }
+      [ "$(kubectl auth can-i create deployments -n default --as=$sa)" = no ] || { echo "cicd-token can also create Deployments in default: use a RoleBinding"; exit 1; }
 
 hints:
   - A ClusterRole can be granted inside a single namespace.

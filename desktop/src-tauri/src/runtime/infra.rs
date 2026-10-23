@@ -132,9 +132,13 @@ impl Infra {
         // the wrong clusters: replace it
         let source = self.jumphost_dir().display().to_string();
         if let Ok(info) = docker.inspect_container(JUMPHOST, None).await {
-            let mounted = info.mounts.unwrap_or_default().iter().any(|m| m.source.as_deref() == Some(source.as_str()));
+            let mounted = info
+                .mounts
+                .unwrap_or_default()
+                .iter()
+                .any(|m| m.source.as_deref() == Some(source.as_str()) && m.rw == Some(true));
             if !mounted {
-                log(format!("Replacing {JUMPHOST} (mounted another data directory)"));
+                log(format!("Replacing {JUMPHOST} (outdated data directory mount)"));
                 docker
                     .remove_container(
                         JUMPHOST,
@@ -152,7 +156,8 @@ impl Infra {
             hostname: Some("jumphost".into()),
             labels: Some(compose_labels(JUMPHOST).into_iter().collect()),
             host_config: Some(HostConfig {
-                binds: Some(vec![format!("{}:/root/.ckdry:ro", self.jumphost_dir().display())]),
+                // read-write: `kubectl config use-context` writes the kubeconfig
+                binds: Some(vec![format!("{}:/root/.ckdry", self.jumphost_dir().display())]),
                 network_mode: Some(NETWORK.into()),
                 restart_policy: Some(RestartPolicy {
                     name: Some(RestartPolicyNameEnum::UNLESS_STOPPED),
@@ -163,6 +168,24 @@ impl Infra {
             ..Default::default()
         };
         create_and_start(docker, JUMPHOST, config).await
+    }
+}
+
+impl Infra {
+    /// A fresh jumphost for a new exam: files the previous candidate left
+    /// (manifests, snapshots, history) must not leak into the next attempt.
+    pub async fn reset_jumphost(&self, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
+        match docker
+            .remove_container(
+                JUMPHOST,
+                Some(bollard::query_parameters::RemoveContainerOptions { force: true, ..Default::default() }),
+            )
+            .await
+        {
+            Ok(()) | Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => {}
+            Err(e) => return Err(e.into()),
+        }
+        self.ensure_jumphost(docker, log).await
     }
 }
 

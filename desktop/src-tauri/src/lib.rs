@@ -41,6 +41,15 @@ fn typescript() -> specta_typescript::Typescript {
     specta_typescript::Typescript::default().header("// @ts-nocheck")
 }
 
+/// Bundle identifier (tauri.conf.json); names the app data directory.
+pub const APP_ID: &str = "dev.ckdry.app";
+
+/// Where the app keeps kind, kubeconfigs and the jumphost files: the same
+/// directory for the app and the CLI.
+pub fn data_dir() -> std::path::PathBuf {
+    dirs::data_dir().unwrap_or_else(std::env::temp_dir).join(APP_ID)
+}
+
 /// CLI subcommands run headless; otherwise start the app.
 pub fn main() -> std::process::ExitCode {
     let args: Vec<String> = std::env::args().collect();
@@ -68,7 +77,7 @@ pub fn run() {
                 observability::init(&dir);
             }
             builder.mount_events(app);
-            let data_dir = app.path().app_data_dir()?;
+            let data_dir = data_dir();
             let kind = Arc::new(cluster::kind::Kind::new(data_dir.clone()));
             app.manage(Arc::new(runtime::infra::Infra::new(data_dir)));
             let handle = app.handle().clone();

@@ -1,7 +1,10 @@
+pub mod checks;
 pub mod lint;
 pub mod load;
 pub mod model;
+pub mod render;
 pub mod script;
+pub mod verify;
 
 /// JSON Schemas of the pack files, generated from the model types.
 pub fn schemas() -> Vec<(&'static str, serde_json::Value)> {
