@@ -135,7 +135,8 @@ pub fn run() {
             builder.mount_events(app);
             let data_dir = data_dir();
             let kind = Arc::new(cluster::kind::Kind::new(data_dir.clone()));
-            app.manage(Arc::new(runtime::infra::Infra::new(data_dir.clone())));
+            let infra = Arc::new(runtime::infra::Infra::new(data_dir.clone()));
+            app.manage(infra.clone());
             app.manage(Arc::new(runtime::jumphost::Jumphost::app(&data_dir)));
             let (changed, line) = (app.handle().clone(), app.handle().clone());
             let activities = runtime::activity::Activities::new(
@@ -151,8 +152,7 @@ pub fn run() {
             let env = Arc::new(Env::new(move |state| {
                 let _ = EnvChanged(state.clone()).emit(&handle);
             }));
-            runtime::monitor::start(env.clone(), kind.clone(), activities.clone());
-            let infra = app.state::<Arc<runtime::infra::Infra>>().inner().clone();
+            runtime::monitor::start(env.clone(), kind.clone(), infra.clone(), activities.clone());
             let jumphost = app.state::<Arc<runtime::jumphost::Jumphost>>().inner().clone();
             let exams_handle = app.handle().clone();
             let exams = Arc::new(lab::exam::Exams::new(
@@ -345,7 +345,7 @@ mod tests {
         let name = "ckdry-mon";
         let env = Arc::new(Env::new(|_| {}));
         f.create(name, 1).await;
-        runtime::monitor::start(env.clone(), f.kind.clone(), runtime::activity::Activities::silent());
+        runtime::monitor::start(env.clone(), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent());
         let worker = format!("{name}-worker");
 
         eventually("all nodes Ready", 120, async || {

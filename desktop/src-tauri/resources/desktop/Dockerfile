@@ -13,11 +13,13 @@ RUN apt-get update \
       tigervnc-standalone-server tigervnc-tools websockify \
       xfce4-session xfwm4 xfce4-panel xfdesktop4 xfce4-settings xfce4-terminal xfconf \
       adwaita-icon-theme elementary-xfce-icon-theme fonts-dejavu-core fonts-liberation \
-      firefox-esr onboard openssh-client vim nano less \
- && rm -rf /var/lib/apt/lists/*
+      firefox-esr onboard openssh-client vim nano less gvfs libglib2.0-bin thunar \
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -rf /usr/share/icons/elementary-xfce-hidpi /usr/share/backgrounds/xfce
 
 # VSCodium, like the exam's: no marketplace, so no extensions can be
-# installed. Electron runs without its sandbox inside the container
+# installed; English only and without the Mermaid diagram previews (~90 MB).
+# Electron runs without its sandbox inside the container
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl gnupg jq \
  && curl -fsSL https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo/raw/master/pub.gpg \
@@ -29,6 +31,8 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends codium \
  && product=/usr/share/codium/resources/app/product.json \
  && jq 'del(.extensionsGallery)' "$product" > /tmp/product.json && mv /tmp/product.json "$product" \
+ && find /usr/share/codium/locales -name '*.pak' ! -name 'en-US.pak' -delete \
+ && rm -rf /usr/share/codium/resources/app/extensions/mermaid-markdown-features \
  && apt-get purge -y curl gnupg jq && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*
 
@@ -38,17 +42,16 @@ RUN useradd -m -s /bin/bash candidate \
  && printf '%s\n' 'Host *' '  User root' '  StrictHostKeyChecking no' \
       '  UserKnownHostsFile /dev/null' '  LogLevel ERROR' > /etc/ssh/ssh_config.d/00-exam.conf \
  && mkdir -p /etc/firefox/policies /etc/firefox-esr/policies /home/candidate/.vnc \
-      /home/candidate/.config/xfce4/xfconf/xfce-perchannel-xml /home/candidate/.config/xfce4/panel
+      /home/candidate/.config/xfce4/xfconf/xfce-perchannel-xml /home/candidate/Desktop
 
 COPY start.sh /usr/local/bin/start-desktop
-COPY xfce4-panel.xml /home/candidate/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml
+COPY trust-launchers.sh /usr/local/bin/trust-launchers
+COPY xfce4-panel.xml xfce4-desktop.xml /home/candidate/.config/xfce4/xfconf/xfce-perchannel-xml/
 COPY helpers.rc /home/candidate/.config/xfce4/helpers.rc
-COPY terminal.desktop /home/candidate/.config/xfce4/panel/launcher-9/terminal.desktop
-COPY firefox.desktop /home/candidate/.config/xfce4/panel/launcher-10/firefox.desktop
-COPY keyboard.desktop /home/candidate/.config/xfce4/panel/launcher-8/keyboard.desktop
-COPY codium.desktop /home/candidate/.config/xfce4/panel/launcher-11/codium.desktop
+# The exam's desktop icons (xfdesktop opens them through Thunar's service)
+COPY terminal.desktop firefox.desktop codium.desktop keyboard.desktop /home/candidate/Desktop/
 RUN mkdir -m 1777 -p /tmp/.ICE-unix \
- && chmod +x /usr/local/bin/start-desktop \
+ && chmod +x /usr/local/bin/start-desktop /usr/local/bin/trust-launchers /home/candidate/Desktop/*.desktop \
  && chown -R candidate:candidate /home/candidate
 
 USER candidate

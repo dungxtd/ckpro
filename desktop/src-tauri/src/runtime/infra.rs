@@ -66,6 +66,8 @@ pub const DESKTOP_IMAGE: Image = Image {
         ("Dockerfile", include_str!("../../resources/desktop/Dockerfile")),
         ("start.sh", include_str!("../../resources/desktop/start.sh")),
         ("xfce4-panel.xml", include_str!("../../resources/desktop/xfce4-panel.xml")),
+        ("xfce4-desktop.xml", include_str!("../../resources/desktop/xfce4-desktop.xml")),
+        ("trust-launchers.sh", include_str!("../../resources/desktop/trust-launchers.sh")),
         ("helpers.rc", include_str!("../../resources/desktop/helpers.rc")),
         ("terminal.desktop", include_str!("../../resources/desktop/terminal.desktop")),
         ("firefox.desktop", include_str!("../../resources/desktop/firefox.desktop")),
@@ -91,11 +93,25 @@ const UPSTREAMS: [(u16, &str, &str); 4] = [
 
 pub struct Infra {
     dir: PathBuf,
+    /// One `ensure` at a time: an exam started while the startup build runs
+    /// waits for it instead of building the same images again
+    ensuring: tokio::sync::Mutex<()>,
 }
 
 impl Infra {
     pub fn new(data_dir: PathBuf) -> Self {
-        Self { dir: data_dir }
+        Self { dir: data_dir, ensuring: tokio::sync::Mutex::new(()) }
+    }
+
+    /// Images not built yet: on the first run, or after an update changed them
+    pub async fn missing_images(&self, docker: &Docker) -> Vec<String> {
+        let mut missing = Vec::new();
+        for image in [&NODE_IMAGE, &JUMPHOST_IMAGE, &DESKTOP_IMAGE] {
+            if docker.inspect_image(&image.tag()).await.is_err() {
+                missing.push(image.repository.to_string());
+            }
+        }
+        missing
     }
 
     /// containerd registry config mounted into every node
@@ -105,6 +121,7 @@ impl Infra {
 
     /// Create whatever is missing. Idempotent and cheap once everything exists.
     pub async fn ensure(&self, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
+        let _one_at_a_time = self.ensuring.lock().await;
         if docker.inspect_network(NETWORK, None::<bollard::query_parameters::InspectNetworkOptions>).await.is_err() {
             log(format!("Creating network {NETWORK}"));
             docker
@@ -190,6 +207,22 @@ async fn remove_older(docker: &Docker, current: &str, log: &(dyn Fn(String) + Sy
     }
 }
 
+/// Drop ckdry images left without a tag (a rebuild under the same tag), a few
+/// GB each time otherwise.
+async fn remove_untagged(docker: &Docker, log: &(dyn Fn(String) + Sync)) {
+    let filters = HashMap::from([
+        ("dangling".to_string(), vec!["true".to_string()]),
+        ("label".to_string(), vec![format!("com.docker.compose.project={}", super::docker::COMPOSE_PROJECT)]),
+    ]);
+    if let Ok(pruned) = docker
+        .prune_images(Some(bollard::query_parameters::PruneImagesOptions { filters: Some(filters) }))
+        .await
+        && let Some(bytes) = pruned.space_reclaimed.filter(|b| *b > 0)
+    {
+        log(format!("Removed old ckdry image layers ({} MB)", bytes / 1_000_000));
+    }
+}
+
 /// Start the container if it exists; false when it does not.
 pub(crate) async fn start_existing(docker: &Docker, name: &str) -> AppResult<bool> {
     match docker.inspect_container(name, None).await {
@@ -236,6 +269,7 @@ async fn build_if_missing(docker: &Docker, image: &Image, log: &(dyn Fn(String) 
     log(format!("Building {tag} (first run, or after an update)"));
     build(docker, &tag, image, log).await?;
     remove_older(docker, &tag, log).await;
+    remove_untagged(docker, log).await;
     Ok(())
 }
 
@@ -276,4 +310,24 @@ async fn build(docker: &Docker, tag: &str, image: &Image, log: &(dyn Fn(String) 
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A file added to an image's directory but not to its `files` is
+    /// missing from the build ("COPY failed: file not found")
+    #[test]
+    fn images_ship_every_file_of_their_directory() {
+        for (dir, image) in [("node", &NODE_IMAGE), ("jumphost", &JUMPHOST_IMAGE), ("desktop", &DESKTOP_IMAGE)] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources").join(dir);
+            let mut on_disk: Vec<String> =
+                std::fs::read_dir(path).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+            let mut shipped: Vec<String> = image.files.iter().map(|(name, _)| name.to_string()).collect();
+            on_disk.sort();
+            shipped.sort();
+            assert_eq!(on_disk, shipped, "{dir}");
+        }
+    }
 }

@@ -111,6 +111,8 @@ pub async fn remove(docker: &Docker) -> AppResult<()> {
 
 /// Only the allowed documentation; search on those sites works (it is part
 /// of the allowed pages). Localized docs are allowed too, as on the exam.
+/// The allowed sites are on the bookmarks toolbar, the exam's
+/// "Documentation Quick Links".
 fn firefox_policies(allowed: &[String]) -> String {
     let mut exceptions: Vec<String> = Vec::new();
     for url in allowed {
@@ -127,6 +129,10 @@ fn firefox_policies(allowed: &[String]) -> String {
         "policies": {
             "WebsiteFilter": { "Block": ["<all_urls>"], "Exceptions": exceptions },
             "Homepage": { "URL": allowed.first().cloned().unwrap_or_default(), "StartPage": "homepage", "Locked": true },
+            "DisplayBookmarksToolbar": "always",
+            // First run opens Mozilla's privacy notice, which is blocked
+            "Preferences": { "datareporting.policy.firstRunURL": { "Value": "", "Status": "locked" } },
+            "ManagedBookmarks": quick_links(allowed),
             "OverrideFirstRunPage": "",
             "OverridePostUpdatePage": "",
             "DontCheckDefaultBrowser": true,
@@ -145,6 +151,16 @@ fn firefox_policies(allowed: &[String]) -> String {
         }
     })
     .to_string()
+}
+
+/// Bookmarks named after their site and section ("kubernetes.io docs")
+fn quick_links(allowed: &[String]) -> serde_json::Value {
+    let mut links = vec![serde_json::json!({ "toplevel_name": "Quick Links" })];
+    for url in allowed {
+        let name = url.trim_start_matches("https://").trim_end_matches('/').replacen('/', " ", 1).replace('/', " › ");
+        links.push(serde_json::json!({ "name": name, "url": url }));
+    }
+    serde_json::Value::Array(links)
 }
 
 /// `ssh <cluster>` logs into the task host with that cluster's context

@@ -10,5 +10,7 @@ Xvnc :1 -geometry "${VNC_GEOMETRY:-1280x800}" -depth 24 -rfbport 5901 -localhost
 export DISPLAY=:1
 for _ in $(seq 50); do [ -S /tmp/.X11-unix/X1 ] && break; sleep 0.1; done
 
-dbus-launch --exit-with-session startxfce4 >/tmp/xfce.log 2>&1 &
+# The session bus first, so the desktop icons are marked trusted before
+# xfdesktop shows them
+dbus-launch --exit-with-session sh -c 'trust-launchers; exec startxfce4' >/tmp/xfce.log 2>&1 &
 exec websockify 6080 localhost:5901

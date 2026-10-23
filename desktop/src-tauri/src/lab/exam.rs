@@ -494,7 +494,8 @@ impl Exams {
         };
 
         let docker = docker::connect().await?;
-        next(Some("The first exam builds them, which takes a few minutes".into()));
+        // Built when the app started; waits here if that is still running
+        next(Some("Built when ckdry starts; waits for that build if it is still running".into()));
         self.infra.ensure(&docker, &log).await?;
         for (name, workers) in clusters {
             if replacing.contains(name) {

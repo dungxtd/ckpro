@@ -4,6 +4,8 @@
 //! - Kubernetes: one node watch per running cluster for Ready/NotReady.
 
 use super::model::{ClusterState, ContainerStatus, DockerState, Env, NodeRole, NodeState, Readiness};
+use super::activity::Activities;
+use super::infra::Infra;
 use super::{docker, reconcile};
 use crate::cluster::kind::Kind;
 use bollard::Docker;
@@ -20,11 +22,11 @@ use tokio::task::JoinHandle;
 const CLUSTER_LABEL: &str = "io.x-k8s.kind.cluster";
 const ROLE_LABEL: &str = "io.x-k8s.kind.role";
 
-pub fn start(env: Arc<Env>, kind: Arc<Kind>, activities: Arc<super::activity::Activities>) {
-    tauri::async_runtime::spawn(run(env, kind, activities));
+pub fn start(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>) {
+    tauri::async_runtime::spawn(run(env, kind, infra, activities));
 }
 
-async fn run(env: Arc<Env>, kind: Arc<Kind>, activities: Arc<super::activity::Activities>) {
+async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>) {
     let mut watchers: HashMap<String, JoinHandle<()>> = HashMap::new();
     let mut reconciled = false;
     loop {
@@ -53,6 +55,8 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, activities: Arc<super::activity::Ac
 
         if !reconciled {
             reconcile::on_startup(&docker, &kind, &activities).await;
+            // Exams start without building anything
+            tauri::async_runtime::spawn(prepare_images(docker.clone(), infra.clone(), activities.clone()));
             reconciled = true;
         }
         sync(&docker, &env, &kind, &mut watchers).await;
@@ -251,4 +255,21 @@ fn set_readiness(env: &Env, cluster: &str, node: &Node) {
             n.ready = ready;
         }
     });
+}
+
+/// Build the exam images in the background when they are missing (first
+/// run, or an update changed them), so starting an exam does not wait.
+async fn prepare_images(docker: Docker, infra: Arc<Infra>, activities: Arc<Activities>) {
+    let missing = infra.missing_images(&docker).await;
+    if missing.is_empty() {
+        let quiet = |line: String| tracing::info!("{line}");
+        if let Err(e) = infra.ensure(&docker, &quiet).await {
+            tracing::warn!(error = %e, "preparing the exam infrastructure");
+        }
+        return;
+    }
+    let op = activities.begin("Preparing the exam images", vec![format!("Building {}", missing.join(", "))]);
+    op.detail("First run or after an update: a few minutes, once");
+    let result = infra.ensure(&docker, &|line| op.log(line)).await;
+    let _ = op.end(result);
 }

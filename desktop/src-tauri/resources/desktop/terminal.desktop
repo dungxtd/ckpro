@@ -5,4 +5,5 @@ Name=Terminal
 Comment=Terminal Emulator
 Exec=xfce4-terminal
 Icon=utilities-terminal
+Path=/home/candidate
 StartupNotify=false
