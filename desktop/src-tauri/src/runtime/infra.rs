@@ -17,10 +17,16 @@ pub const NETWORK: &str = "kind";
 
 const KIND_NODE_BASE: &str = "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0";
 
-/// An image ckdry builds. Its tag is a hash of everything it is built from,
-/// so changing a file or a version builds a new image (and drops the old one).
+/// Where release builds publish the images (CI, `.github/workflows/images.yml`);
+/// the app pulls from here like kind pulls its node image
+pub const REGISTRY: &str = "ghcr.io/dungxtd";
+
+/// An image of ckdry's: pulled from `REGISTRY`, or built here when it is not
+/// published (development, offline). Its tag is a hash of everything it is
+/// built from, so a change makes a new image (and the old one is dropped).
 pub struct Image {
-    pub repository: &'static str,
+    /// Its directory under `resources/`, and its package name `ckdry-<name>`
+    pub name: &'static str,
     /// (name in the build context, content); the first is the Dockerfile
     files: &'static [(&'static str, &'static str)],
     args: &'static [(&'static str, &'static str)],
@@ -35,13 +41,33 @@ impl Image {
                 hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
             }
         }
-        format!("{}:{:08x}", self.repository, hash as u32)
+        format!("{}:{:08x}", self.repository(), hash as u32)
     }
+
+    pub fn repository(&self) -> String {
+        format!("{REGISTRY}/ckdry-{}", self.name)
+    }
+}
+
+pub const IMAGES: [&Image; 3] = [&NODE_IMAGE, &JUMPHOST_IMAGE, &DESKTOP_IMAGE];
+
+/// What CI builds and publishes (`ckdry images`, `resources/images.json`)
+pub fn manifest() -> serde_json::Value {
+    IMAGES
+        .iter()
+        .map(|image| {
+            serde_json::json!({
+                "name": image.name,
+                "image": image.tag(),
+                "args": image.args.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<std::collections::BTreeMap<_, _>>(),
+            })
+        })
+        .collect()
 }
 
 /// kind node + sshd (`ssh <node>`)
 pub const NODE_IMAGE: Image = Image {
-    repository: "ckdry/node",
+    name: "node",
     files: &[("Dockerfile", include_str!("../../resources/node/Dockerfile"))],
     args: &[("BASE", KIND_NODE_BASE)],
 };
@@ -49,7 +75,7 @@ pub const NODE_IMAGE: Image = Image {
 /// The task host: kubectl, helm, etcdctl, yq in step with the clusters
 /// (CKA runs v1.35); Helm 3, what helm.sh/docs and the tasks are written for
 pub const JUMPHOST_IMAGE: Image = Image {
-    repository: "ckdry/jumphost",
+    name: "jumphost",
     files: &[("Dockerfile", include_str!("../../resources/jumphost/Dockerfile"))],
     args: &[
         ("KUBECTL_VERSION", "v1.35.8"),
@@ -61,7 +87,7 @@ pub const JUMPHOST_IMAGE: Image = Image {
 
 /// The exam's remote desktop, the `base` machine (runtime/desktop.rs)
 pub const DESKTOP_IMAGE: Image = Image {
-    repository: "ckdry/desktop",
+    name: "desktop",
     files: &[
         ("Dockerfile", include_str!("../../resources/desktop/Dockerfile")),
         ("start.sh", include_str!("../../resources/desktop/start.sh")),
@@ -106,9 +132,9 @@ impl Infra {
     /// Images not built yet: on the first run, or after an update changed them
     pub async fn missing_images(&self, docker: &Docker) -> Vec<String> {
         let mut missing = Vec::new();
-        for image in [&NODE_IMAGE, &JUMPHOST_IMAGE, &DESKTOP_IMAGE] {
+        for image in IMAGES {
             if docker.inspect_image(&image.tag()).await.is_err() {
-                missing.push(image.repository.to_string());
+                missing.push(format!("ckdry-{}", image.name));
             }
         }
         missing
@@ -135,8 +161,8 @@ impl Infra {
             log(format!("Registry cache unavailable ({e}); pulling directly"));
         }
 
-        for image in [&NODE_IMAGE, &JUMPHOST_IMAGE, &DESKTOP_IMAGE] {
-            build_if_missing(docker, image, log).await?;
+        for image in IMAGES {
+            obtain(docker, image, log).await?;
         }
         Ok(())
     }
@@ -249,25 +275,43 @@ async fn pull_if_missing(docker: &Docker, image: &str) -> AppResult<()> {
     if docker.inspect_image(image).await.is_ok() {
         return Ok(());
     }
+    pull(docker, image, &|_| {}).await
+}
+
+/// Pull `image`, logging each layer as it completes.
+async fn pull(docker: &Docker, image: &str, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
     let mut pull = docker.create_image(
         Some(bollard::query_parameters::CreateImageOptions { from_image: Some(image.into()), ..Default::default() }),
         None,
         None,
     );
     while let Some(progress) = pull.next().await {
-        progress?;
+        let progress = progress?;
+        if let (Some(id), Some(status)) = (progress.id, progress.status)
+            && matches!(status.as_str(), "Pull complete" | "Already exists")
+        {
+            log(format!("  {id}: {status}"));
+        }
     }
     Ok(())
 }
 
-/// Build `image` unless its tag exists, then drop its older tags.
-async fn build_if_missing(docker: &Docker, image: &Image, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
+/// Get `image` unless it is here: pull the published one, or build it when it
+/// is not published (a change not released yet, or offline). Then drop the
+/// versions it replaces.
+async fn obtain(docker: &Docker, image: &Image, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
     let tag = image.tag();
     if docker.inspect_image(&tag).await.is_ok() {
         return Ok(());
     }
-    log(format!("Building {tag} (first run, or after an update)"));
-    build(docker, &tag, image, log).await?;
+    log(format!("Pulling {tag}"));
+    match pull(docker, &tag, log).await {
+        Ok(()) => log(format!("Pulled {tag}")),
+        Err(e) => {
+            log(format!("Not on the registry yet ({e}): building {tag} here"));
+            build(docker, &tag, image, log).await?;
+        }
+    }
     remove_older(docker, &tag, log).await;
     remove_untagged(docker, log).await;
     Ok(())
@@ -320,7 +364,8 @@ mod tests {
     /// missing from the build ("COPY failed: file not found")
     #[test]
     fn images_ship_every_file_of_their_directory() {
-        for (dir, image) in [("node", &NODE_IMAGE), ("jumphost", &JUMPHOST_IMAGE), ("desktop", &DESKTOP_IMAGE)] {
+        for image in IMAGES {
+            let dir = image.name;
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources").join(dir);
             let mut on_disk: Vec<String> =
                 std::fs::read_dir(path).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
@@ -329,5 +374,14 @@ mod tests {
             shipped.sort();
             assert_eq!(on_disk, shipped, "{dir}");
         }
+    }
+
+    /// CI publishes what `resources/images.json` lists: it must match the app
+    #[test]
+    fn image_manifest_is_current() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/images.json");
+        let committed: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_default()).unwrap_or_default();
+        assert_eq!(committed, manifest(), "stale resources/images.json: run `ckdry images > desktop/src-tauri/resources/images.json`");
     }
 }

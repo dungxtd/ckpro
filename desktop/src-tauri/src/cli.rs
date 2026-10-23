@@ -26,6 +26,9 @@ enum Command {
         #[arg(default_value = "schema")]
         out: PathBuf,
     },
+    /// Print the images to publish (name, image with its tag, build args):
+    /// CI builds and pushes them, the app pulls them
+    Images,
 }
 
 #[derive(Subcommand)]
@@ -68,7 +71,7 @@ enum LabCommand {
 pub fn is_cli(args: &[String]) -> bool {
     matches!(
         args.get(1).map(String::as_str),
-        Some("lab" | "schema" | "help" | "--help" | "-h" | "--version" | "-V")
+        Some("lab" | "schema" | "images" | "help" | "--help" | "-h" | "--version" | "-V")
     )
 }
 
@@ -79,6 +82,10 @@ pub fn main() -> ExitCode {
             verify_pack(&pack, &exams, &questions, keep, parallel.max(1), json)
         }
         Command::Schema { out } => write_schemas(&out),
+        Command::Images => {
+            println!("{}", serde_json::to_string_pretty(&crate::runtime::infra::manifest()).unwrap_or_default());
+            ExitCode::SUCCESS
+        }
     }
 }
 

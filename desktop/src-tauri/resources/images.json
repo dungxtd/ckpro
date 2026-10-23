@@ -1,0 +1,24 @@
+[
+  {
+    "args": {
+      "BASE": "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
+    },
+    "image": "ghcr.io/dungxtd/ckdry-node:30698afa",
+    "name": "node"
+  },
+  {
+    "args": {
+      "ETCD_VERSION": "v3.6.6",
+      "HELM_VERSION": "v3.22.1",
+      "KUBECTL_VERSION": "v1.35.8",
+      "YQ_VERSION": "v4.54.1"
+    },
+    "image": "ghcr.io/dungxtd/ckdry-jumphost:cedf0571",
+    "name": "jumphost"
+  },
+  {
+    "args": {},
+    "image": "ghcr.io/dungxtd/ckdry-desktop:e06b7098",
+    "name": "desktop"
+  }
+]

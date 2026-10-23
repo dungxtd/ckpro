@@ -268,8 +268,8 @@ async fn prepare_images(docker: Docker, infra: Arc<Infra>, activities: Arc<Activ
         }
         return;
     }
-    let op = activities.begin("Preparing the exam images", vec![format!("Building {}", missing.join(", "))]);
-    op.detail("First run or after an update: a few minutes, once");
+    let op = activities.begin("Preparing the exam images", vec![format!("Getting {}", missing.join(", "))]);
+    op.detail("First run or after an update: pulled when published, built here otherwise");
     let result = infra.ensure(&docker, &|line| op.log(line)).await;
     let _ = op.end(result);
 }
