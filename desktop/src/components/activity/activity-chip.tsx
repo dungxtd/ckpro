@@ -1,9 +1,10 @@
+import { Chip } from "@ckdry/ui/components/chip";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
 import { cn } from "@ckdry/ui/lib/utils";
-import { AlertCircle, Loader2 } from "lucide-react";
 import { Link } from "react-router";
 import { useActivityList } from "@/stores/activity";
 import { ActivityProgress } from "./activity-progress";
+import { ActivityStatusIcon } from "./activity-status-icon";
 
 /** How long a failure stays in the top bar */
 const FAILED_SHOWN_MS = 5 * 60_000;
@@ -25,21 +26,18 @@ export function ActivityChip() {
 	const isFailed = shown.status === "failed";
 	return (
 		<Popover>
-			<PopoverTrigger
-				className={cn(
-					"ml-auto flex max-w-80 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs",
-					isFailed ? "border-red-500/40 text-red-500" : "border-border text-muted-foreground"
-				)}
-			>
-				{isFailed ? (
-					<AlertCircle className="size-3.5" />
-				) : (
-					<Loader2 className="size-3.5 animate-spin" />
-				)}
-				<span className="truncate">
-					{isFailed ? `Failed: ${shown.title}` : shown.title}
-					{running.length > 1 && ` (+${running.length - 1})`}
-				</span>
+			<PopoverTrigger asChild>
+				<Chip
+					className={cn(
+						"ml-auto max-w-80",
+						isFailed &&
+							"bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive"
+					)}
+					count={running.length > 1 ? running.length : undefined}
+				>
+					<ActivityStatusIcon status={shown.status} className="size-3.5 text-current" />
+					<span className="truncate">{isFailed ? `Failed: ${shown.title}` : shown.title}</span>
+				</Chip>
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-[28rem]">
 				<ActivityProgress id={shown.id} compact />

@@ -1,8 +1,10 @@
+import { Card } from "@ckdry/ui/components/card";
 import { cn } from "@ckdry/ui/lib/utils";
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useActivityList } from "@/stores/activity";
 import { ActivityProgress, clock } from "./activity-progress";
+import { ActivityStatusIcon } from "./activity-status-icon";
 
 const time = (ms: number) =>
 	new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -16,14 +18,15 @@ export function ActivityList() {
 		return <div className="text-muted-foreground text-sm">Nothing yet.</div>;
 	}
 	return (
-		<ul className="flex flex-col divide-y divide-border rounded-md border border-border">
+		<Card padding="none" className="divide-y divide-border overflow-hidden">
 			{list.map(a => {
 				const expanded = open === a.id;
 				return (
-					<li key={a.id}>
+					<div key={a.id}>
 						<button
 							type="button"
-							className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+							aria-expanded={expanded}
+							className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm outline-none transition-colors hover:bg-foreground/5 focus-visible:bg-foreground/5"
 							onClick={() => setOpen(expanded ? null : a.id)}
 						>
 							{expanded ? (
@@ -31,15 +34,12 @@ export function ActivityList() {
 							) : (
 								<ChevronRight className="size-3.5" />
 							)}
-							{a.status === "running" ? (
-								<Loader2 className="size-4 animate-spin text-primary" />
-							) : a.status === "failed" ? (
-								<AlertCircle className="size-4 text-red-500" />
-							) : (
-								<CheckCircle2 className="size-4 text-emerald-500" />
-							)}
+							<ActivityStatusIcon status={a.status} />
 							<span
-								className={cn("min-w-0 flex-1 truncate", a.status === "failed" && "text-red-500")}
+								className={cn(
+									"min-w-0 flex-1 truncate",
+									a.status === "failed" && "text-destructive"
+								)}
 							>
 								{a.title}
 							</span>
@@ -49,13 +49,13 @@ export function ActivityList() {
 							</span>
 						</button>
 						{expanded && (
-							<div className="border-border border-t px-3 py-3">
+							<div className="px-3 py-3">
 								<ActivityProgress id={a.id} compact />
 							</div>
 						)}
-					</li>
+					</div>
 				);
 			})}
-		</ul>
+		</Card>
 	);
 }

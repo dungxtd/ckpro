@@ -6,7 +6,7 @@ import type React from "react";
 const spinnerVariants = cva("flex-col items-center justify-center", {
 	variants: {
 		show: {
-			true: "flex",
+			true: "inline-flex",
 			false: "hidden",
 		},
 	},
@@ -18,6 +18,8 @@ const spinnerVariants = cva("flex-col items-center justify-center", {
 const loaderVariants = cva("animate-spin text-primary", {
 	variants: {
 		size: {
+			// In a line of text or a button, in the text's colour
+			inline: "size-4 text-current",
 			small: "size-6",
 			medium: "size-8",
 			large: "size-12",

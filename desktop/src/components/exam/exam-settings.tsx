@@ -1,4 +1,5 @@
-import { Button } from "@ckdry/ui/components/button";
+import { IconButton } from "@ckdry/ui/components/icon-button";
+import { menu, menuRow } from "@ckdry/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Check, RotateCcw, Settings } from "lucide-react";
@@ -31,10 +32,16 @@ export function ExamSettings({
 			<button
 				key={label}
 				type="button"
-				className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+				role="menuitemradio"
+				aria-checked={active}
+				className={menuRow()}
 				onClick={() => onResolution(value)}
 			>
-				<Check className={cn("size-4", !active && "invisible")} />
+				{active && (
+					<span className={menu.check}>
+						<Check className="size-3" strokeWidth={3} />
+					</span>
+				)}
 				{label}
 			</button>
 		);
@@ -54,26 +61,29 @@ export function ExamSettings({
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<Button size="sm" variant="ghost" title="Settings">
-					<Settings className="size-4" />
-				</Button>
+				<IconButton variant="plain" size="sm" aria-label="Settings">
+					<Settings />
+				</IconButton>
 			</PopoverTrigger>
-			<PopoverContent align="end" className="w-64">
-				<div className="px-2 pb-1 text-muted-foreground text-xs">Remote Desktop</div>
+			<PopoverContent align="end" role="menu" className={cn(menu.surface, "w-56")}>
+				<div className={menu.header}>Remote Desktop</div>
 				{option("Fit to screen", null)}
-				<div className="px-2 pt-2 pb-1 text-muted-foreground text-xs">Custom resolution</div>
+				<div className={menu.header}>Custom resolution</div>
 				{RESOLUTIONS.map(([w, h]) => option(`${w} × ${h}`, [w, h]))}
-				<div className="mt-2 border-border border-t pt-2">
-					<Button
-						size="sm"
-						variant="ghost"
-						className="w-full justify-start"
-						disabled={resetting}
-						onClick={reset}
-					>
-						<RotateCcw className="size-4" /> {resetting ? "Resetting…" : "Reset desktop"}
-					</Button>
-				</div>
+				<div className={menu.separator} />
+				<button
+					type="button"
+					role="menuitem"
+					className={menuRow()}
+					disabled={resetting}
+					data-disabled={resetting || undefined}
+					onClick={reset}
+				>
+					<span className={menu.check}>
+						<RotateCcw className="size-3" />
+					</span>
+					{resetting ? "Resetting…" : "Reset desktop"}
+				</button>
 			</PopoverContent>
 		</Popover>
 	);

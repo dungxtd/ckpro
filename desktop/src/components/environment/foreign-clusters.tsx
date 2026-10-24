@@ -1,4 +1,5 @@
 import { Button } from "@ckdry/ui/components/button";
+import { Card } from "@ckdry/ui/components/card";
 import { useEnvironment } from "@/stores/environment";
 
 /** kind clusters on this machine that ckdry does not manage yet. */
@@ -8,7 +9,7 @@ export function ForeignClusters({ names }: { names: string[] }) {
 	if (names.length === 0) return null;
 
 	return (
-		<section className="rounded-lg border border-border border-dashed p-3">
+		<Card variant="dashed" padding="sm">
 			<h2 className="font-semibold text-sm">Other kind clusters</h2>
 			<p className="mb-2 text-muted-foreground text-xs">
 				Created outside ckdry (kind CLI or an older install). Adopt one to manage it here; its name
@@ -34,6 +35,6 @@ export function ForeignClusters({ names }: { names: string[] }) {
 					</li>
 				))}
 			</ul>
-		</section>
+		</Card>
 	);
 }

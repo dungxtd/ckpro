@@ -1,3 +1,4 @@
+import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/tooltip";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Clock } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -18,18 +19,25 @@ export function Timer({ startedAt, endsAt }: { startedAt: number; endsAt: number
 
 	const left = endsAt === null ? null : endsAt - now;
 	const low = left !== null && left < 10 * 60 * 1000;
+	const label = left === null ? "Time spent" : "Time left";
 	return (
-		<span
-			title={left === null ? "Time spent" : "Time left"}
-			className={cn(
-				"flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-sm tabular-nums",
-				low
-					? "border-red-500/60 bg-red-500/15 text-red-500"
-					: "border-emerald-500/50 bg-emerald-500/15 text-emerald-500"
-			)}
-		>
-			<Clock className="size-4" />
-			{format(left ?? now - startedAt)}
-		</span>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span
+					role="timer"
+					aria-label={label}
+					className={cn(
+						"flex items-center gap-1.5 rounded-control border px-2.5 py-1 font-mono text-sm tabular-nums",
+						low
+							? "border-destructive/60 bg-destructive/15 text-destructive"
+							: "border-success/50 bg-success/15 text-success"
+					)}
+				>
+					<Clock className="size-4" />
+					{format(left ?? now - startedAt)}
+				</span>
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 }

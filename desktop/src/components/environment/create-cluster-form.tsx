@@ -1,4 +1,6 @@
 import { Button } from "@ckdry/ui/components/button";
+import { Card } from "@ckdry/ui/components/card";
+import { CodeBlock } from "@ckdry/ui/components/code-block";
 import { Input } from "@ckdry/ui/components/input";
 import { CircleCheck, CircleX } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -23,7 +25,7 @@ export function CreateClusterForm() {
 	const creating = job?.action === "create";
 
 	return (
-		<section className="rounded-lg border border-border bg-card p-3">
+		<Card padding="sm">
 			<h2 className="mb-2 font-semibold text-sm">New cluster</h2>
 			<form
 				className="flex flex-wrap items-center gap-2"
@@ -63,7 +65,7 @@ export function CreateClusterForm() {
 					</Button>
 				)}
 				{lastResult && (
-					<span className={lastResult.ok ? "text-green-500 text-xs" : "text-red-500 text-xs"}>
+					<span className={lastResult.ok ? "text-success text-xs" : "text-destructive text-xs"}>
 						{lastResult.message}
 					</span>
 				)}
@@ -72,9 +74,9 @@ export function CreateClusterForm() {
 				{preflight.map(check => (
 					<li key={check.name} className="flex items-start gap-1.5">
 						{check.ok ? (
-							<CircleCheck className="size-3.5 shrink-0 text-green-500" />
+							<CircleCheck className="size-3.5 shrink-0 text-success" />
 						) : (
-							<CircleX className="size-3.5 shrink-0 text-red-500" />
+							<CircleX className="size-3.5 shrink-0 text-destructive" />
 						)}
 						<span>
 							<strong>{check.name}</strong>{" "}
@@ -84,10 +86,10 @@ export function CreateClusterForm() {
 				))}
 			</ul>
 			{log.length > 0 && (
-				<pre ref={logRef} className="mt-2 max-h-32 overflow-auto rounded bg-muted p-2 text-xs">
+				<CodeBlock ref={logRef} className="mt-2 max-h-32">
 					{log.join("\n")}
-				</pre>
+				</CodeBlock>
 			)}
-		</section>
+		</Card>
 	);
 }

@@ -1,5 +1,6 @@
+import { Card } from "@ckdry/ui/components/card";
+import { Spinner } from "@ckdry/ui/components/spinner";
 import { cn } from "@ckdry/ui/lib/utils";
-import { Loader2 } from "lucide-react";
 import { ActivityProgress } from "@/components/activity/activity-progress";
 import type { Attempt, ExamState } from "@/tauri/api";
 
@@ -19,7 +20,7 @@ export function Grading({
 }) {
 	return (
 		<div className="flex h-full items-center justify-center overflow-auto p-6">
-			<section className="flex w-full max-w-2xl flex-col gap-4 rounded-lg border border-border bg-card p-6">
+			<Card padding="lg" className="flex w-full max-w-2xl flex-col gap-4">
 				<ActivityProgress id={activity} note={note ?? undefined} />
 				<ol className="grid grid-cols-1 gap-1 sm:grid-cols-2">
 					{attempt.questions.map((q, i) => {
@@ -34,19 +35,19 @@ export function Grading({
 									<span
 										className={cn(
 											"font-mono text-xs tabular-nums",
-											full ? "text-emerald-500" : zero ? "text-red-500" : "text-amber-500"
+											full ? "text-success" : zero ? "text-destructive" : "text-warning"
 										)}
 									>
 										{score.points}/{score.max_points}
 									</span>
 								) : (
-									<Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+									<Spinner size="inline" className="text-muted-foreground" />
 								)}
 							</li>
 						);
 					})}
 				</ol>
-			</section>
+			</Card>
 		</div>
 	);
 }

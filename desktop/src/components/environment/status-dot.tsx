@@ -4,9 +4,9 @@ import type { NodeState } from "@/tauri/api";
 type Tone = "ok" | "warn" | "error" | "idle";
 
 const TONE: Record<Tone, string> = {
-	ok: "bg-green-500",
-	warn: "bg-amber-500",
-	error: "bg-red-500",
+	ok: "bg-success",
+	warn: "bg-warning",
+	error: "bg-destructive",
 	idle: "bg-muted-foreground/40",
 };
 

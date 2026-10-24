@@ -7,9 +7,9 @@ export function CheckList({ checks }: { checks: CheckResult[] }) {
 			{checks.map(check => (
 				<li key={check.name} className="flex items-start gap-2">
 					{check.passed ? (
-						<CircleCheck className="mt-0.5 size-4 shrink-0 text-green-500" />
+						<CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
 					) : (
-						<CircleX className="mt-0.5 size-4 shrink-0 text-red-500" />
+						<CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
 					)}
 					<div>
 						<span>{check.name}</span>

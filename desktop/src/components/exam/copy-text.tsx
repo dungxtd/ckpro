@@ -1,3 +1,4 @@
+import { codeBlock } from "@ckdry/ui/components/code-block";
 import { cn } from "@ckdry/ui/lib/utils";
 import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -50,11 +51,11 @@ export function CopyText({
 			// Background tints, not a ring: a ring is drawn outside the value and
 			// the panel's edges clip it
 			className={cn(
-				"cursor-pointer select-none outline-none transition-colors hover:bg-sky-500/25 focus-visible:outline-2 focus-visible:outline-sky-500 focus-visible:-outline-offset-2",
-				block && "whitespace-pre font-mono text-[0.85em]",
+				"cursor-pointer select-none outline-none transition-colors hover:bg-highlight/25 focus-visible:outline-2 focus-visible:outline-highlight focus-visible:-outline-offset-2",
+				block && codeBlock,
 				className,
 				// Over the Markdown's own code background
-				copied && "bg-emerald-500/30!"
+				copied && "bg-success/30!"
 			)}
 		>
 			{children ?? text}

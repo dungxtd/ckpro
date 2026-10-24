@@ -1,4 +1,5 @@
 import { Button } from "@ckdry/ui/components/button";
+import { Card } from "@ckdry/ui/components/card";
 import { Navigate } from "react-router";
 import { ActivityPage } from "@/components/activity/activity-progress";
 import { Grading } from "@/components/exam/grading";
@@ -83,11 +84,11 @@ export function ExamRoute() {
 				</ActivityPage>
 			) : (
 				<div className="flex h-full items-center justify-center">
-					<section className="w-[480px] rounded-lg border border-red-500/50 bg-card p-6">
+					<Card padding="lg" className="w-[480px] border-destructive/50">
 						<div className="font-semibold">The exam could not run</div>
 						<div className="mt-2 text-sm">{state.message}</div>
 						<div className="mt-4 flex justify-end gap-2">{actions}</div>
-					</section>
+					</Card>
 				</div>
 			);
 		}

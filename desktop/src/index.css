@@ -1,6 +1,13 @@
 @import "@ckdry/ui/styles.css";
 @import "@xterm/xterm/css/xterm.css";
 
+/* The exam's own accents, as the ExamUI colours them: the values to use
+   (host, namespace) and the question's concepts */
+@theme {
+	--color-exam-value: #f472b6;
+	--color-exam-concept: #38bdf8;
+}
+
 /* An app window: only the areas meant to scroll do. clip, not hidden:
    hidden still lets focus() and scrollIntoView() scroll the page */
 html,

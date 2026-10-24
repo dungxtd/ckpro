@@ -1,4 +1,8 @@
 import { Button } from "@ckdry/ui/components/button";
+import { Card } from "@ckdry/ui/components/card";
+import { CodeBlock } from "@ckdry/ui/components/code-block";
+import { Separator } from "@ckdry/ui/components/separator";
+import { cn } from "@ckdry/ui/lib/utils";
 import { useState } from "react";
 import { Markdown } from "@/components/markdown";
 import { useExam } from "@/stores/exam";
@@ -13,10 +17,13 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 
 	return (
 		<div className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
-			<section className="rounded-lg border border-border bg-card p-6 text-center">
+			<Card padding="lg" className="text-center">
 				<div className="text-muted-foreground text-sm">{attempt.title}</div>
 				<div
-					className={`my-2 font-bold text-5xl ${result.passed ? "text-green-500" : "text-red-500"}`}
+					className={cn(
+						"my-2 font-bold text-5xl",
+						result.passed ? "text-success" : "text-destructive"
+					)}
 				>
 					{result.score}%
 				</div>
@@ -30,30 +37,32 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 						Close exam (deletes its clusters)
 					</Button>
 				</div>
-			</section>
+			</Card>
 
 			{review &&
 				result.questions.map((q, i) => {
 					const solution = solutions[q.id];
 					return (
-						<section key={q.id} className="rounded-lg border border-border bg-card p-4">
+						<Card key={q.id}>
 							<header className="mb-2 flex items-baseline gap-2">
 								<strong>
 									{i + 1}. {q.title}
 								</strong>
 								<span
-									className={`ml-auto text-sm ${q.points === q.max_points ? "text-green-500" : "text-red-500"}`}
+									className={cn(
+										"ml-auto text-sm tabular-nums",
+										q.points === q.max_points ? "text-success" : "text-destructive"
+									)}
 								>
 									{q.points}/{q.max_points}
 								</span>
 							</header>
 							<CheckList checks={q.checks} />
 							{solution ? (
-								<div className="mt-3 border-border border-t pt-2">
+								<div className="mt-3 flex flex-col gap-2">
+									<Separator />
 									<Markdown>{solution.explain}</Markdown>
-									<pre className="mt-2 overflow-auto rounded bg-muted p-2 font-mono text-xs">
-										{solution.run}
-									</pre>
+									<CodeBlock>{solution.run}</CodeBlock>
 								</div>
 							) : (
 								<Button
@@ -65,7 +74,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 									Show solution
 								</Button>
 							)}
-						</section>
+						</Card>
 					);
 				})}
 		</div>

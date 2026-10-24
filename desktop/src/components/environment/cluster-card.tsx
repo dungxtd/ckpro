@@ -1,4 +1,5 @@
 import { Button } from "@ckdry/ui/components/button";
+import { Card } from "@ckdry/ui/components/card";
 import { SquareTerminal } from "lucide-react";
 import { useEnvironment } from "@/stores/environment";
 import type { ClusterState } from "@/tauri/api";
@@ -17,7 +18,7 @@ export function ClusterCard({
 	const needsRepair = cluster.nodes.some(n => n.container.state !== "running");
 
 	return (
-		<section className="rounded-lg border border-border bg-card p-3">
+		<Card padding="sm">
 			<header className="mb-2 flex items-center gap-2">
 				<strong className="text-sm">{cluster.name}</strong>
 				<span className="text-muted-foreground text-xs">
@@ -62,6 +63,6 @@ export function ClusterCard({
 					);
 				})}
 			</ul>
-		</section>
+		</Card>
 	);
 }

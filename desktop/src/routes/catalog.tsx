@@ -1,5 +1,7 @@
+import { Alert } from "@ckdry/ui/components/alert";
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
+import { Card } from "@ckdry/ui/components/card";
 import { useEffect } from "react";
 import { useExam } from "@/stores/exam";
 import type { ExamSummary } from "@/tauri/api";
@@ -9,7 +11,7 @@ const CERT_ORDER = ["cka", "ckad", "cks"];
 function ExamCard({ exam }: { exam: ExamSummary }) {
 	const start = useExam(s => s.start);
 	return (
-		<section className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4">
+		<Card className="flex flex-col gap-2">
 			<header className="flex items-start gap-2">
 				<strong className="flex-1">{exam.title}</strong>
 				<Badge>{exam.certification.toUpperCase()}</Badge>
@@ -26,7 +28,7 @@ function ExamCard({ exam }: { exam: ExamSummary }) {
 					Practice
 				</Button>
 			</div>
-		</section>
+		</Card>
 	);
 }
 
@@ -43,7 +45,7 @@ export function CatalogRoute() {
 	return (
 		<div className="flex flex-col gap-6 p-6">
 			{pendingReplace && (
-				<div className="flex items-center gap-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+				<Alert variant="warning" className="items-center gap-3">
 					<span className="flex-1">{pendingReplace.message}</span>
 					<Button size="sm" onClick={() => start(pendingReplace.id, pendingReplace.mode, true)}>
 						Replace and start
@@ -51,11 +53,9 @@ export function CatalogRoute() {
 					<Button size="sm" variant="ghost" onClick={cancelReplace}>
 						Cancel
 					</Button>
-				</div>
+				</Alert>
 			)}
-			{error && (
-				<div className="rounded-lg border border-red-500/50 bg-red-500/10 p-3 text-sm">{error}</div>
-			)}
+			{error && <Alert variant="destructive">{error}</Alert>}
 			{certs.map(cert => (
 				<section key={cert}>
 					<h2 className="mb-3 font-semibold text-lg">{cert.toUpperCase()}</h2>

@@ -1,4 +1,6 @@
 import { Button } from "@ckdry/ui/components/button";
+import { Card } from "@ckdry/ui/components/card";
+import { CodeBlock } from "@ckdry/ui/components/code-block";
 import { Input } from "@ckdry/ui/components/input";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -27,7 +29,7 @@ export function ScriptCard() {
 	};
 
 	return (
-		<section className="rounded-lg border border-border bg-card p-3">
+		<Card padding="sm">
 			<h2 className="mb-2 font-semibold text-sm">Lab script (runs on the jumphost)</h2>
 			<div className="flex gap-2">
 				<Input
@@ -40,9 +42,7 @@ export function ScriptCard() {
 					{running ? "Running…" : "Run"}
 				</Button>
 			</div>
-			{result && (
-				<pre className="mt-2 max-h-32 overflow-auto rounded bg-muted p-2 text-xs">{result}</pre>
-			)}
-		</section>
+			{result && <CodeBlock className="mt-2 max-h-32">{result}</CodeBlock>}
+		</Card>
 	);
 }

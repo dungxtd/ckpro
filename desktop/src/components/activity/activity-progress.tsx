@@ -1,5 +1,10 @@
+import { Alert } from "@ckdry/ui/components/alert";
+import { Button } from "@ckdry/ui/components/button";
+import { Card } from "@ckdry/ui/components/card";
+import { CodeBlock } from "@ckdry/ui/components/code-block";
+import { Spinner } from "@ckdry/ui/components/spinner";
 import { cn } from "@ckdry/ui/lib/utils";
-import { Check, ChevronDown, ChevronRight, Circle, Copy, Loader2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Circle, Copy, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useActivities } from "@/stores/activity";
 
@@ -83,14 +88,21 @@ export function ActivityProgress({
 				</span>
 			</div>
 
-			{note && <div className="rounded-md bg-amber-500/10 p-2 text-sm">{note}</div>}
+			{note && <Alert variant="warning">{note}</Alert>}
 
 			<div>
-				<div className="h-2 overflow-hidden rounded bg-muted">
+				<div
+					role="progressbar"
+					aria-valuenow={percent}
+					aria-valuemin={0}
+					aria-valuemax={100}
+					aria-label={activity.title}
+					className="h-2 overflow-hidden rounded-full bg-muted"
+				>
 					<div
 						className={cn(
 							"h-full transition-all duration-500",
-							failed ? "bg-red-500" : "bg-primary"
+							failed ? "bg-destructive" : "bg-highlight"
 						)}
 						style={{ width: `${failed ? Math.max(percent, 4) : percent}%` }}
 					/>
@@ -108,11 +120,11 @@ export function ActivityProgress({
 					return (
 						<li key={step} className="flex gap-2 text-sm">
 							{i < activity.current || done ? (
-								<Check className="mt-0.5 size-4 shrink-0 text-emerald-500" />
+								<Check className="mt-0.5 size-4 shrink-0 text-success" />
 							) : isCurrent && failed ? (
-								<X className="mt-0.5 size-4 shrink-0 text-red-500" />
+								<X className="mt-0.5 size-4 shrink-0 text-destructive" />
 							) : isCurrent ? (
-								<Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-primary" />
+								<Spinner size="inline" className="mt-0.5 shrink-0 text-highlight" />
 							) : (
 								<Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground/40" />
 							)}
@@ -127,46 +139,42 @@ export function ActivityProgress({
 				})}
 			</ol>
 
-			{failed && activity.error && (
-				<div className="rounded-md border border-red-500/40 bg-red-500/10 p-2 text-sm">
-					{activity.error}
-				</div>
-			)}
+			{failed && activity.error && <Alert variant="destructive">{activity.error}</Alert>}
 
 			<div>
 				<div className="flex items-center gap-2">
-					<button
-						type="button"
-						className="flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground"
+					<Button
+						size="push"
+						variant="ghost"
+						className="text-muted-foreground"
+						aria-expanded={open}
 						onClick={() => setUserOpen(!open)}
 					>
-						{open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+						{open ? <ChevronDown /> : <ChevronRight />}
 						Log ({activity.log.length} lines)
-					</button>
+					</Button>
 					{open && activity.log.length > 0 && (
-						<button
-							type="button"
-							className="ml-auto flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground"
+						<Button
+							size="push"
+							variant="ghost"
+							className="ml-auto text-muted-foreground"
 							onClick={() => navigator.clipboard.writeText(activity.log.join("\n"))}
 						>
-							<Copy className="size-3" /> Copy log
-						</button>
+							<Copy /> Copy log
+						</Button>
 					)}
 				</div>
 				{open && (
-					<pre
+					<CodeBlock
 						ref={logBox}
 						onScroll={e => {
 							const el = e.currentTarget;
 							following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
 						}}
-						className={cn(
-							"mt-2 overflow-auto rounded-md bg-zinc-950 p-3 font-mono text-[11px] text-zinc-300 leading-relaxed",
-							compact ? "h-40" : "h-56"
-						)}
+						className={cn("mt-2 p-3 text-[11px] leading-relaxed", compact ? "h-40" : "h-56")}
 					>
 						{activity.log.length === 0 ? "Waiting for output…" : activity.log.join("\n")}
-					</pre>
+					</CodeBlock>
 				)}
 			</div>
 
@@ -179,9 +187,9 @@ export function ActivityProgress({
 export function ActivityPage(props: Parameters<typeof ActivityProgress>[0]) {
 	return (
 		<div className="flex h-full items-center justify-center overflow-auto p-6">
-			<section className="w-full max-w-2xl rounded-lg border border-border bg-card p-6">
+			<Card padding="lg" className="w-full max-w-2xl">
 				<ActivityProgress {...props} />
-			</section>
+			</Card>
 		</div>
 	);
 }

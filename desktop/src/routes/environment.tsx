@@ -1,5 +1,6 @@
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
+import { Card } from "@ckdry/ui/components/card";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import { ActivityList } from "@/components/activity/activity-list";
@@ -71,7 +72,7 @@ export function EnvironmentRoute() {
 					<ActivityList />
 				</section>
 			</div>
-			<section className="flex min-w-0 flex-1 flex-col rounded-lg border border-border bg-card p-2">
+			<Card padding="none" className="flex min-w-0 flex-1 flex-col p-2">
 				<h2 className="mb-1 flex items-center gap-2 px-1 font-semibold text-sm">
 					{shell ? `Shell on ${shell.node ?? "jumphost"}` : "Terminal"}
 					<Button size="sm" variant="outline" className="ml-auto" onClick={() => openShell(null)}>
@@ -81,7 +82,7 @@ export function EnvironmentRoute() {
 				<div className="min-h-0 flex-1">
 					{shell && <TerminalView container={shell.node} session={shell.session} />}
 				</div>
-			</section>
+			</Card>
 		</div>
 	);
 }

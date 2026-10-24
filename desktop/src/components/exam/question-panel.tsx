@@ -1,5 +1,10 @@
+import { Alert } from "@ckdry/ui/components/alert";
 import { Button } from "@ckdry/ui/components/button";
+import { Card } from "@ckdry/ui/components/card";
+import { Separator } from "@ckdry/ui/components/separator";
+import { Stepper } from "@ckdry/ui/components/stepper";
 import { cn } from "@ckdry/ui/lib/utils";
+import { Lightbulb } from "lucide-react";
 import { Markdown } from "@/components/markdown";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
@@ -7,8 +12,13 @@ import type { Attempt, QuestionView } from "@/tauri/api";
 import { CheckList } from "./check-list";
 import { CopyText } from "./copy-text";
 
-/** Question text sizes (the A- A A+ buttons) */
-const SIZES = ["text-[13px]", "text-sm", "text-base", "text-lg"];
+/** Question text sizes, in px (the text size stepper) */
+const SIZES = [
+	{ px: 13, className: "text-[13px]" },
+	{ px: 14, className: "text-sm" },
+	{ px: 16, className: "text-base" },
+	{ px: 18, className: "text-lg" },
+];
 
 /** One task as the exam shows it, plus the practice-mode aids. */
 export function QuestionPanel({ attempt, question }: { attempt: Attempt; question: QuestionView }) {
@@ -20,10 +30,10 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 	const solution = solutions[question.id];
 	const { settings } = useSettings();
 	const size = Math.min(SIZES.length - 1, settings.question_size);
-	const code = "rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-pink-400";
+	const code = "rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-exam-value";
 
 	return (
-		<div className={cn("flex flex-col gap-3", SIZES[size])}>
+		<div className={cn("flex flex-col gap-3", SIZES[size]?.className)}>
 			<div className="flex flex-wrap items-center gap-2">
 				<span>Solve this question on instance:</span>
 				<CopyText className={code} text={`ssh ${question.host}`} />
@@ -35,14 +45,14 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 			)}
 			{question.tags.length > 0 && (
 				<div>
-					Concepts: <span className="font-mono text-sky-400">{question.tags.join(", ")}</span>
+					Concepts: <span className="font-mono text-exam-concept">{question.tags.join(", ")}</span>
 				</div>
 			)}
 			<div className="text-muted-foreground text-xs">
 				Weight {(question.weight ?? 0).toFixed(0)}% · You must connect to the correct host; working
 				on the wrong one may score zero.
 			</div>
-			<hr className="border-border" />
+			<Separator />
 
 			<Markdown copy>{question.statement}</Markdown>
 
@@ -58,7 +68,8 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 			)}
 
 			{practice && (
-				<section className="flex flex-col gap-2 border-border border-t pt-3">
+				<section className="flex flex-col gap-2">
+					<Separator className="mb-1" />
 					<div className="flex flex-wrap gap-2">
 						<Button size="sm" onClick={() => check(question.id)} disabled={result === "running"}>
 							{result === "running" ? "Checking…" : "Check my work"}
@@ -78,20 +89,19 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 						</Button>
 					</div>
 					{hints.map((hint, i) => (
-						<div key={hint} className="rounded-md bg-amber-500/10 p-2 text-sm">
-							<strong>Hint {i + 1}.</strong> {hint}
-						</div>
+						<Alert key={hint} variant="warning">
+							<Lightbulb />
+							<p>
+								<strong>Hint {i + 1}.</strong> {hint}
+							</p>
+						</Alert>
 					))}
 					{Array.isArray(result) && <CheckList checks={result} />}
 					{solution && (
-						<div className="rounded-md border border-border p-2">
+						<Card padding="sm" className="flex flex-col gap-2">
 							<Markdown copy>{solution.explain}</Markdown>
-							<CopyText
-								block
-								className="mt-2 overflow-auto rounded bg-muted p-2 text-xs"
-								text={solution.run.replace(/\n$/, "")}
-							/>
-						</div>
+							<CopyText block text={solution.run.replace(/\n$/, "")} />
+						</Card>
 					)}
 				</section>
 			)}
@@ -99,28 +109,18 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 	);
 }
 
-/** The question's text size (A- A A+), kept in the app database */
+/** The question's text size, kept in the app database */
 export function TextSize() {
 	const { settings, update } = useSettings();
 	const size = Math.min(SIZES.length - 1, settings.question_size);
-	const changeSize = (next: number) => update({ question_size: next });
 	return (
-		<div className="flex h-8 shrink-0 overflow-hidden rounded-md border border-border text-xs">
-			{(["A−", "A", "A+"] as const).map((label, i) => {
-				const next =
-					i === 0 ? Math.max(0, size - 1) : i === 1 ? 1 : Math.min(SIZES.length - 1, size + 1);
-				return (
-					<button
-						key={label}
-						type="button"
-						className="px-2 hover:bg-accent"
-						onClick={() => changeSize(next)}
-						aria-label={["Smaller text", "Default text size", "Larger text"][i]}
-					>
-						{label}
-					</button>
-				);
-			})}
-		</div>
+		<Stepper
+			label="Text size"
+			value={`${SIZES[size]?.px} px`}
+			onDecrement={() => update({ question_size: size - 1 })}
+			onIncrement={() => update({ question_size: size + 1 })}
+			decrementDisabled={size === 0}
+			incrementDisabled={size === SIZES.length - 1}
+		/>
 	);
 }

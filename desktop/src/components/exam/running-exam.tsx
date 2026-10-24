@@ -1,7 +1,28 @@
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@ckdry/ui/components/alert-dialog";
 import { Badge } from "@ckdry/ui/components/badge";
-import { Button } from "@ckdry/ui/components/button";
+import { Button, buttonVariants } from "@ckdry/ui/components/button";
+import { IconButton } from "@ckdry/ui/components/icon-button";
+import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@ckdry/ui/components/select";
+import { Stepper } from "@ckdry/ui/components/stepper";
 import { cn } from "@ckdry/ui/lib/utils";
-import { BookOpen, ChevronLeft, ChevronRight, Flag, Minus, Monitor, Plus, X } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Flag, Monitor, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useExam } from "@/stores/exam";
@@ -54,7 +75,6 @@ export function RunningExam({
 	endsAt: number | null;
 }) {
 	const { current, flagged, select, toggleFlag, submit, end } = useExam();
-	const [confirming, setConfirming] = useState(false);
 	const [width, setWidth] = useState(34);
 	// Desktop zoom and resolution live in the app database
 	const { settings, update } = useSettings();
@@ -98,62 +118,53 @@ export function RunningExam({
 						Practice
 					</Badge>
 				)}
-				<div className="flex shrink-0 items-center gap-1.5">
-					<div className="flex items-center" title="Desktop size">
-						<Button
-							size="sm"
-							variant="ghost"
-							disabled={zoom === ZOOMS[0]}
-							onClick={() => changeZoom(-1)}
-						>
-							<Minus className="size-4" />
-						</Button>
-						<span className="hidden w-10 text-center text-muted-foreground text-xs tabular-nums @3xl:inline">
-							{Math.round(zoom * 100)}%
-						</span>
-						<Button
-							size="sm"
-							variant="ghost"
-							disabled={zoom === ZOOMS[ZOOMS.length - 1]}
-							onClick={() => changeZoom(1)}
-						>
-							<Plus className="size-4" />
-						</Button>
-					</div>
-					<Button
-						size="sm"
-						variant={tab === "desktop" ? "outline" : "ghost"}
-						onClick={() => setTab("desktop")}
-					>
-						<Monitor className="size-4" /> <span className="hidden @4xl:inline">Desktop</span>
-					</Button>
-					<Button
-						size="sm"
-						variant={tab === "readme" ? "outline" : "ghost"}
-						onClick={() => setTab("readme")}
-					>
-						<BookOpen className="size-4" /> <span className="hidden @4xl:inline">Readme</span>
-					</Button>
-					{confirming ? (
-						<>
-							<span className="hidden text-sm @5xl:inline">End the exam and grade it?</span>
-							<Button size="sm" variant="destructive" onClick={submit}>
-								End exam
+				<div className="flex shrink-0 items-center gap-2">
+					<Stepper
+						label="Desktop size"
+						value={`${Math.round(zoom * 100)}%`}
+						onDecrement={() => changeZoom(-1)}
+						onIncrement={() => changeZoom(1)}
+						decrementDisabled={zoom === ZOOMS[0]}
+						incrementDisabled={zoom === ZOOMS[ZOOMS.length - 1]}
+					/>
+					<SegmentedControl
+						label="View"
+						value={tab}
+						onChange={setTab}
+						options={[
+							{ value: "desktop", label: <TabLabel icon={Monitor} text="Desktop" /> },
+							{ value: "readme", label: <TabLabel icon={BookOpen} text="Readme" /> },
+						]}
+					/>
+					<AlertDialog>
+						<AlertDialogTrigger asChild>
+							<Button
+								size="sm"
+								variant="outline"
+								className="border-destructive/60 text-destructive hover:bg-destructive/10 hover:text-destructive"
+							>
+								<X /> <span className="sr-only @2xl:not-sr-only">End Exam</span>
 							</Button>
-							<Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
-								Keep working
-							</Button>
-						</>
-					) : (
-						<Button
-							size="sm"
-							variant="outline"
-							className="border-red-500/60 text-red-500 hover:bg-red-500/10"
-							onClick={() => setConfirming(true)}
-						>
-							<X className="size-4" /> <span className="hidden @2xl:inline">End Exam</span>
-						</Button>
-					)}
+						</AlertDialogTrigger>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>End the exam?</AlertDialogTitle>
+								<AlertDialogDescription>
+									Your work is graded now and the exam environment is removed. You cannot come back
+									to it.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>Keep working</AlertDialogCancel>
+								<AlertDialogAction
+									className={buttonVariants({ variant: "destructive" })}
+									onClick={submit}
+								>
+									End exam
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
 					{attempt.mode === "practice" && (
 						<Button size="sm" variant="ghost" onClick={end}>
 							Quit
@@ -169,37 +180,42 @@ export function RunningExam({
 					style={{ width: `${width}%` }}
 				>
 					<div className="flex items-center gap-2 p-3">
-						<Button
+						<IconButton
+							variant="plain"
 							size="sm"
-							variant="outline"
 							disabled={current === 0}
 							onClick={() => select(current - 1)}
 							aria-label="Previous question"
 						>
-							<ChevronLeft className="size-4" />
-						</Button>
-						<select
-							className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-center text-sm tabular-nums"
-							value={current}
-							onChange={e => select(Number(e.target.value))}
-							aria-label="Question"
-						>
-							{attempt.questions.map((q, i) => (
-								<option key={q.id} value={i}>
-									Question {i + 1} of {count}
-									{flagged.includes(q.id) ? "  ⚑ flagged" : ""}
-								</option>
-							))}
-						</select>
-						<Button
+							<ChevronLeft />
+						</IconButton>
+						<Select value={String(current)} onValueChange={value => select(Number(value))}>
+							<SelectTrigger
+								aria-label="Question"
+								className="min-w-0 flex-1 justify-between tabular-nums"
+							>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{attempt.questions.map((q, i) => (
+									<SelectItem key={q.id} value={String(i)}>
+										Question {i + 1} of {count}
+										{flagged.includes(q.id) && (
+											<Flag className="text-warning" aria-label="flagged" />
+										)}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<IconButton
+							variant="plain"
 							size="sm"
-							variant="outline"
 							disabled={current === count - 1}
 							onClick={() => select(current + 1)}
 							aria-label="Next question"
 						>
-							<ChevronRight className="size-4" />
-						</Button>
+							<ChevronRight />
+						</IconButton>
 						<TextSize />
 					</div>
 					<div className="min-h-0 flex-1 overflow-auto px-4 pb-4">
@@ -233,9 +249,10 @@ export function RunningExam({
 					)}
 				</section>
 				<div
+					// A mouse drag handle (the panel keeps its size otherwise)
+					aria-hidden="true"
 					onPointerDown={drag}
-					className="w-1.5 shrink-0 cursor-col-resize bg-border hover:bg-primary/40"
-					title="Drag to resize"
+					className="w-1.5 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-highlight/60"
 				/>
 				<section className="relative min-w-0 flex-1">
 					{/* Stays connected behind the Readme; a new attempt is a new desktop */}
@@ -250,5 +267,15 @@ export function RunningExam({
 				</section>
 			</div>
 		</div>
+	);
+}
+
+/** A tab's icon, with its name once the header has room (always for screen readers) */
+function TabLabel({ icon: Icon, text }: { icon: typeof Monitor; text: string }) {
+	return (
+		<span className="flex items-center gap-1.5">
+			<Icon className="size-3.5" />
+			<span className="sr-only @4xl:not-sr-only">{text}</span>
+		</span>
 	);
 }

@@ -1,8 +1,16 @@
+import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import { Toaster } from "@ckdry/ui/components/sonner";
-import { cn } from "@ckdry/ui/lib/utils";
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { HashRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation } from "react-router";
+import {
+	HashRouter,
+	Navigate,
+	Outlet,
+	Route,
+	Routes,
+	useLocation,
+	useNavigate,
+} from "react-router";
 import { ActivityChip } from "@/components/activity/activity-chip";
 import { CatalogRoute } from "@/routes/catalog";
 import { EnvironmentRoute } from "@/routes/environment";
@@ -15,32 +23,20 @@ import { useSettings } from "@/stores/settings";
 import "./index.css";
 
 const NAV = [
-	{ to: "/", label: "Exams" },
-	{ to: "/history", label: "History" },
-	{ to: "/environment", label: "Environment" },
+	{ value: "/", label: "Exams" },
+	{ value: "/history", label: "History" },
+	{ value: "/environment", label: "Environment" },
 ];
 
 function Layout() {
+	const { pathname } = useLocation();
+	const navigate = useNavigate();
 	return (
 		<div className="flex h-full flex-col">
 			<header className="flex items-center gap-4 border-border border-b px-4 py-2">
 				<strong>ckdry</strong>
-				<nav className="flex gap-1">
-					{NAV.map(item => (
-						<NavLink
-							key={item.to}
-							to={item.to}
-							end
-							className={({ isActive }) =>
-								cn(
-									"rounded-md px-2.5 py-1 text-sm hover:bg-accent",
-									isActive && "bg-accent font-medium"
-								)
-							}
-						>
-							{item.label}
-						</NavLink>
-					))}
+				<nav>
+					<SegmentedControl label="Sections" options={NAV} value={pathname} onChange={navigate} />
 				</nav>
 				<ActivityChip />
 			</header>
