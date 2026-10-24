@@ -18,7 +18,7 @@
   },
   {
     "args": {},
-    "image": "ghcr.io/dungxtd/ckdry-desktop:b9f4c29d",
+    "image": "ghcr.io/dungxtd/ckdry-desktop:b66bdc94",
     "name": "desktop"
   }
 ]

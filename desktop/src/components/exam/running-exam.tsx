@@ -139,7 +139,7 @@ export function RunningExam({
 					<AlertDialog>
 						<AlertDialogTrigger asChild>
 							<Button
-								size="sm"
+								size="push"
 								variant="outline"
 								className="border-destructive/60 text-destructive hover:bg-destructive/10 hover:text-destructive"
 							>
@@ -166,7 +166,7 @@ export function RunningExam({
 						</AlertDialogContent>
 					</AlertDialog>
 					{attempt.mode === "practice" && (
-						<Button size="sm" variant="ghost" onClick={end}>
+						<Button size="push" variant="ghost" onClick={end}>
 							Quit
 						</Button>
 					)}
@@ -179,43 +179,46 @@ export function RunningExam({
 					className="@container flex min-w-[300px] max-w-[70%] shrink-0 select-none flex-col"
 					style={{ width: `${width}%` }}
 				>
-					<div className="flex items-center gap-2 p-3">
-						<IconButton
-							variant="plain"
-							size="sm"
-							disabled={current === 0}
-							onClick={() => select(current - 1)}
-							aria-label="Previous question"
-						>
-							<ChevronLeft />
-						</IconButton>
-						<Select value={String(current)} onValueChange={value => select(Number(value))}>
-							<SelectTrigger
-								aria-label="Question"
-								className="min-w-0 flex-1 justify-between tabular-nums"
+					{/* Question navigation together at the start, the text size at the end:
+					    nothing stretches when the panel is wide */}
+					<div className="flex items-center justify-between gap-2 p-3">
+						<div className="flex min-w-0 items-center gap-1">
+							<IconButton
+								variant="plain"
+								size="sm"
+								className="size-7"
+								disabled={current === 0}
+								onClick={() => select(current - 1)}
+								aria-label="Previous question"
 							>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{attempt.questions.map((q, i) => (
-									<SelectItem key={q.id} value={String(i)}>
-										Question {i + 1} of {count}
-										{flagged.includes(q.id) && (
-											<Flag className="text-warning" aria-label="flagged" />
-										)}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-						<IconButton
-							variant="plain"
-							size="sm"
-							disabled={current === count - 1}
-							onClick={() => select(current + 1)}
-							aria-label="Next question"
-						>
-							<ChevronRight />
-						</IconButton>
+								<ChevronLeft />
+							</IconButton>
+							<Select value={String(current)} onValueChange={value => select(Number(value))}>
+								<SelectTrigger aria-label="Question" className="min-w-0 tabular-nums">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{attempt.questions.map((q, i) => (
+										<SelectItem key={q.id} value={String(i)}>
+											Question {i + 1} of {count}
+											{flagged.includes(q.id) && (
+												<Flag className="text-warning" aria-label="flagged" />
+											)}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<IconButton
+								variant="plain"
+								size="sm"
+								className="size-7"
+								disabled={current === count - 1}
+								onClick={() => select(current + 1)}
+								aria-label="Next question"
+							>
+								<ChevronRight />
+							</IconButton>
+						</div>
 						<TextSize />
 					</div>
 					<div className="min-h-0 flex-1 overflow-auto px-4 pb-4">

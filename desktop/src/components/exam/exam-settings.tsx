@@ -61,7 +61,7 @@ export function ExamSettings({
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<IconButton variant="plain" size="sm" aria-label="Settings">
+				<IconButton variant="plain" size="sm" className="size-7" aria-label="Settings">
 					<Settings />
 				</IconButton>
 			</PopoverTrigger>
