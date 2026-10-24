@@ -557,6 +557,10 @@ mod tests {
         .await;
         assert_eq!(out.exit_code, 0, "{}", out.text);
         println!("ok: VSCodium {} (no extension marketplace) and the virtual keyboard", out.text.lines().next().unwrap_or_default());
+        // A closed window's orphans (here a shell's child) are reaped, not left as zombies
+        let out = on_base("sh -c 'sleep 0.2 &' ; sleep 1; ps -eo stat= | grep -c '^Z' || true").await;
+        assert_eq!(out.text.trim(), "0", "zombies on the desktop: {}", out.text);
+        println!("ok: the desktop reaps orphaned processes");
         let started = std::time::Instant::now();
         assert_eq!(on_base("DISPLAY=:1 nohup firefox-esr >/tmp/firefox.log 2>&1 &").await.exit_code, 0);
         eventually("Firefox runs on the desktop", 30, async || {

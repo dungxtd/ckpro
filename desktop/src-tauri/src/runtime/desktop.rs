@@ -52,6 +52,9 @@ pub async fn start(docker: &Docker, name: &str, allowed: &[String], hosts: &[Str
                 Some(vec![PortBinding { host_ip: Some("127.0.0.1".into()), host_port: Some(String::new()) }]),
             )])),
             restart_policy: Some(RestartPolicy { name: Some(RestartPolicyNameEnum::UNLESS_STOPPED), ..Default::default() }),
+            // An init as PID 1 reaps the processes of closed windows (websockify,
+            // the image's last process, does not: they pile up as zombies)
+            init: Some(true),
             ..Default::default()
         }),
         ..Default::default()
@@ -123,6 +126,12 @@ fn firefox_policies(allowed: &[String]) -> String {
         if let Some((origin, path)) = url.strip_prefix("https://").and_then(|u| u.split_once('/')) {
             exceptions.push(format!("https://{origin}/*/{path}*"));
         }
+    }
+    // kubernetes.io's search results (Google Custom Search) link through
+    // www.google.com/url, which redirects to the result: without it no result
+    // opens. The result itself is still filtered
+    if allowed.iter().any(|u| u.starts_with("https://kubernetes.io/search")) {
+        exceptions.push("https://www.google.com/url*".into());
     }
     exceptions.sort();
     exceptions.dedup();

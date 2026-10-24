@@ -90,7 +90,9 @@ export function DesktopView({
 		};
 
 		const onCopy = () => {
-			const text = document.getSelection()?.toString();
+			// Without the line break a triple-click selects after a one-line
+			// command: the terminal would hold it behind its "unsafe paste" warning
+			const text = document.getSelection()?.toString().replace(/\r?\n+$/, "");
 			if (text) rfbRef.current?.clipboardPasteFrom(text);
 		};
 
