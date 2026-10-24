@@ -1,11 +1,27 @@
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { CopyText } from "@/components/exam/copy-text";
 
-/** Question and solution text: GitHub-flavoured Markdown, styled for reading. */
-export function Markdown({ children }: { children: string }) {
+type Node = { type: string; value?: string; children?: Node[] };
+const textOf = (node?: Node): string =>
+	node?.type === "text" ? (node.value ?? "") : (node?.children ?? []).map(textOf).join("");
+
+/** Code and code blocks copy to the exam desktop on click */
+const COPY: Components = {
+	code: ({ node }) => <CopyText text={textOf(node as Node)} />,
+	pre: ({ node }) => <CopyText block text={textOf(node as Node).replace(/\n$/, "")} />,
+};
+
+/**
+ * Question and solution text: GitHub-flavoured Markdown, styled for reading.
+ * `copy`: its code copies to the exam desktop on click.
+ */
+export function Markdown({ children, copy }: { children: string; copy?: boolean }) {
 	return (
 		<div className="text-sm leading-relaxed [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_li]:my-0.5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_pre]:my-2 [&_pre]:overflow-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-2 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-2 [&_td]:border [&_td]:border-border [&_td]:px-2 [&_th]:border [&_th]:border-border [&_th]:px-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5">
-			<ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown>
+			<ReactMarkdown remarkPlugins={[remarkGfm]} components={copy ? COPY : undefined}>
+				{children}
+			</ReactMarkdown>
 		</div>
 	);
 }

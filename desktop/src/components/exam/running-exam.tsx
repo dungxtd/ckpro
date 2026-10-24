@@ -9,7 +9,7 @@ import { useSettings } from "@/stores/settings";
 import type { Attempt } from "@/tauri/api";
 import { DesktopView } from "./desktop-view";
 import { ExamSettings } from "./exam-settings";
-import { QuestionPanel } from "./question-panel";
+import { QuestionPanel, TextSize } from "./question-panel";
 import { ReadMe } from "./readme";
 import { Timer } from "./timer";
 
@@ -163,8 +163,9 @@ export function RunningExam({
 				</div>
 			</header>
 			<div ref={desk} className="flex min-h-0 flex-1">
+				{/* Nothing to select: the question's values copy on click, as on the exam */}
 				<section
-					className="@container flex min-w-[300px] max-w-[70%] shrink-0 flex-col"
+					className="@container flex min-w-[300px] max-w-[70%] shrink-0 select-none flex-col"
 					style={{ width: `${width}%` }}
 				>
 					<div className="flex items-center gap-2 p-3">
@@ -199,6 +200,7 @@ export function RunningExam({
 						>
 							<ChevronRight className="size-4" />
 						</Button>
+						<TextSize />
 					</div>
 					<div className="min-h-0 flex-1 overflow-auto px-4 pb-4">
 						{question && <QuestionPanel attempt={attempt} question={question} />}

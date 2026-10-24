@@ -9,14 +9,27 @@ type Internals = {
 	_screenSize(): { w: number; h: number };
 };
 
+/** The last text clicked to copy, and the connected desktop it goes to */
+let clipboard = "";
+let deliver: ((text: string) => void) | null = null;
+
+/**
+ * Put text on the desktop's clipboard. As on the exam, the only way in: the
+ * host's clipboard and text selected in the app never reach the desktop
+ */
+export function copyToDesktop(text: string) {
+	clipboard = text;
+	deliver?.(text);
+}
+
 /**
  * The exam's remote desktop (the `base` machine), over VNC. The desktop
  * takes the panel's size in device pixels and is drawn scaled to fit, so it
  * is sharp on HiDPI screens and as roomy as the exam's, or takes a fixed
  * `resolution` (the ExamUI's "custom resolution"), drawn to fit; `zoom`
  * makes it larger (the ExamUI's +/-). Reconnects when the desktop restarts (starting
- * up, the app reopened mid-exam). Text copied in the app, e.g. from the
- * question, lands on the desktop's clipboard.
+ * up, the app reopened mid-exam). Only what `copyToDesktop` gets (the
+ * question's click-to-copy values) lands on the desktop's clipboard.
  */
 export function DesktopView({
 	zoom,
@@ -81,27 +94,23 @@ export function DesktopView({
 				// Without preventScroll the browser scrolls the page to the canvas,
 				// shifting the whole exam desk out of the window
 				rfb.focus({ preventScroll: true });
+				// Copied while it was (re)connecting
+				deliver = text => rfb.clipboardPasteFrom(text);
+				if (clipboard) deliver(clipboard);
 			});
 			rfb.addEventListener("disconnect", () => {
 				setConnected(false);
 				rfbRef.current = null;
+				deliver = null;
 				if (!stopped) retry = setTimeout(connect, 1000);
 			});
 		};
 
-		const onCopy = () => {
-			// Without the line break a triple-click selects after a one-line
-			// command: the terminal would hold it behind its "unsafe paste" warning
-			const text = document.getSelection()?.toString().replace(/\r?\n+$/, "");
-			if (text) rfbRef.current?.clipboardPasteFrom(text);
-		};
-
 		connect();
-		document.addEventListener("copy", onCopy);
 		return () => {
 			stopped = true;
 			clearTimeout(retry);
-			document.removeEventListener("copy", onCopy);
+			deliver = null;
 			rfbRef.current?.disconnect();
 		};
 	}, []);

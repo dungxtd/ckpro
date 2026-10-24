@@ -5,6 +5,7 @@ import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
 import type { Attempt, QuestionView } from "@/tauri/api";
 import { CheckList } from "./check-list";
+import { CopyText } from "./copy-text";
 
 /** Question text sizes (the A- A A+ buttons) */
 const SIZES = ["text-[13px]", "text-sm", "text-base", "text-lg"];
@@ -17,38 +18,19 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 	const hints = question.hints.slice(0, hintsShown[question.id] ?? 0);
 	const result = checks[question.id];
 	const solution = solutions[question.id];
-	// Kept in the app database
-	const { settings, update } = useSettings();
+	const { settings } = useSettings();
 	const size = Math.min(SIZES.length - 1, settings.question_size);
-	const changeSize = (next: number) => update({ question_size: next });
 	const code = "rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-pink-400";
 
 	return (
 		<div className={cn("flex flex-col gap-3", SIZES[size])}>
 			<div className="flex flex-wrap items-center gap-2">
 				<span>Solve this question on instance:</span>
-				<code className={cn(code, "select-all")}>ssh {question.host}</code>
-				<div className="ml-auto flex overflow-hidden rounded-md border border-border text-xs">
-					{(["A−", "A", "A+"] as const).map((label, i) => {
-						const next =
-							i === 0 ? Math.max(0, size - 1) : i === 1 ? 1 : Math.min(SIZES.length - 1, size + 1);
-						return (
-							<button
-								key={label}
-								type="button"
-								className="px-2 py-1 hover:bg-accent"
-								onClick={() => changeSize(next)}
-								aria-label={["Smaller text", "Default text size", "Larger text"][i]}
-							>
-								{label}
-							</button>
-						);
-					})}
-				</div>
+				<CopyText className={code} text={`ssh ${question.host}`} />
 			</div>
 			{question.namespace && (
 				<div>
-					Namespace: <code className={code}>{question.namespace}</code>
+					Namespace: <CopyText className={code} text={question.namespace} />
 				</div>
 			)}
 			{question.tags.length > 0 && (
@@ -62,7 +44,7 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 			</div>
 			<hr className="border-border" />
 
-			<Markdown>{question.statement}</Markdown>
+			<Markdown copy>{question.statement}</Markdown>
 
 			{question.references.length > 0 && (
 				<div className="text-xs">
@@ -103,14 +85,42 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 					{Array.isArray(result) && <CheckList checks={result} />}
 					{solution && (
 						<div className="rounded-md border border-border p-2">
-							<Markdown>{solution.explain}</Markdown>
-							<pre className="mt-2 overflow-auto rounded bg-muted p-2 font-mono text-xs">
-								{solution.run}
-							</pre>
+							<Markdown copy>{solution.explain}</Markdown>
+							<CopyText
+								block
+								className="mt-2 overflow-auto rounded bg-muted p-2 text-xs"
+								text={solution.run.replace(/\n$/, "")}
+							/>
 						</div>
 					)}
 				</section>
 			)}
+		</div>
+	);
+}
+
+/** The question's text size (A- A A+), kept in the app database */
+export function TextSize() {
+	const { settings, update } = useSettings();
+	const size = Math.min(SIZES.length - 1, settings.question_size);
+	const changeSize = (next: number) => update({ question_size: next });
+	return (
+		<div className="flex h-8 shrink-0 overflow-hidden rounded-md border border-border text-xs">
+			{(["A−", "A", "A+"] as const).map((label, i) => {
+				const next =
+					i === 0 ? Math.max(0, size - 1) : i === 1 ? 1 : Math.min(SIZES.length - 1, size + 1);
+				return (
+					<button
+						key={label}
+						type="button"
+						className="px-2 hover:bg-accent"
+						onClick={() => changeSize(next)}
+						aria-label={["Smaller text", "Default text size", "Larger text"][i]}
+					>
+						{label}
+					</button>
+				);
+			})}
 		</div>
 	);
 }
