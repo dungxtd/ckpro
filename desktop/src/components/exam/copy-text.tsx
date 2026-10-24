@@ -39,7 +39,6 @@ export function CopyText({
 		<Tag
 			role="button"
 			tabIndex={0}
-			title={copied ? "Copied" : "Click to copy"}
 			aria-label={copied ? `Copied ${text}` : `Copy ${text}`}
 			onClick={copy}
 			onKeyDown={e => {
