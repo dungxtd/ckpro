@@ -14,6 +14,9 @@
   <property name="desktop-icons" type="empty">
     <property name="style" type="int" value="2"/>
     <property name="icon-size" type="uint" value="48"/>
+    <!-- The pointer rests on the icons when it leaves the desktop for the
+         question panel (they line its left edge): no tooltip pops up -->
+    <property name="show-tooltips" type="bool" value="false"/>
     <property name="file-icons" type="empty">
       <property name="show-home" type="bool" value="false"/>
       <property name="show-filesystem" type="bool" value="false"/>

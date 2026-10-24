@@ -1,5 +1,5 @@
 """Run a few VNC actions given as arguments, for exploring the desktop:
-  click X Y | dbl X Y | drag X1 Y1 X2 Y2 | key NAME | text "..." | sleep S | shot NAME"""
+  move X Y | click X Y | dbl X Y | drag X1 Y1 X2 Y2 | key NAME | text "..." | sleep S | shot NAME"""
 import json
 import sys
 import time
@@ -12,7 +12,9 @@ args = sys.argv[1:]
 i = 0
 while i < len(args):
     a = args[i]
-    if a == "click":
+    if a == "move":
+        c.mouseMove(int(args[i + 1]), int(args[i + 2])); i += 3
+    elif a == "click":
         c.mouseMove(int(args[i + 1]), int(args[i + 2])); c.mousePress(1); i += 3
     elif a == "dbl":
         c.mouseMove(int(args[i + 1]), int(args[i + 2])); c.mousePress(1); time.sleep(0.12); c.mousePress(1); i += 3
