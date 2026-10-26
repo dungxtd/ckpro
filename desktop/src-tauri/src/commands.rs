@@ -223,6 +223,7 @@ pub async fn desktop_open_url(exams: State<'_, Arc<Exams>>, url: String) -> AppR
 // --- practice coach --------------------------------------------------------
 
 use crate::ai::{Coach, CoachEvent, CoachStatus};
+use crate::lab::exam::StudyStats;
 use crate::store::CoachMessage;
 
 /// Whether the coach can run (Claude Code installed).
@@ -262,6 +263,53 @@ pub async fn coach_ask(
             let _ = events.send(e);
         })
         .await
+}
+
+/// How the candidate did per curriculum domain, per certification attempted.
+#[tauri::command]
+#[specta::specta]
+pub fn study_stats(exams: State<'_, Arc<Exams>>) -> Vec<StudyStats> {
+    exams.study_stats()
+}
+
+/// Ask the coach for a study plan from the history (not during an exam); it
+/// streams on `events` and resolves to the whole plan.
+#[tauri::command]
+#[specta::specta]
+pub async fn coach_study_plan(
+    coach: State<'_, Coach>,
+    exams: State<'_, Arc<Exams>>,
+    store: State<'_, Arc<Store>>,
+    certification: String,
+    events: Channel<CoachEvent>,
+) -> AppResult<String> {
+    coach
+        .study_plan(&exams, &store, &certification, |e| {
+            let _ = events.send(e);
+        })
+        .await
+}
+
+/// The latest study plan for a certification, if any.
+#[tauri::command]
+#[specta::specta]
+pub fn study_plan_last(store: State<'_, Arc<Store>>, certification: String) -> AppResult<Option<String>> {
+    Coach::last_study_plan(&store, &certification)
+}
+
+/// Open a web page in the system browser (https only): links outside the exam desktop.
+#[tauri::command]
+#[specta::specta]
+pub fn open_in_browser(url: String) -> AppResult<()> {
+    if !url.starts_with("https://") || url.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(AppError::invalid(format!("not a web page: {url}")));
+    }
+    let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    std::process::Command::new(opener)
+        .arg(&url)
+        .spawn()
+        .map_err(|e| AppError::io("opening the browser", e))?;
+    Ok(())
 }
 
 /// Stop the answer being written.

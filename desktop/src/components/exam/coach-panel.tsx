@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { Markdown } from "@/components/markdown";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
-import { type CoachStatus, coachApi, type QuestionView } from "@/tauri/api";
+import { type CheckResult, type CoachStatus, coachApi, type QuestionView } from "@/tauri/api";
 
 /** One-click questions; the coach gets the task and the last check either way */
 const ACTIONS = [
@@ -21,15 +21,36 @@ const ACTIONS = [
 ];
 const WHY = "Why do my checks fail? Point me to the cause, not the full solution.";
 
+/** After the result: the exam is over, the coach explains fully */
+const REVIEW_ACTIONS = [
+	{
+		label: "What went wrong?",
+		text: "What went wrong in this task? Go through the failing checks.",
+	},
+	{ label: "Fastest solution", text: "Show me the fastest way to solve this task on the exam." },
+	{
+		label: "Docs & search",
+		text: "Where is this in the documentation, and what should I type in the kubernetes.io search box?",
+	},
+];
+
 /**
  * The practice coach for the current question: ask in your own words or with
  * a quick action. Code in answers copies to the desktop, links open in its
  * Firefox, like the question's.
  */
-export function CoachPanel({ question }: { question: QuestionView }) {
+export function CoachPanel({
+	question,
+	review,
+}: {
+	question: QuestionView;
+	/** The attempt's result for the question: reviewing it, no longer practising */
+	review?: { checks: CheckResult[] };
+}) {
 	const { threads, writing, error, load, ask, stop } = useCoach();
-	const checks = useExam(s => s.checks[question.id]);
-	const failing = Array.isArray(checks) && checks.some(c => !c.passed);
+	const lastCheck = useExam(s => s.checks[question.id]);
+	const checks = review?.checks ?? (Array.isArray(lastCheck) ? lastCheck : undefined);
+	const failing = !review && !!checks?.some(c => !c.passed);
 	const thread = threads[question.id] ?? [];
 	const busy = writing !== null;
 	const [status, setStatus] = useState<CoachStatus | null>(null);
@@ -54,7 +75,7 @@ export function CoachPanel({ question }: { question: QuestionView }) {
 		const t = text.trim();
 		if (!t || busy) return;
 		setDraft("");
-		ask(question.id, t);
+		ask(question.id, t, review?.checks);
 	};
 
 	if (status && !status.claude) {
@@ -74,9 +95,15 @@ export function CoachPanel({ question }: { question: QuestionView }) {
 			<div ref={scroller} className="min-h-0 flex-1 overflow-auto px-4 py-3">
 				{thread.length === 0 ? (
 					<div className="flex flex-col gap-2 py-6 text-center text-muted-foreground text-sm">
-						<p>Stuck? Ask about this task, or pick a question below.</p>
+						<p>
+							{review
+								? "Review this task with the coach."
+								: "Stuck? Ask about this task, or pick a question below."}
+						</p>
 						<p className="text-xs">
-							The coach sees the task and your last check, not the solution.
+							{review
+								? "The exam is over: the coach sees the task, your result and the solution."
+								: "The coach sees the task and your last check, not the solution."}
 						</p>
 					</div>
 				) : (
@@ -120,7 +147,7 @@ export function CoachPanel({ question }: { question: QuestionView }) {
 							Why do my checks fail?
 						</Chip>
 					)}
-					{ACTIONS.map(a => (
+					{(review ? REVIEW_ACTIONS : ACTIONS).map(a => (
 						<Chip key={a.label} onClick={() => send(a.text)}>
 							{a.label}
 						</Chip>

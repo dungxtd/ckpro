@@ -52,6 +52,17 @@ export const commands = {
 	coachAsk: (questionId: string, text: string, checks: CheckResult[], solutionOpened: boolean, events: Channel<CoachEvent>) => typedError<string, AppError>(__TAURI_INVOKE("coach_ask", { questionId, text, checks, solutionOpened, events })),
 	/**  Stop the answer being written. */
 	coachCancel: () => __TAURI_INVOKE<void>("coach_cancel"),
+	/**  How the candidate did per curriculum domain, per certification attempted. */
+	studyStats: () => __TAURI_INVOKE<StudyStats[]>("study_stats"),
+	/**
+	 *  Ask the coach for a study plan from the history (not during an exam); it
+	 *  streams on `events` and resolves to the whole plan.
+	 */
+	coachStudyPlan: (certification: string, events: Channel<CoachEvent>) => typedError<string, AppError>(__TAURI_INVOKE("coach_study_plan", { certification, events })),
+	/**  The latest study plan for a certification, if any. */
+	studyPlanLast: (certification: string) => typedError<string | null, AppError>(__TAURI_INVOKE("study_plan_last", { certification })),
+	/**  Open a web page in the system browser (https only): links outside the exam desktop. */
+	openInBrowser: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_in_browser", { url })),
 	/**
 	 *  The last long operations, with their logs (later changes arrive as
 	 *  `ActivityChanged` and `ActivityLog`).
@@ -244,6 +255,17 @@ export type DesktopSession = {
 };
 
 export type DockerState = { state: "connecting" } | { state: "down"; reason: string } | { state: "up"; engine: string; version: string; cpus: number; memory_mb: number };
+
+/**  How the candidate did in one curriculum domain, over all attempts */
+export type DomainStat = {
+	domain: string,
+	/**  Share of the exam, in percent (the curriculum) */
+	weight: number,
+	points: number,
+	max_points: number,
+	/**  Questions answered in it */
+	questions: number,
+};
 
 /**  Pushed to the UI on every environment change. */
 export type EnvChanged = EnvState;
@@ -460,6 +482,16 @@ export type Solution = {
 	explain: string,
 	/**  Commands that solve the task on the jumphost */
 	run: string,
+};
+
+/**  One certification's results so far */
+export type StudyStats = {
+	certification: string,
+	title: string,
+	/**  Attempt scores, oldest first */
+	scores: (number | null)[],
+	/**  Heaviest domain first */
+	domains: DomainStat[],
 };
 
 export type TerminalEvent = 

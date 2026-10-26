@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import { ApiError, type CoachMessage, coachApi } from "@/tauri/api";
+import { ApiError, type CheckResult, type CoachMessage, coachApi } from "@/tauri/api";
 import { useExam } from "./exam";
 
 /** The practice coach: one conversation per question of the attempt (kept in
@@ -17,7 +17,8 @@ interface CoachStore {
 	error: string | null;
 	setOpen: (open: boolean) => void;
 	load: (questionId: string) => Promise<void>;
-	ask: (questionId: string, text: string) => Promise<void>;
+	/** `checks`: the ones to explain (the result's in review), else the last "Check my work" */
+	ask: (questionId: string, text: string, checks?: CheckResult[]) => Promise<void>;
 	stop: () => void;
 }
 
@@ -51,7 +52,7 @@ export const useCoach = create<CoachStore>()(
 				set({ error: e instanceof ApiError ? e.message : String(e) });
 			}
 		},
-		ask: async (questionId, text) => {
+		ask: async (questionId, text, given) => {
 			set(forAttempt);
 			if (get().writing) coachApi.cancel();
 			const { checks, solutions } = useExam.getState();
@@ -77,7 +78,7 @@ export const useCoach = create<CoachStore>()(
 				const answer = await coachApi.ask(
 					questionId,
 					text,
-					Array.isArray(checked) ? checked : [],
+					given ?? (Array.isArray(checked) ? checked : []),
 					questionId in solutions,
 					append
 				);

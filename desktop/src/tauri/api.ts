@@ -39,6 +39,7 @@ export type {
 	ClusterState,
 	CoachMessage,
 	CoachStatus,
+	DomainStat,
 	EnvState,
 	ExamSummary,
 	HistoryEntry,
@@ -47,6 +48,7 @@ export type {
 	NodeState,
 	ScriptResult,
 	Solution,
+	StudyStats,
 	TerminalEvent,
 } from "./bindings";
 
@@ -160,6 +162,23 @@ export const coachApi = {
 		),
 	/** Stop the answer being written */
 	cancel: () => commands.coachCancel(),
+	/** Results per curriculum domain, per certification attempted */
+	studyStats: () => commands.studyStats(),
+	/** A study plan from the history; `onText` gets it as it is written */
+	studyPlan: (certification: string, onText: (text: string) => void) =>
+		unwrap(
+			commands.coachStudyPlan(
+				certification,
+				channel<CoachEvent>(e => onText(e.text))
+			)
+		),
+	/** The latest study plan for a certification */
+	lastStudyPlan: (certification: string) => unwrap(commands.studyPlanLast(certification)),
+};
+
+/** Web pages outside the exam desktop open in the system browser */
+export const browserApi = {
+	open: (url: string) => unwrap(commands.openInBrowser(url)),
 };
 
 export const examApi = {

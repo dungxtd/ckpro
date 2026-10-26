@@ -8,7 +8,7 @@ mod claude;
 
 use crate::error::{AppError, AppResult};
 use crate::lab::checks::{self, CheckResult};
-use crate::lab::exam::{CoachSubject, Exams};
+use crate::lab::exam::{CoachSubject, Exams, StudySubject};
 use crate::runtime::docker;
 use crate::store::{CoachMessage, Role, Store};
 use serde::{Deserialize, Serialize};
@@ -22,6 +22,8 @@ const MODEL: &str = "sonnet";
 const SNAPSHOT_CHARS: usize = 6_000;
 /// Earlier turns kept in the prompt (the oldest are left out)
 const HISTORY_CHARS: usize = 12_000;
+/// Study plans are kept like conversations, under this "attempt"
+const STUDY_PLANS: &str = "study-plan";
 
 /// The coach's answer as it is written
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
@@ -70,10 +72,7 @@ impl Coach {
             return Err(AppError::invalid("ask the coach something"));
         }
         let subject = exams.coach_subject(question_id, solution_opened)?;
-        let cancel = CancellationToken::new();
-        if let Some(previous) = self.running.lock().unwrap_or_else(|p| p.into_inner()).replace(cancel.clone()) {
-            previous.cancel();
-        }
+        let cancel = self.start();
         let history = store.coach_messages(&subject.attempt_id, question_id)?;
         // A look at the cluster only when something fails: it is what "why"
         // needs, and it costs a few seconds
@@ -95,6 +94,39 @@ impl Coach {
         Ok(answer)
     }
 
+    /// A study plan for a certification from the history; it streams to
+    /// `on_event` and is kept as the latest plan
+    pub async fn study_plan(
+        &self,
+        exams: &Exams,
+        store: &Store,
+        certification: &str,
+        on_event: impl Fn(CoachEvent) + Sync,
+    ) -> AppResult<String> {
+        let subject = exams.study_subject(certification)?;
+        let cancel = self.start();
+        let answer = claude::ask(&study_system(&subject), &study_prompt(&subject), MODEL, &cancel, &|t| {
+            on_event(CoachEvent::Text { text: t.to_string() })
+        })
+        .await?;
+        store.add_coach_messages(STUDY_PLANS, certification, &[CoachMessage { role: Role::Assistant, text: answer.clone() }])?;
+        Ok(answer)
+    }
+
+    /// The latest study plan written for a certification
+    pub fn last_study_plan(store: &Store, certification: &str) -> AppResult<Option<String>> {
+        Ok(store.coach_messages(STUDY_PLANS, certification)?.pop().map(|m| m.text))
+    }
+
+    /// A new answer stops the one being written
+    fn start(&self) -> CancellationToken {
+        let cancel = CancellationToken::new();
+        if let Some(previous) = self.running.lock().unwrap_or_else(|p| p.into_inner()).replace(cancel.clone()) {
+            previous.cancel();
+        }
+        cancel
+    }
+
     pub fn cancel(&self) {
         if let Some(token) = self.running.lock().unwrap_or_else(|p| p.into_inner()).take() {
             token.cancel();
@@ -103,7 +135,20 @@ impl Coach {
 }
 
 fn system(subject: &CoachSubject) -> String {
-    let mut s = String::from(
+    let mut s = String::from(if subject.review { REVIEW } else { PRACTICE });
+    let _ = write!(
+        s,
+        "\nExam: {} (Kubernetes {}).\nAllowed documentation:\n",
+        subject.certification, subject.kubernetes
+    );
+    for url in &subject.docs {
+        let _ = writeln!(s, "- {url}");
+    }
+    s
+}
+
+/// How the coach helps while the candidate practises
+const PRACTICE: &str = concat!(
         "You are a Kubernetes certification coach inside ckdry, an exam simulator. \
 The candidate is practising one exam task on a real cluster and asks you for help.\n\n\
 How to help:\n\
@@ -119,16 +164,59 @@ page fast is the skill the exam tests.\n\
 - When checks fail, explain what the failing check means and what in the cluster snapshot \
 shows the cause.\n\
 - Be brief: short paragraphs and lists, Markdown. No preamble.\n",
-    );
-    let _ = write!(
-        s,
-        "\nExam: {} (Kubernetes {}).\nAllowed documentation:\n",
-        subject.certification, subject.kubernetes
-    );
+);
+
+/// How the coach helps once the attempt has its result
+const REVIEW: &str = "You are a Kubernetes certification coach inside ckdry, an exam simulator. \
+The candidate finished an exam and reviews one task with you; the exam is over, so explain fully.\n\n\
+How to help:\n\
+- Start with what went wrong: each failing check, and what it means. If the cluster snapshot \
+is included, point at what in it shows the cause.\n\
+- Then the fastest way to solve it on the exam: the steps and the commands (```bash blocks, \
+manifests in ```yaml blocks), using the reference answer below.\n\
+- Then where it is in the documentation the exam allows (links only under the sites listed \
+below, pages you are sure exist) and the keywords to type in the kubernetes.io search box, \
+as `Search: <keywords>`.\n\
+- End with one takeaway to remember for the exam.\n\
+- Be brief: short paragraphs and lists, Markdown. No preamble.\n";
+
+/// A study plan from the candidate's results, against the curriculum
+const STUDY: &str = "You are a Kubernetes certification coach inside ckdry, an exam simulator. \
+From the candidate's results per curriculum domain, write a short study plan.\n\n\
+- Rank the domains to work on by weight in the exam times how much they are missing; say why \
+in one line each.\n\
+- For each, name 2-3 concrete skills to drill (kubectl commands, objects, troubleshooting \
+steps), the documentation pages (links only under the sites listed below, pages you are sure \
+exist) and the keywords to type in the kubernetes.io search box, as `Search: <keywords>`.\n\
+- Point to practice questions and exams from the lists given, by title.\n\
+- End with a plan for the next sessions (what to do, in order) and when to take a full exam \
+again. Markdown, brief, no preamble.\n";
+
+fn study_system(subject: &StudySubject) -> String {
+    let mut s = String::from(STUDY);
+    let _ = write!(s, "\nExam: {} (Kubernetes {}).\nAllowed documentation:\n", subject.stats.title, subject.kubernetes);
     for url in &subject.docs {
         let _ = writeln!(s, "- {url}");
     }
     s
+}
+
+fn study_prompt(subject: &StudySubject) -> String {
+    let st = &subject.stats;
+    let mut p = String::new();
+    let scores: Vec<String> = st.scores.iter().map(|s| format!("{s:.0}%")).collect();
+    let _ = writeln!(p, "# Results\n{} attempt(s), scores oldest to newest: {}\n", st.scores.len(), scores.join(", "));
+    let _ = writeln!(p, "| Domain | Exam weight | Score | Questions answered |\n|---|---|---|---|");
+    for d in &st.domains {
+        let score = if d.max_points == 0 { "not tested yet".to_string() } else { format!("{:.0}%", f64::from(d.points) * 100.0 / f64::from(d.max_points)) };
+        let _ = writeln!(p, "| {} | {}% | {score} | {} |", d.domain, d.weight, d.questions);
+    }
+    let _ = writeln!(p, "\n# Practice questions in ckdry, by domain");
+    for (domain, titles) in &subject.practice {
+        let _ = writeln!(p, "- {domain}: {}", titles.join("; "));
+    }
+    let _ = writeln!(p, "\n# Practice exams in ckdry\n{}", subject.exams.join("; "));
+    p
 }
 
 fn prompt(
@@ -254,6 +342,7 @@ mod tests {
             kubernetes: "1.35".into(),
             domain: Some("storage".into()),
             docs: vec!["https://kubernetes.io/docs/".into()],
+            review: false,
             solution,
             cluster: "k8s".into(),
             jumphost: "j".into(),
@@ -287,7 +376,9 @@ mod tests {
         assert!(!p.contains("Reference answer"));
         let opened = subject(Some(Solution { explain: "Use standard.".into(), run: "kubectl apply -f pvc.yaml".into() }));
         assert!(prompt(&opened, &[], None, &[], "show me").contains("kubectl apply -f pvc.yaml"));
-        assert!(system(&hidden).contains("- https://kubernetes.io/docs/"));
+        assert!(system(&hidden).contains("- https://kubernetes.io/docs/") && system(&hidden).contains("Teach, do not solve"));
+        let review = CoachSubject { review: true, ..subject(None) };
+        assert!(system(&review).contains("the exam is over"));
     }
 
     /// The real model through Claude Code, on a canned task: it streams and
@@ -307,6 +398,54 @@ mod tests {
         .unwrap();
         println!("--- {} chunks ---\n{answer}", chunks.into_inner());
         assert!(answer.to_lowercase().contains("standrad") || answer.to_lowercase().contains("storageclass"));
+    }
+
+    #[test]
+    fn the_study_plan_prompt_has_the_scores_per_domain_and_what_to_practise() {
+        use crate::lab::exam::{DomainStat, StudyStats};
+        let subject = StudySubject {
+            stats: StudyStats {
+                certification: "cka".into(),
+                title: "Certified Kubernetes Administrator".into(),
+                scores: vec![48.0, 61.0],
+                domains: vec![
+                    DomainStat { domain: "troubleshooting".into(), weight: 30, points: 3, max_points: 10, questions: 2 },
+                    DomainStat { domain: "storage".into(), weight: 10, points: 0, max_points: 0, questions: 0 },
+                ],
+            },
+            kubernetes: "1.35".into(),
+            docs: vec!["https://kubernetes.io/docs/".into()],
+            practice: [("storage".to_string(), vec!["PVC and Pod".to_string()])].into(),
+            exams: vec!["CKA Practice Exam 1".into()],
+        };
+        let p = study_prompt(&subject);
+        for part in ["48%, 61%", "| troubleshooting | 30% | 30% | 2 |", "| storage | 10% | not tested yet | 0 |", "- storage: PVC and Pod", "CKA Practice Exam 1"] {
+            assert!(p.contains(part), "missing {part}:\n{p}");
+        }
+        assert!(study_system(&subject).contains("- https://kubernetes.io/docs/"));
+    }
+
+    /// The real model writes a study plan from canned results (needs `claude`)
+    #[tokio::test]
+    #[ignore]
+    async fn claude_writes_a_study_plan() {
+        use crate::lab::exam::{DomainStat, StudyStats};
+        let d = |domain: &str, weight, points, max_points, questions| DomainStat { domain: domain.into(), weight, points, max_points, questions };
+        let subject = StudySubject {
+            stats: StudyStats {
+                certification: "cka".into(),
+                title: "Certified Kubernetes Administrator".into(),
+                scores: vec![48.0, 61.0],
+                domains: vec![d("troubleshooting", 30, 3, 10, 2), d("cluster-architecture", 25, 9, 12, 3), d("services-networking", 20, 5, 10, 2), d("storage", 10, 0, 0, 0)],
+            },
+            kubernetes: "1.35".into(),
+            docs: vec!["https://kubernetes.io/docs/".into(), "https://helm.sh/docs/".into()],
+            practice: [("troubleshooting".to_string(), vec!["Fix a crashing Deployment".to_string()]), ("storage".to_string(), vec!["PVC and Pod".to_string()])].into(),
+            exams: vec!["CKA Practice Exam 1".into()],
+        };
+        let plan = claude::ask(&study_system(&subject), &study_prompt(&subject), MODEL, &CancellationToken::new(), &|_| {}).await.unwrap();
+        println!("{plan}");
+        assert!(plan.to_lowercase().contains("troubleshooting"));
     }
 
     #[test]

@@ -2,17 +2,30 @@ import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
 import { Separator } from "@ckdry/ui/components/separator";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@ckdry/ui/components/sheet";
 import { cn } from "@ckdry/ui/lib/utils";
+import { Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Markdown } from "@/components/markdown";
 import { useExam } from "@/stores/exam";
 import type { Attempt, ExamResult } from "@/tauri/api";
 import { CheckList } from "./check-list";
+import { CoachPanel } from "./coach-panel";
 
 /** The result like the exam gives it (score, pass/fail), then the review. */
 export function Results({ attempt, result }: { attempt: Attempt; result: ExamResult }) {
 	const { solutions, loadSolution, end } = useExam();
 	const [review, setReview] = useState(false);
+	// The question reviewed with the coach, in a side sheet
+	const [coached, setCoached] = useState<string | null>(null);
+	const coachedResult = result.questions.find(q => q.id === coached);
+	const coachedQuestion = attempt.questions.find(q => q.id === coached);
 	const minutes = Math.round(((result.finished_at ?? 0) - (result.started_at ?? 0)) / 60000);
 
 	return (
@@ -58,6 +71,14 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 								</span>
 							</header>
 							<CheckList checks={q.checks} />
+							<Button
+								size="push"
+								variant="ghost"
+								className="mt-2 text-highlight"
+								onClick={() => setCoached(q.id)}
+							>
+								<Sparkles /> Review with coach
+							</Button>
 							{solution ? (
 								<div className="mt-3 flex flex-col gap-2">
 									<Separator />
@@ -77,6 +98,20 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 						</Card>
 					);
 				})}
+
+			<Sheet open={coached !== null} onOpenChange={open => !open && setCoached(null)}>
+				<SheetContent className="w-[min(560px,92vw)] gap-0 p-0 sm:max-w-none">
+					<SheetHeader className="border-border border-b px-4 py-3">
+						<SheetTitle>Review with coach</SheetTitle>
+						<SheetDescription>{coachedQuestion?.title}</SheetDescription>
+					</SheetHeader>
+					{coachedQuestion && coachedResult && (
+						<div className="min-h-0 flex-1">
+							<CoachPanel question={coachedQuestion} review={{ checks: coachedResult.checks }} />
+						</div>
+					)}
+				</SheetContent>
+			</Sheet>
 		</div>
 	);
 }

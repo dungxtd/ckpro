@@ -1,6 +1,7 @@
 import { Badge } from "@ckdry/ui/components/badge";
 import { Card } from "@ckdry/ui/components/card";
 import { useEffect, useState } from "react";
+import { StudyPlan } from "@/components/history/study-plan";
 import { examApi, type HistoryEntry } from "@/tauri/api";
 
 /** Past attempts, newest first. */
@@ -13,7 +14,9 @@ export function HistoryRoute() {
 	if (history.length === 0)
 		return <div className="p-6 text-muted-foreground text-sm">No attempts yet.</div>;
 	return (
-		<div className="p-6">
+		<div className="flex flex-col gap-6 p-6">
+			<StudyPlan />
+			<h2 className="-mb-3 font-semibold">Attempts</h2>
 			<Card padding="none" className="overflow-hidden">
 				<table className="w-full text-sm [&_td]:px-3 [&_td]:py-2 [&_th]:px-3 [&_th]:py-2">
 					<thead className="bg-muted/50 text-left text-muted-foreground text-xs">
