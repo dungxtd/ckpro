@@ -35,6 +35,16 @@ const MIGRATIONS: &[&str] = &["
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
+", "
+    -- The practice coach's conversation, per attempt and question
+    CREATE TABLE coach_message (
+        attempt_id TEXT NOT NULL,
+        question_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        role TEXT NOT NULL,
+        text TEXT NOT NULL,
+        PRIMARY KEY (attempt_id, question_id, seq)
+    );
 "];
 
 /// Where the candidate is in an attempt
@@ -62,6 +72,20 @@ impl Default for Settings {
     fn default() -> Self {
         Self { desktop_zoom: 1.0, desktop_resolution: None, question_size: 1 }
     }
+}
+
+/// Who said it, in a coach conversation
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    User,
+    Assistant,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct CoachMessage {
+    pub role: Role,
+    pub text: String,
 }
 
 pub struct Store {
@@ -162,6 +186,49 @@ impl Store {
         Ok(rows.flatten().filter_map(|json| serde_json::from_str(&json).ok()).collect())
     }
 
+    /// A question's coach conversation in the attempt, oldest first
+    pub fn coach_messages(&self, attempt_id: &str, question_id: &str) -> AppResult<Vec<CoachMessage>> {
+        let conn = self.conn();
+        let mut stmt = conn
+            .prepare("SELECT role, text FROM coach_message WHERE attempt_id = ?1 AND question_id = ?2 ORDER BY seq")
+            .map_err(db)?;
+        let rows = stmt
+            .query_map(params![attempt_id, question_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+            .map_err(db)?;
+        let mut messages = Vec::new();
+        for row in rows {
+            let (role, text) = row.map_err(db)?;
+            let role = if role == "user" { Role::User } else { Role::Assistant };
+            messages.push(CoachMessage { role, text });
+        }
+        Ok(messages)
+    }
+
+    /// Append to a question's coach conversation (a question and its answer together)
+    pub fn add_coach_messages(&self, attempt_id: &str, question_id: &str, messages: &[CoachMessage]) -> AppResult<()> {
+        let mut conn = self.conn();
+        let tx = conn.transaction().map_err(db)?;
+        let next: i64 = tx
+            .query_row(
+                "SELECT COALESCE(MAX(seq) + 1, 0) FROM coach_message WHERE attempt_id = ?1 AND question_id = ?2",
+                params![attempt_id, question_id],
+                |r| r.get(0),
+            )
+            .map_err(db)?;
+        for (i, m) in messages.iter().enumerate() {
+            let role = match m.role {
+                Role::User => "user",
+                Role::Assistant => "assistant",
+            };
+            tx.execute(
+                "INSERT INTO coach_message (attempt_id, question_id, seq, role, text) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![attempt_id, question_id, next + i as i64, role, m.text],
+            )
+            .map_err(db)?;
+        }
+        tx.commit().map_err(db)
+    }
+
     pub fn settings(&self) -> AppResult<Settings> {
         let json: Option<String> = self
             .conn()
@@ -242,6 +309,19 @@ mod tests {
         let settings = Settings { desktop_zoom: 1.5, desktop_resolution: Some((1920, 1080)), question_size: 2 };
         store.save_settings(&settings).unwrap();
         assert_eq!(store.settings().unwrap(), settings);
+    }
+
+    #[test]
+    fn keeps_coach_conversations_per_attempt_and_question() {
+        let store = Store::in_memory().unwrap();
+        let say = |role, text: &str| CoachMessage { role, text: text.into() };
+        store.add_coach_messages("a1", "q1", &[say(Role::User, "hint?"), say(Role::Assistant, "look at PVCs")]).unwrap();
+        store.add_coach_messages("a1", "q1", &[say(Role::User, "why?"), say(Role::Assistant, "wrong class")]).unwrap();
+        store.add_coach_messages("a1", "q2", &[say(Role::User, "other")]).unwrap();
+        let q1 = store.coach_messages("a1", "q1").unwrap();
+        assert_eq!(q1.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(), ["hint?", "look at PVCs", "why?", "wrong class"]);
+        assert_eq!(q1[1].role, Role::Assistant);
+        assert!(store.coach_messages("a2", "q1").unwrap().is_empty());
     }
 
     #[test]

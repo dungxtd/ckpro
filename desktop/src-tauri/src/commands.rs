@@ -212,6 +212,65 @@ pub async fn desktop_reset() -> AppResult<()> {
     crate::runtime::desktop::reset(&crate::runtime::docker::connect().await?, crate::runtime::desktop::NAME).await
 }
 
+/// Open allowed documentation in the exam desktop's Firefox.
+#[tauri::command]
+#[specta::specta]
+pub async fn desktop_open_url(exams: State<'_, Arc<Exams>>, url: String) -> AppResult<()> {
+    let docker = crate::runtime::docker::connect().await?;
+    crate::runtime::desktop::open_url(&docker, crate::runtime::desktop::NAME, &url, &exams.attempt_docs()).await
+}
+
+// --- practice coach --------------------------------------------------------
+
+use crate::ai::{Coach, CoachEvent, CoachStatus};
+use crate::store::CoachMessage;
+
+/// Whether the coach can run (Claude Code installed).
+#[tauri::command]
+#[specta::specta]
+pub fn coach_status() -> CoachStatus {
+    Coach::status()
+}
+
+/// The question's coach conversation in the current attempt.
+#[tauri::command]
+#[specta::specta]
+pub fn coach_history(
+    exams: State<'_, Arc<Exams>>,
+    store: State<'_, Arc<Store>>,
+    question_id: String,
+) -> AppResult<Vec<CoachMessage>> {
+    Coach::history(&exams, &store, &question_id)
+}
+
+/// Ask the coach about a question (practice mode, or after the result); the
+/// answer streams on `events` and resolves to the whole answer.
+#[tauri::command]
+#[specta::specta]
+pub async fn coach_ask(
+    coach: State<'_, Coach>,
+    exams: State<'_, Arc<Exams>>,
+    store: State<'_, Arc<Store>>,
+    question_id: String,
+    text: String,
+    checks: Vec<CheckResult>,
+    solution_opened: bool,
+    events: Channel<CoachEvent>,
+) -> AppResult<String> {
+    coach
+        .ask(&exams, &store, &question_id, &text, &checks, solution_opened, |e| {
+            let _ = events.send(e);
+        })
+        .await
+}
+
+/// Stop the answer being written.
+#[tauri::command]
+#[specta::specta]
+pub fn coach_cancel(coach: State<'_, Coach>) {
+    coach.cancel();
+}
+
 /// Where the candidate is in an attempt (question, flags, hints opened).
 #[tauri::command]
 #[specta::specta]

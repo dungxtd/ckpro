@@ -150,6 +150,22 @@ pub struct HistoryEntry {
     pub result: ExamResult,
 }
 
+/// A question as the practice coach sees it (see `Exams::coach_subject`)
+pub struct CoachSubject {
+    pub attempt_id: String,
+    pub certification: String,
+    pub kubernetes: String,
+    pub domain: Option<String>,
+    /// Allowed documentation (URL prefixes)
+    pub docs: Vec<String>,
+    /// The reference answer, once the candidate opened it
+    pub solution: Option<Solution>,
+    pub cluster: String,
+    pub jumphost: String,
+    /// The question as the candidate reads it (vars filled in)
+    pub view: QuestionView,
+}
+
 pub struct Exams {
     pack: LoadedPack,
     kind: Arc<Kind>,
@@ -689,6 +705,48 @@ impl Exams {
             _ => return Err(AppError::invalid("solutions are shown after the exam")),
         }
         Ok(self.question(question_id)?.solution)
+    }
+
+    /// What the practice coach may know about a question: only while a
+    /// practice attempt runs, or once an attempt has its result. Never during
+    /// an exam-mode attempt (the real exam has no assistant). The solution
+    /// comes along only if the candidate has opened it.
+    pub fn coach_subject(&self, question_id: &str, solution_opened: bool) -> AppResult<CoachSubject> {
+        let attempt = match self.state() {
+            ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => attempt,
+            ExamState::Finished { attempt, .. } => attempt,
+            _ => return Err(AppError::invalid("the coach is available in practice mode and after the exam")),
+        };
+        let question = self.question(question_id)?;
+        let view = attempt
+            .questions
+            .iter()
+            .find(|q| q.id == question_id)
+            .cloned()
+            .ok_or_else(|| AppError::not_found(format!("question {question_id}")))?;
+        let certification = self.pack.pack.certifications.get(&attempt.certification);
+        let session = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        Ok(CoachSubject {
+            attempt_id: attempt.id.clone(),
+            certification: certification.map(|c| c.title.clone()).unwrap_or_else(|| attempt.certification.clone()),
+            kubernetes: certification.map(|c| c.kubernetes.clone()).unwrap_or_default(),
+            domain: question.certifications.get(&attempt.certification).cloned(),
+            docs: self.allowed_docs(&attempt.certification, &session),
+            solution: solution_opened.then(|| question.solution.clone()),
+            cluster: question.cluster.clone(),
+            jumphost: self.jumphost.name.clone(),
+            view,
+        })
+    }
+
+    /// The documentation the current attempt's desktop may open
+    pub fn attempt_docs(&self) -> Vec<String> {
+        let certification = match self.state() {
+            ExamState::Running { attempt, .. } | ExamState::Finished { attempt, .. } => attempt.certification,
+            _ => return Vec::new(),
+        };
+        let session = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        self.allowed_docs(&certification, &session)
     }
 
     fn question(&self, id: &str) -> AppResult<Question> {

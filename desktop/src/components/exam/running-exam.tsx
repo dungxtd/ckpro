@@ -22,12 +22,23 @@ import {
 } from "@ckdry/ui/components/select";
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { cn } from "@ckdry/ui/lib/utils";
-import { BookOpen, ChevronLeft, ChevronRight, Flag, Monitor, X } from "lucide-react";
+import {
+	BookOpen,
+	ChevronLeft,
+	ChevronRight,
+	Flag,
+	ListTodo,
+	Monitor,
+	Sparkles,
+	X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
 import type { Attempt } from "@/tauri/api";
+import { CoachPanel } from "./coach-panel";
 import { DesktopView } from "./desktop-view";
 import { ExamSettings } from "./exam-settings";
 import { QuestionPanel, TextSize } from "./question-panel";
@@ -75,6 +86,9 @@ export function RunningExam({
 	endsAt: number | null;
 }) {
 	const { current, flagged, select, toggleFlag, submit, end } = useExam();
+	// Practice mode: the task panel can show the coach instead (never in exam mode)
+	const coachOpen = useCoach(s => s.open) && attempt.mode === "practice";
+	const setCoachOpen = useCoach(s => s.setOpen);
 	const [width, setWidth] = useState(34);
 	// Desktop zoom and resolution live in the app database
 	const { settings, update } = useSettings();
@@ -221,9 +235,28 @@ export function RunningExam({
 						</div>
 						<TextSize />
 					</div>
-					<div className="min-h-0 flex-1 overflow-auto px-4 pb-4">
-						{question && <QuestionPanel attempt={attempt} question={question} />}
-					</div>
+					{attempt.mode === "practice" && (
+						<div className="px-3 pb-2">
+							<SegmentedControl
+								label="Task panel"
+								value={coachOpen ? "coach" : "task"}
+								onChange={v => setCoachOpen(v === "coach")}
+								options={[
+									{ value: "task", label: <TabLabel icon={ListTodo} text="Task" always /> },
+									{ value: "coach", label: <TabLabel icon={Sparkles} text="Coach" always /> },
+								]}
+							/>
+						</div>
+					)}
+					{coachOpen && question ? (
+						<div className="min-h-0 flex-1">
+							<CoachPanel question={question} />
+						</div>
+					) : (
+						<div className="min-h-0 flex-1 overflow-auto px-4 pb-4">
+							{question && <QuestionPanel attempt={attempt} question={question} />}
+						</div>
+					)}
 					{question && (
 						<div className="flex gap-2 border-border border-t p-3">
 							<Button
@@ -274,11 +307,19 @@ export function RunningExam({
 }
 
 /** A tab's icon, with its name once the header has room (always for screen readers) */
-function TabLabel({ icon: Icon, text }: { icon: typeof Monitor; text: string }) {
+function TabLabel({
+	icon: Icon,
+	text,
+	always,
+}: {
+	icon: typeof Monitor;
+	text: string;
+	always?: boolean;
+}) {
 	return (
 		<span className="flex items-center gap-1.5">
 			<Icon className="size-3.5" />
-			<span className="sr-only @4xl:not-sr-only">{text}</span>
+			<span className={always ? undefined : "sr-only @4xl:not-sr-only"}>{text}</span>
 		</span>
 	);
 }

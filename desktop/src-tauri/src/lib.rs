@@ -1,3 +1,4 @@
+mod ai;
 mod cli;
 mod cluster;
 mod commands;
@@ -54,6 +55,11 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::exam_state,
         commands::desktop_session,
         commands::desktop_reset,
+        commands::desktop_open_url,
+        commands::coach_status,
+        commands::coach_history,
+        commands::coach_ask,
+        commands::coach_cancel,
         commands::activities,
         commands::exam_progress,
         commands::save_exam_progress,
@@ -132,6 +138,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(terminal::Terminals::default())
         .manage(cluster::jobs::Jobs::default())
+        .manage(ai::Coach::default())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             if let Ok(dir) = app.path().app_log_dir() {
@@ -496,8 +503,26 @@ mod tests {
         println!("ok: exam ready in {:.1} s (cluster, task host, desktop, setup)", started.elapsed().as_secs_f64());
         let ExamState::Running { attempt, ends_at, .. } = exams.state() else { unreachable!() };
         assert!(ends_at.is_none() && !attempt.questions[0].hints.is_empty());
-        assert!(exams.check_question(question).await.unwrap().iter().all(|c| !c.passed));
+        let failing = exams.check_question(question).await.unwrap();
+        assert!(failing.iter().all(|c| !c.passed));
         println!("ok: practice check fails before solving");
+
+        // The practice coach answers about the failing check (the real model,
+        // when Claude Code is installed) and keeps the conversation
+        if ai::Coach::status().claude.is_some() {
+            let streamed = std::sync::Mutex::new(String::new());
+            let answer = ai::Coach::default()
+                .ask(&exams, &store, question, "Why do my checks fail? One sentence.", &failing, false, |ai::CoachEvent::Text { text }| {
+                    streamed.lock().unwrap().push_str(&text)
+                })
+                .await
+                .unwrap();
+            assert!(!answer.trim().is_empty() && !streamed.lock().unwrap().is_empty());
+            assert_eq!(ai::Coach::history(&exams, &store, question).unwrap().len(), 2);
+            println!("ok: the practice coach answers and keeps the conversation: {}", answer.lines().next().unwrap_or_default());
+        } else {
+            println!("skip: the practice coach (Claude Code is not installed)");
+        }
 
         // The exam desktop, as the candidate uses it
         let docker = runtime::docker::connect().await.unwrap();
@@ -609,7 +634,8 @@ mod tests {
         let ExamState::Running { attempt, ends_at, .. } = exams.state() else { unreachable!() };
         assert!(ends_at.is_some() && attempt.questions[0].hints.is_empty());
         assert!(exams.check_question(question).await.is_err() && exams.solution(question).is_err());
-        println!("ok: exam mode hides hints, checks and solutions");
+        assert!(exams.coach_subject(question, false).is_err());
+        println!("ok: exam mode hides hints, checks, solutions and the coach");
         // Quitting the app mid-exam: work in progress on the task host and in
         // the cluster, everything stopped (as on quit), then a new engine on
         // the same data resumes it with that work intact

@@ -1,6 +1,6 @@
 # AI assistant: reference (TablePro) and a design for ckdry
 
-Status: proposal, nothing built yet. Researched 2026-10-26.
+Status: phase 1 (the practice coach) built; phases 2-4 proposed. Researched 2026-10-26.
 
 ## 1. Reference: what TablePro does
 

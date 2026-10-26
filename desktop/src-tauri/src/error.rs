@@ -28,6 +28,9 @@ pub enum AppError {
     /// The user cancelled the operation.
     #[error("{message}")]
     Cancelled { message: String },
+    /// The AI assistant (the `claude` CLI) is missing or failed.
+    #[error("{message}")]
+    Assistant { message: String },
 }
 
 pub type AppResult<T> = Result<T, AppError>;
@@ -44,6 +47,9 @@ impl AppError {
     }
     pub fn not_found(message: impl Into<String>) -> Self {
         Self::NotFound { message: message.into() }
+    }
+    pub fn assistant(message: impl Into<String>) -> Self {
+        Self::Assistant { message: message.into() }
     }
     pub fn io(context: &str, e: impl std::fmt::Display) -> Self {
         Self::Io { message: format!("{context}: {e}") }

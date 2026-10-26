@@ -4,6 +4,8 @@ import { Channel } from "@tauri-apps/api/core";
 import {
 	type Activity_Serialize,
 	type AppError,
+	type CheckResult,
+	type CoachEvent,
 	commands,
 	type EnvState,
 	type ExamState_Serialize,
@@ -35,6 +37,8 @@ export type {
 	Check,
 	CheckResult,
 	ClusterState,
+	CoachMessage,
+	CoachStatus,
 	EnvState,
 	ExamSummary,
 	HistoryEntry,
@@ -128,6 +132,34 @@ export const desktopApi = {
 	session: () => unwrap(commands.desktopSession()),
 	/** The exam's "Reset Desktop": restart it, closing its windows. */
 	reset: () => unwrap(commands.desktopReset()),
+	/** Open allowed documentation in the desktop's Firefox. */
+	openUrl: (url: string) => unwrap(commands.desktopOpenUrl(url)),
+};
+
+export const coachApi = {
+	/** Whether Claude Code (the coach's model) is installed */
+	status: () => commands.coachStatus(),
+	/** The question's conversation in the current attempt */
+	history: (questionId: string) => unwrap(commands.coachHistory(questionId)),
+	/** Ask about a question; `onText` gets the answer as it is written. */
+	ask: (
+		questionId: string,
+		text: string,
+		checks: CheckResult[],
+		solutionOpened: boolean,
+		onText: (text: string) => void
+	) =>
+		unwrap(
+			commands.coachAsk(
+				questionId,
+				text,
+				checks,
+				solutionOpened,
+				channel<CoachEvent>(e => onText(e.text))
+			)
+		),
+	/** Stop the answer being written */
+	cancel: () => commands.coachCancel(),
 };
 
 export const examApi = {

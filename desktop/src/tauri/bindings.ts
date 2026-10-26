@@ -39,6 +39,19 @@ export const commands = {
 	desktopSession: () => typedError<DesktopSession | null, AppError>(__TAURI_INVOKE("desktop_session")),
 	/**  Restart the exam desktop (its windows close; the client reconnects). */
 	desktopReset: () => typedError<null, AppError>(__TAURI_INVOKE("desktop_reset")),
+	/**  Open allowed documentation in the exam desktop's Firefox. */
+	desktopOpenUrl: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("desktop_open_url", { url })),
+	/**  Whether the coach can run (Claude Code installed). */
+	coachStatus: () => __TAURI_INVOKE<CoachStatus_Serialize>("coach_status"),
+	/**  The question's coach conversation in the current attempt. */
+	coachHistory: (questionId: string) => typedError<CoachMessage[], AppError>(__TAURI_INVOKE("coach_history", { questionId })),
+	/**
+	 *  Ask the coach about a question (practice mode, or after the result); the
+	 *  answer streams on `events` and resolves to the whole answer.
+	 */
+	coachAsk: (questionId: string, text: string, checks: CheckResult[], solutionOpened: boolean, events: Channel<CoachEvent>) => typedError<string, AppError>(__TAURI_INVOKE("coach_ask", { questionId, text, checks, solutionOpened, events })),
+	/**  Stop the answer being written. */
+	coachCancel: () => __TAURI_INVOKE<void>("coach_cancel"),
 	/**
 	 *  The last long operations, with their logs (later changes arrive as
 	 *  `ActivityChanged` and `ActivityLog`).
@@ -147,7 +160,9 @@ export type AppError =
 /**  Local filesystem or network failure. */
 { code: "io"; message: string } | 
 /**  The user cancelled the operation. */
-{ code: "cancelled"; message: string };
+{ code: "cancelled"; message: string } | 
+/**  The AI assistant (the `claude` CLI) is missing or failed. */
+{ code: "assistant"; message: string };
 
 export type Attempt = Attempt_Serialize | Attempt_Deserialize;
 
@@ -192,6 +207,29 @@ export type CheckResult = {
 export type ClusterState = {
 	name: string,
 	nodes: NodeState[],
+};
+
+/**  The coach's answer as it is written */
+export type CoachEvent = { kind: "text"; text: string };
+
+export type CoachMessage = {
+	role: Role,
+	text: string,
+};
+
+/**  Whether the coach can run here */
+export type CoachStatus = CoachStatus_Serialize | CoachStatus_Deserialize;
+
+/**  Whether the coach can run here */
+export type CoachStatus_Deserialize = {
+	/**  Where `claude` is, if installed */
+	claude?: string | null,
+};
+
+/**  Whether the coach can run here */
+export type CoachStatus_Serialize = {
+	/**  Where `claude` is, if installed */
+	claude: string | null,
 };
 
 export type ContainerStatus = { state: "running" } | { state: "stopped" } | 
@@ -383,6 +421,9 @@ export type QuestionView_Serialize = {
 export type Readiness = 
 /**  No report from the API server (yet) */
 { state: "unknown" } | { state: "ready" } | { state: "not_ready"; reason: string };
+
+/**  Who said it, in a coach conversation */
+export type Role = "user" | "assistant";
 
 export type ScriptResult = {
 	exit_code: number,

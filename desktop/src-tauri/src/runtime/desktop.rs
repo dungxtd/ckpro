@@ -8,6 +8,7 @@
 //! port is published on 127.0.0.1 only, behind a password new every attempt.
 
 use super::docker::compose_labels;
+use super::exec;
 use super::infra::{DESKTOP_IMAGE, NETWORK};
 use crate::error::{AppError, AppResult};
 use bollard::Docker;
@@ -103,6 +104,26 @@ pub async fn reset(docker: &Docker, name: &str) -> AppResult<()> {
     docker
         .restart_container(name, Some(bollard::query_parameters::RestartContainerOptions { t: Some(2), ..Default::default() }))
         .await?;
+    Ok(())
+}
+
+/// Open a page in the desktop's Firefox (a new tab, or Firefox itself), as
+/// the candidate would. Only documentation the exam allows: Firefox's policy
+/// would block anything else anyway.
+pub async fn open_url(docker: &Docker, name: &str, url: &str, allowed: &[String]) -> AppResult<()> {
+    if !url.starts_with("https://") || !allowed.iter().any(|prefix| url.starts_with(prefix.trim_end_matches('/'))) {
+        return Err(AppError::invalid(format!("{url} is not documentation the exam allows")));
+    }
+    // The URL goes in the environment, never into the shell command
+    let env = format!("URL={url}");
+    exec::run(
+        docker,
+        name,
+        &["bash", "-c", "DISPLAY=:1 nohup firefox-esr --new-tab \"$URL\" >/dev/null 2>&1 &"],
+        &[&env],
+        None,
+    )
+    .await?;
     Ok(())
 }
 
