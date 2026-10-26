@@ -64,6 +64,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::coach_study_plan,
         commands::study_plan_last,
         commands::open_in_browser,
+        commands::generator_targets,
+        commands::generate_question,
         commands::activities,
         commands::exam_progress,
         commands::save_exam_progress,
@@ -177,7 +179,7 @@ pub fn run() {
             app.manage(store.clone());
             let exams_handle = app.handle().clone();
             let exams = Arc::new(lab::exam::Exams::new(
-                load_pack(app.path().resource_dir().ok()),
+                lab::mine::merged(load_pack(app.path().resource_dir().ok()), &data_dir),
                 kind.clone(),
                 infra,
                 jumphost,

@@ -63,6 +63,13 @@ export const commands = {
 	studyPlanLast: (certification: string) => typedError<string | null, AppError>(__TAURI_INVOKE("study_plan_last", { certification })),
 	/**  Open a web page in the system browser (https only): links outside the exam desktop. */
 	openInBrowser: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_in_browser", { url })),
+	/**  What the question generator can write for. */
+	generatorTargets: () => __TAURI_INVOKE<GeneratorTarget[]>("generator_targets"),
+	/**
+	 *  Generate a question, prove it on a cluster and keep it in "My questions"
+	 *  (progress as an activity). Not during an exam.
+	 */
+	generateQuestion: (request: GenerateRequest) => typedError<Generated, AppError>(__TAURI_INVOKE("generate_question", { request })),
 	/**
 	 *  The last long operations, with their logs (later changes arrive as
 	 *  `ActivityChanged` and `ActivityLog`).
@@ -254,6 +261,8 @@ export type DesktopSession = {
 	password: string,
 };
 
+export type Difficulty = "easy" | "medium" | "hard";
+
 export type DockerState = { state: "connecting" } | { state: "down"; reason: string } | { state: "up"; engine: string; version: string; cpus: number; memory_mb: number };
 
 /**  How the candidate did in one curriculum domain, over all attempts */
@@ -347,6 +356,33 @@ export type ExamSummary = {
 	questions: number,
 	duration_minutes: number,
 	pass_score: number,
+};
+
+/**  What to generate */
+export type GenerateRequest = {
+	/**  A certification of the pack (`cka`, `ckad`, `cks`) */
+	certification: string,
+	/**  One of its curriculum domains */
+	domain: string,
+	difficulty: Difficulty,
+	/**  What it should be about, in the candidate's words (may be empty) */
+	topic: string,
+};
+
+/**  A question that was proven and kept */
+export type Generated = {
+	id: string,
+	title: string,
+	/**  The exam of the candidate's questions for the certification */
+	exam_id: string,
+};
+
+/**  A certification the generator can write for, with its domains */
+export type GeneratorTarget = {
+	certification: string,
+	title: string,
+	/**  Domain and its weight in percent, heaviest first */
+	domains: ([string, number])[],
 };
 
 /**  History entry, one JSON file per finished attempt. */

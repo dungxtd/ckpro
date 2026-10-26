@@ -2,6 +2,7 @@ pub mod checks;
 pub mod exam;
 pub mod lint;
 pub mod load;
+pub mod mine;
 pub mod model;
 pub mod render;
 pub mod script;

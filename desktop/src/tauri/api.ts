@@ -10,6 +10,7 @@ import {
 	type EnvState,
 	type ExamState_Serialize,
 	events,
+	type GenerateRequest,
 	type Mode,
 	type Progress,
 	type Settings_Serialize,
@@ -39,9 +40,13 @@ export type {
 	ClusterState,
 	CoachMessage,
 	CoachStatus,
+	Difficulty,
 	DomainStat,
 	EnvState,
 	ExamSummary,
+	Generated,
+	GenerateRequest,
+	GeneratorTarget,
 	HistoryEntry,
 	Issue,
 	Mode,
@@ -174,6 +179,14 @@ export const coachApi = {
 		),
 	/** The latest study plan for a certification */
 	lastStudyPlan: (certification: string) => unwrap(commands.studyPlanLast(certification)),
+};
+
+export const generatorApi = {
+	/** Certifications and domains the generator writes for */
+	targets: () => commands.generatorTargets(),
+	/** Write a question, prove it on a cluster, keep it in "My questions"
+	 * (progress as an activity) */
+	generate: (request: GenerateRequest) => unwrap(commands.generateQuestion(request)),
 };
 
 /** Web pages outside the exam desktop open in the system browser */

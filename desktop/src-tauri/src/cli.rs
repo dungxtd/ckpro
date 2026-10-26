@@ -65,6 +65,24 @@ enum LabCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Have Claude Code write a question, prove it like `verify`, and keep it
+    /// in "My questions" (the app's own pack, next to its database)
+    Generate {
+        /// The bundled pack's directory (certifications and example questions)
+        pack: PathBuf,
+        /// e.g. cka
+        #[arg(long)]
+        certification: String,
+        /// A curriculum domain of the certification, e.g. storage
+        #[arg(long)]
+        domain: String,
+        /// easy, medium or hard
+        #[arg(long, default_value = "medium")]
+        difficulty: String,
+        /// What it should be about
+        #[arg(long, default_value = "")]
+        topic: String,
+    },
 }
 
 /// Subcommands handled headless; anything else starts the app.
@@ -81,10 +99,46 @@ pub fn main() -> ExitCode {
         Command::Lab { command: LabCommand::Verify { pack, exams, questions, keep, parallel, json } } => {
             verify_pack(&pack, &exams, &questions, keep, parallel.max(1), json)
         }
+        Command::Lab { command: LabCommand::Generate { pack, certification, domain, difficulty, topic } } => {
+            generate_question(&pack, certification, domain, &difficulty, topic)
+        }
         Command::Schema { out } => write_schemas(&out),
         Command::Images => {
             println!("{}", serde_json::to_string_pretty(&crate::runtime::infra::manifest()).unwrap_or_default());
             ExitCode::SUCCESS
+        }
+    }
+}
+
+fn generate_question(root: &PathBuf, certification: String, domain: String, difficulty: &str, topic: String) -> ExitCode {
+    let Some(core) = load::load(root).0 else {
+        return lint_pack(root, false);
+    };
+    let difficulty = match difficulty {
+        "easy" => crate::lab::model::Difficulty::Easy,
+        "hard" => crate::lab::model::Difficulty::Hard,
+        _ => crate::lab::model::Difficulty::Medium,
+    };
+    let data_dir = crate::data_dir();
+    let bank = crate::lab::mine::merged(core, &data_dir);
+    let infra = Infra::new(data_dir.clone());
+    let activities = crate::runtime::activity::Activities::new(|_| {}, |_, line: &str| eprintln!("  | {line}"));
+    let request = crate::ai::generate::GenerateRequest { certification, domain, difficulty, topic };
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+    let result = runtime.block_on(async {
+        let docker = crate::runtime::docker::connect().await?;
+        infra.ensure(&docker, &|line| eprintln!("  | {line}")).await?;
+        let cancel = tokio_util::sync::CancellationToken::new();
+        crate::ai::generate::generate(&bank, &infra, &activities, &data_dir, &request, &cancel).await
+    });
+    match result {
+        Ok(g) => {
+            println!("generated {} ({}), in exam {}", g.id, g.title, g.exam_id);
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
         }
     }
 }

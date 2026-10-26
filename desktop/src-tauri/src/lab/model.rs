@@ -90,7 +90,7 @@ pub struct Question {
     pub references: Vec<String>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum Difficulty {
     Easy,

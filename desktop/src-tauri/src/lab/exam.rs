@@ -203,7 +203,9 @@ pub struct CoachSubject {
 }
 
 pub struct Exams {
-    pack: LoadedPack,
+    /// The question bank: the core pack plus the candidate's own questions
+    /// (replaced when a generated question is added)
+    pack: std::sync::RwLock<Arc<LoadedPack>>,
     kind: Arc<Kind>,
     infra: Arc<Infra>,
     jumphost: Arc<Jumphost>,
@@ -231,7 +233,7 @@ impl Exams {
         activities: Arc<Activities>,
     ) -> Self {
         Self {
-            pack,
+            pack: std::sync::RwLock::new(Arc::new(pack)),
             kind,
             infra,
             jumphost,
@@ -243,6 +245,21 @@ impl Exams {
             publish: Box::new(publish),
             activities,
         }
+    }
+
+    fn pack(&self) -> Arc<LoadedPack> {
+        self.pack.read().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+
+    /// Swap in a new question bank (a question was added); a running attempt
+    /// keeps its rendered questions
+    pub fn replace_pack(&self, pack: LoadedPack) {
+        *self.pack.write().unwrap_or_else(|p| p.into_inner()) = Arc::new(pack);
+    }
+
+    /// The question bank as it is now
+    pub fn bank(&self) -> Arc<LoadedPack> {
+        self.pack()
     }
 
     pub fn state(&self) -> ExamState {
@@ -365,16 +382,17 @@ impl Exams {
     }
 
     pub fn catalog(&self) -> Vec<ExamSummary> {
-        self.pack
+        let pack = self.pack();
+        pack
             .exams
             .iter()
             .filter_map(|(id, e)| {
-                let cert = self.pack.pack.certifications.get(&e.value.certification)?;
+                let cert = pack.pack.certifications.get(&e.value.certification)?;
                 let fixed = e
                     .value
                     .questions
                     .iter()
-                    .filter(|id| self.pack.questions.get(*id).is_some_and(|q| q.value.runnable()))
+                    .filter(|id| pack.questions.get(*id).is_some_and(|q| q.value.runnable()))
                     .count() as u32;
                 Some(ExamSummary {
                     id: id.clone(),
@@ -392,6 +410,7 @@ impl Exams {
     /// Start an attempt. Clusters with the names the exam needs must not exist
     /// unless `replace` (they are deleted).
     pub async fn start(self: &Arc<Self>, exam_id: &str, mode: Mode, replace: bool) -> AppResult<()> {
+        let pack = self.pack();
         if matches!(
             self.state(),
             ExamState::Preparing { .. }
@@ -402,9 +421,9 @@ impl Exams {
         ) {
             return Err(AppError::invalid("an exam is already in progress"));
         }
-        let exam = self.pack.exams.get(exam_id).ok_or_else(|| AppError::not_found(format!("no exam '{exam_id}'")))?;
+        let exam = pack.exams.get(exam_id).ok_or_else(|| AppError::not_found(format!("no exam '{exam_id}'")))?;
         let exam = exam.value.clone();
-        let cert = self.pack.pack.certifications.get(&exam.certification).cloned().ok_or_else(|| AppError::invalid("unknown certification"))?;
+        let cert = pack.pack.certifications.get(&exam.certification).cloned().ok_or_else(|| AppError::invalid("unknown certification"))?;
 
         let questions = self.draw(&exam);
         let clusters = topology(&questions);
@@ -498,22 +517,23 @@ impl Exams {
 
     /// The certification's allowed docs plus the tasks' own references
     fn allowed_docs(&self, certification: &str, questions: &[(String, Question)]) -> Vec<String> {
-        let mut allowed = self.pack.pack.certifications.get(certification).map(|c| c.resources.clone()).unwrap_or_default();
+        let pack = self.pack();
+        let mut allowed = pack.pack.certifications.get(certification).map(|c| c.resources.clone()).unwrap_or_default();
         allowed.extend(questions.iter().flat_map(|(_, q)| q.references.iter().cloned()));
         allowed.dedup();
         allowed
     }
 
     fn draw(&self, exam: &Exam) -> Vec<(String, Question)> {
+        let pack = self.pack();
         let mut ids = exam.questions.clone();
         if let Some(draw) = &exam.random {
-            let cert = &self.pack.pack.certifications[&exam.certification];
+            let cert = &pack.pack.certifications[&exam.certification];
             let weights = draw.weights.as_ref().unwrap_or(&cert.domains);
             let mut rng = rand::rng();
             let mut drawn = Vec::new();
             for (domain, count) in allocate(draw.count, weights) {
-                let mut pool: Vec<&String> = self
-                    .pack
+                let mut pool: Vec<&String> = pack
                     .questions
                     .iter()
                     .filter(|(id, q)| {
@@ -531,7 +551,7 @@ impl Exams {
         }
         ids.into_iter()
             .filter_map(|id| {
-                let q = &self.pack.questions.get(&id)?.value;
+                let q = &pack.questions.get(&id)?.value;
                 if !q.runnable() {
                     tracing::info!(question = %id, "left out: needs {:?}", q.requires);
                     return None;
@@ -748,6 +768,7 @@ impl Exams {
     /// an exam-mode attempt (the real exam has no assistant). The solution
     /// comes along only if the candidate has opened it.
     pub fn coach_subject(&self, question_id: &str, solution_opened: bool) -> AppResult<CoachSubject> {
+        let pack = self.pack();
         let (attempt, review) = match self.state() {
             ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => (attempt, false),
             // The exam is over: the review may show everything
@@ -761,7 +782,7 @@ impl Exams {
             .find(|q| q.id == question_id)
             .cloned()
             .ok_or_else(|| AppError::not_found(format!("question {question_id}")))?;
-        let certification = self.pack.pack.certifications.get(&attempt.certification);
+        let certification = pack.pack.certifications.get(&attempt.certification);
         let session = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
         Ok(CoachSubject {
             attempt_id: attempt.id.clone(),
@@ -792,13 +813,14 @@ impl Exams {
     /// How the candidate did per curriculum domain, per certification they
     /// have attempted, from the history (newest scores last)
     pub fn study_stats(&self) -> Vec<StudyStats> {
+        let pack = self.pack();
         let history = self.history();
         let mut stats: Vec<StudyStats> = Vec::new();
         for entry in history.iter().rev() {
-            let Some(cert_id) = self.pack.exams.get(&entry.exam_id).map(|e| e.value.certification.clone()) else {
+            let Some(cert_id) = pack.exams.get(&entry.exam_id).map(|e| e.value.certification.clone()) else {
                 continue;
             };
-            let Some(cert) = self.pack.pack.certifications.get(&cert_id) else { continue };
+            let Some(cert) = pack.pack.certifications.get(&cert_id) else { continue };
             let i = match stats.iter().position(|s| s.certification == cert_id) {
                 Some(i) => i,
                 None => {
@@ -815,7 +837,7 @@ impl Exams {
             let stat = &mut stats[i];
             stat.scores.push(entry.result.score);
             for q in &entry.result.questions {
-                let domain = self.pack.questions.get(&q.id).and_then(|l| l.value.certifications.get(&cert_id));
+                let domain = pack.questions.get(&q.id).and_then(|l| l.value.certifications.get(&cert_id));
                 if let Some(d) = domain.and_then(|d| stat.domains.iter_mut().find(|s| &s.domain == d)) {
                     d.points += q.points;
                     d.max_points += q.max_points;
@@ -829,17 +851,18 @@ impl Exams {
     /// What the coach needs for a study plan: the stats, the curriculum and
     /// what there is to practise. Not while an exam-mode attempt runs.
     pub fn study_subject(&self, certification: &str) -> AppResult<StudySubject> {
+        let pack = self.pack();
         if self.exam_in_progress() {
             return Err(AppError::invalid("the coach is not available during an exam"));
         }
-        let cert = self.pack.pack.certifications.get(certification).ok_or_else(|| AppError::not_found(format!("certification {certification}")))?;
+        let cert = pack.pack.certifications.get(certification).ok_or_else(|| AppError::not_found(format!("certification {certification}")))?;
         let stats = self
             .study_stats()
             .into_iter()
             .find(|s| s.certification == certification)
             .ok_or_else(|| AppError::invalid("no finished attempt of this certification yet"))?;
         let mut practice: BTreeMap<String, Vec<String>> = BTreeMap::new();
-        for q in self.pack.questions.values().filter(|q| q.value.runnable()) {
+        for q in pack.questions.values().filter(|q| q.value.runnable()) {
             if let Some(domain) = q.value.certifications.get(certification) {
                 practice.entry(domain.clone()).or_default().push(q.value.title.clone());
             }

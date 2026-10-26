@@ -223,6 +223,7 @@ pub async fn desktop_open_url(exams: State<'_, Arc<Exams>>, url: String) -> AppR
 // --- practice coach --------------------------------------------------------
 
 use crate::ai::{Coach, CoachEvent, CoachStatus};
+use crate::ai::generate::{self, GenerateRequest, Generated, GeneratorTarget};
 use crate::lab::exam::StudyStats;
 use crate::store::CoachMessage;
 
@@ -310,6 +311,27 @@ pub fn open_in_browser(url: String) -> AppResult<()> {
         .spawn()
         .map_err(|e| AppError::io("opening the browser", e))?;
     Ok(())
+}
+
+/// What the question generator can write for.
+#[tauri::command]
+#[specta::specta]
+pub fn generator_targets(exams: State<'_, Arc<Exams>>) -> Vec<GeneratorTarget> {
+    generate::targets(&exams.bank())
+}
+
+/// Generate a question, prove it on a cluster and keep it in "My questions"
+/// (progress as an activity). Not during an exam.
+#[tauri::command]
+#[specta::specta]
+pub async fn generate_question(
+    coach: State<'_, Coach>,
+    exams: State<'_, Arc<Exams>>,
+    infra: State<'_, Arc<Infra>>,
+    activities: State<'_, Arc<Activities>>,
+    request: GenerateRequest,
+) -> AppResult<Generated> {
+    coach.generate(&exams, &infra, &activities, &crate::data_dir(), &request).await
 }
 
 /// Stop the answer being written.

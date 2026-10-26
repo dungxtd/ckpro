@@ -5,6 +5,7 @@
 //! Never during an exam-mode attempt (`Exams::coach_subject` refuses).
 
 mod claude;
+pub mod generate;
 
 use crate::error::{AppError, AppResult};
 use crate::lab::checks::{self, CheckResult};
@@ -116,6 +117,29 @@ impl Coach {
     /// The latest study plan written for a certification
     pub fn last_study_plan(store: &Store, certification: &str) -> AppResult<Option<String>> {
         Ok(store.coach_messages(STUDY_PLANS, certification)?.pop().map(|m| m.text))
+    }
+
+    /// Generate a question and prove it; stopped by `cancel` while the model writes
+    pub async fn generate(
+        &self,
+        exams: &Exams,
+        infra: &crate::runtime::infra::Infra,
+        activities: &std::sync::Arc<crate::runtime::activity::Activities>,
+        data_dir: &std::path::Path,
+        request: &generate::GenerateRequest,
+    ) -> AppResult<generate::Generated> {
+        if exams.exam_in_progress() {
+            return Err(AppError::invalid("the coach is not available during an exam"));
+        }
+        let bank = exams.bank();
+        let cancel = self.start();
+        let generated = generate::generate(&bank, infra, activities, data_dir, request, &cancel).await?;
+        // The catalog shows it from now on
+        match crate::lab::load::load(&bank.root).0 {
+            Some(core) => exams.replace_pack(crate::lab::mine::merged(core, data_dir)),
+            None => tracing::warn!("could not reload the bundled pack: the new question shows after a restart"),
+        }
+        Ok(generated)
     }
 
     /// A new answer stops the one being written

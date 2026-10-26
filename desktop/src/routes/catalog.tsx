@@ -3,6 +3,7 @@ import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { useEffect } from "react";
+import { GenerateCard } from "@/components/catalog/generate-card";
 import { useExam } from "@/stores/exam";
 import type { ExamSummary } from "@/tauri/api";
 
@@ -18,7 +19,8 @@ function ExamCard({ exam }: { exam: ExamSummary }) {
 			</header>
 			<p className="line-clamp-3 text-muted-foreground text-sm">{exam.description}</p>
 			<div className="text-muted-foreground text-xs">
-				{exam.questions} questions · {exam.duration_minutes} min · pass {exam.pass_score}%
+				{exam.questions} question{exam.questions === 1 ? "" : "s"} · {exam.duration_minutes} min ·
+				pass {exam.pass_score}%
 			</div>
 			<div className="mt-auto flex gap-2 pt-2">
 				<Button size="sm" onClick={() => start(exam.id, "exam")}>
@@ -56,6 +58,7 @@ export function CatalogRoute() {
 				</Alert>
 			)}
 			{error && <Alert variant="destructive">{error}</Alert>}
+			<GenerateCard onGenerated={loadCatalog} />
 			{certs.map(cert => (
 				<section key={cert}>
 					<h2 className="mb-3 font-semibold text-lg">{cert.toUpperCase()}</h2>

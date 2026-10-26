@@ -1,6 +1,6 @@
 # AI assistant: reference (TablePro) and a design for ckdry
 
-Status: phases 1-2 built (practice coach; review and study plan); phases 3-4 proposed. Researched 2026-10-26.
+Status: phases 1-3 built (practice coach; review and study plan; question generator); phase 4 proposed. Researched 2026-10-26.
 
 ## 1. Reference: what TablePro does
 
