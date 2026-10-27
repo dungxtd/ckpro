@@ -16,3 +16,45 @@ body,
 	height: 100%;
 	overflow: clip;
 }
+
+/* As in nextflix's app stylesheet */
+@layer base {
+	[data-theme="dark"] {
+		color-scheme: dark;
+	}
+	[data-theme="light"] {
+		color-scheme: light;
+	}
+	/* Links and images are not draggable (a drag would lift the app's URL) */
+	a,
+	img {
+		-webkit-user-drag: none;
+	}
+	/* Tailwind v4 preflight dropped the pointer cursor on buttons. */
+	button:not(:disabled),
+	[role="button"]:not([aria-disabled="true"]) {
+		cursor: pointer;
+	}
+	/* Thin, consistent scrollbars app-wide (macOS overlay feel). */
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent;
+	}
+	::-webkit-scrollbar {
+		width: 8px;
+		height: 8px;
+	}
+	::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	::-webkit-scrollbar-thumb {
+		background: color-mix(in oklab, var(--foreground) 18%, transparent);
+		border-radius: 8px;
+		border: 2px solid transparent;
+		background-clip: padding-box;
+	}
+	::-webkit-scrollbar-thumb:hover {
+		background: color-mix(in oklab, var(--foreground) 32%, transparent);
+		background-clip: padding-box;
+	}
+}

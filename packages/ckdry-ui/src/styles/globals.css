@@ -152,39 +152,6 @@
 	[data-theme] {
 		color: var(--foreground);
 	}
-	/* Native controls (scrollbars, form widgets) in the theme's scheme */
-	[data-theme="dark"] {
-		color-scheme: dark;
-	}
-	[data-theme="light"] {
-		color-scheme: light;
-	}
-
-	/* One scrollbar everywhere, as macOS draws its overlay ones: thin, no
-	 * track, a rounded thumb in the text colour that firms up on hover. The
-	 * standard properties for engines that have them, the WebKit ones for
-	 * the macOS web view */
-	* {
-		scrollbar-width: thin;
-		scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent;
-	}
-	::-webkit-scrollbar {
-		width: 10px;
-		height: 10px;
-	}
-	::-webkit-scrollbar-track,
-	::-webkit-scrollbar-corner {
-		background: transparent;
-	}
-	::-webkit-scrollbar-thumb {
-		border: 3px solid transparent;
-		border-radius: 999px;
-		background-clip: padding-box;
-		background-color: color-mix(in oklab, var(--foreground) 22%, transparent);
-	}
-	::-webkit-scrollbar-thumb:hover {
-		background-color: color-mix(in oklab, var(--foreground) 40%, transparent);
-	}
 }
 
 @utility no-scrollbar {
