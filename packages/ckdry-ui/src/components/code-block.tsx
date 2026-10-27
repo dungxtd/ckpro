@@ -1,10 +1,13 @@
 import { cn } from "@ckdry/ui/lib/utils";
 import type * as React from "react";
 
-/** Preformatted text (a command, a manifest, a log) on the muted surface.
+/** Preformatted text (a command, a manifest, a log) in an inset well: the
+ * page's darkest surface with a hairline edge, so it stands apart on a card,
+ * a popover or the page alike (in dark, `muted` is the card's own colour).
  * Commands and manifests keep their lines (they scroll); `wrap` folds long
  * lines instead, for logs and messages read rather than copied. */
-export const codeBlock = "overflow-auto whitespace-pre rounded-lg bg-muted p-2 font-mono text-xs";
+export const codeBlock =
+	"overflow-auto whitespace-pre rounded-lg border border-border bg-background p-2 font-mono text-xs";
 
 export function CodeBlock({
 	wrap,
@@ -25,7 +28,7 @@ export function CodeBlock({
 			className={cn(
 				codeBlock,
 				wrap && "whitespace-pre-wrap break-words",
-				framed && "rounded-none bg-transparent p-2.5",
+				framed && "rounded-none border-0 bg-transparent p-2.5",
 				className
 			)}
 			{...props}
