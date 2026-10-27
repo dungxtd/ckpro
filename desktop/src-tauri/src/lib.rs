@@ -40,6 +40,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ActivityChanged, ActivityLog])
         .commands(tauri_specta::collect_commands![
         commands::env_state,
+        commands::env_retry,
+        commands::env_watch_nodes,
         commands::preflight,
         commands::create_cluster,
         commands::delete_cluster,
@@ -382,6 +384,8 @@ mod tests {
         let f = fixture("monitor");
         let name = "ckdry-mon";
         let env = Arc::new(Env::new(|_| {}));
+        // Readiness is followed while it is shown (the Environment page)
+        env.set_watch_nodes(true);
         f.create(name, 1).await;
         runtime::monitor::start(env.clone(), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent());
         let worker = format!("{name}-worker");

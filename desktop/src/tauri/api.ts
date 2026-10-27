@@ -88,6 +88,10 @@ export const envApi = {
 	subscribe: async (onChange: (state: EnvState) => void) =>
 		events.envChanged.listen(event => onChange(event.payload)),
 	preflight: (name: string, workers: number) => commands.preflight(name, workers),
+	/** Try Docker again now, not at the next backoff */
+	retry: () => commands.envRetry(),
+	/** Follow node readiness while it is shown (opens the clusters' node watches) */
+	watchNodes: (on: boolean) => commands.envWatchNodes(on),
 };
 
 export const clusterApi = {

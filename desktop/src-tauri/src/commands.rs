@@ -23,6 +23,21 @@ pub fn env_state(env: State<'_, Arc<Env>>) -> EnvState {
     env.snapshot()
 }
 
+/// Try Docker again now (Retry), not at the monitor's next backoff.
+#[tauri::command]
+#[specta::specta]
+pub fn env_retry(env: State<'_, Arc<Env>>) {
+    env.request_retry();
+}
+
+/// Show node readiness (the Environment page opens) or stop (it closes): the
+/// clusters' Kubernetes node watches are kept open only meanwhile.
+#[tauri::command]
+#[specta::specta]
+pub fn env_watch_nodes(env: State<'_, Arc<Env>>, on: bool) {
+    env.set_watch_nodes(on);
+}
+
 /// What creating a cluster with `workers` workers needs, and whether it is there.
 #[tauri::command]
 #[specta::specta]

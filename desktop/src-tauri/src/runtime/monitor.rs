@@ -1,7 +1,10 @@
-//! Keeps `EnvState` in step with reality, event-driven:
-//! - Docker: connect (retrying while it is down), then follow container events
-//!   for kind nodes; a slow sweep doubles as a liveness check.
-//! - Kubernetes: one node watch per running cluster for Ready/NotReady.
+//! Keeps `EnvState` in step with reality, event-driven and only as much as
+//! is shown:
+//! - Docker down: retried with a backoff (2 s doubling to 30 s), or at once
+//!   when asked (Retry). Up: its container events for kind nodes (pushed, no
+//!   polling), and a ping a minute to notice an engine that went away quietly.
+//! - Kubernetes: one node watch per running cluster for Ready/NotReady, only
+//!   while node readiness is shown (the Environment page).
 
 use super::model::{ClusterState, ContainerStatus, DockerState, Env, NodeRole, NodeState, Readiness};
 use super::activity::Activities;
@@ -20,6 +23,9 @@ use std::time::Duration;
 use tokio::task::JoinHandle;
 
 const CLUSTER_LABEL: &str = "io.x-k8s.kind.cluster";
+const RETRY_FIRST: Duration = Duration::from_secs(2);
+const RETRY_MAX: Duration = Duration::from_secs(30);
+const PING_EVERY: Duration = Duration::from_secs(60);
 const ROLE_LABEL: &str = "io.x-k8s.kind.role";
 
 pub fn start(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>) {
@@ -29,13 +35,20 @@ pub fn start(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
 async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>) {
     let mut watchers: HashMap<String, JoinHandle<()>> = HashMap::new();
     let mut reconciled = false;
+    let mut backoff = RETRY_FIRST;
     loop {
         let docker = match docker::connect().await {
-            Ok(docker) => docker,
+            Ok(docker) => {
+                backoff = RETRY_FIRST;
+                docker
+            }
             Err(e) => {
                 env.update(|s| s.docker = DockerState::Down { reason: e.to_string() });
                 stop_watchers(&mut watchers);
-                tokio::time::sleep(Duration::from_secs(3)).await;
+                tokio::select! {
+                    () = tokio::time::sleep(backoff) => backoff = (backoff * 2).min(RETRY_MAX),
+                    () = env.retry_requested() => backoff = RETRY_FIRST,
+                }
                 continue;
             }
         };
@@ -67,8 +80,8 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
         ]);
         let mut events =
             docker.events(Some(EventsOptions { filters: Some(filters), ..Default::default() })).boxed();
-        let mut sweep = tokio::time::interval(Duration::from_secs(30));
-        sweep.tick().await;
+        let mut alive = tokio::time::interval(PING_EVERY);
+        alive.tick().await;
         loop {
             tokio::select! {
                 event = events.next() => match event {
@@ -81,11 +94,12 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
                     _ => break,
                 },
                 _ = env.resync_requested() => sync(&docker, &env, &kind, &mut watchers).await,
-                _ = sweep.tick() => {
+                // Events say what changed; this only notices an engine that
+                // stopped without closing the stream (a sleeping VM)
+                _ = alive.tick() => {
                     if docker.ping().await.is_err() {
                         break;
                     }
-                    sync(&docker, &env, &kind, &mut watchers).await;
                 }
             }
         }
@@ -167,14 +181,19 @@ async fn sync(
     }
     clusters.sort_by(|a, b| a.name.cmp(&b.name));
 
-    // One node watch per cluster whose control plane runs
-    let watched: Vec<String> = clusters
-        .iter()
-        .filter(|c| {
-            c.nodes.iter().any(|n| n.role == NodeRole::ControlPlane && n.container == ContainerStatus::Running)
-        })
-        .map(|c| c.name.clone())
-        .collect();
+    // One node watch per cluster whose control plane runs, while readiness
+    // is shown
+    let watched: Vec<String> = if env.watching_nodes() {
+        clusters
+            .iter()
+            .filter(|c| {
+                c.nodes.iter().any(|n| n.role == NodeRole::ControlPlane && n.container == ContainerStatus::Running)
+            })
+            .map(|c| c.name.clone())
+            .collect()
+    } else {
+        Vec::new()
+    };
     watchers.retain(|name, handle| {
         let keep = watched.contains(name) && !handle.is_finished();
         if !keep {

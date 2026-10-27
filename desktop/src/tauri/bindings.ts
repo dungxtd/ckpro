@@ -8,6 +8,13 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  Current environment; later changes arrive as `EnvChanged` events. */
 	envState: () => __TAURI_INVOKE<EnvState>("env_state"),
+	/**  Try Docker again now (Retry), not at the monitor's next backoff. */
+	envRetry: () => __TAURI_INVOKE<void>("env_retry"),
+	/**
+	 *  Show node readiness (the Environment page opens) or stop (it closes): the
+	 *  clusters' Kubernetes node watches are kept open only meanwhile.
+	 */
+	envWatchNodes: (on: boolean) => __TAURI_INVOKE<void>("env_watch_nodes", { on }),
 	/**  What creating a cluster with `workers` workers needs, and whether it is there. */
 	preflight: (name: string, workers: number) => __TAURI_INVOKE<Check[]>("preflight", { name, workers }),
 	/**

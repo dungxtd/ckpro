@@ -7,6 +7,7 @@ import { GenerateCard } from "@/components/catalog/generate-card";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import type { ExamSummary } from "@/tauri/api";
+import { envApi } from "@/tauri/api";
 
 const CERT_ORDER = ["cka", "ckad", "cks"];
 
@@ -66,11 +67,14 @@ export function CatalogRoute() {
 				</Alert>
 			)}
 			{docker?.state === "down" && (
-				<Alert variant="warning">
-					<span>
+				<Alert variant="warning" className="items-center">
+					<span className="flex-1">
 						<strong>Docker is not running.</strong> Start OrbStack or Docker Desktop: ckdry connects
 						as soon as it is up.
 					</span>
+					<Button size="push" variant="push" onClick={() => envApi.retry()}>
+						Retry now
+					</Button>
 				</Alert>
 			)}
 			{docker?.state === "connecting" && <Alert>Connecting to Docker…</Alert>}

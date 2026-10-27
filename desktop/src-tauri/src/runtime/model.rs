@@ -139,6 +139,11 @@ pub struct Env {
     /// Asks the monitor to re-read the environment now (after changes that
     /// produce no Docker event, like adopting a cluster)
     resync: tokio::sync::Notify,
+    /// Asks the monitor to try Docker again now, not at its next backoff
+    retry: tokio::sync::Notify,
+    /// Someone shows node readiness (the Environment page): only then are the
+    /// clusters' Kubernetes node watches kept open
+    watch_nodes: std::sync::atomic::AtomicBool,
 }
 
 impl Env {
@@ -147,7 +152,28 @@ impl Env {
             state: Mutex::new(EnvState::default()),
             publish: Box::new(publish),
             resync: tokio::sync::Notify::new(),
+            retry: tokio::sync::Notify::new(),
+            watch_nodes: std::sync::atomic::AtomicBool::new(false),
         }
+    }
+
+    pub fn request_retry(&self) {
+        self.retry.notify_one();
+    }
+
+    pub async fn retry_requested(&self) {
+        self.retry.notified().await;
+    }
+
+    /// Show (or stop showing) node readiness; the monitor opens or closes the
+    /// node watches at once
+    pub fn set_watch_nodes(&self, on: bool) {
+        self.watch_nodes.store(on, std::sync::atomic::Ordering::SeqCst);
+        self.request_resync();
+    }
+
+    pub fn watching_nodes(&self) -> bool {
+        self.watch_nodes.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     pub fn request_resync(&self) {

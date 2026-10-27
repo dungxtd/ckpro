@@ -12,7 +12,7 @@ import { ScriptCard } from "@/components/environment/script-card";
 import { StatusDot } from "@/components/environment/status-dot";
 import { TerminalView } from "@/components/terminal/terminal-view";
 import { useEnvironment } from "@/stores/environment";
-import type { EnvState } from "@/tauri/api";
+import { type EnvState, envApi } from "@/tauri/api";
 
 function DockerStatus({ docker }: { docker: EnvState["docker"] }) {
 	switch (docker.state) {
@@ -25,9 +25,14 @@ function DockerStatus({ docker }: { docker: EnvState["docker"] }) {
 			);
 		case "down":
 			return (
-				<Badge>
-					<StatusDot tone="error" /> Docker down
-				</Badge>
+				<span className="flex items-center gap-2">
+					<Badge>
+						<StatusDot tone="error" /> Docker down
+					</Badge>
+					<Button size="push" variant="push" onClick={() => envApi.retry()}>
+						Retry now
+					</Button>
+				</span>
 			);
 		default:
 			return (
@@ -45,6 +50,13 @@ export function EnvironmentRoute() {
 	const [shell, setShell] = useState<{ node: string | null; session: number } | null>(null);
 	const openShell = (node: string | null) =>
 		setShell(s => ({ node, session: (s?.session ?? 0) + 1 }));
+	// Node readiness is shown here only: its watches stay open while the page does
+	useEffect(() => {
+		envApi.watchNodes(true);
+		return () => {
+			envApi.watchNodes(false);
+		};
+	}, []);
 	// "All activity" from the top bar
 	const { hash } = useLocation();
 	useEffect(() => {
