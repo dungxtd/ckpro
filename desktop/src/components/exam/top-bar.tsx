@@ -14,7 +14,7 @@ import { Button, buttonVariants } from "@ckdry/ui/components/button";
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import { Separator } from "@ckdry/ui/components/separator";
-import { BookOpen, Flag, Monitor, PanelRight, X } from "lucide-react";
+import { BookOpen, Flag, LogOut, Monitor, PanelRight, X } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Attempt } from "@/tauri/api";
 import { DesktopMenu, type DesktopMenuProps } from "./desktop-menu";
@@ -25,8 +25,9 @@ export type DeskView = "desktop" | "readme";
 /**
  * The exam desk's top bar. Left: time, the exam and its mode. Right: what is
  * shown (the desktop or its Readme) and the desktop's menu (size, resolution,
- * reset), then the attempt's own controls: in practice the assistant, Quit
- * and Finish; in an exam only End Exam, as on the real one.
+ * reset), then the attempt's own controls: in practice Quit and Finish,
+ * and the assistant's side panel button outermost; in an exam only End
+ * Exam, as on the real one.
  */
 export function TopBar({
 	attempt,
@@ -76,20 +77,6 @@ export function TopBar({
 					]}
 				/>
 				<DesktopMenu {...desktop} />
-				{practice && (
-					// Like Chrome's side panel button: the assistant opens beside the desktop
-					<IconButton
-						variant="plain"
-						size="sm"
-						className="size-7"
-						active={assistantOpen}
-						aria-pressed={assistantOpen}
-						aria-label={assistantOpen ? "Hide assistant" : "Show assistant"}
-						onClick={() => onAssistant(!assistantOpen)}
-					>
-						<PanelRight />
-					</IconButton>
-				)}
 			</div>
 
 			<Separator orientation="vertical" className="h-5 self-center" />
@@ -102,8 +89,8 @@ export function TopBar({
 						action="Quit"
 						onConfirm={onQuit}
 					>
-						<Button size="push" variant="ghost">
-							Quit
+						<Button size="push" variant="push">
+							<LogOut /> <span className="sr-only @2xl:not-sr-only">Quit</span>
 						</Button>
 					</Confirm>
 				)}
@@ -114,7 +101,7 @@ export function TopBar({
 					onConfirm={onFinish}
 				>
 					{practice ? (
-						<Button size="push" variant="outline">
+						<Button size="push" variant="pushDefault">
 							<Flag /> <span className="sr-only @2xl:not-sr-only">Finish</span>
 						</Button>
 					) : (
@@ -128,6 +115,24 @@ export function TopBar({
 					)}
 				</Confirm>
 			</div>
+
+			{practice && (
+				<>
+					<Separator orientation="vertical" className="h-5 self-center" />
+					{/* Outermost, like Chrome's side panel button: the assistant opens at this edge */}
+					<IconButton
+						variant="plain"
+						size="sm"
+						className="size-7"
+						active={assistantOpen}
+						aria-pressed={assistantOpen}
+						aria-label={assistantOpen ? "Hide assistant" : "Show assistant"}
+						onClick={() => onAssistant(!assistantOpen)}
+					>
+						<PanelRight />
+					</IconButton>
+				</>
+			)}
 		</header>
 	);
 }
