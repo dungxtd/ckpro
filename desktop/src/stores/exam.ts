@@ -21,6 +21,8 @@ interface AttemptUi {
 	hintsShown: Record<string, number>;
 	checks: Record<string, CheckResult[] | "running">;
 	solutions: Record<string, Solution>;
+	/** Solutions hidden again (they stay opened: the coach knows they were seen) */
+	solutionHidden: Record<string, boolean>;
 }
 
 interface ExamStore extends AttemptUi {
@@ -42,6 +44,8 @@ interface ExamStore extends AttemptUi {
 	showHint: (questionId: string) => void;
 	check: (questionId: string) => Promise<void>;
 	loadSolution: (questionId: string) => Promise<void>;
+	/** Show the solution (opening it the first time), or hide it again */
+	toggleSolution: (questionId: string) => void;
 }
 
 const freshAttempt = (attemptId: string | null): AttemptUi => ({
@@ -51,6 +55,7 @@ const freshAttempt = (attemptId: string | null): AttemptUi => ({
 	hintsShown: {},
 	checks: {},
 	solutions: {},
+	solutionHidden: {},
 });
 
 /** Where the candidate is, what they flagged and the hints they opened go to
@@ -203,6 +208,16 @@ export const useExam = create<ExamStore>()(
 						s.error = message(e);
 					});
 				}
+			},
+
+			toggleSolution: questionId => {
+				if (!get().solutions[questionId]) {
+					get().loadSolution(questionId);
+					return;
+				}
+				set(s => {
+					s.solutionHidden[questionId] = !s.solutionHidden[questionId];
+				});
 			},
 
 			loadSolution: async questionId => {

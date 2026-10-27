@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useExam } from "@/stores/exam";
 
 /**
@@ -7,13 +6,13 @@ import { useExam } from "@/stores/exam";
  */
 export function useSolution(questionId: string) {
 	const solution = useExam(s => s.solutions[questionId]);
-	const loadSolution = useExam(s => s.loadSolution);
-	const [hidden, setHidden] = useState(false);
+	const hidden = useExam(s => !!s.solutionHidden[questionId]);
+	const toggleSolution = useExam(s => s.toggleSolution);
 	const shown = !!solution && !hidden;
 	return {
 		solution: shown ? solution : undefined,
 		shown,
 		label: shown ? "Hide solution" : "Show solution",
-		toggle: () => (solution ? setHidden(shown) : loadSolution(questionId)),
+		toggle: () => toggleSolution(questionId),
 	};
 }

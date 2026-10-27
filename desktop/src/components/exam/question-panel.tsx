@@ -4,7 +4,7 @@ import { Card } from "@ckdry/ui/components/card";
 import { Separator } from "@ckdry/ui/components/separator";
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { cn } from "@ckdry/ui/lib/utils";
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, ListChecks } from "lucide-react";
 import { Markdown } from "@/components/markdown";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
@@ -25,12 +25,11 @@ const SIZES = [
 /** One task as the exam shows it, plus the practice-mode aids. */
 export function QuestionPanel({ attempt, question }: { attempt: Attempt; question: QuestionView }) {
 	const { hintsShown, checks } = useExam();
-	const { showHint, check } = useExam();
 	const askCoach = useCoach(s => s.ask);
 	const practice = attempt.mode === "practice";
 	const hints = question.hints.slice(0, hintsShown[question.id] ?? 0);
 	const result = checks[question.id];
-	const { solution, shown: solutionShown, label, toggle } = useSolution(question.id);
+	const { solution } = useSolution(question.id);
 	const { settings } = useSettings();
 	const size = Math.min(SIZES.length - 1, settings.question_size);
 	const code = "rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-exam-value";
@@ -70,22 +69,9 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 				</div>
 			)}
 
-			{practice && (
+			{practice && (hints.length > 0 || Array.isArray(result) || solution) && (
 				<section className="flex flex-col gap-2">
 					<Separator className="mb-1" />
-					<div className="flex flex-wrap gap-2">
-						<Button size="sm" onClick={() => check(question.id)} disabled={result === "running"}>
-							{result === "running" ? "Checking…" : "Check my work"}
-						</Button>
-						{hints.length < question.hints.length && (
-							<Button size="sm" variant="outline" onClick={() => showHint(question.id)}>
-								Hint ({hints.length + 1}/{question.hints.length})
-							</Button>
-						)}
-						<Button size="sm" variant="ghost" aria-expanded={solutionShown} onClick={toggle}>
-							{label}
-						</Button>
-					</div>
 					{hints.map((hint, i) => (
 						<Alert key={hint} variant="warning">
 							<Lightbulb />
@@ -113,6 +99,40 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 					)}
 				</section>
 			)}
+		</div>
+	);
+}
+
+/**
+ * Practice mode's aids, kept in view under the task (the task scrolls): check
+ * the work, open the next hint, show or hide the solution. What they bring
+ * shows at the end of the task
+ */
+export function PracticeActions({ question }: { question: QuestionView }) {
+	const { hintsShown, checks, showHint, check } = useExam();
+	const { shown, label, toggle } = useSolution(question.id);
+	const opened = hintsShown[question.id] ?? 0;
+	const running = checks[question.id] === "running";
+	return (
+		<div className="flex flex-wrap gap-2">
+			<Button
+				size="sm"
+				variant="outline"
+				className="flex-1"
+				onClick={() => check(question.id)}
+				disabled={running}
+			>
+				<ListChecks />
+				{running ? "Checking…" : "Check my work"}
+			</Button>
+			{opened < question.hints.length && (
+				<Button size="sm" variant="outline" onClick={() => showHint(question.id)}>
+					Hint {opened + 1}/{question.hints.length}
+				</Button>
+			)}
+			<Button size="sm" variant="ghost" aria-expanded={shown} onClick={toggle}>
+				{label}
+			</Button>
 		</div>
 	);
 }

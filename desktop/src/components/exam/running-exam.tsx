@@ -22,7 +22,7 @@ import {
 } from "@ckdry/ui/components/select";
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { cn } from "@ckdry/ui/lib/utils";
-import { BookOpen, ChevronLeft, ChevronRight, Flag, Monitor, Sparkles, X } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Flag, Monitor, PanelRight, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCoach } from "@/stores/coach";
@@ -32,7 +32,7 @@ import type { Attempt } from "@/tauri/api";
 import { AssistantPane } from "./assistant-pane";
 import { DesktopView } from "./desktop-view";
 import { ExamSettings } from "./exam-settings";
-import { QuestionPanel, TextSize } from "./question-panel";
+import { PracticeActions, QuestionPanel, TextSize } from "./question-panel";
 import { ReadMe } from "./readme";
 import { Timer } from "./timer";
 
@@ -194,17 +194,21 @@ export function RunningExam({
 							Quit
 						</Button>
 					)}
+					<ExamSettings resolution={resolution} onResolution={changeResolution} />
 					{attempt.mode === "practice" && (
-						<Button
-							size="push"
-							variant={assistantOpen ? "pushDefault" : "push"}
+						// Like Chrome's side panel button: the assistant opens beside the desktop
+						<IconButton
+							variant="plain"
+							size="sm"
+							className="size-7"
+							active={assistantOpen}
 							aria-pressed={assistantOpen}
+							aria-label={assistantOpen ? "Hide assistant" : "Show assistant"}
 							onClick={() => setAssistantOpen(!assistantOpen)}
 						>
-							<Sparkles /> <span className="sr-only @3xl:not-sr-only">Assistant</span>
-						</Button>
+							<PanelRight />
+						</IconButton>
 					)}
-					<ExamSettings resolution={resolution} onResolution={changeResolution} />
 				</div>
 			</header>
 			<div ref={desk} className="flex min-h-0 flex-1">
@@ -258,8 +262,18 @@ export function RunningExam({
 					<div className="min-h-0 flex-1 overflow-auto px-4 pb-4">
 						{question && <QuestionPanel attempt={attempt} question={question} />}
 					</div>
+					{question && attempt.mode === "practice" && (
+						<div className="border-border border-t px-3 pt-3">
+							<PracticeActions question={question} />
+						</div>
+					)}
 					{question && (
-						<div className="flex gap-2 border-border border-t p-3">
+						<div
+							className={cn(
+								"flex gap-2 p-3",
+								attempt.mode !== "practice" && "border-border border-t"
+							)}
+						>
 							<Button
 								variant={flagged.includes(question.id) ? "default" : "outline"}
 								className="flex-1"
@@ -306,7 +320,7 @@ export function RunningExam({
 					<div aria-hidden="true" onPointerDown={dragAssistant} className={RESIZE_HANDLE} />
 				)}
 				{assistantOpen && question && (
-					<div className="shrink-0" style={{ width: assistantWidth }}>
+					<div className="max-w-[40%] shrink-0" style={{ width: assistantWidth }}>
 						<AssistantPane
 							question={question}
 							onClose={() => setAssistantOpen(false)}
@@ -324,7 +338,7 @@ export function RunningExam({
 
 /** A border dragged to resize the panels beside it */
 const RESIZE_HANDLE =
-	"w-1.5 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-highlight/60";
+	"relative z-10 w-px shrink-0 cursor-col-resize bg-border transition-colors before:absolute before:inset-y-0 before:-inset-x-1 before:content-[''] hover:bg-highlight active:bg-highlight";
 
 /**
  * Follow a border drag: `size` turns the pointer's x into the new size,
