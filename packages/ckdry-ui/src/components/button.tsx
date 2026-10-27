@@ -17,9 +17,11 @@ const buttonVariants = cva(
 				ghost: "hover:bg-accent hover:text-accent-foreground",
 				// macOS push button (System Settings "Change…"): raised, hairline shadow.
 				// macOS default button (the action Return triggers): accent fill.
+				// Hover and press tint the fill: a `filter` (brightness) puts the
+				// button on its own layer in WebKit and its text visibly shifts
 				pushDefault:
-					"bg-highlight text-highlight-foreground shadow-[0_0_0_0.5px_rgb(0_0_0/0.12),0_1px_2px_rgb(0_0_0/0.12)] transition-[filter] hover:brightness-110 active:brightness-90",
-				push: "bg-[var(--seg-on)] text-foreground shadow-[0_0_0_0.5px_rgb(0_0_0/0.12),0_1px_2px_rgb(0_0_0/0.12)] transition-[filter] hover:brightness-95 active:brightness-90 dark:hover:brightness-110",
+					"bg-highlight text-highlight-foreground shadow-[0_0_0_0.5px_rgb(0_0_0/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-[color-mix(in_oklab,var(--highlight),white_10%)] active:bg-[color-mix(in_oklab,var(--highlight),black_12%)]",
+				push: "bg-[var(--seg-on)] text-foreground shadow-[0_0_0_0.5px_rgb(0_0_0/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-[color-mix(in_oklab,var(--seg-on),var(--foreground)_6%)] active:bg-[color-mix(in_oklab,var(--seg-on),var(--foreground)_12%)]",
 				// Hero actions (Apple TV style): solid white primary, glass secondary.
 				// Both grow slightly on hover and shrink on press, like IconButton.
 				solid:
