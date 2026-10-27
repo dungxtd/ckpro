@@ -1,6 +1,7 @@
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { menu, menuRow } from "@ckdry/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
+import { Stepper } from "@ckdry/ui/components/stepper";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Check, RotateCcw, Settings } from "lucide-react";
 import { useState } from "react";
@@ -14,17 +15,29 @@ export const RESOLUTIONS: [number, number][] = [
 	[1920, 1080],
 ];
 
-/**
- * The ExamUI's settings (cogwheel): fit the remote desktop to the screen, set
- * a custom resolution, or reset the desktop.
- */
-export function ExamSettings({
-	resolution,
-	onResolution,
-}: {
+export interface DesktopMenuProps {
+	/** How much larger the desktop is drawn (the ExamUI's +/-) */
+	zoom: number;
+	canZoomOut: boolean;
+	canZoomIn: boolean;
+	onZoom: (step: -1 | 1) => void;
 	resolution: [number, number] | null;
 	onResolution: (resolution: [number, number] | null) => void;
-}) {
+}
+
+/**
+ * The remote desktop's menu (the ExamUI's cogwheel), everything about the
+ * desktop in one place: its size (+/-), fit to the screen or a custom
+ * resolution, and reset.
+ */
+export function DesktopMenu({
+	zoom,
+	canZoomOut,
+	canZoomIn,
+	onZoom,
+	resolution,
+	onResolution,
+}: DesktopMenuProps) {
 	const [resetting, setResetting] = useState(false);
 	const option = (label: string, value: [number, number] | null) => {
 		const active = value === null ? resolution === null : resolution?.join() === value.join();
@@ -61,12 +74,24 @@ export function ExamSettings({
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<IconButton variant="plain" size="sm" className="size-7" aria-label="Settings">
+				<IconButton variant="plain" size="sm" className="size-7" aria-label="Desktop settings">
 					<Settings />
 				</IconButton>
 			</PopoverTrigger>
-			<PopoverContent align="end" role="menu" className={cn(menu.surface, "w-56")}>
+			<PopoverContent align="end" role="menu" className={cn(menu.surface, "w-60")}>
 				<div className={menu.header}>Remote Desktop</div>
+				<div className={cn(menu.content, "flex items-center justify-between py-1 text-callout")}>
+					Size
+					<Stepper
+						label="Desktop size"
+						value={`${Math.round(zoom * 100)}%`}
+						onDecrement={() => onZoom(-1)}
+						onIncrement={() => onZoom(1)}
+						decrementDisabled={!canZoomOut}
+						incrementDisabled={!canZoomIn}
+					/>
+				</div>
+				<div className={menu.separator} />
 				{option("Fit to screen", null)}
 				<div className={menu.header}>Custom resolution</div>
 				{RESOLUTIONS.map(([w, h]) => option(`${w} × ${h}`, [w, h]))}

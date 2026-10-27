@@ -1,18 +1,5 @@
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from "@ckdry/ui/components/alert-dialog";
-import { Badge } from "@ckdry/ui/components/badge";
-import { Button, buttonVariants } from "@ckdry/ui/components/button";
+import { Button } from "@ckdry/ui/components/button";
 import { IconButton } from "@ckdry/ui/components/icon-button";
-import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import {
 	Select,
 	SelectContent,
@@ -20,9 +7,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ckdry/ui/components/select";
-import { Stepper } from "@ckdry/ui/components/stepper";
 import { cn } from "@ckdry/ui/lib/utils";
-import { BookOpen, ChevronLeft, ChevronRight, Flag, Monitor, PanelRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCoach } from "@/stores/coach";
@@ -31,10 +17,9 @@ import { useSettings } from "@/stores/settings";
 import type { Attempt } from "@/tauri/api";
 import { AssistantPane } from "./assistant-pane";
 import { DesktopView } from "./desktop-view";
-import { ExamSettings } from "./exam-settings";
 import { PracticeActions, QuestionPanel, TextSize } from "./question-panel";
 import { ReadMe } from "./readme";
-import { Timer } from "./timer";
+import { type DeskView, TopBar } from "./top-bar";
 
 /** The ExamUI's +/-: how much larger the desktop is drawn */
 const ZOOMS = [1, 1.25, 1.5, 1.75, 2];
@@ -94,7 +79,7 @@ export function RunningExam({
 		update({ desktop_zoom: next });
 	};
 	const changeResolution = (next: [number, number] | null) => update({ desktop_resolution: next });
-	const [tab, setTab] = useState<"desktop" | "readme">("desktop");
+	const [tab, setTab] = useState<DeskView>("desktop");
 	useTimeAlerts(endsAt);
 	const desk = useRef<HTMLDivElement>(null);
 	const question = attempt.questions[current];
@@ -131,86 +116,25 @@ export function RunningExam({
 
 	return (
 		<div className="flex h-full flex-col">
-			{/* Labels give way to icons as the window narrows (container queries) */}
-			<header className="@container flex select-none items-center gap-3 border-border border-b px-3 py-2">
-				<div className="shrink-0">
-					<Timer startedAt={startedAt} endsAt={endsAt} />
-				</div>
-				<strong className="min-w-0 flex-1 truncate text-base">{attempt.title}</strong>
-				{attempt.mode === "practice" && (
-					<Badge variant="subtle" className="hidden shrink-0 @2xl:inline-flex">
-						Practice
-					</Badge>
-				)}
-				<div className="flex shrink-0 items-center gap-2">
-					<Stepper
-						label="Desktop size"
-						value={`${Math.round(zoom * 100)}%`}
-						onDecrement={() => changeZoom(-1)}
-						onIncrement={() => changeZoom(1)}
-						decrementDisabled={zoom === ZOOMS[0]}
-						incrementDisabled={zoom === ZOOMS[ZOOMS.length - 1]}
-					/>
-					<SegmentedControl
-						label="View"
-						value={tab}
-						onChange={setTab}
-						options={[
-							{ value: "desktop", label: <TabLabel icon={Monitor} text="Desktop" /> },
-							{ value: "readme", label: <TabLabel icon={BookOpen} text="Readme" /> },
-						]}
-					/>
-					<AlertDialog>
-						<AlertDialogTrigger asChild>
-							<Button
-								size="push"
-								variant="outline"
-								className="border-destructive/60 text-destructive hover:bg-destructive/10 hover:text-destructive"
-							>
-								<X /> <span className="sr-only @2xl:not-sr-only">End Exam</span>
-							</Button>
-						</AlertDialogTrigger>
-						<AlertDialogContent>
-							<AlertDialogHeader>
-								<AlertDialogTitle>End the exam?</AlertDialogTitle>
-								<AlertDialogDescription>
-									Your work is graded now and the exam environment is removed. You cannot come back
-									to it.
-								</AlertDialogDescription>
-							</AlertDialogHeader>
-							<AlertDialogFooter>
-								<AlertDialogCancel>Keep working</AlertDialogCancel>
-								<AlertDialogAction
-									className={buttonVariants({ variant: "destructive" })}
-									onClick={submit}
-								>
-									End exam
-								</AlertDialogAction>
-							</AlertDialogFooter>
-						</AlertDialogContent>
-					</AlertDialog>
-					{attempt.mode === "practice" && (
-						<Button size="push" variant="ghost" onClick={end}>
-							Quit
-						</Button>
-					)}
-					<ExamSettings resolution={resolution} onResolution={changeResolution} />
-					{attempt.mode === "practice" && (
-						// Like Chrome's side panel button: the assistant opens beside the desktop
-						<IconButton
-							variant="plain"
-							size="sm"
-							className="size-7"
-							active={assistantOpen}
-							aria-pressed={assistantOpen}
-							aria-label={assistantOpen ? "Hide assistant" : "Show assistant"}
-							onClick={() => setAssistantOpen(!assistantOpen)}
-						>
-							<PanelRight />
-						</IconButton>
-					)}
-				</div>
-			</header>
+			<TopBar
+				attempt={attempt}
+				startedAt={startedAt}
+				endsAt={endsAt}
+				view={tab}
+				onView={setTab}
+				desktop={{
+					zoom,
+					canZoomOut: zoom > ZOOMS[0],
+					canZoomIn: zoom < ZOOMS[ZOOMS.length - 1],
+					onZoom: changeZoom,
+					resolution,
+					onResolution: changeResolution,
+				}}
+				assistantOpen={assistantOpen}
+				onAssistant={setAssistantOpen}
+				onFinish={submit}
+				onQuit={end}
+			/>
 			<div ref={desk} className="flex min-h-0 flex-1">
 				{/* Nothing to select: the question's values copy on click, as on the exam */}
 				<section
@@ -233,7 +157,15 @@ export function RunningExam({
 							</IconButton>
 							<Select value={String(current)} onValueChange={value => select(Number(value))}>
 								<SelectTrigger aria-label="Question" className="min-w-0 tabular-nums">
-									<SelectValue />
+									{/* Short while the panel is narrow; the list keeps the full names */}
+									<SelectValue>
+										<span className="@sm:hidden">
+											{current + 1} / {count}
+										</span>
+										<span className="hidden @sm:inline">
+											Question {current + 1} of {count}
+										</span>
+									</SelectValue>
 								</SelectTrigger>
 								<SelectContent>
 									{attempt.questions.map((q, i) => (
@@ -363,14 +295,4 @@ function dragBorder(
 	};
 	window.addEventListener("pointermove", onMove);
 	window.addEventListener("pointerup", onUp);
-}
-
-/** A tab's icon, with its name once the header has room (always for screen readers) */
-function TabLabel({ icon: Icon, text }: { icon: typeof Monitor; text: string }) {
-	return (
-		<span className="flex items-center gap-1.5">
-			<Icon className="size-3.5" />
-			<span className="sr-only @4xl:not-sr-only">{text}</span>
-		</span>
-	);
 }
