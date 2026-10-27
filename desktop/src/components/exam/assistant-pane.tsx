@@ -63,6 +63,7 @@ export function AssistantPane({
 	const thread = coach.threads[question.id] ?? [];
 	const writing = coach.writing === question.id;
 	const usage = coach.usage[question.id];
+	const modelName = coach.models.find(m => m.value === coach.model)?.name ?? coach.model;
 	const [status, setStatus] = useState<CoachStatus | null>(null);
 	const [draft, setDraft] = useState("");
 	const [expanded, setExpanded] = useState(false);
@@ -266,7 +267,7 @@ export function AssistantPane({
 											>
 												<RotateCw className="size-3" /> Regenerate
 											</button>
-											<span className="opacity-60">{coach.model}</span>
+											<span className="opacity-60">{modelName}</span>
 										</div>
 									)}
 								</div>
@@ -363,22 +364,33 @@ export function AssistantPane({
 						<PopoverTrigger asChild>
 							<button
 								type="button"
-								className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground capitalize hover:bg-foreground/5 hover:text-foreground"
+								className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
 							>
-								{coach.model} <ChevronDown className="size-3" />
+								{modelName} <ChevronDown className="size-3" />
 							</button>
 						</PopoverTrigger>
-						<PopoverContent side="top" align="end" className={cn(menu.surface, "w-40")}>
-							{coach.models.map((m, i) => (
+						<PopoverContent
+							side="top"
+							align="end"
+							className={cn(menu.surface, "max-h-96 w-64 overflow-y-auto")}
+						>
+							{coach.models.length === 0 && (
+								<div className={cn(menu.content, "py-1 text-muted-foreground text-xs")}>
+									Loading models…
+								</div>
+							)}
+							{coach.models.map(m => (
 								<button
-									key={m}
+									key={m.value}
 									type="button"
-									className={cn(menuRow(), "capitalize")}
-									onClick={() => coach.setModel(m)}
+									className={menuRow(menu.twoLine)}
+									onClick={() => coach.setModel(m.value)}
 								>
-									{coach.model === m && <Checked />}
-									{m}
-									{i === 0 && <span className={cn(menu.hint, "normal-case")}>default</span>}
+									{coach.model === m.value && <Checked />}
+									<span className="flex min-w-0 flex-col">
+										<span className="truncate">{m.name}</span>
+										{m.description && <span className={menu.detail}>{m.description}</span>}
+									</span>
 								</button>
 							))}
 						</PopoverContent>

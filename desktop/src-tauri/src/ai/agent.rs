@@ -16,8 +16,14 @@ use tokio_util::sync::CancellationToken;
 /// The adapter, pinned: a new release is tested before it is used
 pub const ADAPTER: &str = "@agentclientprotocol/claude-agent-acp@0.97.0";
 
-/// Models the candidate can pick (the adapter's `model` config values)
-pub const MODELS: [&str; 3] = ["sonnet", "opus", "haiku"];
+/// A model the agent offers (its `model` config option), as Zed lists them
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
+pub struct ModelOption {
+    /// What `session/set_config_option` takes: an alias (`sonnet`) or an id
+    pub value: String,
+    pub name: String,
+    pub description: Option<String>,
+}
 
 /// How much of the model's context a session uses (`usage_update`)
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, specta::Type)]
@@ -49,10 +55,34 @@ pub fn npx() -> Option<PathBuf> {
         .find(|p| p.is_file())
 }
 
+/// The agent's own default model (`Default (recommended)`)
+pub const DEFAULT: &str = "default";
+
+/// The `model` option of a `session/new` result
+fn model_options(result: &serde_json::Value) -> Vec<ModelOption> {
+    let Some(options) = result["configOptions"].as_array() else { return Vec::new() };
+    options
+        .iter()
+        .find(|o| o["id"] == "model")
+        .and_then(|o| o["options"].as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|o| {
+            Some(ModelOption {
+                value: o["value"].as_str()?.to_string(),
+                name: o["name"].as_str().unwrap_or_default().to_string(),
+                description: o["description"].as_str().filter(|d| !d.is_empty()).map(str::to_string),
+            })
+        })
+        .collect()
+}
+
 pub struct Agent {
     /// An empty directory the agent works in: there is nothing to read there
     workdir: PathBuf,
     connection: tokio::sync::Mutex<Option<Arc<Connection>>>,
+    /// The models the last session offered (they follow the login's plan)
+    models: std::sync::Mutex<Vec<ModelOption>>,
 }
 
 /// One answer: its text and the session's context use after it
@@ -63,7 +93,7 @@ pub struct Answer {
 
 impl Agent {
     pub fn new(data_dir: &Path) -> Self {
-        Self { workdir: data_dir.join("agent"), connection: tokio::sync::Mutex::new(None) }
+        Self { workdir: data_dir.join("agent"), connection: tokio::sync::Mutex::new(None), models: Default::default() }
     }
 
     /// The running adapter, started (and initialized) when needed
@@ -105,9 +135,11 @@ impl Agent {
         Ok(command)
     }
 
-    /// Stop the adapter: the next request starts it again (on a new login)
+    /// Stop the adapter: the next request starts it again (on a new login,
+    /// whose plan may offer other models)
     pub(super) async fn restart(&self) {
         self.connection.lock().await.take();
+        self.models.lock().unwrap_or_else(|p| p.into_inner()).clear();
     }
 
     /// A new conversation with `system` as its instructions, on `model`
@@ -130,12 +162,36 @@ impl Agent {
             )
             .await?;
         let session = result["sessionId"].as_str().ok_or_else(|| AppError::assistant("the agent gave no session"))?.to_string();
-        self.set_model(&session, model).await?;
+        let models = model_options(&result);
+        // A model this login does not offer (an alias of another plan): the
+        // agent's default
+        let offered = models.is_empty() || models.iter().any(|m| m.value == model);
+        if !models.is_empty() {
+            *self.models.lock().unwrap_or_else(|p| p.into_inner()) = models;
+        }
+        if offered && model != DEFAULT {
+            self.set_model(&session, model).await?;
+        } else if !offered {
+            tracing::info!(model, "not offered on this login: the agent's default");
+        }
         Ok(session)
     }
 
+    /// The models the agent offers on this login, asking it once if no
+    /// session has said yet
+    pub async fn models(&self) -> AppResult<Vec<ModelOption>> {
+        let known = self.models.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        if !known.is_empty() {
+            return Ok(known);
+        }
+        let session = self.new_session("", DEFAULT).await?;
+        self.close(&session).await;
+        Ok(self.models.lock().unwrap_or_else(|p| p.into_inner()).clone())
+    }
+
     pub async fn set_model(&self, session: &str, model: &str) -> AppResult<()> {
-        if !MODELS.contains(&model) {
+        let known = self.models.lock().unwrap_or_else(|p| p.into_inner()).iter().any(|m| m.value == model);
+        if !known && model != DEFAULT {
             return Err(AppError::invalid(format!("unknown model {model}")));
         }
         let c = self.connection().await?;
@@ -228,6 +284,19 @@ impl Agent {
 mod tests {
     use super::*;
 
+    #[test]
+    fn models_come_from_the_session() {
+        let result = json!({ "configOptions": [
+            { "id": "mode", "options": [{ "value": "plan", "name": "Plan" }] },
+            { "id": "model", "currentValue": "default", "options": [
+                { "value": "default", "name": "Default (recommended)", "description": "Opus 5.5" },
+                { "value": "sonnet", "name": "Sonnet 5.5", "description": "" } ] } ] });
+        let models = model_options(&result);
+        assert_eq!(models.iter().map(|m| m.value.as_str()).collect::<Vec<_>>(), ["default", "sonnet"]);
+        assert_eq!((models[0].description.as_deref(), models[1].description.as_deref()), (Some("Opus 5.5"), None));
+        assert!(model_options(&json!({})).is_empty());
+    }
+
     /// The real adapter (needs Node and a Claude login): a session without
     /// tools answers, streams, keeps the conversation, reports context use,
     /// and stops on cancel
@@ -237,6 +306,10 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ckdry-acp-{}", std::process::id()));
         let agent = Agent::new(&dir);
         let session = agent.new_session("You are a terse Kubernetes coach. One sentence per answer.", "haiku").await.unwrap();
+        // The models this login offers, as the agent lists them
+        let models = agent.models().await.unwrap();
+        println!("models: {:?}", models.iter().map(|m| &m.name).collect::<Vec<_>>());
+        assert!(models.iter().any(|m| m.value == "sonnet") && models.iter().all(|m| !m.name.is_empty()));
         let chunks = std::sync::atomic::AtomicUsize::new(0);
         let first = agent
             .prompt(&session, "My favourite namespace is blue-team. What does a Pending PVC with WaitForFirstConsumer mean?", &CancellationToken::new(), &|_| {

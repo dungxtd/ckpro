@@ -240,7 +240,7 @@ pub async fn desktop_open_url(exams: State<'_, Arc<Exams>>, url: String) -> AppR
 // --- practice coach --------------------------------------------------------
 
 use crate::ai::account::{Account, SignInEvent, SignInMethod};
-use crate::ai::{Coach, CoachContext, CoachEvent, CoachReply, CoachStatus, CoachThread};
+use crate::ai::{Coach, CoachContext, CoachModels, CoachEvent, CoachReply, CoachStatus, CoachThread};
 use crate::ai::generate::{self, GenerateRequest, Generated, GeneratorTarget};
 use crate::lab::exam::StudyStats;
 use crate::store::CoachMessage;
@@ -305,13 +305,11 @@ pub fn coach_threads(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>)
     Coach::threads(&exams, &store)
 }
 
-/// The models the coach can use; the first is the default.
+/// The models the coach can use, as the agent lists them for this login.
 #[tauri::command]
 #[specta::specta]
-pub fn coach_models() -> Vec<String> {
-    let mut models: Vec<String> = vec![crate::ai::DEFAULT_MODEL.into()];
-    models.extend(crate::ai::agent::MODELS.iter().filter(|m| **m != crate::ai::DEFAULT_MODEL).map(|m| m.to_string()));
-    models
+pub async fn coach_models(coach: State<'_, Coach>) -> AppResult<CoachModels> {
+    coach.models().await
 }
 
 /// How the candidate did per curriculum domain, per certification attempted.

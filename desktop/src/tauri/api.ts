@@ -48,6 +48,7 @@ export type {
 	ClusterState,
 	CoachContext,
 	CoachMessage,
+	CoachModels,
 	CoachStatus,
 	CoachThread,
 	ContextUsage,
@@ -61,6 +62,7 @@ export type {
 	HistoryEntry,
 	Issue,
 	Mode,
+	ModelOption,
 	NodeState,
 	ScriptResult,
 	Solution,
@@ -161,8 +163,8 @@ export const desktopApi = {
 export const coachApi = {
 	/** Whether the agent can run (Node.js for the Claude ACP adapter) */
 	status: () => commands.coachStatus(),
-	/** Models to pick from; the first is the default */
-	models: () => commands.coachModels(),
+	/** Models to pick from, as the agent lists them for this login, and the default */
+	models: () => unwrap(commands.coachModels()),
 	/** The attempt's conversations (History) */
 	threads: () => unwrap(commands.coachThreads()),
 	/** Start a question's conversation over (New Thread) */

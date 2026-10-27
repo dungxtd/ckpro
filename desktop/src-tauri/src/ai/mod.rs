@@ -22,7 +22,8 @@ use std::fmt::Write as _;
 use std::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-/// The coach's default model; the candidate can switch (`agent::MODELS`)
+/// The coach's default model when the agent offers it (quick answers); the
+/// candidate picks among what the agent lists (`Coach::models`)
 pub const DEFAULT_MODEL: &str = "sonnet";
 /// Writing a question that has to pass on a cluster needs the most capable one
 const GENERATOR_MODEL: &str = "opus";
@@ -46,6 +47,14 @@ pub struct CoachStatus {
     pub ready: bool,
     /// What to install when it cannot
     pub problem: Option<String>,
+}
+
+/// The models the coach can use
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
+pub struct CoachModels {
+    pub options: Vec<agent::ModelOption>,
+    /// Picked until the candidate picks another
+    pub default: String,
 }
 
 /// What goes with a question besides the task (the panel's context chips)
@@ -92,6 +101,14 @@ impl Coach {
             sessions: Default::default(),
             signing_in: Default::default(),
         }
+    }
+
+    /// The models to pick from, as the agent lists them on this login, and
+    /// the coach's default among them
+    pub async fn models(&self) -> AppResult<CoachModels> {
+        let options = self.agent.models().await?;
+        let default = if options.iter().any(|m| m.value == DEFAULT_MODEL) { DEFAULT_MODEL } else { agent::DEFAULT };
+        Ok(CoachModels { options, default: default.to_string() })
     }
 
     /// Who the assistant answers as

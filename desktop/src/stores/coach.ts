@@ -9,6 +9,7 @@ import {
 	type CoachThread,
 	type ContextUsage,
 	coachApi,
+	type ModelOption,
 } from "@/tauri/api";
 import { useExam } from "./exam";
 
@@ -24,8 +25,8 @@ interface CoachStore {
 	writing: string | null;
 	/** The last question failed */
 	error: string | null;
-	/** Models to pick from, and the one in use */
-	models: string[];
+	/** Models the agent offers on this login, and the one in use */
+	models: ModelOption[];
 	model: string;
 	/** What goes with a question besides the task (the context chips) */
 	context: CoachContext;
@@ -58,6 +59,21 @@ const forAttempt = (s: CoachStore) => {
 	}
 };
 
+/** The agent's models; the default unless the one picked is still offered */
+const loadModels = (
+	set: (patch: Partial<CoachStore>) => void,
+	get: () => CoachStore,
+	again = false
+) =>
+	coachApi
+		.models()
+		.then(({ options, default: fallback }) => {
+			const picked = get().model;
+			const keep = again && options.some(m => m.value === picked);
+			set({ models: options, model: keep ? picked : fallback });
+		})
+		.catch(() => {});
+
 const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
 
 export const useCoach = create<CoachStore>()(
@@ -75,6 +91,8 @@ export const useCoach = create<CoachStore>()(
 		loadAccount: async () => {
 			try {
 				set({ account: await coachApi.account() });
+				// Another login, maybe another plan: its own models
+				if (get().account?.signed_in) loadModels(set, get, true);
 			} catch (e) {
 				set({ error: message(e) });
 			}
@@ -87,8 +105,7 @@ export const useCoach = create<CoachStore>()(
 			}),
 		load: async questionId => {
 			set(forAttempt);
-			if (get().models.length === 0)
-				coachApi.models().then(models => set({ models, model: models[0] ?? "sonnet" }));
+			if (get().models.length === 0) loadModels(set, get);
 			if (get().threads[questionId]) return;
 			try {
 				const messages = await coachApi.history(questionId);

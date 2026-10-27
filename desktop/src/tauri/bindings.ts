@@ -74,8 +74,8 @@ export const commands = {
 	coachClear: (questionId: string) => typedError<null, AppError>(__TAURI_INVOKE("coach_clear", { questionId })),
 	/**  The attempt's coach conversations (History). */
 	coachThreads: () => typedError<CoachThread[], AppError>(__TAURI_INVOKE("coach_threads")),
-	/**  The models the coach can use; the first is the default. */
-	coachModels: () => __TAURI_INVOKE<string[]>("coach_models"),
+	/**  The models the coach can use, as the agent lists them for this login. */
+	coachModels: () => typedError<CoachModels_Serialize, AppError>(__TAURI_INVOKE("coach_models")),
 	/**  How the candidate did per curriculum domain, per certification attempted. */
 	studyStats: () => __TAURI_INVOKE<StudyStats[]>("study_stats"),
 	/**
@@ -291,6 +291,23 @@ export type CoachEvent = { kind: "text"; text: string };
 export type CoachMessage = {
 	role: Role,
 	text: string,
+};
+
+/**  The models the coach can use */
+export type CoachModels = CoachModels_Serialize | CoachModels_Deserialize;
+
+/**  The models the coach can use */
+export type CoachModels_Deserialize = {
+	options: ModelOption_Deserialize[],
+	/**  Picked until the candidate picks another */
+	default: string,
+};
+
+/**  The models the coach can use */
+export type CoachModels_Serialize = {
+	options: ModelOption_Serialize[],
+	/**  Picked until the candidate picks another */
+	default: string,
 };
 
 /**  An answer and how much of the model's context the conversation uses */
@@ -533,6 +550,25 @@ export type Issue = {
 };
 
 export type Mode = "exam" | "practice";
+
+/**  A model the agent offers (its `model` config option), as Zed lists them */
+export type ModelOption = ModelOption_Serialize | ModelOption_Deserialize;
+
+/**  A model the agent offers (its `model` config option), as Zed lists them */
+export type ModelOption_Deserialize = {
+	/**  What `session/set_config_option` takes: an alias (`sonnet`) or an id */
+	value: string,
+	name: string,
+	description?: string | null,
+};
+
+/**  A model the agent offers (its `model` config option), as Zed lists them */
+export type ModelOption_Serialize = {
+	/**  What `session/set_config_option` takes: an alias (`sonnet`) or an id */
+	value: string,
+	name: string,
+	description: string | null,
+};
 
 export type NodeRole = "control_plane" | "worker";
 

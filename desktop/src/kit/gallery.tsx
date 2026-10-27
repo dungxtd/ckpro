@@ -444,6 +444,12 @@ function Gallery() {
 								<button type="button" className={menuRow()}>
 									Row <span className={menu.hint}>⌘K</span>
 								</button>
+								<button type="button" className={menuRow(menu.twoLine)}>
+									<span className="flex min-w-0 flex-col">
+										Two-line row
+										<span className={menu.detail}>Its description</span>
+									</span>
+								</button>
 								<div className={menu.separator} />
 								<button type="button" className={menuRow()}>
 									Another

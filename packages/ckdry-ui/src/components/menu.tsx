@@ -18,6 +18,11 @@ export const menu = {
 	check: "absolute left-2 flex size-3 items-center justify-center",
 	/** Trailing secondary text (shortcut, value, source). */
 	hint: "ml-auto shrink-0 truncate pl-3 text-caption opacity-60 [:hover>&]:opacity-100",
+	/** A second line under the row's text (a description); the row takes
+	 * `menuRow(menu.twoLine)` and wraps both lines in one element. */
+	detail: "block truncate text-caption opacity-60 [:hover>*>&]:opacity-100",
+	/** Row height for a row with `detail`. */
+	twoLine: "h-auto py-1",
 	/** Grey section header. */
 	header: "px-2.5 pt-1.5 pb-0.5 font-semibold text-2xs opacity-55",
 	/** Hairline divider between groups. */
