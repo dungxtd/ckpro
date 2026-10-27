@@ -441,7 +441,17 @@ pub fn exam_state(exams: State<'_, Arc<Exams>>) -> ExamState {
 /// names the exam needs.
 #[tauri::command]
 #[specta::specta]
-pub async fn start_exam(exams: State<'_, Arc<Exams>>, id: String, mode: Mode, replace: bool) -> AppResult<()> {
+pub async fn start_exam(
+    exams: State<'_, Arc<Exams>>,
+    env: State<'_, Arc<Env>>,
+    id: String,
+    mode: Mode,
+    replace: bool,
+) -> AppResult<()> {
+    // Before anything is created: this machine can run it
+    if let Some(summary) = exams.catalog().into_iter().find(|e| e.id == id) {
+        preflight::exam_fits(&env.snapshot(), summary.memory_mb, &summary.clusters).map_err(AppError::invalid)?;
+    }
     exams.inner().start(&id, mode, replace).await
 }
 

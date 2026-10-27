@@ -39,6 +39,12 @@ pub struct ExamSummary {
     pub questions: u32,
     pub duration_minutes: u32,
     pub pass_score: u32,
+    /// Memory it needs on this machine, worst case of its draw (MB)
+    pub memory_mb: u32,
+    /// Its Kubernetes nodes (control planes and workers)
+    pub nodes: u32,
+    /// The clusters it runs on
+    pub clusters: Vec<String>,
 }
 
 /// What the candidate sees of a question.
@@ -433,7 +439,11 @@ impl Exams {
                     .iter()
                     .filter(|id| pack.questions.get(*id).is_some_and(|q| q.value.runnable()))
                     .count() as u32;
+                let topology = worst_topology(&pack, &e.value);
                 Some(ExamSummary {
+                    memory_mb: crate::runtime::preflight::exam_memory_mb(&topology),
+                    nodes: topology.values().map(|w| 1 + u32::from(*w)).sum(),
+                    clusters: topology.keys().cloned().collect(),
                     id: id.clone(),
                     title: e.value.title.clone(),
                     description: e.value.description.clone(),
@@ -1021,6 +1031,21 @@ impl Exams {
 }
 
 /// One cluster per name, as large as its most demanding question.
+/// The clusters an exam can need: its fixed questions, and for a random draw
+/// the largest each cluster gets among the questions it may draw
+fn worst_topology(pack: &LoadedPack, exam: &Exam) -> BTreeMap<String, u8> {
+    let fixed = exam.questions.iter().filter_map(|id| pack.questions.get(id));
+    let drawable = exam.random.as_ref().into_iter().flat_map(|_| {
+        pack.questions.values().filter(|q| q.value.certifications.contains_key(&exam.certification))
+    });
+    let mut clusters = BTreeMap::new();
+    for q in fixed.chain(drawable).filter(|q| q.value.runnable()) {
+        let workers: &mut u8 = clusters.entry(q.value.cluster.clone()).or_default();
+        *workers = (*workers).max(q.value.workers);
+    }
+    clusters
+}
+
 fn topology(questions: &[(String, Question)]) -> BTreeMap<String, u8> {
     let mut clusters = BTreeMap::new();
     for (_, q) in questions {

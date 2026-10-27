@@ -58,9 +58,10 @@ enum LabCommand {
         #[arg(long)]
         keep: bool,
         /// Runs at once: each --exam is a run, --question ones form one run.
-        /// Each run needs about 2 GB of Docker memory: lower it on small machines.
-        #[arg(long, default_value_t = 4)]
-        parallel: usize,
+        /// Each run needs about 2 GB of Docker memory. By default as many as
+        /// Docker's memory allows, up to 4
+        #[arg(long)]
+        parallel: Option<usize>,
         /// Machine-readable report
         #[arg(long)]
         json: bool,
@@ -97,7 +98,7 @@ pub fn main() -> ExitCode {
     match Cli::parse().command {
         Command::Lab { command: LabCommand::Lint { pack, json } } => lint_pack(&pack, json),
         Command::Lab { command: LabCommand::Verify { pack, exams, questions, keep, parallel, json } } => {
-            verify_pack(&pack, &exams, &questions, keep, parallel.max(1), json)
+            verify_pack(&pack, &exams, &questions, keep, parallel, json)
         }
         Command::Lab { command: LabCommand::Generate { pack, certification, domain, difficulty, topic } } => {
             generate_question(&pack, certification, domain, &difficulty, topic)
@@ -170,7 +171,10 @@ fn lint_pack(root: &PathBuf, json: bool) -> ExitCode {
     if errors == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE }
 }
 
-fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: bool, parallel: usize, json: bool) -> ExitCode {
+/// Memory a verify run needs (a cluster, its task host): about 2 GB
+const RUN_MB: u64 = 2048;
+
+fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: bool, parallel: Option<usize>, json: bool) -> ExitCode {
     let (pack, mut findings) = load::load(root);
     let Some(pack) = pack else {
         return lint_pack(root, false);
@@ -229,10 +233,19 @@ fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: boo
     let results: Vec<(String, Result<Vec<verify::Report>, String>)> = runtime.block_on(async {
         use futures_util::StreamExt;
         // Shared infrastructure first, so parallel runs do not race to build it
+        let mut memory_mb = None;
         if let Ok(docker) = crate::runtime::docker::connect().await {
             if let Err(e) = infra.ensure(&docker, &log).await {
                 eprintln!("error: {e}");
             }
+            memory_mb = docker.info().await.ok().and_then(|i| i.mem_total).map(|b| b as u64 / 1_048_576);
+        }
+        // As many runs at once as Docker's memory takes (1 GB kept), up to 4
+        let parallel = parallel
+            .unwrap_or_else(|| memory_mb.map_or(1, |mb| (mb.saturating_sub(1024) / RUN_MB).clamp(1, 4) as usize))
+            .max(1);
+        if !json {
+            eprintln!("  | {parallel} run(s) at once");
         }
         verify::sweep_stale(&data_dir, &log).await;
         let mut stream = futures_util::stream::iter(runs.iter())

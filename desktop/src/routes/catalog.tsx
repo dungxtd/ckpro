@@ -11,8 +11,15 @@ import { envApi } from "@/tauri/api";
 
 const CERT_ORDER = ["cka", "ckad", "cks"];
 
-function ExamCard({ exam, ready }: { exam: ExamSummary; ready: boolean }) {
+const gb = (mb: number) => (mb / 1024).toFixed(1);
+
+/** `dockerMb`: Docker's memory when it is up */
+function ExamCard({ exam, dockerMb }: { exam: ExamSummary; dockerMb: number | null }) {
 	const start = useExam(s => s.start);
+	// Clearly too small whatever runs; the exact check (running clusters
+	// counted) happens on start
+	const tooSmall = dockerMb !== null && dockerMb < exam.memory_mb;
+	const ready = dockerMb !== null && !tooSmall;
 	return (
 		<Card className="flex flex-col gap-2">
 			<header className="flex items-start gap-2">
@@ -23,6 +30,10 @@ function ExamCard({ exam, ready }: { exam: ExamSummary; ready: boolean }) {
 			<div className="text-muted-foreground text-xs">
 				{exam.questions} question{exam.questions === 1 ? "" : "s"} · {exam.duration_minutes} min ·
 				pass {exam.pass_score}%
+			</div>
+			<div className={tooSmall ? "text-warning text-xs" : "text-muted-foreground text-xs"}>
+				Needs ~{gb(exam.memory_mb)} GB · {exam.nodes} nodes
+				{tooSmall && ` (Docker has ${gb(dockerMb ?? 0)} GB: raise its memory limit)`}
 			</div>
 			<div className="mt-auto flex gap-2 pt-2">
 				<Button size="sm" disabled={!ready} onClick={() => start(exam.id, "exam")}>
@@ -87,7 +98,11 @@ export function CatalogRoute() {
 						{catalog
 							.filter(e => e.certification === cert)
 							.map(exam => (
-								<ExamCard key={exam.id} exam={exam} ready={docker?.state === "up"} />
+								<ExamCard
+									key={exam.id}
+									exam={exam}
+									dockerMb={docker?.state === "up" ? docker.memory_mb : null}
+								/>
 							))}
 					</div>
 				</section>
