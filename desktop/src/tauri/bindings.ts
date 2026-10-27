@@ -106,7 +106,7 @@ export const commands = {
 	checkQuestion: (questionId: string) => typedError<CheckResult[], AppError>(__TAURI_INVOKE("check_question", { questionId })),
 	/**  Practice mode, or after the result. */
 	questionSolution: (questionId: string) => typedError<Solution, AppError>(__TAURI_INVOKE("question_solution", { questionId })),
-	examHistory: () => __TAURI_INVOKE<HistoryEntry[]>("exam_history"),
+	examHistory: () => __TAURI_INVOKE<HistoryEntry_Serialize[]>("exam_history"),
 };
 
 /** Events */
@@ -115,6 +115,7 @@ export const events = {
 	activityLog: makeEvent<ActivityLog, ActivityLog>("activity-log"),
 	envChanged: makeEvent<EnvChanged, EnvChanged>("env-changed"),
 	examChanged: makeEvent<ExamChanged_Serialize, ExamChanged_Deserialize>("exam-changed"),
+	guardNotice: makeEvent<GuardNotice, GuardNotice>("guard-notice"),
 };
 
 /* Types */
@@ -355,13 +356,28 @@ export type ExamChanged_Deserialize = ExamState_Deserialize;
 /**  Pushed to the UI on every exam state change. */
 export type ExamChanged_Serialize = ExamState_Serialize;
 
-export type ExamResult = {
+export type ExamResult = ExamResult_Serialize | ExamResult_Deserialize;
+
+export type ExamResult_Deserialize = {
 	score: number | null,
 	passed: boolean,
 	/**  Unix milliseconds */
 	started_at: number | null,
 	finished_at: number | null,
 	questions: QuestionResult[],
+	/**  What happened to the environment outside the exam desktop (the guard) */
+	outside?: string[],
+};
+
+export type ExamResult_Serialize = {
+	score: number | null,
+	passed: boolean,
+	/**  Unix milliseconds */
+	started_at: number | null,
+	finished_at: number | null,
+	questions: QuestionResult[],
+	/**  What happened to the environment outside the exam desktop (the guard) */
+	outside: string[],
 };
 
 export type ExamState = ExamState_Serialize | ExamState_Deserialize;
@@ -379,7 +395,7 @@ export type ExamState_Deserialize = { phase: "idle" } |
  */
 { phase: "grading"; attempt: Attempt_Deserialize; activity: number; scores: (QuestionScore | null)[]; note?: string | null } | 
 /**  Removing the attempt's clusters and desktop */
-{ phase: "ending"; attempt: Attempt_Deserialize; activity: number } | { phase: "finished"; attempt: Attempt_Deserialize; result: ExamResult } | 
+{ phase: "ending"; attempt: Attempt_Deserialize; activity: number } | { phase: "finished"; attempt: Attempt_Deserialize; result: ExamResult_Deserialize } | 
 /**  `activity` has the log of what failed */
 { phase: "failed"; attempt?: Attempt_Deserialize | null; message: string; activity?: number | null };
 
@@ -396,7 +412,7 @@ export type ExamState_Serialize = { phase: "idle" } |
  */
 { phase: "grading"; attempt: Attempt_Serialize; activity: number; scores: (QuestionScore | null)[]; note: string | null } | 
 /**  Removing the attempt's clusters and desktop */
-{ phase: "ending"; attempt: Attempt_Serialize; activity: number } | { phase: "finished"; attempt: Attempt_Serialize; result: ExamResult } | 
+{ phase: "ending"; attempt: Attempt_Serialize; activity: number } | { phase: "finished"; attempt: Attempt_Serialize; result: ExamResult_Serialize } | 
 /**  `activity` has the log of what failed */
 { phase: "failed"; attempt: Attempt_Serialize | null; message: string; activity: number | null };
 
@@ -437,14 +453,30 @@ export type GeneratorTarget = {
 	domains: ([string, number])[],
 };
 
+/**  Something changed the running attempt's environment outside ckdry. */
+export type GuardNotice = string;
+
 /**  History entry, one JSON file per finished attempt. */
-export type HistoryEntry = {
+export type HistoryEntry = HistoryEntry_Serialize | HistoryEntry_Deserialize;
+
+/**  History entry, one JSON file per finished attempt. */
+export type HistoryEntry_Deserialize = {
 	attempt_id: string,
 	exam_id: string,
 	title: string,
 	mode: Mode,
 	pass_score: number,
-	result: ExamResult,
+	result: ExamResult_Deserialize,
+};
+
+/**  History entry, one JSON file per finished attempt. */
+export type HistoryEntry_Serialize = {
+	attempt_id: string,
+	exam_id: string,
+	title: string,
+	mode: Mode,
+	pass_score: number,
+	result: ExamResult_Serialize,
 };
 
 export type Issue = {

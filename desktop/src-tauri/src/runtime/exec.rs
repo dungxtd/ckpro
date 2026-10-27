@@ -38,6 +38,8 @@ pub async fn run(
             }
             e => AppError::docker(e),
         })?;
+    // ckdry's own: the guard does not report it as outside access
+    super::guard::own_exec(&exec.id);
     let StartExecResults::Attached { mut output, mut input } = docker.start_exec(&exec.id, None).await?
     else {
         return Err(AppError::docker("exec started detached"));

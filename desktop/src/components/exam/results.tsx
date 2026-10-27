@@ -1,3 +1,4 @@
+import { Alert } from "@ckdry/ui/components/alert";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
@@ -10,7 +11,7 @@ import {
 	SheetTitle,
 } from "@ckdry/ui/components/sheet";
 import { cn } from "@ckdry/ui/lib/utils";
-import { Sparkles } from "lucide-react";
+import { ShieldAlert, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Markdown } from "@/components/markdown";
 import { useExam } from "@/stores/exam";
@@ -44,6 +45,19 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 				<div className="text-muted-foreground text-sm">
 					Passing score {attempt.pass_score}% · {minutes} min
 				</div>
+				{result.outside.length > 0 && (
+					<Alert variant="warning" className="mt-4 text-left">
+						<ShieldAlert />
+						<div>
+							<strong>Changed outside the exam desktop</strong>
+							<ul className="mt-1 list-disc pl-5 text-muted-foreground">
+								{result.outside.map(o => (
+									<li key={o}>{o}</li>
+								))}
+							</ul>
+						</div>
+					</Alert>
+				)}
 				<div className="mt-4 flex justify-center gap-2">
 					{!review && <Button onClick={() => setReview(true)}>Review answers</Button>}
 					<Button variant="outline" onClick={end}>

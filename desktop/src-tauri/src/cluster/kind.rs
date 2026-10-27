@@ -43,6 +43,8 @@ impl Kind {
     /// Every kind cluster on this machine, managed by ckdry or not (a run
     /// interrupted before kind wrote its kubeconfig leaves one unmanaged).
     pub async fn all_clusters(&self) -> AppResult<Vec<String>> {
+        // kind execs in the nodes (docker exec): ckdry's own, not outside access
+        let _own = crate::runtime::guard::own_operation();
         let output = Command::new(self.binary().await?)
             .args(["get", "clusters"])
             .env("PATH", self.kind_path()?)
@@ -134,6 +136,8 @@ impl Kind {
     /// Run kind, handing every output line to `log`.
     async fn run(&self, args: &[&str], log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         let kind = self.binary().await?;
+        // kind execs in the nodes (docker exec): ckdry's own, not outside access
+        let _own = crate::runtime::guard::own_operation();
         let mut child = Command::new(&kind)
             .args(args)
             .env("PATH", self.kind_path()?)
@@ -199,6 +203,8 @@ impl Kind {
     /// kubeconfig that reaches the API server from inside the `kind` network
     /// (`https://<name>-control-plane:6443`), for the jumphost.
     pub async fn internal_kubeconfig(&self, name: &str) -> AppResult<String> {
+        // kind execs in the nodes (docker exec): ckdry's own, not outside access
+        let _own = crate::runtime::guard::own_operation();
         let output = Command::new(self.binary().await?)
             .args(["get", "kubeconfig", "--internal", "--name", name])
             .env("PATH", self.kind_path()?)
@@ -219,6 +225,8 @@ impl Kind {
     pub async fn adopt(&self, name: &str) -> AppResult<()> {
         validate_name(name)?;
         std::fs::create_dir_all(&self.dir).map_err(|e| AppError::io("creating data dir", e))?;
+        // kind execs in the nodes (docker exec): ckdry's own, not outside access
+        let _own = crate::runtime::guard::own_operation();
         let output = Command::new(self.binary().await?)
             .args(["get", "kubeconfig", "--name", name])
             .env("PATH", self.kind_path()?)

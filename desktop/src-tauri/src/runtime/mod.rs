@@ -2,6 +2,7 @@ pub mod activity;
 pub mod desktop;
 pub mod docker;
 pub mod exec;
+pub mod guard;
 pub mod infra;
 pub mod jumphost;
 pub mod model;

@@ -57,6 +57,8 @@ impl Terminals {
                 }
                 e => AppError::docker(e),
             })?;
+        // A shell the candidate opened in ckdry: not outside access
+        crate::runtime::guard::own_exec(&exec.id);
         let StartExecResults::Attached { mut output, input } =
             docker.start_exec(&exec.id, None).await?
         else {

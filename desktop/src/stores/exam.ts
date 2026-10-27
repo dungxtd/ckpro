@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
@@ -97,8 +98,15 @@ export const useExam = create<ExamStore>()(
 						}
 					});
 				const unsubscribe = await examApi.subscribe(apply);
+				// What the guard put back or noted, as it happens
+				const unsubscribeGuard = await examApi.onGuardNotice(message =>
+					toast.warning(message, { duration: 8000 })
+				);
 				apply(await examApi.state());
-				return unsubscribe;
+				return () => {
+					unsubscribe();
+					unsubscribeGuard();
+				};
 			},
 
 			loadCatalog: async () => {

@@ -9,6 +9,7 @@
 use super::model::{ClusterState, ContainerStatus, DockerState, Env, NodeRole, NodeState, Readiness};
 use super::activity::Activities;
 use super::infra::Infra;
+use super::guard::Guard;
 use super::{docker, reconcile};
 use crate::cluster::kind::Kind;
 use bollard::Docker;
@@ -28,11 +29,11 @@ const RETRY_MAX: Duration = Duration::from_secs(30);
 const PING_EVERY: Duration = Duration::from_secs(60);
 const ROLE_LABEL: &str = "io.x-k8s.kind.role";
 
-pub fn start(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>) {
-    tauri::async_runtime::spawn(run(env, kind, infra, activities));
+pub fn start(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>, guard: Arc<Guard>) {
+    tauri::async_runtime::spawn(run(env, kind, infra, activities, guard));
 }
 
-async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>) {
+async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>, guard: Arc<Guard>) {
     let mut watchers: HashMap<String, JoinHandle<()>> = HashMap::new();
     let mut reconciled = false;
     let mut backoff = RETRY_FIRST;
@@ -72,11 +73,18 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
             tauri::async_runtime::spawn(prepare_images(docker.clone(), infra.clone(), activities.clone()));
             reconciled = true;
         }
-        sync(&docker, &env, &kind, &mut watchers).await;
+        sync(&docker, &env, &kind, &guard, &mut watchers).await;
 
+        // Containers for the cluster list and the guard, networks and volumes
+        // for the guard; only the actions either acts on
         let filters = HashMap::from([
-            ("type".to_string(), vec!["container".to_string()]),
-            ("label".to_string(), vec![CLUSTER_LABEL.to_string()]),
+            ("type".to_string(), ["container", "network", "volume"].map(String::from).to_vec()),
+            (
+                "event".to_string(),
+                ["create", "start", "die", "destroy", "pause", "unpause", "exec_create", "disconnect"]
+                    .map(String::from)
+                    .to_vec(),
+            ),
         ]);
         let mut events =
             docker.events(Some(EventsOptions { filters: Some(filters), ..Default::default() })).boxed();
@@ -85,15 +93,21 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
         loop {
             tokio::select! {
                 event = events.next() => match event {
-                    Some(Ok(_)) => {
+                    Some(Ok(event)) => {
+                        guard.on_event(&docker, &event);
+                        if !is_node_change(&event) {
+                            continue;
+                        }
                         // Coalesce a burst (create/start/... of every node)
                         tokio::time::sleep(Duration::from_millis(250)).await;
-                        while let Some(Some(_)) = events.next().now_or_never() {}
-                        sync(&docker, &env, &kind, &mut watchers).await;
+                        while let Some(Some(Ok(event))) = events.next().now_or_never() {
+                            guard.on_event(&docker, &event);
+                        }
+                        sync(&docker, &env, &kind, &guard, &mut watchers).await;
                     }
                     _ => break,
                 },
-                _ = env.resync_requested() => sync(&docker, &env, &kind, &mut watchers).await,
+                _ = env.resync_requested() => sync(&docker, &env, &kind, &guard, &mut watchers).await,
                 // Events say what changed; this only notices an engine that
                 // stopped without closing the stream (a sleeping VM)
                 _ = alive.tick() => {
@@ -111,10 +125,19 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
 }
 
 /// Rebuild the cluster list from the kind containers this app owns.
+/// A kind node's container changed state (an exec or a network event does
+/// not change the cluster list)
+fn is_node_change(event: &bollard::models::EventMessage) -> bool {
+    event.typ == Some(bollard::models::EventMessageTypeEnum::CONTAINER)
+        && !event.action.as_deref().unwrap_or_default().starts_with("exec_")
+        && event.actor.as_ref().and_then(|a| a.attributes.as_ref()).is_some_and(|a| a.contains_key(CLUSTER_LABEL))
+}
+
 async fn sync(
     docker: &Docker,
     env: &Arc<Env>,
     kind: &Kind,
+    guard: &Guard,
     watchers: &mut HashMap<String, JoinHandle<()>>,
 ) {
     let containers = match docker
@@ -182,10 +205,11 @@ async fn sync(
     clusters.sort_by(|a, b| a.name.cmp(&b.name));
 
     // One node watch per cluster whose control plane runs, while readiness
-    // is shown
+    // is shown; not during an attempt (the guard closes the API to the host)
     let watched: Vec<String> = if env.watching_nodes() {
         clusters
             .iter()
+            .filter(|c| !guard.guards(&c.name))
             .filter(|c| {
                 c.nodes.iter().any(|n| n.role == NodeRole::ControlPlane && n.container == ContainerStatus::Running)
             })

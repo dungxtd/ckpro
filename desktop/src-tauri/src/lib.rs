@@ -30,6 +30,10 @@ pub struct ActivityLog {
     pub line: String,
 }
 
+/// Something changed the running attempt's environment outside ckdry.
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct GuardNotice(String);
+
 /// Pushed to the UI on every environment change.
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct EnvChanged(EnvState);
@@ -37,7 +41,7 @@ pub struct EnvChanged(EnvState);
 /// Typed IPC: debug builds regenerate `desktop/src/tauri/bindings.ts`.
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ActivityChanged, ActivityLog])
+        .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ActivityChanged, ActivityLog, GuardNotice])
         .commands(tauri_specta::collect_commands![
         commands::env_state,
         commands::env_retry,
@@ -157,6 +161,13 @@ pub fn run() {
             }
             builder.mount_events(app);
             let data_dir = data_dir();
+            // Kubeconfigs, keys and the database: the user's only
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::create_dir_all(&data_dir);
+                let _ = std::fs::set_permissions(&data_dir, std::fs::Permissions::from_mode(0o700));
+            }
             let kind = Arc::new(cluster::kind::Kind::new(data_dir.clone()));
             let infra = Arc::new(runtime::infra::Infra::new(data_dir.clone()));
             app.manage(infra.clone());
@@ -175,7 +186,12 @@ pub fn run() {
             let env = Arc::new(Env::new(move |state| {
                 let _ = EnvChanged(state.clone()).emit(&handle);
             }));
-            runtime::monitor::start(env.clone(), kind.clone(), infra.clone(), activities.clone());
+            let notices = app.handle().clone();
+            let guard = runtime::guard::Guard::new(move |what| {
+                let _ = GuardNotice(what.to_string()).emit(&notices);
+            });
+            app.manage(guard.clone());
+            runtime::monitor::start(env.clone(), kind.clone(), infra.clone(), activities.clone(), guard.clone());
             let jumphost = app.state::<Arc<runtime::jumphost::Jumphost>>().inner().clone();
             // Everything kept between runs; what earlier versions wrote to
             // files moves in once
@@ -194,6 +210,7 @@ pub fn run() {
                     let _ = ExamChanged(state.clone()).emit(&exams_handle);
                 },
                 activities,
+                guard,
             ));
             exams.restore();
             app.manage(exams);
@@ -206,6 +223,8 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             if let RunEvent::Exit = event {
+                // ckdry stops the containers itself now: not for the guard to restart
+                app.state::<Arc<runtime::guard::Guard>>().suspend();
                 // Shells die with the app; clusters stop until the next start
                 let terminals = app.state::<terminal::Terminals>();
                 tauri::async_runtime::block_on(terminals.close_all());
@@ -387,7 +406,7 @@ mod tests {
         // Readiness is followed while it is shown (the Environment page)
         env.set_watch_nodes(true);
         f.create(name, 1).await;
-        runtime::monitor::start(env.clone(), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent());
+        runtime::monitor::start(env.clone(), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), runtime::guard::Guard::new(|_| {}));
         let worker = format!("{name}-worker");
 
         eventually("all nodes Ready", 120, async || {
@@ -453,7 +472,7 @@ mod tests {
         let db = tmp.join("ckdry-vnc.db");
         let _ = std::fs::remove_file(&db);
         let f = fixture("vnc");
-        let exams = Arc::new(Exams::new(pack, f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, Arc::new(store::Store::open(&db).unwrap()), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}"))));
+        let exams = Arc::new(Exams::new(pack, f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, Arc::new(store::Store::open(&db).unwrap()), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}")), runtime::guard::Guard::new(|what| println!("  guard: {what}"))));
         exams.start("core/one", Mode::Practice, true).await.unwrap();
         eventually("the exam is ready", 300, async || match exams.state() {
             ExamState::Failed { message, .. } => panic!("exam failed: {message}"),
@@ -496,7 +515,10 @@ mod tests {
         let store = Arc::new(store::Store::open(&db).unwrap());
         let f = fixture("exam");
         let desktop = "ckdry-desktop-test-exam";
-        let exams = Arc::new(Exams::new(pack, f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, store.clone(), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}"))));
+        // The monitor feeds the guard Docker's events, as in the app
+        let guard = runtime::guard::Guard::new(|what| println!("  guard: {what}"));
+        runtime::monitor::start(Arc::new(Env::new(|_| {})), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), guard.clone());
+        let exams = Arc::new(Exams::new(pack, f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, store.clone(), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}")), guard.clone()));
         let question = "core/cka/rbac-ci-token";
         let wait_running = async || {
             for _ in 0..300 {
@@ -519,6 +541,28 @@ mod tests {
         let failing = exams.check_question(question).await.unwrap();
         assert!(failing.iter().all(|c| !c.passed));
         println!("ok: practice check fails before solving");
+
+        // The guard: the Mac is shut out of the API server, and what is done
+        // to the environment outside the exam desktop is put back and noted
+        let kubeconfig = f.kind.kubeconfig(cluster);
+        eventually("kubectl from the host is refused", 30, async || {
+            !std::process::Command::new("kubectl")
+                .args(["--kubeconfig", &kubeconfig.to_string_lossy(), "--request-timeout=3s", "get", "ns"])
+                .output()
+                .is_ok_and(|o| o.status.success())
+        })
+        .await;
+        println!("ok: kubectl from the host cannot reach the cluster during the attempt");
+        let docker_cli = runtime::docker::cli().expect("docker CLI");
+        let outside_cmd = |args: &[&str]| std::process::Command::new(&docker_cli).args(args).output().unwrap();
+        outside_cmd(&["exec", &format!("{cluster}-control-plane"), "true"]);
+        eventually("an outside exec is noted", 15, async || guard.outside().iter().any(|o| o.contains("command was run"))).await;
+        outside_cmd(&["stop", "-t", "1", desktop]);
+        eventually("a desktop stopped outside is started again", 30, async || {
+            guard.outside().iter().any(|o| o.contains("stopped outside")) && outside_cmd(&["inspect", "-f", "{{.State.Running}}", desktop]).stdout.starts_with(b"true")
+        })
+        .await;
+        println!("ok: an outside exec is noted; a desktop stopped outside is started again");
 
         // The practice coach answers about the failing check (the real model,
         // when Claude Code is installed) and keeps the conversation
@@ -639,6 +683,10 @@ mod tests {
             matches!(exams.state(), ExamState::Finished { ref result, .. } if result.score == 100.0 && result.passed)
         })
         .await;
+        let ExamState::Finished { result, .. } = exams.state() else { unreachable!() };
+        // Exactly what was done above: not ckdry's own restarts or kind's execs
+        assert!(result.outside.len() == 2 && !result.outside.iter().any(|o| o.contains("disconnected")), "{:?}", result.outside);
+        println!("ok: the result lists what was done outside the exam desktop: {:?}", result.outside);
         exams.end().await.unwrap();
         assert!(matches!(exams.state(), ExamState::Idle) && !f.kind.owned_clusters().contains(&cluster.to_string()));
         assert!(runtime::desktop::session(&runtime::docker::connect().await.unwrap(), desktop).await.unwrap().is_none());
@@ -665,6 +713,8 @@ mod tests {
             }))
             .await
             .unwrap();
+        // Quitting the app: the guard stops reacting first, as on RunEvent::Exit
+        guard.suspend();
         let mut stopped: Vec<String> = nodes.into_iter().flat_map(|c| c.names.unwrap_or_default()).map(|n| n.trim_start_matches('/').to_string()).collect();
         stopped.extend([f.jumphost.name.clone(), desktop.to_string()]);
         for name in &stopped {
@@ -672,7 +722,7 @@ mod tests {
         }
         println!("ok: quit mid-exam, {} containers stopped", stopped.len());
         let reopen = || {
-            Arc::new(Exams::new(lab::load::load(&pack_dir).0.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, Arc::new(store::Store::open(&db).unwrap()), |_: &ExamState| {}, runtime::activity::Activities::silent()))
+            Arc::new(Exams::new(lab::load::load(&pack_dir).0.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, Arc::new(store::Store::open(&db).unwrap()), |_: &ExamState| {}, runtime::activity::Activities::silent(), guard.clone()))
         };
         let resumed = reopen();
         resumed.restore();
@@ -703,6 +753,10 @@ mod tests {
             matches!(exams.state(), ExamState::Finished { ref result, .. } if !result.passed)
         })
         .await;
+        // Quitting and resuming (kind reading kubeconfigs) is ckdry's own doing
+        let ExamState::Finished { result, .. } = exams.state() else { unreachable!() };
+        assert!(result.outside.is_empty(), "{:?}", result.outside);
+        println!("ok: nothing outside noted for an attempt only ckdry touched");
         assert!(exams.solution(question).is_ok());
         println!("ok: solution available after the result");
         exams.end().await.unwrap();

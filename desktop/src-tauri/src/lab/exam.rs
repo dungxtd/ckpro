@@ -13,6 +13,8 @@ use crate::cluster::{kind::Kind, lifecycle};
 use crate::error::{AppError, AppResult};
 use crate::runtime::jumphost::{self, Jumphost};
 use crate::runtime::activity::Activities;
+use crate::runtime::guard::{Guard, Watch};
+use crate::runtime::infra::MIRROR;
 use crate::runtime::{desktop, docker, infra::Infra};
 use crate::store::Store;
 use rand::seq::SliceRandom;
@@ -89,6 +91,9 @@ pub struct ExamResult {
     pub started_at: f64,
     pub finished_at: f64,
     pub questions: Vec<QuestionResult>,
+    /// What happened to the environment outside the exam desktop (the guard)
+    #[serde(default)]
+    pub outside: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, specta::Type)]
@@ -219,6 +224,8 @@ pub struct Exams {
     cancel: Mutex<CancellationToken>,
     publish: Box<dyn Fn(&ExamState) + Send + Sync>,
     activities: Arc<Activities>,
+    /// Keeps the running attempt's environment as ckdry set it up
+    guard: Arc<Guard>,
 }
 
 impl Exams {
@@ -231,6 +238,7 @@ impl Exams {
         store: Arc<Store>,
         publish: impl Fn(&ExamState) + Send + Sync + 'static,
         activities: Arc<Activities>,
+        guard: Arc<Guard>,
     ) -> Self {
         Self {
             pack: std::sync::RwLock::new(Arc::new(pack)),
@@ -244,6 +252,7 @@ impl Exams {
             cancel: Mutex::new(CancellationToken::new()),
             publish: Box::new(publish),
             activities,
+            guard,
         }
     }
 
@@ -267,9 +276,38 @@ impl Exams {
     }
 
     fn set(&self, state: ExamState) {
+        let was_running = matches!(*self.state.lock().unwrap_or_else(|p| p.into_inner()), ExamState::Running { .. });
         *self.state.lock().unwrap_or_else(|p| p.into_inner()) = state.clone();
         self.save_attempt(&state);
         (self.publish)(&state);
+        // The guard watches a running attempt only
+        match (&state, was_running) {
+            (ExamState::Running { attempt, .. }, false) => {
+                let watch = Watch {
+                    clusters: attempt.clusters.clone(),
+                    containers: vec![self.desktop.clone(), self.jumphost.name.clone(), MIRROR.to_string()],
+                };
+                let guard = self.guard.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Ok(docker) = docker::connect().await {
+                        guard.activate(&docker, watch).await;
+                    }
+                });
+            }
+            (ExamState::Running { .. }, true) => {}
+            (_, true) => {
+                let guard = self.guard.clone();
+                tauri::async_runtime::spawn(async move {
+                    guard.deactivate(docker::connect().await.ok().as_ref()).await;
+                });
+            }
+            _ => {}
+        }
+    }
+
+    /// ckdry restarts the desktop itself (Reset desktop): not outside
+    pub fn expect_restart(&self, container: &str) {
+        self.guard.expect(container);
     }
 
     /// Keep a running attempt; anything else has nothing to resume. While
@@ -412,6 +450,8 @@ impl Exams {
     /// unless `replace` (they are deleted).
     pub async fn start(self: &Arc<Self>, exam_id: &str, mode: Mode, replace: bool) -> AppResult<()> {
         let pack = self.pack();
+        // Whatever a guard noted before belongs to an earlier attempt
+        self.guard.take_outside();
         if matches!(
             self.state(),
             ExamState::Preparing { .. }
@@ -737,6 +777,7 @@ impl Exams {
             started_at,
             finished_at: now_ms(),
             questions: results,
+            outside: self.guard.take_outside(),
         })
     }
 
