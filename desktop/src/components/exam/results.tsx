@@ -100,7 +100,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 
 			<Sheet open={coached !== null} onOpenChange={open => !open && setCoached(null)}>
 				<SheetContent className="w-[min(480px,92vw)] gap-0 overflow-hidden p-0 sm:max-w-none">
-					{/* For screen readers; the pane shows the thread's title */}
+					{/* For screen readers; the pane shows the session's title */}
 					<SheetHeader className="sr-only">
 						<SheetTitle>Review with AI</SheetTitle>
 						<SheetDescription>{coachedQuestion?.title}</SheetDescription>

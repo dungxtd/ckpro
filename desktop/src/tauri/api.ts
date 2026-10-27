@@ -50,8 +50,8 @@ export type {
 	CoachContext,
 	CoachMessage,
 	CoachModels,
+	CoachSession,
 	CoachStatus,
-	CoachThread,
 	ContextUsage,
 	Difficulty,
 	DomainStat,
@@ -168,11 +168,13 @@ export const coachApi = {
 	models: () => unwrap(commands.coachModels()),
 	/** The effort levels a model takes (empty: it has none) */
 	efforts: (model: string) => unwrap(commands.coachEfforts(model)),
-	/** The attempt's conversations (History) */
-	threads: () => unwrap(commands.coachThreads()),
-	/** Start a question's conversation over (New Thread) */
+	/** The attempt's coach sessions (History) */
+	sessions: () => unwrap(commands.coachSessions()),
+	/** Name a question's session; empty: back to its first question */
+	rename: (questionId: string, title: string) => unwrap(commands.coachRename(questionId, title)),
+	/** Start a question's session over (New Session) */
 	clear: (questionId: string) => unwrap(commands.coachClear(questionId)),
-	/** The question's conversation in the current attempt */
+	/** The question's session in the current attempt: its name and messages */
 	history: (questionId: string) => unwrap(commands.coachHistory(questionId)),
 	/** Ask about a question; `onText` gets the answer as it is written. */
 	ask: (

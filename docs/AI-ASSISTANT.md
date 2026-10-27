@@ -8,8 +8,8 @@ Agent adapter (`@agentclientprotocol/claude-agent-acp`, run with npx, pinned in
 `ai/agent.rs`) on the candidate's Claude login. Ask only: the client offers no
 file system or terminal and refuses permission requests, and every session has
 the coach's system prompt, `tools: []`, `strictMcpConfig`, no setting sources
-and no persistence. One ACP session per question's conversation; the UI is a
-Zed-style agent panel (thread, history, @ context, model, context use). Researched 2026-10-26.
+and no persistence. One ACP session per question's coach session; the UI is a
+Zed-style agent panel (session, renameable; history, @ context, model, effort, context use). Researched 2026-10-26.
 
 ## 1. Reference: what TablePro does
 

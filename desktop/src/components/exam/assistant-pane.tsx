@@ -1,6 +1,7 @@
 import { Button } from "@ckdry/ui/components/button";
 import { Chip } from "@ckdry/ui/components/chip";
 import { IconButton } from "@ckdry/ui/components/icon-button";
+import { Input } from "@ckdry/ui/components/input";
 import { menu, menuRow } from "@ckdry/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
 import { Spinner } from "@ckdry/ui/components/spinner";
@@ -28,8 +29,8 @@ import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
 import {
 	type CheckResult,
+	type CoachSession,
 	type CoachStatus,
-	type CoachThread,
 	coachApi,
 	type QuestionView,
 } from "@/tauri/api";
@@ -60,15 +61,17 @@ export function AssistantPane({
 	const coach = useCoach();
 	const lastCheck = useExam(s => s.checks[question.id]);
 	const checks = review?.checks ?? (Array.isArray(lastCheck) ? lastCheck : undefined);
-	const thread = coach.threads[question.id] ?? [];
+	const messages = coach.sessions[question.id] ?? [];
 	const writing = coach.writing === question.id;
 	const usage = coach.usage[question.id];
 	const modelName = coach.models.find(m => m.value === coach.model)?.name ?? coach.model;
 	const [status, setStatus] = useState<CoachStatus | null>(null);
 	const [draft, setDraft] = useState("");
 	const [expanded, setExpanded] = useState(false);
-	const [history, setHistory] = useState<CoachThread[]>([]);
+	const [history, setHistory] = useState<CoachSession[]>([]);
 	const [signingIn, setSigningIn] = useState(false);
+	const [renaming, setRenaming] = useState(false);
+	const [moreOpen, setMoreOpen] = useState(false);
 	const signedOut = coach.account?.signed_in === false;
 	const scroller = useRef<HTMLDivElement>(null);
 
@@ -80,7 +83,7 @@ export function AssistantPane({
 		coach.load(question.id);
 	}, [coach.load, question.id]);
 	// Follow the answer as it is written, unless the reader scrolled up
-	const written = thread.reduce((n, m) => n + m.text.length + 1, 0);
+	const written = messages.reduce((n, m) => n + m.text.length + 1, 0);
 	useEffect(() => {
 		const el = scroller.current;
 		if (el && written > 0 && el.scrollHeight - el.scrollTop - el.clientHeight < 160)
@@ -93,24 +96,41 @@ export function AssistantPane({
 		setDraft("");
 		coach.ask(question.id, t, review?.checks);
 	};
-	const title = thread.find(m => m.role === "user")?.text ?? "New Thread";
-	const lastUser = [...thread].reverse().find(m => m.role === "user")?.text;
+	const title =
+		coach.titles[question.id] ?? messages.find(m => m.role === "user")?.text ?? "New Session";
+	const lastUser = [...messages].reverse().find(m => m.role === "user")?.text;
 
 	return (
 		<aside className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-background">
-			{/* Toolbar: the thread, then new, history, more, close */}
+			{/* Toolbar: the session (double-click to rename), then new, history, more, close */}
 			<div className="flex h-9 shrink-0 select-none items-center gap-0.5 border-border border-b pr-1.5 pl-3">
-				<span className="min-w-0 flex-1 truncate text-[13px]">{title}</span>
+				{renaming ? (
+					<SessionTitleInput
+						title={title}
+						onDone={next => {
+							setRenaming(false);
+							if (next !== null && next !== title) coach.rename(question.id, next);
+						}}
+					/>
+				) : (
+					// biome-ignore lint/a11y/noStaticElementInteractions: a mouse shortcut; More > Rename Session… is the keyboard way
+					<span
+						className="min-w-0 flex-1 truncate text-[13px]"
+						onDoubleClick={() => messages.length > 0 && setRenaming(true)}
+					>
+						{title}
+					</span>
+				)}
 				<IconButton
 					variant="toolbar"
 					size="xs"
-					aria-label="New Thread"
+					aria-label="New Session"
 					onClick={() => coach.clear(question.id)}
-					disabled={writing || thread.length === 0}
+					disabled={writing || messages.length === 0}
 				>
 					<Plus />
 				</IconButton>
-				<Popover onOpenChange={open => open && coach.listThreads().then(setHistory)}>
+				<Popover onOpenChange={open => open && coach.listSessions().then(setHistory)}>
 					<PopoverTrigger asChild>
 						<IconButton variant="toolbar" size="xs" aria-label="History">
 							<History />
@@ -137,7 +157,7 @@ export function AssistantPane({
 						))}
 					</PopoverContent>
 				</Popover>
-				<Popover>
+				<Popover open={moreOpen} onOpenChange={setMoreOpen}>
 					<PopoverTrigger asChild>
 						<IconButton variant="toolbar" size="xs" aria-label="More">
 							<Ellipsis />
@@ -178,26 +198,37 @@ export function AssistantPane({
 						<button
 							type="button"
 							className={menuRow()}
-							disabled={thread.length === 0}
+							disabled={messages.length === 0}
 							onClick={() => {
 								navigator.clipboard.writeText(
-									thread
+									messages
 										.map(m => `${m.role === "user" ? "## You" : "## Assistant"}\n\n${m.text}`)
 										.join("\n\n")
 								);
-								toast.success("Thread copied as Markdown", { duration: 1500 });
+								toast.success("Session copied as Markdown", { duration: 1500 });
 							}}
 						>
-							Copy Thread as Markdown
+							Copy Session as Markdown
+						</button>
+						<button
+							type="button"
+							className={menuRow()}
+							disabled={messages.length === 0}
+							onClick={() => {
+								setMoreOpen(false);
+								setRenaming(true);
+							}}
+						>
+							Rename Session…
 						</button>
 						<div className={menu.separator} />
 						<button
 							type="button"
 							className={menuRow()}
-							disabled={writing || thread.length === 0}
+							disabled={writing || messages.length === 0}
 							onClick={() => coach.clear(question.id)}
 						>
-							Clear Thread
+							Clear Session
 						</button>
 					</PopoverContent>
 				</Popover>
@@ -212,7 +243,7 @@ export function AssistantPane({
 				ref={scroller}
 				className="min-h-0 flex-1 select-text overflow-y-auto overflow-x-hidden p-2"
 			>
-				{thread.length === 0 ? (
+				{messages.length === 0 ? (
 					<div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
 						<Sparkles className="size-9 text-muted-foreground/70" strokeWidth={1.5} />
 						<span className="font-semibold text-[15px]">
@@ -233,7 +264,7 @@ export function AssistantPane({
 					</div>
 				) : (
 					<div className="flex flex-col">
-						{thread.map((m, i) =>
+						{messages.map((m, i) =>
 							m.role === "user" ? (
 								<div
 									// Messages only grow at the end
@@ -258,7 +289,7 @@ export function AssistantPane({
 									) : (
 										<Spinner size="inline" className="size-3.5 text-muted-foreground" />
 									)}
-									{m.text && !writing && i === thread.length - 1 && lastUser && (
+									{m.text && !writing && i === messages.length - 1 && lastUser && (
 										<div className="flex items-center gap-2 text-[10px] text-muted-foreground">
 											<button
 												type="button"
@@ -278,7 +309,7 @@ export function AssistantPane({
 				{coach.error && (
 					<div className="mt-2 rounded-md bg-warning/10 px-3 py-1.5 text-muted-foreground text-xs">
 						{coach.error}
-						{signedOut && thread.length > 0 && (
+						{signedOut && messages.length > 0 && (
 							<Button
 								size="sm"
 								variant="link"
@@ -454,6 +485,39 @@ const Checked = () => (
 		<Check className="size-3" />
 	</span>
 );
+
+/**
+ * The session's name, edited in place: Enter or leaving it keeps it (empty:
+ * back to its first question), Escape leaves it as it was
+ */
+function SessionTitleInput({
+	title,
+	onDone,
+}: {
+	title: string;
+	onDone: (title: string | null) => void;
+}) {
+	const done = useRef(false);
+	const finish = (next: string | null) => {
+		if (done.current) return;
+		done.current = true;
+		onDone(next);
+	};
+	return (
+		<Input
+			autoFocus
+			defaultValue={title}
+			aria-label="Session name"
+			onFocus={e => e.currentTarget.select()}
+			onKeyDown={e => {
+				if (e.key === "Enter") finish(e.currentTarget.value);
+				if (e.key === "Escape") finish(null);
+			}}
+			onBlur={e => finish(e.currentTarget.value)}
+			className="mr-1 h-6 min-w-0 flex-1 select-text rounded-md px-1.5 text-[13px] md:text-[13px]"
+		/>
+	);
+}
 
 /** The composer's pickers (model, effort): their value and a chevron */
 function PickerButton({ children, ...props }: React.ComponentProps<"button">) {

@@ -80,13 +80,21 @@ pub struct CoachReply {
     pub usage: Option<ContextUsage>,
 }
 
-/// A conversation of the attempt (the panel's history)
+/// A coach session of the attempt: one per question asked about (the
+/// panel's history)
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-pub struct CoachThread {
+pub struct CoachSession {
     pub question_id: String,
-    /// Its first question
+    /// Its own name, else its first question
     pub title: String,
     pub messages: u32,
+}
+
+/// A question's coach session: its own name (if renamed) and its messages
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
+pub struct CoachHistory {
+    pub title: Option<String>,
+    pub messages: Vec<CoachMessage>,
 }
 
 /// The practice coach: one ACP session per question's conversation, one
@@ -94,8 +102,9 @@ pub struct CoachThread {
 pub struct Coach {
     agent: Agent,
     running: Mutex<Option<CancellationToken>>,
-    /// Open conversations: (attempt, question) → (ACP session, model, effort)
-    sessions: tokio::sync::Mutex<HashMap<(String, String), (String, String, String)>>,
+    /// The ACP sessions behind open coach sessions: (attempt, question) →
+    /// (ACP session, model, effort)
+    open: tokio::sync::Mutex<HashMap<(String, String), (String, String, String)>>,
     /// The Claude login being run, if any
     signing_in: tokio::sync::Mutex<Option<account::SigningIn>>,
 }
@@ -105,7 +114,7 @@ impl Coach {
         Self {
             agent: Agent::new(data_dir),
             running: Mutex::new(None),
-            sessions: Default::default(),
+            open: Default::default(),
             signing_in: Default::default(),
         }
     }
@@ -148,7 +157,7 @@ impl Coach {
         .await;
         self.signing_in.lock().await.take();
         // The conversations were opened on the earlier login's adapter
-        self.sessions.lock().await.clear();
+        self.open.lock().await.clear();
         result
     }
 
@@ -169,7 +178,7 @@ impl Coach {
     pub async fn sign_out(&self) -> AppResult<()> {
         self.cancel();
         let result = account::sign_out(&self.agent).await;
-        self.sessions.lock().await.clear();
+        self.open.lock().await.clear();
         result
     }
 
@@ -183,19 +192,28 @@ impl Coach {
         }
     }
 
-    pub fn history(exams: &Exams, store: &Store, question_id: &str) -> AppResult<Vec<CoachMessage>> {
+    pub fn history(exams: &Exams, store: &Store, question_id: &str) -> AppResult<CoachHistory> {
         let subject = exams.coach_subject(question_id, false)?;
-        store.coach_messages(&subject.attempt_id, question_id)
+        Ok(CoachHistory {
+            title: store.coach_session_title(&subject.attempt_id, question_id)?,
+            messages: store.coach_messages(&subject.attempt_id, question_id)?,
+        })
     }
 
-    /// The attempt's conversations, one per question asked about
-    pub fn threads(exams: &Exams, store: &Store) -> AppResult<Vec<CoachThread>> {
+    /// The attempt's coach sessions, one per question asked about
+    pub fn sessions(exams: &Exams, store: &Store) -> AppResult<Vec<CoachSession>> {
         let Some(attempt) = exams.coach_attempt() else { return Ok(Vec::new()) };
         Ok(store
-            .coach_threads(&attempt)?
+            .coach_sessions(&attempt)?
             .into_iter()
-            .map(|(question_id, title, messages)| CoachThread { question_id, title, messages })
+            .map(|(question_id, title, messages)| CoachSession { question_id, title, messages })
             .collect())
+    }
+
+    /// Name a question's coach session; empty: back to its first question
+    pub fn rename(exams: &Exams, store: &Store, question_id: &str, title: &str) -> AppResult<()> {
+        let subject = exams.coach_subject(question_id, false)?;
+        store.rename_coach_session(&subject.attempt_id, question_id, title)
     }
 
     /// Answer `text` about the question in its conversation; the answer
@@ -223,8 +241,8 @@ impl Coach {
         let checks = if context.checks { checks } else { &[] };
         let snapshot = if context.cluster { snapshot(&subject).await } else { None };
         let key = (subject.attempt_id.clone(), question_id.to_string());
-        let open = self.sessions.lock().await.get(&key).cloned();
-        let (session, prompt) = match open {
+        let opened = self.open.lock().await.get(&key).cloned();
+        let (session, prompt) = match opened {
             Some((session, current, current_effort)) => {
                 if current != model {
                     self.agent.set_model(&session, model).await?;
@@ -242,7 +260,7 @@ impl Coach {
                 (session, prompt(&subject, checks, snapshot.as_deref(), &history, text))
             }
         };
-        self.sessions.lock().await.insert(key.clone(), (session.clone(), model.to_string(), effort.to_string()));
+        self.open.lock().await.insert(key.clone(), (session.clone(), model.to_string(), effort.to_string()));
         let answer = self
             .agent
             .prompt(&session, &prompt, &cancel, &|t| on_event(CoachEvent::Text { text: t.to_string() }))
@@ -252,7 +270,7 @@ impl Coach {
             Err(e) => {
                 // A session the agent lost is started again next time
                 if !matches!(e, AppError::Cancelled { .. }) {
-                    self.sessions.lock().await.remove(&key);
+                    self.open.lock().await.remove(&key);
                 }
                 return Err(e);
             }
@@ -268,10 +286,10 @@ impl Coach {
         Ok(CoachReply { text: answer.text, usage: answer.usage })
     }
 
-    /// Start the question's conversation over (the panel's New Thread)
+    /// Start the question's session over (the panel's New Session)
     pub async fn clear(&self, exams: &Exams, store: &Store, question_id: &str) -> AppResult<()> {
         let subject = exams.coach_subject(question_id, false)?;
-        if let Some((session, _, _)) = self.sessions.lock().await.remove(&(subject.attempt_id.clone(), question_id.to_string())) {
+        if let Some((session, _, _)) = self.open.lock().await.remove(&(subject.attempt_id.clone(), question_id.to_string())) {
             self.agent.close(&session).await;
         }
         store.clear_coach_messages(&subject.attempt_id, question_id)

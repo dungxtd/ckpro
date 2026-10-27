@@ -46,6 +46,14 @@ const MIGRATIONS: &[&str] = &["
         text TEXT NOT NULL,
         PRIMARY KEY (attempt_id, question_id, seq)
     );
+", "
+    -- A coach session's own name, when the candidate renamed it
+    CREATE TABLE coach_session (
+        attempt_id TEXT NOT NULL,
+        question_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        PRIMARY KEY (attempt_id, question_id)
+    );
 "];
 
 /// Where the candidate is in an attempt
@@ -247,13 +255,16 @@ impl Store {
         tx.commit().map_err(db)
     }
 
-    /// The attempt's coach conversations: question, its first question, messages
-    pub fn coach_threads(&self, attempt_id: &str) -> AppResult<Vec<(String, String, u32)>> {
+    /// The attempt's coach sessions, latest first: question, title (its own
+    /// name, else its first question), messages
+    pub fn coach_sessions(&self, attempt_id: &str) -> AppResult<Vec<(String, String, u32)>> {
         let conn = self.conn();
         let mut stmt = conn
             .prepare(
                 "SELECT question_id,
-                        (SELECT text FROM coach_message f WHERE f.attempt_id = m.attempt_id AND f.question_id = m.question_id ORDER BY seq LIMIT 1),
+                        COALESCE(
+                            (SELECT title FROM coach_session s WHERE s.attempt_id = m.attempt_id AND s.question_id = m.question_id),
+                            (SELECT text FROM coach_message f WHERE f.attempt_id = m.attempt_id AND f.question_id = m.question_id ORDER BY seq LIMIT 1)),
                         COUNT(*)
                  FROM coach_message m WHERE attempt_id = ?1 GROUP BY question_id ORDER BY MAX(seq) DESC",
             )
@@ -264,12 +275,43 @@ impl Store {
         rows.collect::<Result<_, _>>().map_err(db)
     }
 
-    /// Start a question's conversation over
-    pub fn clear_coach_messages(&self, attempt_id: &str, question_id: &str) -> AppResult<()> {
+    /// A coach session's own name, if the candidate gave it one
+    pub fn coach_session_title(&self, attempt_id: &str, question_id: &str) -> AppResult<Option<String>> {
         self.conn()
-            .execute("DELETE FROM coach_message WHERE attempt_id = ?1 AND question_id = ?2", params![attempt_id, question_id])
-            .map(|_| ())
+            .query_row(
+                "SELECT title FROM coach_session WHERE attempt_id = ?1 AND question_id = ?2",
+                params![attempt_id, question_id],
+                |r| r.get(0),
+            )
+            .optional()
             .map_err(db)
+    }
+
+    /// Name a coach session; an empty name goes back to its first question
+    pub fn rename_coach_session(&self, attempt_id: &str, question_id: &str, title: &str) -> AppResult<()> {
+        let conn = self.conn();
+        let title = title.trim();
+        if title.is_empty() {
+            conn.execute("DELETE FROM coach_session WHERE attempt_id = ?1 AND question_id = ?2", params![attempt_id, question_id])
+        } else {
+            conn.execute(
+                "INSERT OR REPLACE INTO coach_session (attempt_id, question_id, title) VALUES (?1, ?2, ?3)",
+                params![attempt_id, question_id, title],
+            )
+        }
+        .map(|_| ())
+        .map_err(db)
+    }
+
+    /// Start a question's session over (its name goes with it)
+    pub fn clear_coach_messages(&self, attempt_id: &str, question_id: &str) -> AppResult<()> {
+        let mut conn = self.conn();
+        let tx = conn.transaction().map_err(db)?;
+        for table in ["coach_message", "coach_session"] {
+            tx.execute(&format!("DELETE FROM {table} WHERE attempt_id = ?1 AND question_id = ?2"), params![attempt_id, question_id])
+                .map_err(db)?;
+        }
+        tx.commit().map_err(db)
     }
 
     pub fn settings(&self) -> AppResult<Settings> {
@@ -393,9 +435,15 @@ mod tests {
         assert_eq!(q1.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(), ["hint?", "look at PVCs", "why?", "wrong class"]);
         assert_eq!(q1[1].role, Role::Assistant);
         assert!(store.coach_messages("a2", "q1").unwrap().is_empty());
-        let threads = store.coach_threads("a1").unwrap();
-        assert_eq!(threads.len(), 2);
-        assert!(threads.iter().any(|(q, title, n)| q == "q1" && title == "hint?" && *n == 4));
+        let sessions = store.coach_sessions("a1").unwrap();
+        assert_eq!(sessions.len(), 2);
+        assert!(sessions.iter().any(|(q, title, n)| q == "q1" && title == "hint?" && *n == 4));
+        // Renamed: its own name; an empty one goes back to the first question
+        store.rename_coach_session("a1", "q1", "  PVC binding ").unwrap();
+        assert_eq!(store.coach_session_title("a1", "q1").unwrap().as_deref(), Some("PVC binding"));
+        assert!(store.coach_sessions("a1").unwrap().iter().any(|(q, title, _)| q == "q1" && title == "PVC binding"));
+        store.rename_coach_session("a1", "q1", "").unwrap();
+        assert!(store.coach_sessions("a1").unwrap().iter().any(|(q, title, _)| q == "q1" && title == "hint?"));
         store.clear_coach_messages("a1", "q1").unwrap();
         assert!(store.coach_messages("a1", "q1").unwrap().is_empty() && store.coach_messages("a1", "q2").unwrap().len() == 1);
     }

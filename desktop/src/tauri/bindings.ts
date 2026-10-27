@@ -50,8 +50,8 @@ export const commands = {
 	desktopOpenUrl: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("desktop_open_url", { url })),
 	/**  Whether the coach can run (Claude Code installed). */
 	coachStatus: () => __TAURI_INVOKE<CoachStatus_Serialize>("coach_status"),
-	/**  The question's coach conversation in the current attempt. */
-	coachHistory: (questionId: string) => typedError<CoachMessage[], AppError>(__TAURI_INVOKE("coach_history", { questionId })),
+	/**  The question's coach session in the current attempt: its name and messages. */
+	coachHistory: (questionId: string) => typedError<CoachHistory_Serialize, AppError>(__TAURI_INVOKE("coach_history", { questionId })),
 	/**
 	 *  Ask the coach about a question (practice mode, or after the result); the
 	 *  answer streams on `events` and resolves to the whole answer.
@@ -70,10 +70,12 @@ export const commands = {
 	coachSignInInput: (line: string) => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_in_input", { line })),
 	coachSignInCancel: () => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_in_cancel")),
 	coachSignOut: () => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_out")),
-	/**  Start a question's coach conversation over (New Thread). */
+	/**  Start a question's coach session over (New Session). */
 	coachClear: (questionId: string) => typedError<null, AppError>(__TAURI_INVOKE("coach_clear", { questionId })),
-	/**  The attempt's coach conversations (History). */
-	coachThreads: () => typedError<CoachThread[], AppError>(__TAURI_INVOKE("coach_threads")),
+	/**  The attempt's coach sessions (History). */
+	coachSessions: () => typedError<CoachSession[], AppError>(__TAURI_INVOKE("coach_sessions")),
+	/**  Name a question's coach session (empty: back to its first question). */
+	coachRename: (questionId: string, title: string) => typedError<null, AppError>(__TAURI_INVOKE("coach_rename", { questionId, title })),
 	/**  The models the coach can use, as the agent lists them for this login. */
 	coachModels: () => typedError<CoachModels_Serialize, AppError>(__TAURI_INVOKE("coach_models")),
 	/**  The effort levels a model takes (none when it has no effort setting). */
@@ -290,6 +292,21 @@ export type CoachContext = {
 /**  The coach's answer as it is written */
 export type CoachEvent = { kind: "text"; text: string };
 
+/**  A question's coach session: its own name (if renamed) and its messages */
+export type CoachHistory = CoachHistory_Serialize | CoachHistory_Deserialize;
+
+/**  A question's coach session: its own name (if renamed) and its messages */
+export type CoachHistory_Deserialize = {
+	title?: string | null,
+	messages: CoachMessage[],
+};
+
+/**  A question's coach session: its own name (if renamed) and its messages */
+export type CoachHistory_Serialize = {
+	title: string | null,
+	messages: CoachMessage[],
+};
+
 export type CoachMessage = {
 	role: Role,
 	text: string,
@@ -327,6 +344,17 @@ export type CoachReply_Serialize = {
 	usage: ContextUsage | null,
 };
 
+/**
+ *  A coach session of the attempt: one per question asked about (the
+ *  panel's history)
+ */
+export type CoachSession = {
+	question_id: string,
+	/**  Its own name, else its first question */
+	title: string,
+	messages: number,
+};
+
 /**  Whether the coach can run here */
 export type CoachStatus = CoachStatus_Serialize | CoachStatus_Deserialize;
 
@@ -342,14 +370,6 @@ export type CoachStatus_Serialize = {
 	ready: boolean,
 	/**  What to install when it cannot */
 	problem: string | null,
-};
-
-/**  A conversation of the attempt (the panel's history) */
-export type CoachThread = {
-	question_id: string,
-	/**  Its first question */
-	title: string,
-	messages: number,
 };
 
 export type ContainerStatus = { state: "running" } | { state: "stopped" } | 

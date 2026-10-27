@@ -72,7 +72,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::coach_sign_in_cancel,
         commands::coach_sign_out,
         commands::coach_clear,
-        commands::coach_threads,
+        commands::coach_sessions,
+        commands::coach_rename,
         commands::coach_models,
         commands::coach_efforts,
         commands::study_stats,
@@ -586,7 +587,7 @@ mod tests {
                 .unwrap()
                 .text;
             assert!(!answer.trim().is_empty() && !streamed.lock().unwrap().is_empty());
-            assert_eq!(ai::Coach::history(&exams, &store, question).unwrap().len(), 2);
+            assert_eq!(ai::Coach::history(&exams, &store, question).unwrap().messages.len(), 2);
             println!("ok: the practice coach answers and keeps the conversation: {}", answer.lines().next().unwrap_or_default());
         } else {
             println!("skip: the practice coach (Claude Code is not installed)");

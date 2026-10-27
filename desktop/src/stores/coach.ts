@@ -6,7 +6,7 @@ import {
 	type CheckResult,
 	type CoachContext,
 	type CoachMessage,
-	type CoachThread,
+	type CoachSession,
 	type ContextUsage,
 	coachApi,
 	type ModelOption,
@@ -17,8 +17,10 @@ import { useSettings } from "./settings";
 /** The assistant (an ACP agent, read-only): one conversation per question of
  * the attempt, kept in the app database by Rust */
 interface CoachStore {
-	/** Conversations of the current attempt, by question */
-	threads: Record<string, CoachMessage[]>;
+	/** Coach sessions of the current attempt, by question: their messages */
+	sessions: Record<string, CoachMessage[]>;
+	/** Their own names, where the candidate renamed them */
+	titles: Record<string, string | null>;
 	attemptId: string | null;
 	/** The question whose answer is being written */
 	writing: string | null;
@@ -46,10 +48,12 @@ interface CoachStore {
 	load: (questionId: string) => Promise<void>;
 	/** `checks`: the ones to explain (the result's in review), else the last "Check my work" */
 	ask: (questionId: string, text: string, checks?: CheckResult[]) => Promise<void>;
-	/** New Thread: the question's conversation starts over */
+	/** New Session: the question's session starts over */
 	clear: (questionId: string) => Promise<void>;
 	stop: () => void;
-	listThreads: () => Promise<CoachThread[]>;
+	listSessions: () => Promise<CoachSession[]>;
+	/** Name the question's session; empty: back to its first question */
+	rename: (questionId: string, title: string) => Promise<void>;
 }
 
 /** Another attempt: its own conversations */
@@ -57,7 +61,8 @@ const forAttempt = (s: CoachStore) => {
 	const attemptId = useExam.getState().attemptId;
 	if (s.attemptId !== attemptId) {
 		s.attemptId = attemptId;
-		s.threads = {};
+		s.sessions = {};
+		s.titles = {};
 		s.usage = {};
 		s.error = null;
 	}
@@ -98,7 +103,8 @@ const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
 
 export const useCoach = create<CoachStore>()(
 	immer((set, get) => ({
-		threads: {},
+		sessions: {},
+		titles: {},
 		attemptId: null,
 		writing: null,
 		error: null,
@@ -135,11 +141,12 @@ export const useCoach = create<CoachStore>()(
 		load: async questionId => {
 			set(forAttempt);
 			if (get().models.length === 0) loadModels(set, get);
-			if (get().threads[questionId]) return;
+			if (get().sessions[questionId]) return;
 			try {
-				const messages = await coachApi.history(questionId);
+				const { title, messages } = await coachApi.history(questionId);
 				set(s => {
-					s.threads[questionId] ??= messages;
+					s.sessions[questionId] ??= messages;
+					s.titles[questionId] ??= title;
 				});
 			} catch (e) {
 				set({ error: message(e) });
@@ -155,8 +162,8 @@ export const useCoach = create<CoachStore>()(
 			set(s => {
 				s.error = null;
 				s.writing = questionId;
-				s.threads[questionId] = [
-					...(s.threads[questionId] ?? []),
+				s.sessions[questionId] = [
+					...(s.sessions[questionId] ?? []),
 					{ role: "user", text },
 					{ role: "assistant", text: "" },
 				];
@@ -164,7 +171,7 @@ export const useCoach = create<CoachStore>()(
 			// Appends to the answer being written (the last message)
 			const append = (t: string) =>
 				set(s => {
-					const last = s.threads[questionId]?.at(-1);
+					const last = s.sessions[questionId]?.at(-1);
 					if (last?.role === "assistant") last.text += t;
 				});
 			try {
@@ -179,7 +186,7 @@ export const useCoach = create<CoachStore>()(
 					append
 				);
 				set(s => {
-					const last = s.threads[questionId]?.at(-1);
+					const last = s.sessions[questionId]?.at(-1);
 					if (last?.role === "assistant") last.text = reply.text;
 					if (reply.usage) s.usage[questionId] = reply.usage;
 				});
@@ -187,8 +194,8 @@ export const useCoach = create<CoachStore>()(
 				const stopped = e instanceof ApiError && e.code === "cancelled";
 				set(s => {
 					// A stopped or failed answer is not kept (Rust keeps only complete ones)
-					const thread = s.threads[questionId];
-					if (thread?.at(-1)?.role === "assistant") thread.splice(-2, 2);
+					const session = s.sessions[questionId];
+					if (session?.at(-1)?.role === "assistant") session.splice(-2, 2);
 					if (!stopped) s.error = message(e);
 					// The login is gone or expired: offer to sign in
 					if (e instanceof ApiError && e.code === "sign_in_required")
@@ -204,7 +211,8 @@ export const useCoach = create<CoachStore>()(
 			try {
 				await coachApi.clear(questionId);
 				set(s => {
-					s.threads[questionId] = [];
+					s.sessions[questionId] = [];
+					s.titles[questionId] = null;
 					delete s.usage[questionId];
 					s.error = null;
 				});
@@ -215,6 +223,16 @@ export const useCoach = create<CoachStore>()(
 		stop: () => {
 			coachApi.cancel();
 		},
-		listThreads: () => coachApi.threads().catch(() => []),
+		listSessions: () => coachApi.sessions().catch(() => []),
+		rename: async (questionId, title) => {
+			try {
+				await coachApi.rename(questionId, title);
+				set(s => {
+					s.titles[questionId] = title.trim() || null;
+				});
+			} catch (e) {
+				set({ error: message(e) });
+			}
+		},
 	}))
 );

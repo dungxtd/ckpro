@@ -241,10 +241,9 @@ pub async fn desktop_open_url(exams: State<'_, Arc<Exams>>, url: String) -> AppR
 
 use crate::ai::account::{Account, SignInEvent, SignInMethod};
 use crate::ai::agent::ModelOption;
-use crate::ai::{Coach, CoachContext, CoachModels, ModelChoice, CoachEvent, CoachReply, CoachStatus, CoachThread};
+use crate::ai::{Coach, CoachContext, CoachModels, ModelChoice, CoachEvent, CoachReply, CoachHistory, CoachSession, CoachStatus};
 use crate::ai::generate::{self, GenerateRequest, Generated, GeneratorTarget};
 use crate::lab::exam::StudyStats;
-use crate::store::CoachMessage;
 
 /// Whether the coach can run (Claude Code installed).
 #[tauri::command]
@@ -253,14 +252,14 @@ pub fn coach_status() -> CoachStatus {
     Coach::status()
 }
 
-/// The question's coach conversation in the current attempt.
+/// The question's coach session in the current attempt: its name and messages.
 #[tauri::command]
 #[specta::specta]
 pub fn coach_history(
     exams: State<'_, Arc<Exams>>,
     store: State<'_, Arc<Store>>,
     question_id: String,
-) -> AppResult<Vec<CoachMessage>> {
+) -> AppResult<CoachHistory> {
     Coach::history(&exams, &store, &question_id)
 }
 
@@ -287,7 +286,7 @@ pub async fn coach_ask(
         .await
 }
 
-/// Start a question's coach conversation over (New Thread).
+/// Start a question's coach session over (New Session).
 #[tauri::command]
 #[specta::specta]
 pub async fn coach_clear(
@@ -299,11 +298,18 @@ pub async fn coach_clear(
     coach.clear(&exams, &store, &question_id).await
 }
 
-/// The attempt's coach conversations (History).
+/// The attempt's coach sessions (History).
 #[tauri::command]
 #[specta::specta]
-pub fn coach_threads(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>) -> AppResult<Vec<CoachThread>> {
-    Coach::threads(&exams, &store)
+pub fn coach_sessions(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>) -> AppResult<Vec<CoachSession>> {
+    Coach::sessions(&exams, &store)
+}
+
+/// Name a question's coach session (empty: back to its first question).
+#[tauri::command]
+#[specta::specta]
+pub fn coach_rename(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>, question_id: String, title: String) -> AppResult<()> {
+    Coach::rename(&exams, &store, &question_id, &title)
 }
 
 /// The effort levels a model takes (none when it has no effort setting).
