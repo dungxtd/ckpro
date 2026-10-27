@@ -125,7 +125,9 @@ export const useExam = create<ExamStore>()(
 						set(s => {
 							s.pendingReplace = { id, mode, message: e.message };
 						});
-					} else {
+					} else if (!(e instanceof ApiError && e.code === "docker_unavailable")) {
+						// Docker being down is shown live from its state (the
+						// catalog's banner), not kept as an error that outlives it
 						set(s => {
 							s.error = message(e);
 						});

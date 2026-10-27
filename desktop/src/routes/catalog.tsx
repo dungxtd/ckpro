@@ -4,12 +4,13 @@ import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { useEffect } from "react";
 import { GenerateCard } from "@/components/catalog/generate-card";
+import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import type { ExamSummary } from "@/tauri/api";
 
 const CERT_ORDER = ["cka", "ckad", "cks"];
 
-function ExamCard({ exam }: { exam: ExamSummary }) {
+function ExamCard({ exam, ready }: { exam: ExamSummary; ready: boolean }) {
 	const start = useExam(s => s.start);
 	return (
 		<Card className="flex flex-col gap-2">
@@ -23,10 +24,15 @@ function ExamCard({ exam }: { exam: ExamSummary }) {
 				pass {exam.pass_score}%
 			</div>
 			<div className="mt-auto flex gap-2 pt-2">
-				<Button size="sm" onClick={() => start(exam.id, "exam")}>
+				<Button size="sm" disabled={!ready} onClick={() => start(exam.id, "exam")}>
 					Start exam
 				</Button>
-				<Button size="sm" variant="outline" onClick={() => start(exam.id, "practice")}>
+				<Button
+					size="sm"
+					variant="outline"
+					disabled={!ready}
+					onClick={() => start(exam.id, "practice")}
+				>
 					Practice
 				</Button>
 			</div>
@@ -37,6 +43,8 @@ function ExamCard({ exam }: { exam: ExamSummary }) {
 /** Every exam of the bundled pack, grouped by certification. */
 export function CatalogRoute() {
 	const { catalog, loadCatalog, pendingReplace, start, cancelReplace, error } = useExam();
+	// Live, not a remembered error: it clears itself when Docker is back
+	const docker = useEnvironment(s => s.env?.docker);
 	useEffect(() => {
 		loadCatalog();
 	}, [loadCatalog]);
@@ -57,6 +65,15 @@ export function CatalogRoute() {
 					</Button>
 				</Alert>
 			)}
+			{docker?.state === "down" && (
+				<Alert variant="warning">
+					<span>
+						<strong>Docker is not running.</strong> Start OrbStack or Docker Desktop: ckdry connects
+						as soon as it is up.
+					</span>
+				</Alert>
+			)}
+			{docker?.state === "connecting" && <Alert>Connecting to Docker…</Alert>}
 			{error && <Alert variant="destructive">{error}</Alert>}
 			<GenerateCard onGenerated={loadCatalog} />
 			{certs.map(cert => (
@@ -66,7 +83,7 @@ export function CatalogRoute() {
 						{catalog
 							.filter(e => e.certification === cert)
 							.map(exam => (
-								<ExamCard key={exam.id} exam={exam} />
+								<ExamCard key={exam.id} exam={exam} ready={docker?.state === "up"} />
 							))}
 					</div>
 				</section>
