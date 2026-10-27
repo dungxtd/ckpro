@@ -18,10 +18,12 @@ import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { Chip } from "@ckdry/ui/components/chip";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
+import { Disclosure } from "@ckdry/ui/components/disclosure";
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Input } from "@ckdry/ui/components/input";
 import { menu, menuRow } from "@ckdry/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
+import { Progress } from "@ckdry/ui/components/progress";
 import { Range } from "@ckdry/ui/components/range";
 import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import {
@@ -45,6 +47,15 @@ import { Toaster } from "@ckdry/ui/components/sonner";
 import { Spinner } from "@ckdry/ui/components/spinner";
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { Switch } from "@ckdry/ui/components/switch";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@ckdry/ui/components/table";
+import { Textarea } from "@ckdry/ui/components/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/tooltip";
 import {
 	Check,
@@ -104,6 +115,7 @@ function Gallery() {
 	const [on, setOn] = useState(true);
 	const [chip, setChip] = useState(true);
 	const [select, setSelect] = useState("1");
+	const [open, setOpen] = useState(true);
 	const setThemeAttr = (t: "dark" | "light") => {
 		setTheme(t);
 		document.documentElement.dataset.theme = t;
@@ -253,6 +265,10 @@ function Gallery() {
 					</Row>
 					<Row>
 						<Input placeholder="Input" className="max-w-64" />
+						<Textarea placeholder="Textarea (grows with its text)" className="max-w-64" />
+						<div className="w-64 rounded-xl border border-border p-2">
+							<Textarea variant="bare" rows={2} placeholder="bare: inside a composer's frame" />
+						</div>
 						<div className="w-48">
 							<Range value={range} min={0} max={100} onValueChange={setRange} aria-label="Range" />
 						</div>
@@ -322,6 +338,65 @@ function Gallery() {
 					<CodeBlock wrap className="max-h-24">
 						{LONG_LOG}
 					</CodeBlock>
+					<CodeBlock
+						title="bash"
+						actions={
+							<Button size="push" variant="ghost" className="h-6 px-2 text-xs">
+								Copy
+							</Button>
+						}
+					>
+						kubectl get pvc -n storage-task
+					</CodeBlock>
+				</Section>
+
+				<Section title="Table" note="Data in rows: a tinted header, hairlines between rows.">
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>Exam</TableHead>
+								<TableHead>Score</TableHead>
+								<TableHead>Result</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							<TableRow>
+								<TableCell>CKA Practice Exam 1</TableCell>
+								<TableCell className="tabular-nums">72%</TableCell>
+								<TableCell>
+									<Badge variant="success">Pass</Badge>
+								</TableCell>
+							</TableRow>
+							<TableRow>
+								<TableCell>CKAD Practice Exam 1</TableCell>
+								<TableCell className="tabular-nums">41%</TableCell>
+								<TableCell>
+									<Badge variant="destructive">Fail</Badge>
+								</TableCell>
+							</TableRow>
+						</TableBody>
+					</Table>
+				</Section>
+
+				<Section
+					title="Progress · Disclosure"
+					note="How far something is; a row that opens what is under it."
+				>
+					<div className="flex max-w-md flex-col gap-2">
+						<Progress label="highlight" value={35} />
+						<Progress label="success" value={80} tone="success" />
+						<Progress label="warning" value={50} tone="warning" />
+						<Progress label="destructive" value={20} tone="destructive" />
+					</div>
+					<Card padding="none" className="max-w-md overflow-hidden">
+						<Disclosure
+							open={open}
+							onOpenChange={setOpen}
+							summary={<span className="flex-1">Starting cluster k8s</span>}
+						>
+							<CodeBlock wrap>▸ Creating nodes{"\n"}▸ Waiting for the control plane</CodeBlock>
+						</Disclosure>
+					</Card>
 				</Section>
 
 				<Section title="Feedback" note="Spinner, Skeleton, toasts, Separator.">

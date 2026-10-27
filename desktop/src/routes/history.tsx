@@ -1,5 +1,12 @@
 import { Badge } from "@ckdry/ui/components/badge";
-import { Card } from "@ckdry/ui/components/card";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@ckdry/ui/components/table";
 import { useEffect, useState } from "react";
 import { StudyPlan } from "@/components/history/study-plan";
 import { examApi, type HistoryEntry } from "@/tauri/api";
@@ -17,36 +24,34 @@ export function HistoryRoute() {
 		<div className="flex flex-col gap-6 p-6">
 			<StudyPlan />
 			<h2 className="-mb-3 font-semibold">Attempts</h2>
-			<Card padding="none" className="overflow-hidden">
-				<table className="w-full text-sm [&_td]:px-3 [&_td]:py-2 [&_th]:px-3 [&_th]:py-2">
-					<thead className="bg-muted/50 text-left text-muted-foreground text-xs">
-						<tr>
-							<th className="font-medium">Date</th>
-							<th className="font-medium">Exam</th>
-							<th className="font-medium">Mode</th>
-							<th className="font-medium">Score</th>
-							<th className="font-medium">Result</th>
-						</tr>
-					</thead>
-					<tbody>
-						{history.map(h => (
-							<tr key={h.attempt_id} className="border-border border-t">
-								<td className="tabular-nums">
-									{new Date(h.result.started_at ?? 0).toLocaleString()}
-								</td>
-								<td>{h.title}</td>
-								<td className="capitalize">{h.mode}</td>
-								<td className="tabular-nums">{h.result.score}%</td>
-								<td>
-									<Badge variant={h.result.passed ? "success" : "destructive"}>
-										{h.result.passed ? "Pass" : "Fail"}
-									</Badge>
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</Card>
+			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead>Date</TableHead>
+						<TableHead>Exam</TableHead>
+						<TableHead>Mode</TableHead>
+						<TableHead>Score</TableHead>
+						<TableHead>Result</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{history.map(h => (
+						<TableRow key={h.attempt_id}>
+							<TableCell className="tabular-nums">
+								{new Date(h.result.started_at ?? 0).toLocaleString()}
+							</TableCell>
+							<TableCell>{h.title}</TableCell>
+							<TableCell className="capitalize">{h.mode}</TableCell>
+							<TableCell className="tabular-nums">{h.result.score}%</TableCell>
+							<TableCell>
+								<Badge variant={h.result.passed ? "success" : "destructive"}>
+									{h.result.passed ? "Pass" : "Fail"}
+								</Badge>
+							</TableCell>
+						</TableRow>
+					))}
+				</TableBody>
+			</Table>
 		</div>
 	);
 }

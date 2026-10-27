@@ -1,6 +1,6 @@
 import { Card } from "@ckdry/ui/components/card";
+import { Disclosure } from "@ckdry/ui/components/disclosure";
 import { cn } from "@ckdry/ui/lib/utils";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useActivityList } from "@/stores/activity";
 import { ActivityProgress, clock } from "./activity-progress";
@@ -19,21 +19,13 @@ export function ActivityList() {
 	}
 	return (
 		<Card padding="none" className="divide-y divide-border overflow-hidden">
-			{list.map(a => {
-				const expanded = open === a.id;
-				return (
-					<div key={a.id}>
-						<button
-							type="button"
-							aria-expanded={expanded}
-							className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm outline-none transition-colors hover:bg-foreground/5 focus-visible:bg-foreground/5"
-							onClick={() => setOpen(expanded ? null : a.id)}
-						>
-							{expanded ? (
-								<ChevronDown className="size-3.5" />
-							) : (
-								<ChevronRight className="size-3.5" />
-							)}
+			{list.map(a => (
+				<Disclosure
+					key={a.id}
+					open={open === a.id}
+					onOpenChange={o => setOpen(o ? a.id : null)}
+					summary={
+						<>
 							<ActivityStatusIcon status={a.status} />
 							<span
 								className={cn(
@@ -47,15 +39,12 @@ export function ActivityList() {
 								{time(a.started_at ?? 0)}
 								{a.finished_at && ` · ${clock(a.finished_at - (a.started_at ?? 0))}`}
 							</span>
-						</button>
-						{expanded && (
-							<div className="px-3 py-3">
-								<ActivityProgress id={a.id} compact />
-							</div>
-						)}
-					</div>
-				);
-			})}
+						</>
+					}
+				>
+					<ActivityProgress id={a.id} compact />
+				</Disclosure>
+			))}
 		</Card>
 	);
 }

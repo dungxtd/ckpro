@@ -1,8 +1,10 @@
 //! Keeps `EnvState` in step with reality, event-driven and only as much as
 //! is shown:
 //! - Docker down: retried with a backoff (2 s doubling to 30 s), or at once
-//!   when asked (Retry). Up: its container events for kind nodes (pushed, no
-//!   polling), and a ping a minute to notice an engine that went away quietly.
+//!   when asked (Retry). Up: its events (pushed), a ping every 30 s to notice
+//!   an engine that went away quietly, and a re-read every 5 minutes in case
+//!   the event stream stalled. After a reconnect the guard re-checks the
+//!   attempt (events were missed meanwhile).
 //! - Kubernetes: one node watch per running cluster for Ready/NotReady, only
 //!   while node readiness is shown (the Environment page).
 
@@ -26,7 +28,9 @@ use tokio::task::JoinHandle;
 const CLUSTER_LABEL: &str = "io.x-k8s.kind.cluster";
 const RETRY_FIRST: Duration = Duration::from_secs(2);
 const RETRY_MAX: Duration = Duration::from_secs(30);
-const PING_EVERY: Duration = Duration::from_secs(60);
+const PING_EVERY: Duration = Duration::from_secs(30);
+/// A safety net under the events: one container list now and then
+const RESYNC_EVERY: Duration = Duration::from_secs(300);
 const ROLE_LABEL: &str = "io.x-k8s.kind.role";
 
 pub fn start(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>, guard: Arc<Guard>) {
@@ -74,6 +78,8 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
             reconciled = true;
         }
         sync(&docker, &env, &kind, &guard, &mut watchers).await;
+        // Events were missed while Docker was away: what changed meanwhile
+        guard.recheck(&docker).await;
 
         // Containers for the cluster list and the guard, networks and volumes
         // for the guard; only the actions either acts on
@@ -90,6 +96,8 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
             docker.events(Some(EventsOptions { filters: Some(filters), ..Default::default() })).boxed();
         let mut alive = tokio::time::interval(PING_EVERY);
         alive.tick().await;
+        let mut resync = tokio::time::interval(RESYNC_EVERY);
+        resync.tick().await;
         loop {
             tokio::select! {
                 event = events.next() => match event {
@@ -115,6 +123,7 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
                         break;
                     }
                 }
+                _ = resync.tick() => sync(&docker, &env, &kind, &guard, &mut watchers).await,
             }
         }
         tracing::warn!("lost connection to docker");

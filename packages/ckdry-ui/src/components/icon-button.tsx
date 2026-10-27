@@ -2,17 +2,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/to
 import { cn } from "@ckdry/ui/lib/utils";
 import type * as React from "react";
 
-export type IconButtonVariant = "glass" | "plain";
-export type IconButtonSize = "sm" | "md" | "lg" | "auto";
+export type IconButtonVariant = "glass" | "plain" | "toolbar";
+export type IconButtonSize = "xs" | "sm" | "md" | "lg" | "auto";
 
 export interface IconButtonOptions {
 	/**
 	 * glass: round dark-glass circle with a lit rim (actions over imagery:
 	 * My List, remove, close, PiP). plain: no wrap, just the icon (toolbars,
-	 * nav icons, slider arrows, player controls).
+	 * nav icons, slider arrows, player controls). toolbar: a dense panel's
+	 * buttons (Zed's): square, a tint on hover, no growing.
 	 */
 	variant?: IconButtonVariant;
-	/** sm 32px · md 40px · lg 48px · auto: caller sizes the box and icon. */
+	/** xs 24px · sm 32px · md 40px · lg 48px · auto: caller sizes the box and icon. */
 	size?: IconButtonSize;
 	/** Selected / toggled on: opaque glass fill, like the active header tab. */
 	active?: boolean;
@@ -33,6 +34,9 @@ export function iconButtonVariants({
 		variant === "glass" &&
 			"glass-blur bg-black/35 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3),inset_0_0_0_0.5px_rgb(255_255_255/0.12)] hover:bg-black/55",
 		variant === "plain" && "opacity-80 hover:opacity-100",
+		variant === "toolbar" &&
+			"rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground active:scale-100 [@media(hover:hover)]:hover:scale-100 disabled:opacity-40",
+		size === "xs" && "size-6 [&_svg]:size-3.5",
 		size === "sm" && "size-8 [&_svg]:size-4",
 		size === "md" && "size-10 [&_svg]:size-5",
 		size === "lg" && "size-12 [&_svg]:size-6",

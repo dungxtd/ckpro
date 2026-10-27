@@ -1,5 +1,9 @@
+import { Chip } from "@ckdry/ui/components/chip";
+import { IconButton } from "@ckdry/ui/components/icon-button";
 import { menu, menuRow } from "@ckdry/ui/components/menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
 import { Spinner } from "@ckdry/ui/components/spinner";
+import { Textarea } from "@ckdry/ui/components/textarea";
 import { cn } from "@ckdry/ui/lib/utils";
 import {
 	ArrowUp,
@@ -29,15 +33,13 @@ import {
 } from "@/tauri/api";
 import { Answer } from "./answer";
 
-type Menu = "history" | "more" | "context" | "model" | null;
-
 const tokens = (n: number) =>
 	n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n);
 
 /**
  * The assistant, laid out like Zed's agent panel: one read-only agent (ACP,
- * Claude) and one conversation per question. It reads the task and,
- * as chosen with @, the last check and a look at the cluster; it never runs
+ * Claude) and one conversation per question. It reads the task and, as
+ * chosen with @, the last check and a look at the cluster; it never runs
  * anything. Code in answers copies to the exam desktop, links open in its
  * Firefox. `review`: the attempt's result, the exam being over.
  */
@@ -61,7 +63,6 @@ export function AssistantPane({
 	const usage = coach.usage[question.id];
 	const [status, setStatus] = useState<CoachStatus | null>(null);
 	const [draft, setDraft] = useState("");
-	const [open, setOpen] = useState<Menu>(null);
 	const [expanded, setExpanded] = useState(false);
 	const [history, setHistory] = useState<CoachThread[]>([]);
 	const scroller = useRef<HTMLDivElement>(null);
@@ -86,59 +87,30 @@ export function AssistantPane({
 		setDraft("");
 		coach.ask(question.id, t, review?.checks);
 	};
-	const toggle = (menuName: Menu) => setOpen(m => (m === menuName ? null : menuName));
-	// A menu closes on Escape or a click outside it (its own button toggles it)
-	useEffect(() => {
-		if (!open) return;
-		const outside = (e: PointerEvent) => {
-			const target = e.target as Element | null;
-			if (!target?.closest("[data-popup], [data-popup-toggle]")) setOpen(null);
-		};
-		const onEscape = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
-		document.addEventListener("pointerdown", outside);
-		document.addEventListener("keydown", onEscape);
-		return () => {
-			document.removeEventListener("pointerdown", outside);
-			document.removeEventListener("keydown", onEscape);
-		};
-	}, [open]);
 	const title = thread.find(m => m.role === "user")?.text ?? "New Thread";
 	const lastUser = [...thread].reverse().find(m => m.role === "user")?.text;
 
 	return (
 		<aside className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-background">
 			{/* Toolbar: the thread, then new, history, more, close */}
-			<div className="relative flex h-9 shrink-0 items-center gap-0.5 border-border border-b pr-1.5 pl-3">
-				<span className="min-w-0 flex-1 truncate text-[13px]" title={title}>
-					{title}
-				</span>
-				<ToolButton
-					label="New Thread"
+			<div className="flex h-9 shrink-0 items-center gap-0.5 border-border border-b pr-1.5 pl-3">
+				<span className="min-w-0 flex-1 truncate text-[13px]">{title}</span>
+				<IconButton
+					variant="toolbar"
+					size="xs"
+					aria-label="New Thread"
 					onClick={() => coach.clear(question.id)}
 					disabled={writing || thread.length === 0}
 				>
 					<Plus />
-				</ToolButton>
-				<ToolButton
-					toggles
-					label="History"
-					onClick={() => {
-						coach.listThreads().then(setHistory);
-						toggle("history");
-					}}
-				>
-					<History />
-				</ToolButton>
-				<ToolButton toggles label="More" onClick={() => toggle("more")}>
-					<Ellipsis />
-				</ToolButton>
-				{onClose && (
-					<ToolButton label="Close" onClick={onClose}>
-						<X />
-					</ToolButton>
-				)}
-				{open === "history" && (
-					<Popup className="top-8 right-2 w-72">
+				</IconButton>
+				<Popover onOpenChange={open => open && coach.listThreads().then(setHistory)}>
+					<PopoverTrigger asChild>
+						<IconButton variant="toolbar" size="xs" aria-label="History">
+							<History />
+						</IconButton>
+					</PopoverTrigger>
+					<PopoverContent align="end" className={cn(menu.surface, "w-72")}>
 						<div className={menu.header}>This attempt</div>
 						{history.length === 0 && (
 							<div className={cn(menu.content, "py-1 text-muted-foreground text-xs")}>
@@ -150,24 +122,22 @@ export function AssistantPane({
 								key={t.question_id}
 								type="button"
 								className={menuRow()}
-								onClick={() => {
-									setOpen(null);
-									onOpenQuestion?.(t.question_id);
-								}}
+								onClick={() => onOpenQuestion?.(t.question_id)}
 							>
-								{t.question_id === question.id && (
-									<span className={menu.check}>
-										<Check className="size-3" />
-									</span>
-								)}
+								{t.question_id === question.id && <Checked />}
 								<span className="truncate">{t.title}</span>
 								<span className={menu.hint}>{t.messages / 2}</span>
 							</button>
 						))}
-					</Popup>
-				)}
-				{open === "more" && (
-					<Popup className="top-8 right-2 w-56">
+					</PopoverContent>
+				</Popover>
+				<Popover>
+					<PopoverTrigger asChild>
+						<IconButton variant="toolbar" size="xs" aria-label="More">
+							<Ellipsis />
+						</IconButton>
+					</PopoverTrigger>
+					<PopoverContent align="end" className={cn(menu.surface, "w-56")}>
 						<button
 							type="button"
 							className={menuRow()}
@@ -179,7 +149,6 @@ export function AssistantPane({
 										.join("\n\n")
 								);
 								toast.success("Thread copied as Markdown", { duration: 1500 });
-								setOpen(null);
 							}}
 						>
 							Copy Thread as Markdown
@@ -189,14 +158,16 @@ export function AssistantPane({
 							type="button"
 							className={menuRow()}
 							disabled={writing || thread.length === 0}
-							onClick={() => {
-								coach.clear(question.id);
-								setOpen(null);
-							}}
+							onClick={() => coach.clear(question.id)}
 						>
 							Clear Thread
 						</button>
-					</Popup>
+					</PopoverContent>
+				</Popover>
+				{onClose && (
+					<IconButton variant="toolbar" size="xs" aria-label="Close" onClick={onClose}>
+						<X />
+					</IconButton>
 				)}
 			</div>
 
@@ -247,7 +218,7 @@ export function AssistantPane({
 										<div className="flex items-center gap-2 text-[10px] text-muted-foreground">
 											<button
 												type="button"
-												className="flex cursor-pointer items-center gap-1 hover:text-foreground"
+												className="flex items-center gap-1 hover:text-foreground"
 												onClick={() => send(lastUser)}
 											>
 												<RotateCw className="size-3" /> Regenerate
@@ -261,28 +232,31 @@ export function AssistantPane({
 					</div>
 				)}
 				{coach.error && (
-					<div className="mt-2 flex gap-2 rounded-md bg-warning/10 px-3 py-1.5 text-muted-foreground text-xs">
-						<span className="flex-1">{coach.error}</span>
+					<div className="mt-2 rounded-md bg-warning/10 px-3 py-1.5 text-muted-foreground text-xs">
+						{coach.error}
 					</div>
 				)}
 			</div>
 
 			{/* Message editor: context, the text, then one row of controls. The
 			    profile is fixed to Ask (read-only), so it is text */}
-			<div className="relative flex flex-col gap-2 border-border border-t bg-card/40 p-2.5">
+			<div className="flex flex-col gap-2 border-border border-t bg-card/40 p-2.5">
 				<div className="flex flex-wrap gap-1">
-					<ContextChip>Task</ContextChip>
+					<Chip size="xs">Task</Chip>
 					{checks && coach.context.checks && (
-						<ContextChip onRemove={() => coach.setContext({ checks: false })}>
+						<Chip size="xs" onRemove={() => coach.setContext({ checks: false })}>
 							Last check
-						</ContextChip>
+						</Chip>
 					)}
 					{coach.context.cluster && (
-						<ContextChip onRemove={() => coach.setContext({ cluster: false })}>Cluster</ContextChip>
+						<Chip size="xs" onRemove={() => coach.setContext({ cluster: false })}>
+							Cluster
+						</Chip>
 					)}
 				</div>
 				<div className="relative">
-					<textarea
+					<Textarea
+						variant="bare"
 						value={draft}
 						onChange={e => setDraft(e.target.value)}
 						onKeyDown={e => {
@@ -294,22 +268,26 @@ export function AssistantPane({
 						rows={expanded ? 12 : 2}
 						placeholder="Ask about this task…"
 						aria-label="Ask the assistant"
-						className="block w-full resize-none bg-transparent pr-7 text-[13px] outline-none placeholder:text-muted-foreground/70"
+						className={cn("pr-7 text-[13px]", expanded ? "min-h-64" : "max-h-32")}
 					/>
-					<ToolButton
-						label={expanded ? "Collapse" : "Expand Message Editor"}
+					<IconButton
+						variant="toolbar"
+						size="xs"
 						className="absolute top-0 right-0"
+						aria-label={expanded ? "Collapse" : "Expand Message Editor"}
 						onClick={() => setExpanded(e => !e)}
 					>
 						{expanded ? <Minimize2 /> : <Maximize2 />}
-					</ToolButton>
+					</IconButton>
 				</div>
-				<div className="relative flex items-center gap-1">
-					<ToolButton toggles label="Add Context" onClick={() => toggle("context")}>
-						<AtSign />
-					</ToolButton>
-					{open === "context" && (
-						<Popup className="bottom-8 left-0 w-60">
+				<div className="flex items-center gap-1">
+					<Popover>
+						<PopoverTrigger asChild>
+							<IconButton variant="toolbar" size="xs" aria-label="Add Context">
+								<AtSign />
+							</IconButton>
+						</PopoverTrigger>
+						<PopoverContent side="top" className={cn(menu.surface, "w-60")}>
 							<div className={menu.header}>Add context</div>
 							<ContextRow
 								on={coach.context.checks}
@@ -324,62 +302,58 @@ export function AssistantPane({
 								hint="read-only"
 								toggle={() => coach.setContext({ cluster: !coach.context.cluster })}
 							/>
-						</Popup>
-					)}
+						</PopoverContent>
+					</Popover>
 					<span className="ml-auto text-[11px] text-muted-foreground">Ask</span>
-					<span className="relative">
-						<button
-							type="button"
-							data-popup-toggle
-							className="flex cursor-pointer items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground capitalize hover:bg-foreground/5 hover:text-foreground"
-							onClick={() => toggle("model")}
-						>
-							{coach.model} <ChevronDown className="size-3" />
-						</button>
-						{open === "model" && (
-							<Popup className="right-0 bottom-7 w-40">
-								{coach.models.map((m, i) => (
-									<button
-										key={m}
-										type="button"
-										className={cn(menuRow(), "capitalize")}
-										onClick={() => {
-											coach.setModel(m);
-											setOpen(null);
-										}}
-									>
-										{coach.model === m && (
-											<span className={menu.check}>
-												<Check className="size-3" />
-											</span>
-										)}
-										{m}
-										{i === 0 && <span className={cn(menu.hint, "normal-case")}>default</span>}
-									</button>
-								))}
-							</Popup>
-						)}
-					</span>
+					<Popover>
+						<PopoverTrigger asChild>
+							<button
+								type="button"
+								className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground capitalize hover:bg-foreground/5 hover:text-foreground"
+							>
+								{coach.model} <ChevronDown className="size-3" />
+							</button>
+						</PopoverTrigger>
+						<PopoverContent side="top" align="end" className={cn(menu.surface, "w-40")}>
+							{coach.models.map((m, i) => (
+								<button
+									key={m}
+									type="button"
+									className={cn(menuRow(), "capitalize")}
+									onClick={() => coach.setModel(m)}
+								>
+									{coach.model === m && <Checked />}
+									{m}
+									{i === 0 && <span className={cn(menu.hint, "normal-case")}>default</span>}
+								</button>
+							))}
+						</PopoverContent>
+					</Popover>
 					{usage && (
-						<span
-							className="px-1 text-[11px] text-muted-foreground tabular-nums"
-							title="Context used"
-						>
+						<span className="px-1 text-[11px] text-muted-foreground tabular-nums">
 							{tokens(usage.used)} / {tokens(usage.size)}
 						</span>
 					)}
 					{writing ? (
-						<ToolButton label="Stop" className="text-destructive" onClick={coach.stop}>
+						<IconButton
+							variant="toolbar"
+							size="xs"
+							className="text-destructive"
+							aria-label="Stop"
+							onClick={coach.stop}
+						>
 							<Square className="fill-current" />
-						</ToolButton>
+						</IconButton>
 					) : (
-						<ToolButton
-							label="Send"
+						<IconButton
+							variant="toolbar"
+							size="xs"
+							aria-label="Send"
 							disabled={!draft.trim() || !!coach.writing || (status !== null && !status.ready)}
 							onClick={() => send(draft)}
 						>
 							<ArrowUp />
-						</ToolButton>
+						</IconButton>
 					)}
 				</div>
 			</div>
@@ -387,64 +361,13 @@ export function AssistantPane({
 	);
 }
 
-/** Zed's small icon buttons: no frame, a tint on hover */
-function ToolButton({
-	label,
-	className,
-	disabled,
-	onClick,
-	toggles,
-	children,
-}: {
-	label: string;
-	className?: string;
-	disabled?: boolean;
-	onClick?: () => void;
-	/** Opens a menu */
-	toggles?: boolean;
-	children: ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			data-popup-toggle={toggles || undefined}
-			aria-label={label}
-			title={label}
-			disabled={disabled}
-			onClick={onClick}
-			className={cn(
-				"grid size-6 shrink-0 cursor-pointer place-items-center rounded text-muted-foreground hover:bg-foreground/10 hover:text-foreground disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent [&_svg]:size-3.5",
-				className
-			)}
-		>
-			{children}
-		</button>
-	);
-}
-
-const Popup = ({ className, children }: { className: string; children: ReactNode }) => (
-	<div data-popup className={cn(menu.surface, "absolute z-20", className)}>
-		{children}
-	</div>
-);
-
-const ContextChip = ({ onRemove, children }: { onRemove?: () => void; children: ReactNode }) => (
-	<span className="flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[11px]">
-		{children}
-		{onRemove && (
-			<button
-				type="button"
-				aria-label={`Remove ${children}`}
-				className="cursor-pointer text-muted-foreground hover:text-foreground"
-				onClick={onRemove}
-			>
-				<X className="size-3" />
-			</button>
-		)}
+const Checked = () => (
+	<span className={menu.check}>
+		<Check className="size-3" />
 	</span>
 );
 
-const ContextRow = ({
+function ContextRow({
 	on,
 	label,
 	hint,
@@ -453,23 +376,21 @@ const ContextRow = ({
 }: {
 	on: boolean;
 	label: string;
-	hint?: string;
+	hint?: ReactNode;
 	disabled?: boolean;
 	toggle: () => void;
-}) => (
-	<button
-		type="button"
-		className={menuRow()}
-		disabled={disabled}
-		data-disabled={disabled || undefined}
-		onClick={toggle}
-	>
-		{on && !disabled && (
-			<span className={menu.check}>
-				<Check className="size-3" />
-			</span>
-		)}
-		{label}
-		{hint && <span className={menu.hint}>{hint}</span>}
-	</button>
-);
+}) {
+	return (
+		<button
+			type="button"
+			className={menuRow()}
+			disabled={disabled}
+			data-disabled={disabled || undefined}
+			onClick={toggle}
+		>
+			{on && !disabled && <Checked />}
+			{label}
+			{hint && <span className={menu.hint}>{hint}</span>}
+		</button>
+	);
+}

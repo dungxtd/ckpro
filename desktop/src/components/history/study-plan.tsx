@@ -1,9 +1,17 @@
 import { Alert } from "@ckdry/ui/components/alert";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
+import { Progress, type ProgressTone } from "@ckdry/ui/components/progress";
 import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import { Spinner } from "@ckdry/ui/components/spinner";
-import { cn } from "@ckdry/ui/lib/utils";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@ckdry/ui/components/table";
 import { Sparkles, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Markdown } from "@/components/markdown";
@@ -16,8 +24,8 @@ import {
 } from "@/tauri/api";
 
 /** Passing is 66% on the CKA/CKAD/CKS */
-const tone = (percent: number) =>
-	percent >= 66 ? "bg-success" : percent >= 40 ? "bg-warning" : "bg-destructive";
+const tone = (percent: number): ProgressTone =>
+	percent >= 66 ? "success" : percent >= 40 ? "warning" : "destructive";
 
 /**
  * Where the candidate stands per curriculum domain (from every finished
@@ -83,23 +91,21 @@ export function StudyPlan() {
 				</span>
 			</div>
 
-			<Card padding="none" className="overflow-hidden">
-				<table className="w-full text-sm [&_td]:px-3 [&_td]:py-2 [&_th]:px-3 [&_th]:py-2">
-					<thead className="bg-muted/50 text-left text-muted-foreground text-xs">
-						<tr>
-							<th className="font-medium">Domain</th>
-							<th className="w-24 font-medium">Exam weight</th>
-							<th className="w-1/3 font-medium">Your score</th>
-							<th className="w-24 font-medium">Answered</th>
-						</tr>
-					</thead>
-					<tbody>
-						{current.domains.map(d => (
-							<DomainRow key={d.domain} domain={d} />
-						))}
-					</tbody>
-				</table>
-			</Card>
+			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead>Domain</TableHead>
+						<TableHead className="w-24">Exam weight</TableHead>
+						<TableHead className="w-1/3">Your score</TableHead>
+						<TableHead className="w-24">Answered</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{current.domains.map(d => (
+						<DomainRow key={d.domain} domain={d} />
+					))}
+				</TableBody>
+			</Table>
 
 			<div className="flex items-center gap-2">
 				{writing ? (
@@ -141,25 +147,25 @@ export function StudyPlan() {
 function DomainRow({ domain: d }: { domain: DomainStat }) {
 	const percent = d.max_points ? Math.round((d.points * 100) / d.max_points) : null;
 	return (
-		<tr className="border-border border-t">
-			<td className="capitalize">{d.domain.replaceAll("-", " ")}</td>
-			<td className="tabular-nums">{d.weight}%</td>
-			<td>
+		<TableRow>
+			<TableCell className="capitalize">{d.domain.replaceAll("-", " ")}</TableCell>
+			<TableCell className="tabular-nums">{d.weight}%</TableCell>
+			<TableCell>
 				{percent === null ? (
 					<span className="text-muted-foreground">Not tested yet</span>
 				) : (
 					<span className="flex items-center gap-2">
-						<span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-							<span
-								className={cn("block h-full rounded-full", tone(percent))}
-								style={{ width: `${percent}%` }}
-							/>
-						</span>
+						<Progress
+							value={percent}
+							tone={tone(percent)}
+							label={`${d.domain} score`}
+							className="flex-1"
+						/>
 						<span className="w-10 text-right tabular-nums">{percent}%</span>
 					</span>
 				)}
-			</td>
-			<td className="tabular-nums">{d.questions}</td>
-		</tr>
+			</TableCell>
+			<TableCell className="tabular-nums">{d.questions}</TableCell>
+		</TableRow>
 	);
 }

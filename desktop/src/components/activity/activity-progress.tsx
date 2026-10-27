@@ -2,6 +2,7 @@ import { Alert } from "@ckdry/ui/components/alert";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
+import { Progress } from "@ckdry/ui/components/progress";
 import { Spinner } from "@ckdry/ui/components/spinner";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Check, ChevronDown, ChevronRight, Circle, Copy, X } from "lucide-react";
@@ -91,22 +92,12 @@ export function ActivityProgress({
 			{note && <Alert variant="warning">{note}</Alert>}
 
 			<div>
-				<div
-					role="progressbar"
-					aria-valuenow={percent}
-					aria-valuemin={0}
-					aria-valuemax={100}
-					aria-label={activity.title}
-					className="h-2 overflow-hidden rounded-full bg-muted"
-				>
-					<div
-						className={cn(
-							"h-full transition-all duration-500",
-							failed ? "bg-destructive" : "bg-highlight"
-						)}
-						style={{ width: `${failed ? Math.max(percent, 4) : percent}%` }}
-					/>
-				</div>
+				<Progress
+					label={activity.title}
+					value={failed ? Math.max(percent, 4) : percent}
+					tone={failed ? "destructive" : "highlight"}
+					className="h-2"
+				/>
 				{total > 1 && (
 					<div className="mt-1 text-muted-foreground text-xs">
 						{done ? "Done" : `Step ${Math.min(activity.current + 1, total)} of ${total}`}

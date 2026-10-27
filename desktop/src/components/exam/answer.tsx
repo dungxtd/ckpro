@@ -1,3 +1,4 @@
+import { CodeBlock } from "@ckdry/ui/components/code-block";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
@@ -16,22 +17,22 @@ type Node = {
 const textOf = (n?: Node): string =>
 	n?.type === "text" ? (n.value ?? "") : (n?.children ?? []).map(textOf).join("");
 
-/** A code block as in Zed and TablePro: framed, the language as a pill, and
- * Copy (to the exam desktop's clipboard: Ctrl+Shift+V in its terminal) */
-function CodeBlock({ node }: { node?: Node }) {
+/** A code block as in Zed and TablePro: the kit's framed CodeBlock, its
+ * language as the title, and Copy (to the exam desktop's clipboard:
+ * Ctrl+Shift+V in its terminal) */
+function AnswerCode({ node }: { node?: Node }) {
 	const code = node?.children?.[0];
 	const lang = code?.properties?.className?.[0]?.replace("language-", "") ?? "text";
 	const text = textOf(code).replace(/\n$/, "");
 	const [copied, setCopied] = useState(false);
 	return (
-		<div className="my-1.5 overflow-hidden rounded-lg border border-border bg-card">
-			<div className="flex items-center border-border border-b px-2.5 py-1">
-				<span className="rounded bg-border px-1.5 py-0.5 font-medium text-[10px] uppercase">
-					{lang}
-				</span>
+		<CodeBlock
+			className="leading-relaxed"
+			title={lang}
+			actions={
 				<button
 					type="button"
-					className="ml-auto flex cursor-pointer items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+					className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
 					onClick={() => {
 						copyToDesktop(text);
 						setCopied(true);
@@ -41,14 +42,19 @@ function CodeBlock({ node }: { node?: Node }) {
 					{copied ? <Check className="size-3" /> : <Copy className="size-3" />}{" "}
 					{copied ? "Copied" : "Copy"}
 				</button>
-			</div>
-			<pre className="overflow-x-auto p-2.5 font-mono text-xs leading-relaxed">{text}</pre>
-		</div>
+			}
+		>
+			{text}
+		</CodeBlock>
 	);
 }
 
 const COMPONENTS: Components = {
-	pre: ({ node }) => <CodeBlock node={node as Node} />,
+	pre: ({ node }) => (
+		<div className="my-1.5">
+			<AnswerCode node={node as Node} />
+		</div>
+	),
 	// Documentation opens where the candidate reads it: the desktop's Firefox
 	a: ({ href, children }) => (
 		<a

@@ -10,8 +10,8 @@ type ChipProps = Omit<React.ComponentProps<"button">, "onClick"> & {
 	/** Makes the chip static and adds a × remove button. */
 	onRemove?: () => void;
 	onClick?: () => void;
-	/** sm 28px (filters, scopes) · md 32px (source sort/quality). */
-	size?: "sm" | "md";
+	/** xs 22px (context in a composer) · sm 28px (filters, scopes) · md 32px (source sort/quality). */
+	size?: "xs" | "sm" | "md";
 };
 
 /**
@@ -32,8 +32,12 @@ export function Chip({
 }: ChipProps) {
 	const base = cn(
 		"hover-glow inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring",
-		size === "sm" ? "h-7 text-callout" : "h-8 text-xs",
-		onRemove ? "pr-1 pl-3" : "px-3",
+		size === "xs"
+			? "h-[22px] gap-1 text-[11px]"
+			: size === "sm"
+				? "h-7 text-callout"
+				: "h-8 text-xs",
+		onRemove ? (size === "xs" ? "pr-0.5 pl-2" : "pr-1 pl-3") : size === "xs" ? "px-2" : "px-3",
 		// Filled tint (not a surface + edge), so a chip reads the same on the page,
 		// in sheets and in menus; selected gets the solid segmented-thumb fill.
 		selected

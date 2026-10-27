@@ -133,6 +133,40 @@ impl Guard {
         }
     }
 
+    /// After a gap in the events (Docker reconnected): start what of the
+    /// attempt is stopped or paused, and close the API servers to the host again
+    pub async fn recheck(self: &Arc<Self>, docker: &Docker) {
+        let Some((containers, clusters, gateway)) =
+            self.lock().as_ref().map(|a| (a.containers.clone(), a.clusters.clone(), a.gateway.clone()))
+        else {
+            return;
+        };
+        let mut names: Vec<String> = containers.into_iter().collect();
+        let filters = HashMap::from([("label".to_string(), clusters.iter().map(|c| format!("{CLUSTER_LABEL}={c}")).collect())]);
+        if let Ok(nodes) = docker
+            .list_containers(Some(bollard::query_parameters::ListContainersOptions { all: true, filters: Some(filters), ..Default::default() }))
+            .await
+        {
+            names.extend(nodes.into_iter().filter_map(|c| c.names?.first().map(|n| n.trim_start_matches('/').to_string())));
+        }
+        for name in names {
+            let Ok(c) = docker.inspect_container(&name, None).await else { continue };
+            let state = c.state.unwrap_or_default();
+            if state.paused == Some(true) {
+                self.record(format!("{name} was paused while ckdry lost Docker: resumed"));
+                let _ = docker.unpause_container(&name).await;
+            } else if state.running != Some(true) {
+                self.record(format!("{name} was not running when Docker came back: started again"));
+                let _ = docker.start_container(&name, None::<bollard::query_parameters::StartContainerOptions>).await;
+            }
+        }
+        if let Some(gateway) = gateway {
+            for cluster in &clusters {
+                block_host(docker, &format!("{cluster}-control-plane"), &gateway).await;
+            }
+        }
+    }
+
     /// Stop reacting at once, without undoing anything (the app is quitting
     /// and stops the containers itself; a resume guards them again)
     pub fn suspend(&self) {
