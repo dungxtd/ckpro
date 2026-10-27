@@ -4,9 +4,8 @@ import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { toast } from "sonner";
-import { ApiError, desktopApi } from "@/tauri/api";
 import { copyToDesktop } from "./desktop-view";
+import { DocLink } from "./doc-link";
 
 type Node = {
 	type: string;
@@ -56,26 +55,7 @@ const COMPONENTS: Components = {
 		</div>
 	),
 	// Documentation opens where the candidate reads it: the desktop's Firefox
-	a: ({ href, children }) => (
-		<a
-			href={href}
-			className="text-highlight underline-offset-2 hover:underline"
-			onClick={e => {
-				e.preventDefault();
-				if (href)
-					desktopApi
-						.openUrl(href)
-						.then(() =>
-							toast.success("Opened in the desktop's Firefox", { id: "open-doc", duration: 1500 })
-						)
-						.catch(err =>
-							toast.error(err instanceof ApiError ? err.message : String(err), { id: "open-doc" })
-						);
-			}}
-		>
-			{children}
-		</a>
-	),
+	a: ({ href, children }) => <DocLink href={href}>{children}</DocLink>,
 };
 
 /** An assistant answer: Markdown, its code copyable to the desktop */

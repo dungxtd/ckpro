@@ -2,37 +2,18 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { CopyText } from "@/components/exam/copy-text";
-import { ApiError, browserApi, desktopApi } from "@/tauri/api";
+import { DocLink } from "@/components/exam/doc-link";
+import { ApiError, browserApi } from "@/tauri/api";
 
 type Node = { type: string; value?: string; children?: Node[] };
 const textOf = (node?: Node): string =>
 	node?.type === "text" ? (node.value ?? "") : (node?.children ?? []).map(textOf).join("");
 
-/** Documentation opens where the candidate reads it: the desktop's Firefox */
-const openOnDesktop = (url: string) =>
-	desktopApi
-		.openUrl(url)
-		.then(() =>
-			toast.success("Opened in the desktop's Firefox", { id: "open-doc", duration: 1500 })
-		)
-		.catch(e => toast.error(e instanceof ApiError ? e.message : String(e), { id: "open-doc" }));
-
 /** Code and code blocks copy to the exam desktop on click; links open in its Firefox */
 const COPY: Components = {
 	code: ({ node }) => <CopyText text={textOf(node as Node)} />,
 	pre: ({ node }) => <CopyText block text={textOf(node as Node).replace(/\n$/, "")} />,
-	a: ({ href, children }) => (
-		<a
-			href={href}
-			className="text-highlight underline-offset-2 hover:underline"
-			onClick={e => {
-				e.preventDefault();
-				if (href) openOnDesktop(href);
-			}}
-		>
-			{children}
-		</a>
-	),
+	a: ({ href, children }) => <DocLink href={href}>{children}</DocLink>,
 };
 
 /** Elsewhere a link opens in the system browser: followed in the app's own
