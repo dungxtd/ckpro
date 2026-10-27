@@ -53,6 +53,8 @@ export function CopyText({
 			className={cn(
 				"cursor-pointer select-none outline-none transition-colors hover:bg-highlight/25 focus-visible:outline-2 focus-visible:outline-highlight focus-visible:-outline-offset-2",
 				block && codeBlock,
+				// Long paths and names wrap anywhere instead of leaving the panel
+				!block && "[overflow-wrap:anywhere] [box-decoration-break:clone]",
 				className,
 				// Over the Markdown's own code background
 				copied && "bg-success/30!"

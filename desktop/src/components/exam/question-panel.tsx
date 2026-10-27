@@ -12,7 +12,7 @@ import { useSettings } from "@/stores/settings";
 import type { Attempt, QuestionView } from "@/tauri/api";
 import { CheckList } from "./check-list";
 import { CopyText } from "./copy-text";
-import { DocLink } from "./doc-link";
+import { DocList } from "./doc-link";
 import { useSolution } from "./use-solution";
 
 /** Question text sizes, in px (the text size stepper) */
@@ -60,13 +60,9 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 			<Markdown copy>{question.statement}</Markdown>
 
 			{question.references.length > 0 && (
-				<div className="text-xs">
+				<div className="flex flex-col gap-1 text-xs">
 					<div className="text-muted-foreground">Quick Reference</div>
-					{question.references.map(url => (
-						<DocLink key={url} href={url} className="block truncate font-mono">
-							{url}
-						</DocLink>
-					))}
+					<DocList urls={question.references} />
 				</div>
 			)}
 

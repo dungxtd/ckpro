@@ -21,7 +21,10 @@ export function CheckList({
 					)}
 					<div className="min-w-0 flex-1">
 						<span>{check.name}</span>
-						<span className="text-muted-foreground text-xs"> · {check.weight} pt</span>
+						<span className="whitespace-nowrap text-muted-foreground text-xs">
+							{" "}
+							· {check.weight} pt
+						</span>
 						{!check.passed && check.detail && (
 							<div className="text-muted-foreground text-xs">{check.detail}</div>
 						)}
