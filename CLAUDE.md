@@ -23,6 +23,9 @@ The frontend follows the nextflix stack and its kit conventions.
 
   Hand-rolled `<button>`, `<select>` or bordered `div`s are a missing kit
   component: add it to the kit instead.
+- **The design system, live:** `desktop/kit.html` (`cd desktop && pnpm exec
+  vite`, then `/kit.html`) shows every kit component and the app's patterns in
+  both themes. A new component or variant goes there too.
 - **Tokens, not palette colours.** Use the theme's tokens: `background`,
   `card`, `muted`, `border`, `highlight`, `success`, `warning`,
   `destructive`, and so on. Exam-specific accents are app tokens in

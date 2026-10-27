@@ -166,6 +166,7 @@ export function ActivityProgress({
 				</div>
 				{open && (
 					<CodeBlock
+						wrap
 						ref={logBox}
 						onScroll={e => {
 							const el = e.currentTarget;

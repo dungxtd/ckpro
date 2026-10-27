@@ -86,7 +86,7 @@ export function CreateClusterForm() {
 				))}
 			</ul>
 			{log.length > 0 && (
-				<CodeBlock ref={logRef} className="mt-2 max-h-32">
+				<CodeBlock wrap ref={logRef} className="mt-2 max-h-32">
 					{log.join("\n")}
 				</CodeBlock>
 			)}

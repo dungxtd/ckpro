@@ -325,7 +325,8 @@ impl Exams {
 
     async fn resume(&self, attempt: &Attempt, activity: u32) -> AppResult<()> {
         let op = self.activities.handle(activity);
-        let docker = docker::connect().await?;
+        // The app may start before Docker does (both at login, or after a restart)
+        let docker = docker::wait(std::time::Duration::from_secs(120), || op.detail("Waiting for Docker to start…")).await?;
         // Removed while the app was closed: nothing to wait for
         let existing = self.kind.all_clusters().await?;
         if let Some(gone) = attempt.clusters.iter().find(|c| !existing.contains(c)) {

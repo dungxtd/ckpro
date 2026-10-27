@@ -42,7 +42,11 @@ export function ScriptCard() {
 					{running ? "Running…" : "Run"}
 				</Button>
 			</div>
-			{result && <CodeBlock className="mt-2 max-h-32">{result}</CodeBlock>}
+			{result && (
+				<CodeBlock wrap className="mt-2 max-h-32">
+					{result}
+				</CodeBlock>
+			)}
 		</Card>
 	);
 }

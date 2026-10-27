@@ -41,6 +41,26 @@ pub async fn connect() -> AppResult<Docker> {
     })
 }
 
+/// Docker, waiting up to `timeout` for it to come up (OrbStack or Docker
+/// Desktop starting with the machine, or restarting); `waiting` is called
+/// once if it is not up yet.
+pub async fn wait(timeout: std::time::Duration, waiting: impl FnOnce()) -> AppResult<Docker> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    let mut waiting = Some(waiting);
+    loop {
+        match connect().await {
+            Ok(docker) => return Ok(docker),
+            Err(e) if tokio::time::Instant::now() >= deadline => return Err(e),
+            Err(_) => {
+                if let Some(waiting) = waiting.take() {
+                    waiting();
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            }
+        }
+    }
+}
+
 /// Compose project every container started by ckdry belongs to, so container
 /// managers (OrbStack, Docker Desktop) group them as one app.
 pub const COMPOSE_PROJECT: &str = "ckdry";
