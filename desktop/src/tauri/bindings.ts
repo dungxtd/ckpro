@@ -56,7 +56,7 @@ export const commands = {
 	 *  Ask the coach about a question (practice mode, or after the result); the
 	 *  answer streams on `events` and resolves to the whole answer.
 	 */
-	coachAsk: (questionId: string, text: string, checks: CheckResult[], solutionOpened: boolean, model: string, context: CoachContext, events: Channel<CoachEvent>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("coach_ask", { questionId, text, checks, solutionOpened, model, context, events })),
+	coachAsk: (questionId: string, text: string, checks: CheckResult[], solutionOpened: boolean, model: ModelChoice, context: CoachContext, events: Channel<CoachEvent>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("coach_ask", { questionId, text, checks, solutionOpened, model, context, events })),
 	/**  Stop the answer being written. */
 	coachCancel: () => __TAURI_INVOKE<void>("coach_cancel"),
 	/**  The Claude login the assistant answers as. */
@@ -76,6 +76,8 @@ export const commands = {
 	coachThreads: () => typedError<CoachThread[], AppError>(__TAURI_INVOKE("coach_threads")),
 	/**  The models the coach can use, as the agent lists them for this login. */
 	coachModels: () => typedError<CoachModels_Serialize, AppError>(__TAURI_INVOKE("coach_models")),
+	/**  The effort levels a model takes (none when it has no effort setting). */
+	coachEfforts: (model: string) => typedError<ModelOption_Serialize[], AppError>(__TAURI_INVOKE("coach_efforts", { model })),
 	/**  How the candidate did per curriculum domain, per certification attempted. */
 	studyStats: () => __TAURI_INVOKE<StudyStats[]>("study_stats"),
 	/**
@@ -551,6 +553,12 @@ export type Issue = {
 
 export type Mode = "exam" | "practice";
 
+/**  The model to answer with, and its effort (`default`: the model's own) */
+export type ModelChoice = {
+	model: string,
+	effort: string,
+};
+
 /**  A model the agent offers (its `model` config option), as Zed lists them */
 export type ModelOption = ModelOption_Serialize | ModelOption_Deserialize;
 
@@ -663,6 +671,14 @@ export type Settings_Deserialize = {
 	desktop_resolution?: [number, number] | null,
 	/**  Question text size: 0 (smaller) to 3 (larger), 1 by default */
 	question_size?: number,
+	/**  The task panel's share of the desk, in percent (its drag handle) */
+	task_width?: number | null,
+	/**  The assistant pane: shown, and its width in px (its drag handle) */
+	assistant_open?: boolean,
+	assistant_width?: number,
+	/**  The assistant's model and effort, as last picked */
+	assistant_model?: string | null,
+	assistant_effort?: string | null,
 };
 
 /**  The exam desk's display settings */
@@ -673,6 +689,14 @@ export type Settings_Serialize = {
 	desktop_resolution: [number, number] | null,
 	/**  Question text size: 0 (smaller) to 3 (larger), 1 by default */
 	question_size: number,
+	/**  The task panel's share of the desk, in percent (its drag handle) */
+	task_width: number | null,
+	/**  The assistant pane: shown, and its width in px (its drag handle) */
+	assistant_open: boolean,
+	assistant_width: number,
+	/**  The assistant's model and effort, as last picked */
+	assistant_model: string | null,
+	assistant_effort: string | null,
 };
 
 export type Severity = "error" | "warning";

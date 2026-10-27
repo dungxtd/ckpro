@@ -49,6 +49,13 @@ pub struct CoachStatus {
     pub problem: Option<String>,
 }
 
+/// The model to answer with, and its effort (`default`: the model's own)
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
+pub struct ModelChoice {
+    pub model: String,
+    pub effort: String,
+}
+
 /// The models the coach can use
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 pub struct CoachModels {
@@ -87,8 +94,8 @@ pub struct CoachThread {
 pub struct Coach {
     agent: Agent,
     running: Mutex<Option<CancellationToken>>,
-    /// Open conversations: (attempt, question) → (ACP session, model)
-    sessions: tokio::sync::Mutex<HashMap<(String, String), (String, String)>>,
+    /// Open conversations: (attempt, question) → (ACP session, model, effort)
+    sessions: tokio::sync::Mutex<HashMap<(String, String), (String, String, String)>>,
     /// The Claude login being run, if any
     signing_in: tokio::sync::Mutex<Option<account::SigningIn>>,
 }
@@ -109,6 +116,11 @@ impl Coach {
         let options = self.agent.models().await?;
         let default = if options.iter().any(|m| m.value == DEFAULT_MODEL) { DEFAULT_MODEL } else { agent::DEFAULT };
         Ok(CoachModels { options, default: default.to_string() })
+    }
+
+    /// The effort levels `model` takes (none when it has no effort setting)
+    pub async fn efforts(&self, model: &str) -> AppResult<Vec<agent::ModelOption>> {
+        self.agent.efforts(model).await
     }
 
     /// Who the assistant answers as
@@ -198,6 +210,7 @@ impl Coach {
         checks: &[CheckResult],
         solution_opened: bool,
         model: &str,
+        effort: &str,
         context: CoachContext,
         on_event: impl Fn(CoachEvent) + Sync,
     ) -> AppResult<CoachReply> {
@@ -212,20 +225,24 @@ impl Coach {
         let key = (subject.attempt_id.clone(), question_id.to_string());
         let open = self.sessions.lock().await.get(&key).cloned();
         let (session, prompt) = match open {
-            Some((session, current)) => {
+            Some((session, current, current_effort)) => {
                 if current != model {
                     self.agent.set_model(&session, model).await?;
+                }
+                if current != model || current_effort != effort {
+                    self.agent.set_effort(&session, model, effort).await?;
                 }
                 (session, followup(checks, snapshot.as_deref(), text))
             }
             // A new session (or the app restarted): the task, and what was said before
             None => {
                 let session = self.agent.new_session(&system(&subject), model).await?;
+                self.agent.set_effort(&session, model, effort).await?;
                 let history = store.coach_messages(&subject.attempt_id, question_id)?;
                 (session, prompt(&subject, checks, snapshot.as_deref(), &history, text))
             }
         };
-        self.sessions.lock().await.insert(key.clone(), (session.clone(), model.to_string()));
+        self.sessions.lock().await.insert(key.clone(), (session.clone(), model.to_string(), effort.to_string()));
         let answer = self
             .agent
             .prompt(&session, &prompt, &cancel, &|t| on_event(CoachEvent::Text { text: t.to_string() }))
@@ -254,7 +271,7 @@ impl Coach {
     /// Start the question's conversation over (the panel's New Thread)
     pub async fn clear(&self, exams: &Exams, store: &Store, question_id: &str) -> AppResult<()> {
         let subject = exams.coach_subject(question_id, false)?;
-        if let Some((session, _)) = self.sessions.lock().await.remove(&(subject.attempt_id.clone(), question_id.to_string())) {
+        if let Some((session, _, _)) = self.sessions.lock().await.remove(&(subject.attempt_id.clone(), question_id.to_string())) {
             self.agent.close(&session).await;
         }
         store.clear_coach_messages(&subject.attempt_id, question_id)

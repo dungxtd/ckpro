@@ -33,7 +33,7 @@ function Layout() {
 	const navigate = useNavigate();
 	return (
 		<div className="flex h-full flex-col">
-			<header className="flex items-center gap-4 border-border border-b px-4 py-2">
+			<header className="flex select-none items-center gap-4 border-border border-b px-4 py-2">
 				<strong>ckdry</strong>
 				<nav>
 					<SegmentedControl label="Sections" options={NAV} value={pathname} onChange={navigate} />
@@ -69,6 +69,8 @@ function App() {
 			for (const stop of stops) stop.then(fn => fn());
 		};
 	}, [connectEnv, connectExam, connectActivities, loadSettings]);
+	const settingsLoaded = useSettings(s => s.loaded);
+	if (!settingsLoaded) return null;
 
 	return (
 		<>

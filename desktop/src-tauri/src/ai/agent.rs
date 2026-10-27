@@ -8,6 +8,7 @@ use super::acp::Connection;
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::process::Command;
@@ -58,12 +59,13 @@ pub fn npx() -> Option<PathBuf> {
 /// The agent's own default model (`Default (recommended)`)
 pub const DEFAULT: &str = "default";
 
-/// The `model` option of a `session/new` result
-fn model_options(result: &serde_json::Value) -> Vec<ModelOption> {
+/// The choices of config option `id` (`model`, `effort`) in a `session/new`
+/// or `session/set_config_option` result
+fn config_options(result: &serde_json::Value, id: &str) -> Vec<ModelOption> {
     let Some(options) = result["configOptions"].as_array() else { return Vec::new() };
     options
         .iter()
-        .find(|o| o["id"] == "model")
+        .find(|o| o["id"] == id)
         .and_then(|o| o["options"].as_array())
         .into_iter()
         .flatten()
@@ -83,6 +85,8 @@ pub struct Agent {
     connection: tokio::sync::Mutex<Option<Arc<Connection>>>,
     /// The models the last session offered (they follow the login's plan)
     models: std::sync::Mutex<Vec<ModelOption>>,
+    /// Effort levels per model, as sessions reported them (they differ by model)
+    efforts: std::sync::Mutex<HashMap<String, Vec<ModelOption>>>,
 }
 
 /// One answer: its text and the session's context use after it
@@ -93,7 +97,7 @@ pub struct Answer {
 
 impl Agent {
     pub fn new(data_dir: &Path) -> Self {
-        Self { workdir: data_dir.join("agent"), connection: tokio::sync::Mutex::new(None), models: Default::default() }
+        Self { workdir: data_dir.join("agent"), connection: tokio::sync::Mutex::new(None), models: Default::default(), efforts: Default::default() }
     }
 
     /// The running adapter, started (and initialized) when needed
@@ -140,6 +144,7 @@ impl Agent {
     pub(super) async fn restart(&self) {
         self.connection.lock().await.take();
         self.models.lock().unwrap_or_else(|p| p.into_inner()).clear();
+        self.efforts.lock().unwrap_or_else(|p| p.into_inner()).clear();
     }
 
     /// A new conversation with `system` as its instructions, on `model`
@@ -162,7 +167,8 @@ impl Agent {
             )
             .await?;
         let session = result["sessionId"].as_str().ok_or_else(|| AppError::assistant("the agent gave no session"))?.to_string();
-        let models = model_options(&result);
+        let models = config_options(&result, "model");
+        self.note_efforts(DEFAULT, &result);
         // A model this login does not offer (an alias of another plan): the
         // agent's default
         let offered = models.is_empty() || models.iter().any(|m| m.value == model);
@@ -195,9 +201,40 @@ impl Agent {
             return Err(AppError::invalid(format!("unknown model {model}")));
         }
         let c = self.connection().await?;
-        c.request("session/set_config_option", json!({ "sessionId": session, "configId": "model", "value": model }))
-            .await
-            .map(|_| ())
+        let result = c
+            .request("session/set_config_option", json!({ "sessionId": session, "configId": "model", "value": model }))
+            .await?;
+        self.note_efforts(model, &result);
+        Ok(())
+    }
+
+    /// The effort levels `model` takes (none if it has no effort setting),
+    /// asking the agent once
+    pub async fn efforts(&self, model: &str) -> AppResult<Vec<ModelOption>> {
+        if let Some(known) = self.efforts.lock().unwrap_or_else(|p| p.into_inner()).get(model) {
+            return Ok(known.clone());
+        }
+        let session = self.new_session("", model).await?;
+        self.close(&session).await;
+        Ok(self.efforts.lock().unwrap_or_else(|p| p.into_inner()).get(model).cloned().unwrap_or_default())
+    }
+
+    /// Set the session's effort; a level its model does not take is left at
+    /// the model's default
+    pub async fn set_effort(&self, session: &str, model: &str, effort: &str) -> AppResult<()> {
+        let offered = self.efforts.lock().unwrap_or_else(|p| p.into_inner()).get(model).is_some_and(|e| e.iter().any(|o| o.value == effort));
+        if !offered {
+            return Ok(());
+        }
+        let c = self.connection().await?;
+        c.request("session/set_config_option", json!({ "sessionId": session, "configId": "effort", "value": effort })).await?;
+        Ok(())
+    }
+
+    fn note_efforts(&self, model: &str, result: &serde_json::Value) {
+        if result["configOptions"].is_array() {
+            self.efforts.lock().unwrap_or_else(|p| p.into_inner()).insert(model.to_string(), config_options(result, "effort"));
+        }
     }
 
     /// Send `text` in the session; the answer streams to `on_text`. Stops
@@ -291,10 +328,10 @@ mod tests {
             { "id": "model", "currentValue": "default", "options": [
                 { "value": "default", "name": "Default (recommended)", "description": "Opus 5.5" },
                 { "value": "sonnet", "name": "Sonnet 5.5", "description": "" } ] } ] });
-        let models = model_options(&result);
+        let models = config_options(&result, "model");
         assert_eq!(models.iter().map(|m| m.value.as_str()).collect::<Vec<_>>(), ["default", "sonnet"]);
         assert_eq!((models[0].description.as_deref(), models[1].description.as_deref()), (Some("Opus 5.5"), None));
-        assert!(model_options(&json!({})).is_empty());
+        assert!(config_options(&json!({}), "model").is_empty());
     }
 
     /// The real adapter (needs Node and a Claude login): a session without
@@ -310,6 +347,11 @@ mod tests {
         let models = agent.models().await.unwrap();
         println!("models: {:?}", models.iter().map(|m| &m.name).collect::<Vec<_>>());
         assert!(models.iter().any(|m| m.value == "sonnet") && models.iter().all(|m| !m.name.is_empty()));
+        // Effort levels follow the model
+        let efforts = agent.efforts("sonnet").await.unwrap();
+        println!("sonnet efforts: {:?}", efforts.iter().map(|e| &e.value).collect::<Vec<_>>());
+        assert!(efforts.iter().any(|e| e.value == "high"));
+        agent.set_effort(&session, "haiku", "low").await.unwrap();
         let chunks = std::sync::atomic::AtomicUsize::new(0);
         let first = agent
             .prompt(&session, "My favourite namespace is blue-team. What does a Pending PVC with WaitForFirstConsumer mean?", &CancellationToken::new(), &|_| {

@@ -240,7 +240,8 @@ pub async fn desktop_open_url(exams: State<'_, Arc<Exams>>, url: String) -> AppR
 // --- practice coach --------------------------------------------------------
 
 use crate::ai::account::{Account, SignInEvent, SignInMethod};
-use crate::ai::{Coach, CoachContext, CoachModels, CoachEvent, CoachReply, CoachStatus, CoachThread};
+use crate::ai::agent::ModelOption;
+use crate::ai::{Coach, CoachContext, CoachModels, ModelChoice, CoachEvent, CoachReply, CoachStatus, CoachThread};
 use crate::ai::generate::{self, GenerateRequest, Generated, GeneratorTarget};
 use crate::lab::exam::StudyStats;
 use crate::store::CoachMessage;
@@ -275,12 +276,12 @@ pub async fn coach_ask(
     text: String,
     checks: Vec<CheckResult>,
     solution_opened: bool,
-    model: String,
+    model: ModelChoice,
     context: CoachContext,
     events: Channel<CoachEvent>,
 ) -> AppResult<CoachReply> {
     coach
-        .ask(&exams, &store, &question_id, &text, &checks, solution_opened, &model, context, |e| {
+        .ask(&exams, &store, &question_id, &text, &checks, solution_opened, &model.model, &model.effort, context, |e| {
             let _ = events.send(e);
         })
         .await
@@ -303,6 +304,13 @@ pub async fn coach_clear(
 #[specta::specta]
 pub fn coach_threads(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>) -> AppResult<Vec<CoachThread>> {
     Coach::threads(&exams, &store)
+}
+
+/// The effort levels a model takes (none when it has no effort setting).
+#[tauri::command]
+#[specta::specta]
+pub async fn coach_efforts(coach: State<'_, Coach>, model: String) -> AppResult<Vec<ModelOption>> {
+    coach.efforts(&model).await
 }
 
 /// The models the coach can use, as the agent lists them for this login.

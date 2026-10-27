@@ -18,10 +18,11 @@ import { useExam } from "@/stores/exam";
 import type { Attempt, ExamResult } from "@/tauri/api";
 import { AssistantPane } from "./assistant-pane";
 import { CheckList } from "./check-list";
+import { useSolution } from "./use-solution";
 
 /** The result like the exam gives it (score, pass/fail), then the review. */
 export function Results({ attempt, result }: { attempt: Attempt; result: ExamResult }) {
-	const { solutions, loadSolution, end } = useExam();
+	const { end } = useExam();
 	const [review, setReview] = useState(false);
 	// The question reviewed with the coach, in a side sheet
 	const [coached, setCoached] = useState<string | null>(null);
@@ -68,7 +69,6 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 
 			{review &&
 				result.questions.map((q, i) => {
-					const solution = solutions[q.id];
 					return (
 						<Card key={q.id}>
 							<header className="mb-2 flex items-baseline gap-2">
@@ -93,22 +93,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 							>
 								<Sparkles /> Review with AI
 							</Button>
-							{solution ? (
-								<div className="mt-3 flex flex-col gap-2">
-									<Separator />
-									<Markdown>{solution.explain}</Markdown>
-									<CodeBlock>{solution.run}</CodeBlock>
-								</div>
-							) : (
-								<Button
-									size="sm"
-									variant="ghost"
-									className="mt-2"
-									onClick={() => loadSolution(q.id)}
-								>
-									Show solution
-								</Button>
-							)}
+							<ReviewSolution questionId={q.id} />
 						</Card>
 					);
 				})}
@@ -131,5 +116,24 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 				</SheetContent>
 			</Sheet>
 		</div>
+	);
+}
+
+/** The reference answer under a reviewed question, shown and hidden again */
+function ReviewSolution({ questionId }: { questionId: string }) {
+	const { solution, shown, label, toggle } = useSolution(questionId);
+	return (
+		<>
+			<Button size="sm" variant="ghost" className="mt-2" aria-expanded={shown} onClick={toggle}>
+				{label}
+			</Button>
+			{solution && (
+				<div className="mt-1 flex flex-col gap-2">
+					<Separator />
+					<Markdown>{solution.explain}</Markdown>
+					<CodeBlock>{solution.run}</CodeBlock>
+				</div>
+			)}
+		</>
 	);
 }

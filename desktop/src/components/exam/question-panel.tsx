@@ -12,6 +12,7 @@ import { useSettings } from "@/stores/settings";
 import type { Attempt, QuestionView } from "@/tauri/api";
 import { CheckList } from "./check-list";
 import { CopyText } from "./copy-text";
+import { useSolution } from "./use-solution";
 
 /** Question text sizes, in px (the text size stepper) */
 const SIZES = [
@@ -23,13 +24,13 @@ const SIZES = [
 
 /** One task as the exam shows it, plus the practice-mode aids. */
 export function QuestionPanel({ attempt, question }: { attempt: Attempt; question: QuestionView }) {
-	const { hintsShown, checks, solutions } = useExam();
-	const { showHint, check, loadSolution } = useExam();
+	const { hintsShown, checks } = useExam();
+	const { showHint, check } = useExam();
 	const askCoach = useCoach(s => s.ask);
 	const practice = attempt.mode === "practice";
 	const hints = question.hints.slice(0, hintsShown[question.id] ?? 0);
 	const result = checks[question.id];
-	const solution = solutions[question.id];
+	const { solution, shown: solutionShown, label, toggle } = useSolution(question.id);
 	const { settings } = useSettings();
 	const size = Math.min(SIZES.length - 1, settings.question_size);
 	const code = "rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-exam-value";
@@ -81,13 +82,8 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 								Hint ({hints.length + 1}/{question.hints.length})
 							</Button>
 						)}
-						<Button
-							size="sm"
-							variant="ghost"
-							onClick={() => loadSolution(question.id)}
-							disabled={!!solution}
-						>
-							Show solution
+						<Button size="sm" variant="ghost" aria-expanded={solutionShown} onClick={toggle}>
+							{label}
 						</Button>
 					</div>
 					{hints.map((hint, i) => (

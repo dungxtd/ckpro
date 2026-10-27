@@ -14,6 +14,7 @@ import {
 	events,
 	type GenerateRequest,
 	type Mode,
+	type ModelChoice,
 	type Progress,
 	type Settings_Serialize,
 	type SignInEvent,
@@ -165,6 +166,8 @@ export const coachApi = {
 	status: () => commands.coachStatus(),
 	/** Models to pick from, as the agent lists them for this login, and the default */
 	models: () => unwrap(commands.coachModels()),
+	/** The effort levels a model takes (empty: it has none) */
+	efforts: (model: string) => unwrap(commands.coachEfforts(model)),
 	/** The attempt's conversations (History) */
 	threads: () => unwrap(commands.coachThreads()),
 	/** Start a question's conversation over (New Thread) */
@@ -177,7 +180,7 @@ export const coachApi = {
 		text: string,
 		checks: CheckResult[],
 		solutionOpened: boolean,
-		model: string,
+		model: ModelChoice,
 		context: CoachContext,
 		onText: (text: string) => void
 	) =>

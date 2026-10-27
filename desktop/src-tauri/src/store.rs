@@ -67,11 +67,28 @@ pub struct Settings {
     pub desktop_resolution: Option<(u32, u32)>,
     /// Question text size: 0 (smaller) to 3 (larger), 1 by default
     pub question_size: u8,
+    /// The task panel's share of the desk, in percent (its drag handle)
+    pub task_width: f64,
+    /// The assistant pane: shown, and its width in px (its drag handle)
+    pub assistant_open: bool,
+    pub assistant_width: u32,
+    /// The assistant's model and effort, as last picked
+    pub assistant_model: Option<String>,
+    pub assistant_effort: Option<String>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { desktop_zoom: 1.0, desktop_resolution: None, question_size: 1 }
+        Self {
+            desktop_zoom: 1.0,
+            desktop_resolution: None,
+            question_size: 1,
+            task_width: 34.0,
+            assistant_open: false,
+            assistant_width: 380,
+            assistant_model: None,
+            assistant_effort: None,
+        }
     }
 }
 
@@ -347,9 +364,22 @@ mod tests {
         assert_eq!(store.history::<String>().unwrap(), ["second", "first"]);
 
         assert_eq!(store.settings().unwrap(), Settings::default());
-        let settings = Settings { desktop_zoom: 1.5, desktop_resolution: Some((1920, 1080)), question_size: 2 };
+        let settings = Settings {
+            desktop_zoom: 1.5,
+            desktop_resolution: Some((1920, 1080)),
+            question_size: 2,
+            task_width: 41.5,
+            assistant_open: true,
+            assistant_width: 460,
+            assistant_model: Some("opus".into()),
+            assistant_effort: Some("high".into()),
+        };
         store.save_settings(&settings).unwrap();
         assert_eq!(store.settings().unwrap(), settings);
+        // Settings saved by an earlier version: the new ones take their defaults
+        store.save_setting("exam_desk", &serde_json::json!({ "desktop_zoom": 2.0, "question_size": 3 })).unwrap();
+        let old = store.settings().unwrap();
+        assert_eq!((old.desktop_zoom, old.question_size, old.task_width, old.assistant_width), (2.0, 3, 34.0, 380));
     }
 
     #[test]

@@ -74,6 +74,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::coach_clear,
         commands::coach_threads,
         commands::coach_models,
+        commands::coach_efforts,
         commands::study_stats,
         commands::coach_study_plan,
         commands::study_plan_last,
@@ -156,6 +157,8 @@ pub fn run() {
         .expect("exporting typescript bindings");
 
     tauri::Builder::default()
+        // The window opens where and as large as it was left
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(terminal::Terminals::default())
         .manage(cluster::jobs::Jobs::default())
         .manage(ai::Coach::new(&data_dir()))
@@ -576,7 +579,7 @@ mod tests {
             let coach = ai::Coach::new(&std::env::temp_dir().join("ckdry-e2e-coach"));
             let context = ai::CoachContext { checks: true, cluster: true };
             let answer = coach
-                .ask(&exams, &store, question, "Why do my checks fail? One sentence.", &failing, false, "haiku", context, |ai::CoachEvent::Text { text }| {
+                .ask(&exams, &store, question, "Why do my checks fail? One sentence.", &failing, false, "haiku", "default", context, |ai::CoachEvent::Text { text }| {
                     streamed.lock().unwrap().push_str(&text)
                 })
                 .await

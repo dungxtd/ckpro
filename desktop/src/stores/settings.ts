@@ -5,6 +5,8 @@ import { type Settings, settingsApi } from "@/tauri/api";
 interface SettingsStore {
 	/** Mirror of what the app database keeps */
 	settings: Settings;
+	/** Read once at start: the desk opens as it was left, not with defaults first */
+	loaded: boolean;
 	load: () => Promise<void>;
 	/** Change some settings; saved to the app database */
 	update: (patch: Partial<Settings>) => void;
@@ -12,11 +14,25 @@ interface SettingsStore {
 
 export const useSettings = create<SettingsStore>()(
 	immer((set, get) => ({
-		settings: { desktop_zoom: 1, desktop_resolution: null, question_size: 1 },
+		settings: {
+			desktop_zoom: 1,
+			desktop_resolution: null,
+			question_size: 1,
+			task_width: 34,
+			assistant_open: false,
+			assistant_width: 380,
+			assistant_model: null,
+			assistant_effort: null,
+		},
+		loaded: false,
 		load: async () => {
-			const settings = await settingsApi.load();
+			const settings = await settingsApi.load().catch(e => {
+				console.error("loading settings", e);
+				return null;
+			});
 			set(s => {
-				s.settings = settings;
+				if (settings) s.settings = settings;
+				s.loaded = true;
 			});
 		},
 		update: patch => {

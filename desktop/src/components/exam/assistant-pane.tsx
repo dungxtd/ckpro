@@ -99,7 +99,7 @@ export function AssistantPane({
 	return (
 		<aside className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-background">
 			{/* Toolbar: the thread, then new, history, more, close */}
-			<div className="flex h-9 shrink-0 items-center gap-0.5 border-border border-b pr-1.5 pl-3">
+			<div className="flex h-9 shrink-0 select-none items-center gap-0.5 border-border border-b pr-1.5 pl-3">
 				<span className="min-w-0 flex-1 truncate text-[13px]">{title}</span>
 				<IconButton
 					variant="toolbar"
@@ -295,7 +295,7 @@ export function AssistantPane({
 
 			{/* Message editor: context, the text, then one row of controls. The
 			    profile is fixed to Ask (read-only), so it is text */}
-			<div className="flex flex-col gap-2 border-border border-t bg-card/40 p-2.5">
+			<div className="flex select-none flex-col gap-2 border-border border-t bg-card/40 p-2.5">
 				<div className="flex flex-wrap gap-1">
 					<Chip size="xs">Task</Chip>
 					{checks && coach.context.checks && (
@@ -323,7 +323,7 @@ export function AssistantPane({
 						rows={expanded ? 12 : 2}
 						placeholder="Ask about this task…"
 						aria-label="Ask the assistant"
-						className={cn("pr-7 text-[13px]", expanded ? "min-h-64" : "max-h-32")}
+						className={cn("select-text pr-7 text-[13px]", expanded ? "min-h-64" : "max-h-32")}
 					/>
 					<IconButton
 						variant="toolbar"
@@ -362,12 +362,7 @@ export function AssistantPane({
 					<span className="ml-auto text-[11px] text-muted-foreground">Ask</span>
 					<Popover>
 						<PopoverTrigger asChild>
-							<button
-								type="button"
-								className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-							>
-								{modelName} <ChevronDown className="size-3" />
-							</button>
+							<PickerButton aria-label="Model">{modelName}</PickerButton>
 						</PopoverTrigger>
 						<PopoverContent
 							side="top"
@@ -395,6 +390,31 @@ export function AssistantPane({
 							))}
 						</PopoverContent>
 					</Popover>
+					{coach.efforts.length > 0 && (
+						<Popover>
+							<PopoverTrigger asChild>
+								<PickerButton aria-label="Effort">
+									{coach.effort === "default"
+										? "Effort"
+										: (coach.efforts.find(e => e.value === coach.effort)?.name ?? coach.effort)}
+								</PickerButton>
+							</PopoverTrigger>
+							<PopoverContent side="top" align="end" className={cn(menu.surface, "w-36")}>
+								<div className={menu.header}>Effort</div>
+								{coach.efforts.map(e => (
+									<button
+										key={e.value}
+										type="button"
+										className={menuRow()}
+										onClick={() => coach.setEffort(e.value)}
+									>
+										{coach.effort === e.value && <Checked />}
+										{e.name}
+									</button>
+								))}
+							</PopoverContent>
+						</Popover>
+					)}
 					{usage && (
 						<span className="px-1 text-[11px] text-muted-foreground tabular-nums">
 							{tokens(usage.used)} / {tokens(usage.size)}
@@ -434,6 +454,19 @@ const Checked = () => (
 		<Check className="size-3" />
 	</span>
 );
+
+/** The composer's pickers (model, effort): their value and a chevron */
+function PickerButton({ children, ...props }: React.ComponentProps<"button">) {
+	return (
+		<button
+			type="button"
+			className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+			{...props}
+		>
+			{children} <ChevronDown className="size-3" />
+		</button>
+	);
+}
 
 function ContextRow({
 	on,

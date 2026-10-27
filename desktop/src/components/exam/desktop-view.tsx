@@ -9,6 +9,9 @@ type Internals = {
 	_screenSize(): { w: number; h: number };
 };
 
+/** How long resizing must have stopped before the desktop takes the new size */
+const RESIZE_SETTLE_MS = 400;
+
 /** The last text clicked to copy, and the connected desktop it goes to */
 let clipboard = "";
 let deliver: ((text: string) => void) | null = null;
@@ -67,7 +70,17 @@ export function DesktopView({
 			internals._screen.style.overflow = "hidden";
 			const request = internals._requestRemoteResize.bind(rfb);
 			const screenSize = internals._screenSize.bind(rfb);
+			// noVNC asks every 100 ms while the window or a panel is dragged, and
+			// the desktop lays itself out again each time (it jumps, and can end
+			// up drawn in a corner). The picture scales locally meanwhile; the
+			// desktop gets one new size once the resizing has stopped
+			let settle: ReturnType<typeof setTimeout> | undefined;
 			internals._requestRemoteResize = () => {
+				clearTimeout(settle);
+				settle = setTimeout(resize, RESIZE_SETTLE_MS);
+			};
+			const resize = () => {
+				if (rfbRef.current !== rfb) return;
 				const fixed = resolutionRef.current;
 				const dpr = window.devicePixelRatio || 1;
 				internals._screenSize = () => {

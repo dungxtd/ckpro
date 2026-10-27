@@ -12,12 +12,11 @@ import {
 	type ModelOption,
 } from "@/tauri/api";
 import { useExam } from "./exam";
+import { useSettings } from "./settings";
 
 /** The assistant (an ACP agent, read-only): one conversation per question of
  * the attempt, kept in the app database by Rust */
 interface CoachStore {
-	/** The assistant pane is shown */
-	open: boolean;
 	/** Conversations of the current attempt, by question */
 	threads: Record<string, CoachMessage[]>;
 	attemptId: string | null;
@@ -28,6 +27,10 @@ interface CoachStore {
 	/** Models the agent offers on this login, and the one in use */
 	models: ModelOption[];
 	model: string;
+	/** The effort levels the model takes (empty: none), and the one in use */
+	efforts: ModelOption[];
+	effort: string;
+	setEffort: (effort: string) => void;
 	/** What goes with a question besides the task (the context chips) */
 	context: CoachContext;
 	/** How much of the model's context each conversation uses */
@@ -36,6 +39,7 @@ interface CoachStore {
 	account: Account | null;
 	/** Read the login again (after signing in or out) */
 	loadAccount: () => Promise<void>;
+	/** Show or hide the assistant pane (kept in the settings) */
 	setOpen: (open: boolean) => void;
 	setModel: (model: string) => void;
 	setContext: (patch: Partial<CoachContext>) => void;
@@ -68,17 +72,32 @@ const loadModels = (
 	coachApi
 		.models()
 		.then(({ options, default: fallback }) => {
-			const picked = get().model;
-			const keep = again && options.some(m => m.value === picked);
-			set({ models: options, model: keep ? picked : fallback });
+			// The model last picked, kept between runs, while this login offers it
+			const picked = again ? get().model : useSettings.getState().settings.assistant_model;
+			const keep = !!picked && options.some(m => m.value === picked);
+			set({ models: options, model: keep && picked ? picked : fallback });
+			loadEfforts(set, get);
 		})
 		.catch(() => {});
+
+/** The model's effort levels; the effort picked stays if the model takes it */
+const loadEfforts = (set: (patch: Partial<CoachStore>) => void, get: () => CoachStore) => {
+	const model = get().model;
+	coachApi
+		.efforts(model)
+		.then(efforts => {
+			if (get().model !== model) return;
+			const picked = useSettings.getState().settings.assistant_effort ?? get().effort;
+			const keep = efforts.some(e => e.value === picked);
+			set({ efforts, effort: keep ? picked : "default" });
+		})
+		.catch(() => set({ efforts: [] }));
+};
 
 const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
 
 export const useCoach = create<CoachStore>()(
 	immer((set, get) => ({
-		open: false,
 		threads: {},
 		attemptId: null,
 		writing: null,
@@ -97,8 +116,18 @@ export const useCoach = create<CoachStore>()(
 				set({ error: message(e) });
 			}
 		},
-		setOpen: open => set({ open }),
-		setModel: model => set({ model }),
+		setOpen: open => useSettings.getState().update({ assistant_open: open }),
+		efforts: [],
+		effort: "default",
+		setModel: model => {
+			set({ model });
+			useSettings.getState().update({ assistant_model: model });
+			loadEfforts(set, get);
+		},
+		setEffort: effort => {
+			set({ effort });
+			useSettings.getState().update({ assistant_effort: effort });
+		},
 		setContext: patch =>
 			set(s => {
 				Object.assign(s.context, patch);
@@ -119,10 +148,11 @@ export const useCoach = create<CoachStore>()(
 		ask: async (questionId, text, given) => {
 			set(forAttempt);
 			if (get().writing) coachApi.cancel();
+			if (!useSettings.getState().settings.assistant_open)
+				useSettings.getState().update({ assistant_open: true });
 			const { checks, solutions } = useExam.getState();
 			const checked = checks[questionId];
 			set(s => {
-				s.open = true;
 				s.error = null;
 				s.writing = questionId;
 				s.threads[questionId] = [
@@ -138,13 +168,13 @@ export const useCoach = create<CoachStore>()(
 					if (last?.role === "assistant") last.text += t;
 				});
 			try {
-				const { model, context } = get();
+				const { model, effort, context } = get();
 				const reply = await coachApi.ask(
 					questionId,
 					text,
 					given ?? (Array.isArray(checked) ? checked : []),
 					questionId in solutions,
-					model,
+					{ model, effort },
 					context,
 					append
 				);

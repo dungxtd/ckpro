@@ -78,11 +78,15 @@ export function RunningExam({
 }) {
 	const { current, flagged, select, toggleFlag, submit, end } = useExam();
 	// Practice mode: the assistant pane beside the desktop (never in exam mode)
-	const assistantOpen = useCoach(s => s.open) && attempt.mode === "practice";
 	const setAssistantOpen = useCoach(s => s.setOpen);
-	const [width, setWidth] = useState(34);
-	// Desktop zoom and resolution live in the app database
+	// Desktop zoom and resolution, the panels' sizes and the assistant pane
+	// live in the app database: the desk reopens as it was left
 	const { settings, update } = useSettings();
+	const assistantOpen = settings.assistant_open && attempt.mode === "practice";
+	// While a border is dragged; saved when it is let go
+	const [dragged, setDragged] = useState<{ task?: number; assistant?: number }>({});
+	const width = dragged.task ?? settings.task_width;
+	const assistantWidth = dragged.assistant ?? settings.assistant_width;
 	const zoom = ZOOMS.includes(settings.desktop_zoom ?? 1) ? (settings.desktop_zoom ?? 1) : 1;
 	const resolution = settings.desktop_resolution ?? null;
 	const changeZoom = (step: number) => {
@@ -96,24 +100,39 @@ export function RunningExam({
 	const question = attempt.questions[current];
 	const count = attempt.questions.length;
 
-	const drag = (event: React.PointerEvent) => {
+	// The task panel's right border: its share of the desk
+	const dragTask = (event: React.PointerEvent) => {
 		const area = desk.current?.getBoundingClientRect();
 		if (!area) return;
-		event.currentTarget.setPointerCapture(event.pointerId);
-		const move = (e: PointerEvent) =>
-			setWidth(Math.min(70, Math.max(20, ((e.clientX - area.left) / area.width) * 100)));
-		const up = () => {
-			window.removeEventListener("pointermove", move);
-			window.removeEventListener("pointerup", up);
-		};
-		window.addEventListener("pointermove", move);
-		window.addEventListener("pointerup", up);
+		dragBorder(
+			event,
+			x => Math.min(70, Math.max(20, ((x - area.left) / area.width) * 100)),
+			task => setDragged({ task }),
+			task => {
+				update({ task_width: task });
+				setDragged({});
+			}
+		);
+	};
+	// The assistant pane's left border: its width
+	const dragAssistant = (event: React.PointerEvent) => {
+		const area = desk.current?.getBoundingClientRect();
+		if (!area) return;
+		dragBorder(
+			event,
+			x => Math.round(Math.min(720, Math.max(300, area.right - x))),
+			assistant => setDragged({ assistant }),
+			assistant => {
+				update({ assistant_width: assistant });
+				setDragged({});
+			}
+		);
 	};
 
 	return (
 		<div className="flex h-full flex-col">
 			{/* Labels give way to icons as the window narrows (container queries) */}
-			<header className="@container flex items-center gap-3 border-border border-b px-3 py-2">
+			<header className="@container flex select-none items-center gap-3 border-border border-b px-3 py-2">
 				<div className="shrink-0">
 					<Timer startedAt={startedAt} endsAt={endsAt} />
 				</div>
@@ -269,8 +288,8 @@ export function RunningExam({
 				<div
 					// A mouse drag handle (the panel keeps its size otherwise)
 					aria-hidden="true"
-					onPointerDown={drag}
-					className="w-1.5 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-highlight/60"
+					onPointerDown={dragTask}
+					className={RESIZE_HANDLE}
 				/>
 				<section className="relative min-w-0 flex-1">
 					{/* Stays connected behind the Readme; a new attempt is a new desktop */}
@@ -284,7 +303,10 @@ export function RunningExam({
 					)}
 				</section>
 				{assistantOpen && question && (
-					<div className="w-[380px] shrink-0 border-border border-l">
+					<div aria-hidden="true" onPointerDown={dragAssistant} className={RESIZE_HANDLE} />
+				)}
+				{assistantOpen && question && (
+					<div className="shrink-0" style={{ width: assistantWidth }}>
 						<AssistantPane
 							question={question}
 							onClose={() => setAssistantOpen(false)}
@@ -298,6 +320,35 @@ export function RunningExam({
 			</div>
 		</div>
 	);
+}
+
+/** A border dragged to resize the panels beside it */
+const RESIZE_HANDLE =
+	"w-1.5 shrink-0 cursor-col-resize bg-border transition-colors hover:bg-highlight/60";
+
+/**
+ * Follow a border drag: `size` turns the pointer's x into the new size,
+ * `move` shows it as it goes, `done` keeps the last one when it is let go
+ */
+function dragBorder(
+	event: React.PointerEvent,
+	size: (x: number) => number,
+	move: (size: number) => void,
+	done: (size: number) => void
+) {
+	event.currentTarget.setPointerCapture(event.pointerId);
+	let last: number | null = null;
+	const onMove = (e: PointerEvent) => {
+		last = size(e.clientX);
+		move(last);
+	};
+	const onUp = () => {
+		window.removeEventListener("pointermove", onMove);
+		window.removeEventListener("pointerup", onUp);
+		if (last !== null) done(last);
+	};
+	window.addEventListener("pointermove", onMove);
+	window.addEventListener("pointerup", onUp);
 }
 
 /** A tab's icon, with its name once the header has room (always for screen readers) */
