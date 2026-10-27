@@ -111,7 +111,7 @@ pub fn data_dir() -> std::path::PathBuf {
 
 /// The bundled lab pack: from the source tree in development, from the app
 /// resources in a release build. Lint problems are logged, not fatal.
-fn load_pack(resource_dir: Option<std::path::PathBuf>) -> lab::load::LoadedPack {
+pub(crate) fn load_pack(resource_dir: Option<std::path::PathBuf>) -> lab::load::LoadedPack {
     let root = if cfg!(debug_assertions) {
         std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../packs/core"))
     } else {

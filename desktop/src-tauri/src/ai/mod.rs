@@ -8,6 +8,7 @@ pub mod account;
 mod acp;
 pub mod agent;
 pub mod generate;
+pub mod mcp;
 
 use crate::error::{AppError, AppResult};
 use crate::lab::checks::{self, CheckResult};

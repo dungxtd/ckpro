@@ -120,11 +120,7 @@ pub async fn generate(
             }
             let (id, path) = mine::new_question(data_dir, &request.certification, &question.title);
             let staging = staging(bank, data_dir, &id, &path, question.clone());
-            let errors: Vec<String> = lint::lint(&staging)
-                .into_iter()
-                .filter(|f| f.level == Level::Error && Path::new(&f.file).file_stem() == path.file_stem())
-                .map(|f| f.message)
-                .collect();
+            let errors = lint_errors(&staging, &path);
             if !errors.is_empty() {
                 op.log(format!("lint: {}", errors.join("; ")));
                 feedback.push(format!("`ckdry lab lint` found errors:\n- {}", errors.join("\n- ")));
@@ -158,6 +154,26 @@ pub async fn generate(
     }
     .await;
     op.end(result)
+}
+
+/// What `ckdry lab lint` finds wrong with a question (YAML) on its own,
+/// against the bank's certifications and domains: nothing when it is valid
+pub fn lint_question(bank: &LoadedPack, data_dir: &Path, yaml: &str) -> Vec<String> {
+    let question: Question = match serde_saphyr::from_str(yaml) {
+        Ok(q) => q,
+        Err(e) => return vec![format!("not valid question YAML: {e}")],
+    };
+    let certification = question.certifications.keys().next().cloned().unwrap_or_default();
+    let (id, path) = mine::new_question(data_dir, &certification, &question.title);
+    lint_errors(&staging(bank, data_dir, &id, &path, question), &path)
+}
+
+fn lint_errors(staging: &LoadedPack, path: &Path) -> Vec<String> {
+    lint::lint(staging)
+        .into_iter()
+        .filter(|f| f.level == Level::Error && Path::new(&f.file).file_stem() == path.file_stem())
+        .map(|f| f.message)
+        .collect()
 }
 
 /// A pack of just the new question, with the bundled certifications, to lint

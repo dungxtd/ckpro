@@ -5,35 +5,7 @@ use std::collections::HashMap;
 
 impl Exams {
     pub fn catalog(&self) -> Vec<ExamSummary> {
-        let pack = self.pack();
-        let measured = self.store.footprint().unwrap_or_default();
-        pack
-            .exams
-            .iter()
-            .filter_map(|(id, e)| {
-                let cert = pack.pack.certifications.get(&e.value.certification)?;
-                let fixed = e
-                    .value
-                    .questions
-                    .iter()
-                    .filter(|id| pack.questions.get(*id).is_some_and(|q| q.value.runnable()))
-                    .count() as u32;
-                let topology = worst_topology(&pack, &e.value);
-                Some(ExamSummary {
-                    memory_mb: crate::runtime::preflight::exam_memory_mb(&topology),
-                    minimum_mb: crate::runtime::preflight::exam_minimum_mb(&topology, &measured),
-                    nodes: topology.values().map(|w| 1 + u32::from(*w)).sum(),
-                    clusters: topology.keys().cloned().collect(),
-                    id: id.clone(),
-                    title: e.value.title.clone(),
-                    description: e.value.description.clone(),
-                    certification: e.value.certification.clone(),
-                    questions: fixed + e.value.random.as_ref().map_or(0, |r| r.count),
-                    duration_minutes: (e.value.duration.as_ref().unwrap_or(&cert.duration).seconds().unwrap_or(0) / 60) as u32,
-                    pass_score: e.value.pass_score.unwrap_or(cert.pass_score),
-                })
-            })
-            .collect()
+        catalog(&self.pack(), &self.store.footprint().unwrap_or_default())
     }
 
     /// The certification's allowed docs plus the tasks' own references
@@ -87,6 +59,37 @@ impl Exams {
             })
             .collect()
     }
+}
+
+/// The exams of `pack`, sized with the nodes `measured` on this machine
+pub fn catalog(pack: &LoadedPack, measured: &crate::runtime::preflight::Footprint) -> Vec<ExamSummary> {
+    pack
+        .exams
+        .iter()
+        .filter_map(|(id, e)| {
+            let cert = pack.pack.certifications.get(&e.value.certification)?;
+            let fixed = e
+                .value
+                .questions
+                .iter()
+                .filter(|id| pack.questions.get(*id).is_some_and(|q| q.value.runnable()))
+                .count() as u32;
+            let topology = worst_topology(&pack, &e.value);
+            Some(ExamSummary {
+                memory_mb: crate::runtime::preflight::exam_memory_mb(&topology),
+                minimum_mb: crate::runtime::preflight::exam_minimum_mb(&topology, measured),
+                nodes: topology.values().map(|w| 1 + u32::from(*w)).sum(),
+                clusters: topology.keys().cloned().collect(),
+                id: id.clone(),
+                title: e.value.title.clone(),
+                description: e.value.description.clone(),
+                certification: e.value.certification.clone(),
+                questions: fixed + e.value.random.as_ref().map_or(0, |r| r.count),
+                duration_minutes: (e.value.duration.as_ref().unwrap_or(&cert.duration).seconds().unwrap_or(0) / 60) as u32,
+                pass_score: e.value.pass_score.unwrap_or(cert.pass_score),
+            })
+        })
+        .collect()
 }
 
 /// Questions answered in earlier attempts: whether one ever got full marks

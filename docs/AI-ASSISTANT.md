@@ -1,6 +1,6 @@
 # AI assistant: reference (TablePro) and a design for ckdry
 
-Status: phases 1-3 built (practice coach; review and study plan; question generator), on ACP; phase 4 proposed.
+Status: phases 1-4 built (practice coach; review and study plan; question generator; `ckdry mcp`), on ACP, with sign-in from the app.
 
 **Transport: ACP, as Zed.** ckdry is an Agent Client Protocol client
 (`desktop/src-tauri/src/ai/acp.rs`, JSON-RPC 2.0 over stdio) of the Claude
@@ -111,14 +111,25 @@ just hidden in the UI: tools refuse while an exam-mode attempt is
   makes sense, with progress shown as an Activity (the existing
   `activity.rs`).
 
-### E. MCP server: ckdry for Claude Code and other agents
-- `ckdry mcp` (stdio, the same binary as the CLI): `claude mcp add ckdry --
-  ckdry mcp`.
-- Tools: `list_exams`, `get_question`, `search_docs`, `lint_question`,
-  `verify_question`, `add_question`, `history_summary`, and, with an active
-  practice attempt, `get_current_question` and `check_my_work`.
-- The **same tool layer** as the in-app coach (TablePro's lesson), the same
-  exam-mode refusal, and read-only by default.
+### E. MCP server: ckdry for Claude Code and other agents (built)
+- `ckdry mcp` (stdio, the same binary as the CLI; `ai/mcp.rs`): `claude mcp
+  add ckdry -- /Applications/ckdry.app/Contents/MacOS/ckdry mcp`.
+- Tools, all read-only: `list_exams`, `list_questions`, `get_question`
+  (solution on request), `current_question` and `check_my_work` (the
+  practice attempt the app runs, read from its database), `study_stats`,
+  `lint_question`.
+- The same refusal as the coach: while an exam-mode attempt runs, every tool
+  refuses. Its checks' `docker exec`s are noted in `own-execs/` of the data
+  directory, so the app's guard does not count them as outside access.
+- Left out: `search_docs`, `verify_question` and `add_question` (writes and
+  cluster runs stay in the app and `ckdry lab verify` / `lab generate`).
+
+### Sign-in (built)
+The Claude CLI bundled in the adapter (`--cli auth status|login|logout`) reads
+the login, signs in (in a pseudo-terminal: its output and the browser's code
+are relayed in a dialog) and signs out; the adapter restarts on the new login.
+ACP's `authRequired` becomes `sign_in_required`, which offers sign-in in the
+assistant pane. ckdry keeps no credentials (`ai/account.rs`).
 
 ## 4. Architecture sketch
 

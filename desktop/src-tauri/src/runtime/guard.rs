@@ -31,11 +31,38 @@ fn own_execs() -> &'static Mutex<HashSet<String>> {
 
 /// Note an exec ckdry starts, before it starts
 pub fn own_exec(id: &str) {
+    if SHARED.get().is_some() {
+        // Another ckdry process (`ckdry mcp`): tell the app's guard
+        if id.chars().all(|c| c.is_ascii_alphanumeric()) {
+            let _ = std::fs::create_dir_all(shared_execs()).and_then(|()| std::fs::write(shared_execs().join(id), ""));
+        }
+        return;
+    }
     let mut own = own_execs().lock().unwrap_or_else(|p| p.into_inner());
     if own.len() > 10_000 {
         own.clear();
     }
     own.insert(id.to_string());
+}
+
+/// Set in a ckdry process other than the app: its execs are noted in
+/// `shared_execs` for the app's guard
+static SHARED: OnceLock<()> = OnceLock::new();
+
+pub fn share_own_execs() {
+    let _ = SHARED.set(());
+}
+
+/// Execs other ckdry processes started, one empty file per id (in the app's
+/// private data directory)
+fn shared_execs() -> std::path::PathBuf {
+    crate::data_dir().join("own-execs")
+}
+
+/// Whether ckdry started the exec, here or in another of its processes
+fn is_own_exec(id: &str) -> bool {
+    own_execs().lock().unwrap_or_else(|p| p.into_inner()).contains(id)
+        || (id.chars().all(|c| c.is_ascii_alphanumeric()) && std::fs::remove_file(shared_execs().join(id)).is_ok())
 }
 
 /// ckdry's own operations that exec through a CLI (kind reads the
@@ -253,7 +280,7 @@ impl Guard {
                         let command = action.trim_start_matches("exec_create:").trim().chars().take(80).collect::<String>();
                         tokio::spawn(async move {
                             tokio::time::sleep(Duration::from_secs(1)).await;
-                            if !own_execs().lock().unwrap_or_else(|p| p.into_inner()).contains(&exec_id) {
+                            if !is_own_exec(&exec_id) {
                                 this.record(format!("A command was run in {name} from outside the exam desktop: {command}"));
                             }
                         });
@@ -337,4 +364,23 @@ async fn unblock_host(docker: &Docker, node: &str, gateway: &str) {
     let rule = format!("INPUT -p tcp --dport 6443 -s {gateway} -m comment --comment {RULE_COMMENT} -j DROP");
     let script = format!("while iptables -D {rule} 2>/dev/null; do :; done");
     let _ = exec::run(docker, node, &["sh", "-c", &script], &[], None).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn execs_of_another_ckdry_process_are_ckdry_s() {
+        let id = format!("{:x}", u64::from(std::process::id()) * 7919 + 42);
+        assert!(!is_own_exec(&id));
+        // What `own_exec` writes in `ckdry mcp`
+        std::fs::create_dir_all(shared_execs()).unwrap();
+        std::fs::write(shared_execs().join(&id), "").unwrap();
+        assert!(is_own_exec(&id));
+        // Noted once: the file is gone
+        assert!(!is_own_exec(&id));
+        // Never a path outside the directory
+        assert!(!is_own_exec("../ckdry.db"));
+    }
 }

@@ -26,6 +26,14 @@ enum Command {
         #[arg(default_value = "schema")]
         out: PathBuf,
     },
+    /// Serve ckdry's questions and practice attempt to agents over MCP
+    /// (stdio): `claude mcp add ckdry -- ckdry mcp`. Read-only; off while an
+    /// exam-mode attempt runs
+    Mcp {
+        /// A pack directory instead of the bundled one
+        #[arg(long)]
+        pack: Option<PathBuf>,
+    },
     /// Print the images to publish (name, image with its tag, build args):
     /// CI builds and pushes them, the app pulls them
     Images,
@@ -90,7 +98,7 @@ enum LabCommand {
 pub fn is_cli(args: &[String]) -> bool {
     matches!(
         args.get(1).map(String::as_str),
-        Some("lab" | "schema" | "images" | "help" | "--help" | "-h" | "--version" | "-V")
+        Some("lab" | "mcp" | "schema" | "images" | "help" | "--help" | "-h" | "--version" | "-V")
     )
 }
 
@@ -103,10 +111,33 @@ pub fn main() -> ExitCode {
         Command::Lab { command: LabCommand::Generate { pack, certification, domain, difficulty, topic } } => {
             generate_question(&pack, certification, domain, &difficulty, topic)
         }
+        Command::Mcp { pack } => serve_mcp(pack),
         Command::Schema { out } => write_schemas(&out),
         Command::Images => {
             println!("{}", serde_json::to_string_pretty(&crate::runtime::infra::manifest()).unwrap_or_default());
             ExitCode::SUCCESS
+        }
+    }
+}
+
+fn serve_mcp(pack: Option<PathBuf>) -> ExitCode {
+    let core = match pack {
+        Some(root) => match load::load(&root).0 {
+            Some(pack) => pack,
+            None => return lint_pack(&root, false),
+        },
+        // The app's resources: Contents/Resources next to Contents/MacOS/ckdry
+        None => crate::load_pack(std::env::current_exe().ok().and_then(|exe| Some(exe.parent()?.parent()?.join("Resources")))),
+    };
+    let data_dir = crate::data_dir();
+    let bank = crate::lab::mine::merged(core, &data_dir);
+    let result = crate::store::Store::open(&data_dir.join("ckdry.db"))
+        .and_then(|store| crate::ai::mcp::serve(bank, store, data_dir));
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("ckdry mcp: {e}");
+            ExitCode::FAILURE
         }
     }
 }

@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 
-mod draw;
+pub mod draw;
 mod grade;
 pub mod insights;
 
@@ -157,6 +157,15 @@ impl ExamState {
 struct SavedAttempt {
     state: ExamState,
     questions: Vec<(String, Question)>,
+}
+
+/// The attempt the app runs, as it keeps it (for another process: `ckdry
+/// mcp`): the attempt and its questions as rendered for it
+pub fn saved_running(store: &Store) -> Option<(Attempt, Vec<(String, Question)>)> {
+    match store.attempt::<SavedAttempt>().ok().flatten()? {
+        SavedAttempt { state: ExamState::Running { attempt, .. }, questions } => Some((attempt, questions)),
+        _ => None,
+    }
 }
 
 /// History entry, one JSON file per finished attempt.

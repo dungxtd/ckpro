@@ -105,39 +105,7 @@ impl Exams {
     /// How the candidate did per curriculum domain, per certification they
     /// have attempted, from the history (newest scores last)
     pub fn study_stats(&self) -> Vec<StudyStats> {
-        let pack = self.pack();
-        let history = self.history();
-        let mut stats: Vec<StudyStats> = Vec::new();
-        for entry in history.iter().rev() {
-            let Some(cert_id) = pack.exams.get(&entry.exam_id).map(|e| e.value.certification.clone()) else {
-                continue;
-            };
-            let Some(cert) = pack.pack.certifications.get(&cert_id) else { continue };
-            let i = match stats.iter().position(|s| s.certification == cert_id) {
-                Some(i) => i,
-                None => {
-                    let mut domains: Vec<DomainStat> = cert
-                        .domains
-                        .iter()
-                        .map(|(domain, weight)| DomainStat { domain: domain.clone(), weight: *weight, points: 0, max_points: 0, questions: 0 })
-                        .collect();
-                    domains.sort_by(|a, b| b.weight.cmp(&a.weight));
-                    stats.push(StudyStats { certification: cert_id.clone(), title: cert.title.clone(), scores: Vec::new(), domains });
-                    stats.len() - 1
-                }
-            };
-            let stat = &mut stats[i];
-            stat.scores.push(entry.result.score);
-            for q in &entry.result.questions {
-                let domain = pack.questions.get(&q.id).and_then(|l| l.value.certifications.get(&cert_id));
-                if let Some(d) = domain.and_then(|d| stat.domains.iter_mut().find(|s| &s.domain == d)) {
-                    d.points += q.points;
-                    d.max_points += q.max_points;
-                    d.questions += 1;
-                }
-            }
-        }
-        stats
+        study_stats(&self.pack(), &self.history())
     }
 
     /// What the coach needs for a study plan: the stats, the curriculum and
@@ -181,4 +149,39 @@ impl Exams {
         let session = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
         self.allowed_docs(&certification, &session)
     }
+}
+
+/// Results per certification and curriculum domain, over `history`
+pub fn study_stats(pack: &LoadedPack, history: &[HistoryEntry]) -> Vec<StudyStats> {
+    let mut stats: Vec<StudyStats> = Vec::new();
+    for entry in history.iter().rev() {
+        let Some(cert_id) = pack.exams.get(&entry.exam_id).map(|e| e.value.certification.clone()) else {
+            continue;
+        };
+        let Some(cert) = pack.pack.certifications.get(&cert_id) else { continue };
+        let i = match stats.iter().position(|s| s.certification == cert_id) {
+            Some(i) => i,
+            None => {
+                let mut domains: Vec<DomainStat> = cert
+                    .domains
+                    .iter()
+                    .map(|(domain, weight)| DomainStat { domain: domain.clone(), weight: *weight, points: 0, max_points: 0, questions: 0 })
+                    .collect();
+                domains.sort_by(|a, b| b.weight.cmp(&a.weight));
+                stats.push(StudyStats { certification: cert_id.clone(), title: cert.title.clone(), scores: Vec::new(), domains });
+                stats.len() - 1
+            }
+        };
+        let stat = &mut stats[i];
+        stat.scores.push(entry.result.score);
+        for q in &entry.result.questions {
+            let domain = pack.questions.get(&q.id).and_then(|l| l.value.certifications.get(&cert_id));
+            if let Some(d) = domain.and_then(|d| stat.domains.iter_mut().find(|s| &s.domain == d)) {
+                d.points += q.points;
+                d.max_points += q.max_points;
+                d.questions += 1;
+            }
+        }
+    }
+    stats
 }
