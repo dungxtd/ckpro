@@ -1,25 +1,45 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import { ApiError, type CheckResult, type CoachMessage, coachApi } from "@/tauri/api";
+import {
+	ApiError,
+	type CheckResult,
+	type CoachContext,
+	type CoachMessage,
+	type CoachThread,
+	type ContextUsage,
+	coachApi,
+} from "@/tauri/api";
 import { useExam } from "./exam";
 
-/** The practice coach: one conversation per question of the attempt (kept in
- * the app database by Rust), and whether the task panel shows it */
+/** The assistant (an ACP agent, read-only): one conversation per question of
+ * the attempt, kept in the app database by Rust */
 interface CoachStore {
-	/** The task panel shows the coach instead of the task */
+	/** The assistant pane is shown */
 	open: boolean;
 	/** Conversations of the current attempt, by question */
 	threads: Record<string, CoachMessage[]>;
 	attemptId: string | null;
 	/** The question whose answer is being written */
 	writing: string | null;
-	/** Claude Code missing, or the last question failed */
+	/** The last question failed */
 	error: string | null;
+	/** Models to pick from, and the one in use */
+	models: string[];
+	model: string;
+	/** What goes with a question besides the task (the context chips) */
+	context: CoachContext;
+	/** How much of the model's context each conversation uses */
+	usage: Record<string, ContextUsage>;
 	setOpen: (open: boolean) => void;
+	setModel: (model: string) => void;
+	setContext: (patch: Partial<CoachContext>) => void;
 	load: (questionId: string) => Promise<void>;
 	/** `checks`: the ones to explain (the result's in review), else the last "Check my work" */
 	ask: (questionId: string, text: string, checks?: CheckResult[]) => Promise<void>;
+	/** New Thread: the question's conversation starts over */
+	clear: (questionId: string) => Promise<void>;
 	stop: () => void;
+	listThreads: () => Promise<CoachThread[]>;
 }
 
 /** Another attempt: its own conversations */
@@ -28,9 +48,12 @@ const forAttempt = (s: CoachStore) => {
 	if (s.attemptId !== attemptId) {
 		s.attemptId = attemptId;
 		s.threads = {};
+		s.usage = {};
 		s.error = null;
 	}
 };
+
+const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
 
 export const useCoach = create<CoachStore>()(
 	immer((set, get) => ({
@@ -39,9 +62,20 @@ export const useCoach = create<CoachStore>()(
 		attemptId: null,
 		writing: null,
 		error: null,
+		models: [],
+		model: "sonnet",
+		context: { checks: true, cluster: true },
+		usage: {},
 		setOpen: open => set({ open }),
+		setModel: model => set({ model }),
+		setContext: patch =>
+			set(s => {
+				Object.assign(s.context, patch);
+			}),
 		load: async questionId => {
 			set(forAttempt);
+			if (get().models.length === 0)
+				coachApi.models().then(models => set({ models, model: models[0] ?? "sonnet" }));
 			if (get().threads[questionId]) return;
 			try {
 				const messages = await coachApi.history(questionId);
@@ -49,7 +83,7 @@ export const useCoach = create<CoachStore>()(
 					s.threads[questionId] ??= messages;
 				});
 			} catch (e) {
-				set({ error: e instanceof ApiError ? e.message : String(e) });
+				set({ error: message(e) });
 			}
 		},
 		ask: async (questionId, text, given) => {
@@ -70,34 +104,32 @@ export const useCoach = create<CoachStore>()(
 			// Appends to the answer being written (the last message)
 			const append = (t: string) =>
 				set(s => {
-					const thread = s.threads[questionId];
-					const last = thread?.[thread.length - 1];
+					const last = s.threads[questionId]?.at(-1);
 					if (last?.role === "assistant") last.text += t;
 				});
 			try {
-				const answer = await coachApi.ask(
+				const { model, context } = get();
+				const reply = await coachApi.ask(
 					questionId,
 					text,
 					given ?? (Array.isArray(checked) ? checked : []),
 					questionId in solutions,
+					model,
+					context,
 					append
 				);
 				set(s => {
-					const thread = s.threads[questionId];
-					const last = thread?.[thread.length - 1];
-					if (last?.role === "assistant") last.text = answer;
+					const last = s.threads[questionId]?.at(-1);
+					if (last?.role === "assistant") last.text = reply.text;
+					if (reply.usage) s.usage[questionId] = reply.usage;
 				});
 			} catch (e) {
 				const stopped = e instanceof ApiError && e.code === "cancelled";
 				set(s => {
 					// A stopped or failed answer is not kept (Rust keeps only complete ones)
 					const thread = s.threads[questionId];
-					if (
-						thread?.[thread.length - 1]?.role === "assistant" &&
-						(stopped || !thread[thread.length - 1]?.text)
-					)
-						thread.splice(-2, 2);
-					if (!stopped) s.error = e instanceof ApiError ? e.message : String(e);
+					if (thread?.at(-1)?.role === "assistant") thread.splice(-2, 2);
+					if (!stopped) s.error = message(e);
 				});
 			} finally {
 				set(s => {
@@ -105,8 +137,21 @@ export const useCoach = create<CoachStore>()(
 				});
 			}
 		},
+		clear: async questionId => {
+			try {
+				await coachApi.clear(questionId);
+				set(s => {
+					s.threads[questionId] = [];
+					delete s.usage[questionId];
+					s.error = null;
+				});
+			} catch (e) {
+				set({ error: message(e) });
+			}
+		},
 		stop: () => {
 			coachApi.cancel();
 		},
+		listThreads: () => coachApi.threads().catch(() => []),
 	}))
 );

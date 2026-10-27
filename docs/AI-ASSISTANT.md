@@ -1,6 +1,15 @@
 # AI assistant: reference (TablePro) and a design for ckdry
 
-Status: phases 1-3 built (practice coach; review and study plan; question generator); phase 4 proposed. Researched 2026-10-26.
+Status: phases 1-3 built (practice coach; review and study plan; question generator), on ACP; phase 4 proposed.
+
+**Transport: ACP, as Zed.** ckdry is an Agent Client Protocol client
+(`desktop/src-tauri/src/ai/acp.rs`, JSON-RPC 2.0 over stdio) of the Claude
+Agent adapter (`@agentclientprotocol/claude-agent-acp`, run with npx, pinned in
+`ai/agent.rs`) on the candidate's Claude login. Ask only: the client offers no
+file system or terminal and refuses permission requests, and every session has
+the coach's system prompt, `tools: []`, `strictMcpConfig`, no setting sources
+and no persistence. One ACP session per question's conversation; the UI is a
+Zed-style agent panel (thread, history, @ context, model, context use). Researched 2026-10-26.
 
 ## 1. Reference: what TablePro does
 

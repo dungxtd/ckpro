@@ -5,6 +5,7 @@ import {
 	type Activity_Serialize,
 	type AppError,
 	type CheckResult,
+	type CoachContext,
 	type CoachEvent,
 	commands,
 	type EnvState,
@@ -38,8 +39,11 @@ export type {
 	Check,
 	CheckResult,
 	ClusterState,
+	CoachContext,
 	CoachMessage,
 	CoachStatus,
+	CoachThread,
+	ContextUsage,
 	Difficulty,
 	DomainStat,
 	EnvState,
@@ -144,8 +148,14 @@ export const desktopApi = {
 };
 
 export const coachApi = {
-	/** Whether Claude Code (the coach's model) is installed */
+	/** Whether the agent can run (Node.js for the Claude ACP adapter) */
 	status: () => commands.coachStatus(),
+	/** Models to pick from; the first is the default */
+	models: () => commands.coachModels(),
+	/** The attempt's conversations (History) */
+	threads: () => unwrap(commands.coachThreads()),
+	/** Start a question's conversation over (New Thread) */
+	clear: (questionId: string) => unwrap(commands.coachClear(questionId)),
 	/** The question's conversation in the current attempt */
 	history: (questionId: string) => unwrap(commands.coachHistory(questionId)),
 	/** Ask about a question; `onText` gets the answer as it is written. */
@@ -154,6 +164,8 @@ export const coachApi = {
 		text: string,
 		checks: CheckResult[],
 		solutionOpened: boolean,
+		model: string,
+		context: CoachContext,
 		onText: (text: string) => void
 	) =>
 		unwrap(
@@ -162,6 +174,8 @@ export const coachApi = {
 				text,
 				checks,
 				solutionOpened,
+				model,
+				context,
 				channel<CoachEvent>(e => onText(e.text))
 			)
 		),

@@ -49,9 +49,15 @@ export const commands = {
 	 *  Ask the coach about a question (practice mode, or after the result); the
 	 *  answer streams on `events` and resolves to the whole answer.
 	 */
-	coachAsk: (questionId: string, text: string, checks: CheckResult[], solutionOpened: boolean, events: Channel<CoachEvent>) => typedError<string, AppError>(__TAURI_INVOKE("coach_ask", { questionId, text, checks, solutionOpened, events })),
+	coachAsk: (questionId: string, text: string, checks: CheckResult[], solutionOpened: boolean, model: string, context: CoachContext, events: Channel<CoachEvent>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("coach_ask", { questionId, text, checks, solutionOpened, model, context, events })),
 	/**  Stop the answer being written. */
 	coachCancel: () => __TAURI_INVOKE<void>("coach_cancel"),
+	/**  Start a question's coach conversation over (New Thread). */
+	coachClear: (questionId: string) => typedError<null, AppError>(__TAURI_INVOKE("coach_clear", { questionId })),
+	/**  The attempt's coach conversations (History). */
+	coachThreads: () => typedError<CoachThread[], AppError>(__TAURI_INVOKE("coach_threads")),
+	/**  The models the coach can use; the first is the default. */
+	coachModels: () => __TAURI_INVOKE<string[]>("coach_models"),
 	/**  How the candidate did per curriculum domain, per certification attempted. */
 	studyStats: () => __TAURI_INVOKE<StudyStats[]>("study_stats"),
 	/**
@@ -227,6 +233,14 @@ export type ClusterState = {
 	nodes: NodeState[],
 };
 
+/**  What goes with a question besides the task (the panel's context chips) */
+export type CoachContext = {
+	/**  The last "Check my work" */
+	checks: boolean,
+	/**  A read-only look at the task's namespace, taken now */
+	cluster: boolean,
+};
+
 /**  The coach's answer as it is written */
 export type CoachEvent = { kind: "text"; text: string };
 
@@ -235,24 +249,55 @@ export type CoachMessage = {
 	text: string,
 };
 
+/**  An answer and how much of the model's context the conversation uses */
+export type CoachReply = CoachReply_Serialize | CoachReply_Deserialize;
+
+/**  An answer and how much of the model's context the conversation uses */
+export type CoachReply_Deserialize = {
+	text: string,
+	usage?: ContextUsage | null,
+};
+
+/**  An answer and how much of the model's context the conversation uses */
+export type CoachReply_Serialize = {
+	text: string,
+	usage: ContextUsage | null,
+};
+
 /**  Whether the coach can run here */
 export type CoachStatus = CoachStatus_Serialize | CoachStatus_Deserialize;
 
 /**  Whether the coach can run here */
 export type CoachStatus_Deserialize = {
-	/**  Where `claude` is, if installed */
-	claude?: string | null,
+	ready: boolean,
+	/**  What to install when it cannot */
+	problem?: string | null,
 };
 
 /**  Whether the coach can run here */
 export type CoachStatus_Serialize = {
-	/**  Where `claude` is, if installed */
-	claude: string | null,
+	ready: boolean,
+	/**  What to install when it cannot */
+	problem: string | null,
+};
+
+/**  A conversation of the attempt (the panel's history) */
+export type CoachThread = {
+	question_id: string,
+	/**  Its first question */
+	title: string,
+	messages: number,
 };
 
 export type ContainerStatus = { state: "running" } | { state: "stopped" } | 
 /**  created, restarting, paused, dead, ... */
 { state: "other"; status: string };
+
+/**  How much of the model's context a session uses (`usage_update`) */
+export type ContextUsage = {
+	used: number,
+	size: number,
+};
 
 /**  What the app's VNC client needs to connect */
 export type DesktopSession = {

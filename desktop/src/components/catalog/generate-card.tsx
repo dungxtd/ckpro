@@ -124,15 +124,13 @@ export function GenerateCard({ onGenerated }: { onGenerated: () => void }) {
 				<Button
 					size="push"
 					variant="pushDefault"
-					disabled={running || !domain || (status !== null && !status.claude)}
+					disabled={running || !domain || (status !== null && !status.ready)}
 					onClick={generate}
 				>
 					<Sparkles /> {running ? "Generating…" : "Generate"}
 				</Button>
-				{status && !status.claude && (
-					<span className="text-muted-foreground text-xs">
-						Needs Claude Code (claude.ai/code), signed in.
-					</span>
+				{status && !status.ready && (
+					<span className="text-muted-foreground text-xs">{status.problem}</span>
 				)}
 			</div>
 			{running && activity && <ActivityProgress id={activity.id} compact />}

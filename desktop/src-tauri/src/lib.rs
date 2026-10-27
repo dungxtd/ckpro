@@ -60,6 +60,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::coach_history,
         commands::coach_ask,
         commands::coach_cancel,
+        commands::coach_clear,
+        commands::coach_threads,
+        commands::coach_models,
         commands::study_stats,
         commands::coach_study_plan,
         commands::study_plan_last,
@@ -144,7 +147,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(terminal::Terminals::default())
         .manage(cluster::jobs::Jobs::default())
-        .manage(ai::Coach::default())
+        .manage(ai::Coach::new(&data_dir()))
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             if let Ok(dir) = app.path().app_log_dir() {
@@ -515,14 +518,17 @@ mod tests {
 
         // The practice coach answers about the failing check (the real model,
         // when Claude Code is installed) and keeps the conversation
-        if ai::Coach::status().claude.is_some() {
+        if ai::Coach::status().ready {
             let streamed = std::sync::Mutex::new(String::new());
-            let answer = ai::Coach::default()
-                .ask(&exams, &store, question, "Why do my checks fail? One sentence.", &failing, false, |ai::CoachEvent::Text { text }| {
+            let coach = ai::Coach::new(&std::env::temp_dir().join("ckdry-e2e-coach"));
+            let context = ai::CoachContext { checks: true, cluster: true };
+            let answer = coach
+                .ask(&exams, &store, question, "Why do my checks fail? One sentence.", &failing, false, "haiku", context, |ai::CoachEvent::Text { text }| {
                     streamed.lock().unwrap().push_str(&text)
                 })
                 .await
-                .unwrap();
+                .unwrap()
+                .text;
             assert!(!answer.trim().is_empty() && !streamed.lock().unwrap().is_empty());
             assert_eq!(ai::Coach::history(&exams, &store, question).unwrap().len(), 2);
             println!("ok: the practice coach answers and keeps the conversation: {}", answer.lines().next().unwrap_or_default());

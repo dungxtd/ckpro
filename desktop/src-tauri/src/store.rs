@@ -229,6 +229,31 @@ impl Store {
         tx.commit().map_err(db)
     }
 
+    /// The attempt's coach conversations: question, its first question, messages
+    pub fn coach_threads(&self, attempt_id: &str) -> AppResult<Vec<(String, String, u32)>> {
+        let conn = self.conn();
+        let mut stmt = conn
+            .prepare(
+                "SELECT question_id,
+                        (SELECT text FROM coach_message f WHERE f.attempt_id = m.attempt_id AND f.question_id = m.question_id ORDER BY seq LIMIT 1),
+                        COUNT(*)
+                 FROM coach_message m WHERE attempt_id = ?1 GROUP BY question_id ORDER BY MAX(seq) DESC",
+            )
+            .map_err(db)?;
+        let rows = stmt
+            .query_map(params![attempt_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, u32>(2)?)))
+            .map_err(db)?;
+        rows.collect::<Result<_, _>>().map_err(db)
+    }
+
+    /// Start a question's conversation over
+    pub fn clear_coach_messages(&self, attempt_id: &str, question_id: &str) -> AppResult<()> {
+        self.conn()
+            .execute("DELETE FROM coach_message WHERE attempt_id = ?1 AND question_id = ?2", params![attempt_id, question_id])
+            .map(|_| ())
+            .map_err(db)
+    }
+
     pub fn settings(&self) -> AppResult<Settings> {
         let json: Option<String> = self
             .conn()
@@ -322,6 +347,11 @@ mod tests {
         assert_eq!(q1.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(), ["hint?", "look at PVCs", "why?", "wrong class"]);
         assert_eq!(q1[1].role, Role::Assistant);
         assert!(store.coach_messages("a2", "q1").unwrap().is_empty());
+        let threads = store.coach_threads("a1").unwrap();
+        assert_eq!(threads.len(), 2);
+        assert!(threads.iter().any(|(q, title, n)| q == "q1" && title == "hint?" && *n == 4));
+        store.clear_coach_messages("a1", "q1").unwrap();
+        assert!(store.coach_messages("a1", "q1").unwrap().is_empty() && store.coach_messages("a1", "q2").unwrap().len() == 1);
     }
 
     #[test]

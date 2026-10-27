@@ -110,16 +110,16 @@ export function StudyPlan() {
 					<Button
 						size="push"
 						variant="pushDefault"
-						disabled={status !== null && !status.claude}
+						disabled={status !== null && !status.ready}
 						onClick={write}
 					>
 						<Sparkles /> {plan ? "Write a new study plan" : "Write my study plan"}
 					</Button>
 				)}
 				<span className="text-muted-foreground text-xs">
-					{status && !status.claude
-						? "Needs Claude Code (claude.ai/code), signed in."
-						: "By the coach, from your results and the curriculum weights (Claude Code, your Claude plan)."}
+					{status && !status.ready
+						? status.problem
+						: "By the coach, from your results and the curriculum weights (Claude, your Claude plan)."}
 				</span>
 			</div>
 			{error && <Alert variant="destructive">{error}</Alert>}

@@ -15,8 +15,8 @@ import { useState } from "react";
 import { Markdown } from "@/components/markdown";
 import { useExam } from "@/stores/exam";
 import type { Attempt, ExamResult } from "@/tauri/api";
+import { AssistantPane } from "./assistant-pane";
 import { CheckList } from "./check-list";
-import { CoachPanel } from "./coach-panel";
 
 /** The result like the exam gives it (score, pass/fail), then the review. */
 export function Results({ attempt, result }: { attempt: Attempt; result: ExamResult }) {
@@ -77,7 +77,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 								className="mt-2 text-highlight"
 								onClick={() => setCoached(q.id)}
 							>
-								<Sparkles /> Review with coach
+								<Sparkles /> Review with AI
 							</Button>
 							{solution ? (
 								<div className="mt-3 flex flex-col gap-2">
@@ -100,15 +100,19 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 				})}
 
 			<Sheet open={coached !== null} onOpenChange={open => !open && setCoached(null)}>
-				<SheetContent className="w-[min(560px,92vw)] gap-0 p-0 sm:max-w-none">
-					<SheetHeader className="border-border border-b px-4 py-3">
-						<SheetTitle>Review with coach</SheetTitle>
+				<SheetContent className="w-[min(480px,92vw)] gap-0 overflow-hidden p-0 sm:max-w-none">
+					{/* For screen readers; the pane shows the thread's title */}
+					<SheetHeader className="sr-only">
+						<SheetTitle>Review with AI</SheetTitle>
 						<SheetDescription>{coachedQuestion?.title}</SheetDescription>
 					</SheetHeader>
 					{coachedQuestion && coachedResult && (
-						<div className="min-h-0 flex-1">
-							<CoachPanel question={coachedQuestion} review={{ checks: coachedResult.checks }} />
-						</div>
+						<AssistantPane
+							question={coachedQuestion}
+							review={{ checks: coachedResult.checks }}
+							onClose={() => setCoached(null)}
+							onOpenQuestion={setCoached}
+						/>
 					)}
 				</SheetContent>
 			</Sheet>

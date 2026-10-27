@@ -4,7 +4,8 @@
 //! at the cluster; the reference answer only once the candidate opened it.
 //! Never during an exam-mode attempt (`Exams::coach_subject` refuses).
 
-mod claude;
+mod acp;
+pub mod agent;
 pub mod generate;
 
 use crate::error::{AppError, AppResult};
@@ -12,16 +13,20 @@ use crate::lab::checks::{self, CheckResult};
 use crate::lab::exam::{CoachSubject, Exams, StudySubject};
 use crate::runtime::docker;
 use crate::store::{CoachMessage, Role, Store};
+use agent::{Agent, ContextUsage};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-/// Fast enough to chat; the coach answers from the question it is given
-const MODEL: &str = "sonnet";
+/// The coach's default model; the candidate can switch (`agent::MODELS`)
+pub const DEFAULT_MODEL: &str = "sonnet";
+/// Writing a question that has to pass on a cluster needs the most capable one
+const GENERATOR_MODEL: &str = "opus";
 /// What a cluster snapshot may add to the prompt
 const SNAPSHOT_CHARS: usize = 6_000;
-/// Earlier turns kept in the prompt (the oldest are left out)
+/// Earlier turns a new session is given (the oldest are left out)
 const HISTORY_CHARS: usize = 12_000;
 /// Study plans are kept like conversations, under this "attempt"
 const STUDY_PLANS: &str = "study-plan";
@@ -36,19 +41,58 @@ pub enum CoachEvent {
 /// Whether the coach can run here
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 pub struct CoachStatus {
-    /// Where `claude` is, if installed
-    pub claude: Option<String>,
+    pub ready: bool,
+    /// What to install when it cannot
+    pub problem: Option<String>,
 }
 
-/// One question at a time; a new question stops the one before
-#[derive(Default)]
+/// What goes with a question besides the task (the panel's context chips)
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, specta::Type)]
+pub struct CoachContext {
+    /// The last "Check my work"
+    pub checks: bool,
+    /// A read-only look at the task's namespace, taken now
+    pub cluster: bool,
+}
+
+/// An answer and how much of the model's context the conversation uses
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
+pub struct CoachReply {
+    pub text: String,
+    pub usage: Option<ContextUsage>,
+}
+
+/// A conversation of the attempt (the panel's history)
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
+pub struct CoachThread {
+    pub question_id: String,
+    /// Its first question
+    pub title: String,
+    pub messages: u32,
+}
+
+/// The practice coach: one ACP session per question's conversation, one
+/// answer at a time (a new one stops the one being written)
 pub struct Coach {
+    agent: Agent,
     running: Mutex<Option<CancellationToken>>,
+    /// Open conversations: (attempt, question) → (ACP session, model)
+    sessions: tokio::sync::Mutex<HashMap<(String, String), (String, String)>>,
 }
 
 impl Coach {
+    pub fn new(data_dir: &std::path::Path) -> Self {
+        Self { agent: Agent::new(data_dir), running: Mutex::new(None), sessions: Default::default() }
+    }
+
     pub fn status() -> CoachStatus {
-        CoachStatus { claude: claude::binary().map(|p| p.display().to_string()) }
+        match agent::npx() {
+            Some(_) => CoachStatus { ready: true, problem: None },
+            None => CoachStatus {
+                ready: false,
+                problem: Some("Install Node.js (nodejs.org): the assistant runs Claude through npx, signed in with your Claude account".into()),
+            },
+        }
     }
 
     pub fn history(exams: &Exams, store: &Store, question_id: &str) -> AppResult<Vec<CoachMessage>> {
@@ -56,8 +100,19 @@ impl Coach {
         store.coach_messages(&subject.attempt_id, question_id)
     }
 
-    /// Answer `text` about the question; the answer streams to `on_event`
-    /// and is kept with the question once complete.
+    /// The attempt's conversations, one per question asked about
+    pub fn threads(exams: &Exams, store: &Store) -> AppResult<Vec<CoachThread>> {
+        let Some(attempt) = exams.coach_attempt() else { return Ok(Vec::new()) };
+        Ok(store
+            .coach_threads(&attempt)?
+            .into_iter()
+            .map(|(question_id, title, messages)| CoachThread { question_id, title, messages })
+            .collect())
+    }
+
+    /// Answer `text` about the question in its conversation; the answer
+    /// streams to `on_event` and is kept with the question once complete.
+    #[allow(clippy::too_many_arguments)]
     pub async fn ask(
         &self,
         exams: &Exams,
@@ -66,33 +121,67 @@ impl Coach {
         text: &str,
         checks: &[CheckResult],
         solution_opened: bool,
+        model: &str,
+        context: CoachContext,
         on_event: impl Fn(CoachEvent) + Sync,
-    ) -> AppResult<String> {
+    ) -> AppResult<CoachReply> {
         let text = text.trim();
         if text.is_empty() {
             return Err(AppError::invalid("ask the coach something"));
         }
         let subject = exams.coach_subject(question_id, solution_opened)?;
         let cancel = self.start();
-        let history = store.coach_messages(&subject.attempt_id, question_id)?;
-        // A look at the cluster only when something fails: it is what "why"
-        // needs, and it costs a few seconds
-        let snapshot = if checks.iter().any(|c| !c.passed) { snapshot(&subject).await } else { None };
-        let prompt = prompt(&subject, checks, snapshot.as_deref(), &history, text);
-        let answer = claude::ask(&system(&subject), &prompt, MODEL, &cancel, &|t| {
-            on_event(CoachEvent::Text { text: t.to_string() })
-        })
-        .await;
-        let answer = answer?;
+        let checks = if context.checks { checks } else { &[] };
+        let snapshot = if context.cluster { snapshot(&subject).await } else { None };
+        let key = (subject.attempt_id.clone(), question_id.to_string());
+        let open = self.sessions.lock().await.get(&key).cloned();
+        let (session, prompt) = match open {
+            Some((session, current)) => {
+                if current != model {
+                    self.agent.set_model(&session, model).await?;
+                }
+                (session, followup(checks, snapshot.as_deref(), text))
+            }
+            // A new session (or the app restarted): the task, and what was said before
+            None => {
+                let session = self.agent.new_session(&system(&subject), model).await?;
+                let history = store.coach_messages(&subject.attempt_id, question_id)?;
+                (session, prompt(&subject, checks, snapshot.as_deref(), &history, text))
+            }
+        };
+        self.sessions.lock().await.insert(key.clone(), (session.clone(), model.to_string()));
+        let answer = self
+            .agent
+            .prompt(&session, &prompt, &cancel, &|t| on_event(CoachEvent::Text { text: t.to_string() }))
+            .await;
+        let answer = match answer {
+            Ok(a) => a,
+            Err(e) => {
+                // A session the agent lost is started again next time
+                if !matches!(e, AppError::Cancelled { .. }) {
+                    self.sessions.lock().await.remove(&key);
+                }
+                return Err(e);
+            }
+        };
         store.add_coach_messages(
             &subject.attempt_id,
             question_id,
             &[
                 CoachMessage { role: Role::User, text: text.to_string() },
-                CoachMessage { role: Role::Assistant, text: answer.clone() },
+                CoachMessage { role: Role::Assistant, text: answer.text.clone() },
             ],
         )?;
-        Ok(answer)
+        Ok(CoachReply { text: answer.text, usage: answer.usage })
+    }
+
+    /// Start the question's conversation over (the panel's New Thread)
+    pub async fn clear(&self, exams: &Exams, store: &Store, question_id: &str) -> AppResult<()> {
+        let subject = exams.coach_subject(question_id, false)?;
+        if let Some((session, _)) = self.sessions.lock().await.remove(&(subject.attempt_id.clone(), question_id.to_string())) {
+            self.agent.close(&session).await;
+        }
+        store.clear_coach_messages(&subject.attempt_id, question_id)
     }
 
     /// A study plan for a certification from the history; it streams to
@@ -106,10 +195,12 @@ impl Coach {
     ) -> AppResult<String> {
         let subject = exams.study_subject(certification)?;
         let cancel = self.start();
-        let answer = claude::ask(&study_system(&subject), &study_prompt(&subject), MODEL, &cancel, &|t| {
-            on_event(CoachEvent::Text { text: t.to_string() })
-        })
-        .await?;
+        let answer = self
+            .agent
+            .ask_once(&study_system(&subject), &study_prompt(&subject), DEFAULT_MODEL, &cancel, &|t| {
+                on_event(CoachEvent::Text { text: t.to_string() })
+            })
+            .await?;
         store.add_coach_messages(STUDY_PLANS, certification, &[CoachMessage { role: Role::Assistant, text: answer.clone() }])?;
         Ok(answer)
     }
@@ -133,7 +224,7 @@ impl Coach {
         }
         let bank = exams.bank();
         let cancel = self.start();
-        let generated = generate::generate(&bank, infra, activities, data_dir, request, &cancel).await?;
+        let generated = generate::generate(&self.agent, GENERATOR_MODEL, &bank, infra, activities, data_dir, request, &cancel).await?;
         // The catalog shows it from now on
         match crate::lab::load::load(&bank.root).0 {
             Some(core) => exams.replace_pack(crate::lab::mine::merged(core, data_dir)),
@@ -155,6 +246,28 @@ impl Coach {
         if let Some(token) = self.running.lock().unwrap_or_else(|p| p.into_inner()).take() {
             token.cancel();
         }
+    }
+}
+
+/// A later turn: what changed (the last check, the cluster now) and the question
+fn followup(checks: &[CheckResult], snapshot: Option<&str>, text: &str) -> String {
+    let mut p = String::new();
+    if !checks.is_empty() {
+        let _ = writeln!(p, "# Their last \"Check my work\"");
+        for c in checks {
+            let mark = if c.passed { "PASS" } else { "FAIL" };
+            let detail = if c.detail.is_empty() { String::new() } else { format!(" ({})", c.detail) };
+            let _ = writeln!(p, "- {mark} {}{detail}", c.name);
+        }
+        p.push('\n');
+    }
+    if let Some(snapshot) = snapshot {
+        let _ = writeln!(p, "# Cluster snapshot (read-only, just taken)\n```\n{snapshot}\n```\n");
+    }
+    if p.is_empty() {
+        text.to_string()
+    } else {
+        format!("{p}# The candidate asks\n{text}")
     }
 }
 
@@ -415,11 +528,13 @@ mod tests {
         let snapshot = "NAME                             STATUS    VOLUME   CAPACITY   STORAGECLASS\npersistentvolumeclaim/data-pvc   Pending                       standrad\n# events\nWarning ProvisioningFailed persistentvolumeclaim/data-pvc storageclass.storage.k8s.io \"standrad\" not found";
         let prompt = prompt(&subject, &checks, Some(snapshot), &[], "Why do my checks fail? Point me to the cause, not the full solution.");
         let chunks = std::sync::atomic::AtomicUsize::new(0);
-        let answer = claude::ask(&system(&subject), &prompt, MODEL, &CancellationToken::new(), &|_| {
-            chunks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        })
-        .await
-        .unwrap();
+        let agent = Agent::new(&std::env::temp_dir().join("ckdry-coach-test"));
+        let answer = agent
+            .ask_once(&system(&subject), &prompt, DEFAULT_MODEL, &CancellationToken::new(), &|_| {
+                chunks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            })
+            .await
+            .unwrap();
         println!("--- {} chunks ---\n{answer}", chunks.into_inner());
         assert!(answer.to_lowercase().contains("standrad") || answer.to_lowercase().contains("storageclass"));
     }
@@ -467,9 +582,18 @@ mod tests {
             practice: [("troubleshooting".to_string(), vec!["Fix a crashing Deployment".to_string()]), ("storage".to_string(), vec!["PVC and Pod".to_string()])].into(),
             exams: vec!["CKA Practice Exam 1".into()],
         };
-        let plan = claude::ask(&study_system(&subject), &study_prompt(&subject), MODEL, &CancellationToken::new(), &|_| {}).await.unwrap();
+        let agent = Agent::new(&std::env::temp_dir().join("ckdry-coach-test"));
+        let plan = agent.ask_once(&study_system(&subject), &study_prompt(&subject), DEFAULT_MODEL, &CancellationToken::new(), &|_| {}).await.unwrap();
         println!("{plan}");
         assert!(plan.to_lowercase().contains("troubleshooting"));
+    }
+
+    #[test]
+    fn a_later_turn_sends_only_what_changed() {
+        assert_eq!(followup(&[], None, "why?"), "why?");
+        let checks = [CheckResult { name: "PVC bound".into(), weight: 2, passed: true, detail: String::new() }];
+        let p = followup(&checks, Some("pvc Bound"), "and now?");
+        assert!(p.contains("- PASS PVC bound") && p.contains("pvc Bound") && p.ends_with("# The candidate asks\nand now?"), "{p}");
     }
 
     #[test]

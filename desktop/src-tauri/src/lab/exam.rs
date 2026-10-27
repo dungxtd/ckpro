@@ -871,6 +871,15 @@ impl Exams {
         Ok(StudySubject { stats, kubernetes: cert.kubernetes.clone(), docs: cert.resources.clone(), practice, exams })
     }
 
+    /// The attempt the coach works in (practice mode, or with its result)
+    pub fn coach_attempt(&self) -> Option<String> {
+        match self.state() {
+            ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => Some(attempt.id),
+            ExamState::Finished { attempt, .. } => Some(attempt.id),
+            _ => None,
+        }
+    }
+
     /// The documentation the current attempt's desktop may open
     pub fn attempt_docs(&self) -> Vec<String> {
         let certification = match self.state() {
