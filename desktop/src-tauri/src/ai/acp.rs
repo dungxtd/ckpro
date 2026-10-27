@@ -7,7 +7,6 @@
 use crate::error::{AppError, AppResult};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::path::Path;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -16,6 +15,8 @@ use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{mpsc, oneshot};
 
 pub const PROTOCOL_VERSION: u64 = 1;
+/// ACP's `authRequired` error: the agent has no login to work with
+const AUTH_REQUIRED: i64 = -32000;
 
 type Pending = Mutex<HashMap<u64, oneshot::Sender<Result<Value, Value>>>>;
 type Subscribers = Mutex<HashMap<String, mpsc::UnboundedSender<Value>>>;
@@ -31,28 +32,14 @@ pub struct Connection {
 }
 
 impl Connection {
-    /// Start the agent and initialize the connection (no client capabilities).
-    pub async fn spawn(
-        program: &Path,
-        args: &[&str],
-        cwd: &Path,
-        env_remove: &[&str],
-        env_set: &[(&str, &std::ffi::OsStr)],
-    ) -> AppResult<Arc<Self>> {
-        let mut command = Command::new(program);
+    /// Start the agent (`command`) and initialize the connection (no client
+    /// capabilities).
+    pub async fn spawn(mut command: Command) -> AppResult<Arc<Self>> {
         command
-            .args(args)
-            .current_dir(cwd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
-        for var in env_remove {
-            command.env_remove(var);
-        }
-        for (var, value) in env_set {
-            command.env(var, value);
-        }
         let mut child = command.spawn().map_err(|e| AppError::assistant(format!("starting the agent: {e}")))?;
         let stdin = child.stdin.take().expect("piped");
         let stdout = child.stdout.take().expect("piped");
@@ -171,9 +158,14 @@ impl Connection {
         self.write(&json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params })).await?;
         match rx.await {
             Ok(Ok(result)) => Ok(result),
-            Ok(Err(error)) => Err(AppError::assistant(
-                error.get("message").and_then(Value::as_str).unwrap_or("the agent returned an error").to_string(),
-            )),
+            Ok(Err(error)) => {
+                let message = error.get("message").and_then(Value::as_str).unwrap_or("the agent returned an error").to_string();
+                Err(if error.get("code").and_then(Value::as_i64) == Some(AUTH_REQUIRED) {
+                    AppError::SignInRequired { message }
+                } else {
+                    AppError::assistant(message)
+                })
+            }
             Err(_) => Err(AppError::assistant("the agent stopped")),
         }
     }

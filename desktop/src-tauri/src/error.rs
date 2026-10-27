@@ -31,6 +31,9 @@ pub enum AppError {
     /// The AI assistant (the `claude` CLI) is missing or failed.
     #[error("{message}")]
     Assistant { message: String },
+    /// The assistant has no Claude login (or it expired).
+    #[error("{message}")]
+    SignInRequired { message: String },
 }
 
 pub type AppResult<T> = Result<T, AppError>;

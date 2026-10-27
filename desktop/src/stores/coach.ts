@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import {
+	type Account,
 	ApiError,
 	type CheckResult,
 	type CoachContext,
@@ -30,6 +31,10 @@ interface CoachStore {
 	context: CoachContext;
 	/** How much of the model's context each conversation uses */
 	usage: Record<string, ContextUsage>;
+	/** The Claude login, once read; null until then */
+	account: Account | null;
+	/** Read the login again (after signing in or out) */
+	loadAccount: () => Promise<void>;
 	setOpen: (open: boolean) => void;
 	setModel: (model: string) => void;
 	setContext: (patch: Partial<CoachContext>) => void;
@@ -66,6 +71,14 @@ export const useCoach = create<CoachStore>()(
 		model: "sonnet",
 		context: { checks: true, cluster: true },
 		usage: {},
+		account: null,
+		loadAccount: async () => {
+			try {
+				set({ account: await coachApi.account() });
+			} catch (e) {
+				set({ error: message(e) });
+			}
+		},
 		setOpen: open => set({ open }),
 		setModel: model => set({ model }),
 		setContext: patch =>
@@ -130,6 +143,9 @@ export const useCoach = create<CoachStore>()(
 					const thread = s.threads[questionId];
 					if (thread?.at(-1)?.role === "assistant") thread.splice(-2, 2);
 					if (!stopped) s.error = message(e);
+					// The login is gone or expired: offer to sign in
+					if (e instanceof ApiError && e.code === "sign_in_required")
+						s.account = { signed_in: false, method: null, email: null, plan: null };
 				});
 			} finally {
 				set(s => {

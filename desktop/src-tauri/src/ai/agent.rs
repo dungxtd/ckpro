@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 
 /// The adapter, pinned: a new release is tested before it is used
@@ -71,26 +72,42 @@ impl Agent {
         if let Some(c) = slot.as_ref().filter(|c| c.alive()) {
             return Ok(c.clone());
         }
+        let c = Connection::spawn(self.adapter(&[], false)?).await?;
+        *slot = Some(c.clone());
+        Ok(c)
+    }
+
+    /// The adapter with `args` (`--cli ...` runs the Claude CLI it bundles),
+    /// in a pseudo-terminal when `in_terminal` (an interactive login)
+    pub(super) fn adapter(&self, args: &[&str], in_terminal: bool) -> AppResult<Command> {
         let npx = npx().ok_or_else(|| {
             AppError::assistant("Node.js is not installed: the assistant runs Claude through npx (nodejs.org)")
         })?;
         std::fs::create_dir_all(&self.workdir).map_err(|e| AppError::io("creating the agent directory", e))?;
+        let mut argv: Vec<std::ffi::OsString> = vec![npx.clone().into(), "-y".into(), ADAPTER.into()];
+        argv.extend(args.iter().map(Into::into));
+        let mut command = if in_terminal { super::account::in_terminal(&argv) } else { Command::new(&argv[0]) };
+        if !in_terminal {
+            command.args(&argv[1..]);
+        }
         // npx and the adapter are Node scripts: node must be on their PATH
         let path = std::env::join_paths(
             npx.parent().map(Path::to_path_buf).into_iter().chain(std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect::<Vec<_>>()).unwrap_or_default()),
         )
         .unwrap_or_default();
-        let c = Connection::spawn(
-            &npx,
-            &["-y", ADAPTER],
-            &self.workdir,
+        command
+            .current_dir(&self.workdir)
             // The candidate's Claude login, not an API key that happens to be set
-            &["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"],
-            &[("PATH", path.as_os_str())],
-        )
-        .await?;
-        *slot = Some(c.clone());
-        Ok(c)
+            .env_remove("ANTHROPIC_API_KEY")
+            .env_remove("ANTHROPIC_AUTH_TOKEN")
+            .env("PATH", path)
+            .kill_on_drop(true);
+        Ok(command)
+    }
+
+    /// Stop the adapter: the next request starts it again (on a new login)
+    pub(super) async fn restart(&self) {
+        self.connection.lock().await.take();
     }
 
     /// A new conversation with `system` as its instructions, on `model`

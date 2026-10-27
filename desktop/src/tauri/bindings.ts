@@ -59,6 +59,17 @@ export const commands = {
 	coachAsk: (questionId: string, text: string, checks: CheckResult[], solutionOpened: boolean, model: string, context: CoachContext, events: Channel<CoachEvent>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("coach_ask", { questionId, text, checks, solutionOpened, model, context, events })),
 	/**  Stop the answer being written. */
 	coachCancel: () => __TAURI_INVOKE<void>("coach_cancel"),
+	/**  The Claude login the assistant answers as. */
+	coachAccount: () => typedError<Account_Serialize, AppError>(__TAURI_INVOKE("coach_account")),
+	/**
+	 *  Sign in to Claude with the CLI's login; what it prints streams on
+	 *  `events` (the sign-in link, a prompt for the browser's code).
+	 */
+	coachSignIn: (method: SignInMethod, events: Channel<SignInEvent>) => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_in", { method, events })),
+	/**  Type a line into the running sign-in (the code the browser shows). */
+	coachSignInInput: (line: string) => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_in_input", { line })),
+	coachSignInCancel: () => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_in_cancel")),
+	coachSignOut: () => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_out")),
 	/**  Start a question's coach conversation over (New Thread). */
 	coachClear: (questionId: string) => typedError<null, AppError>(__TAURI_INVOKE("coach_clear", { questionId })),
 	/**  The attempt's coach conversations (History). */
@@ -119,6 +130,29 @@ export const events = {
 };
 
 /* Types */
+/**  Who the assistant answers as */
+export type Account = Account_Serialize | Account_Deserialize;
+
+/**  Who the assistant answers as */
+export type Account_Deserialize = {
+	signed_in: boolean,
+	/**  "claude.ai" (a Claude plan) or "console" (API billing) */
+	method?: string | null,
+	email?: string | null,
+	/**  The Claude plan: pro, max, ... */
+	plan?: string | null,
+};
+
+/**  Who the assistant answers as */
+export type Account_Serialize = {
+	signed_in: boolean,
+	/**  "claude.ai" (a Claude plan) or "console" (API billing) */
+	method: string | null,
+	email: string | null,
+	/**  The Claude plan: pro, max, ... */
+	plan: string | null,
+};
+
 export type Activity = Activity_Serialize | Activity_Deserialize;
 
 /**  A long operation started or moved on (without its log). */
@@ -194,7 +228,9 @@ export type AppError =
 /**  The user cancelled the operation. */
 { code: "cancelled"; message: string } | 
 /**  The AI assistant (the `claude` CLI) is missing or failed. */
-{ code: "assistant"; message: string };
+{ code: "assistant"; message: string } | 
+/**  The assistant has no Claude login (or it expired). */
+{ code: "sign_in_required"; message: string };
 
 export type Attempt = Attempt_Serialize | Attempt_Deserialize;
 
@@ -604,6 +640,17 @@ export type Settings_Serialize = {
 };
 
 export type Severity = "error" | "warning";
+
+/**  A login as it runs */
+export type SignInEvent = 
+/**
+ *  What the CLI printed (terminal codes removed): the sign-in link, then
+ *  maybe a prompt for the code the browser shows
+ */
+{ kind: "output"; text: string };
+
+/**  Where to sign in: a Claude plan, or the Anthropic Console (API billing) */
+export type SignInMethod = "claude" | "console";
 
 export type Solution = {
 	/**  Why this is the right approach, in Markdown */

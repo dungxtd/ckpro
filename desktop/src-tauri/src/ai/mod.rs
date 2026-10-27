@@ -4,6 +4,7 @@
 //! at the cluster; the reference answer only once the candidate opened it.
 //! Never during an exam-mode attempt (`Exams::coach_subject` refuses).
 
+pub mod account;
 mod acp;
 pub mod agent;
 pub mod generate;
@@ -78,11 +79,68 @@ pub struct Coach {
     running: Mutex<Option<CancellationToken>>,
     /// Open conversations: (attempt, question) → (ACP session, model)
     sessions: tokio::sync::Mutex<HashMap<(String, String), (String, String)>>,
+    /// The Claude login being run, if any
+    signing_in: tokio::sync::Mutex<Option<account::SigningIn>>,
 }
 
 impl Coach {
     pub fn new(data_dir: &std::path::Path) -> Self {
-        Self { agent: Agent::new(data_dir), running: Mutex::new(None), sessions: Default::default() }
+        Self {
+            agent: Agent::new(data_dir),
+            running: Mutex::new(None),
+            sessions: Default::default(),
+            signing_in: Default::default(),
+        }
+    }
+
+    /// Who the assistant answers as
+    pub async fn account(&self) -> AppResult<account::Account> {
+        account::account(&self.agent).await
+    }
+
+    /// Sign in to Claude; the login's output streams to `on_event`. A new
+    /// login stops one still running
+    pub async fn sign_in(&self, method: account::SignInMethod, on_event: impl Fn(account::SignInEvent)) -> AppResult<()> {
+        if let Some(earlier) = self.signing_in.lock().await.take() {
+            earlier.cancel();
+        }
+        let result = account::sign_in(
+            &self.agent,
+            method,
+            |login| {
+                // The slot was just emptied and only this call fills it
+                if let Ok(mut slot) = self.signing_in.try_lock() {
+                    *slot = Some(login);
+                }
+            },
+            on_event,
+        )
+        .await;
+        self.signing_in.lock().await.take();
+        // The conversations were opened on the earlier login's adapter
+        self.sessions.lock().await.clear();
+        result
+    }
+
+    /// A line typed into the running login (the code the browser shows)
+    pub async fn sign_in_input(&self, line: &str) -> AppResult<()> {
+        match self.signing_in.lock().await.as_mut() {
+            Some(login) => login.input(line).await,
+            None => Err(AppError::invalid("no sign-in is running")),
+        }
+    }
+
+    pub async fn sign_in_cancel(&self) {
+        if let Some(login) = self.signing_in.lock().await.take() {
+            login.cancel();
+        }
+    }
+
+    pub async fn sign_out(&self) -> AppResult<()> {
+        self.cancel();
+        let result = account::sign_out(&self.agent).await;
+        self.sessions.lock().await.clear();
+        result
     }
 
     pub fn status() -> CoachStatus {

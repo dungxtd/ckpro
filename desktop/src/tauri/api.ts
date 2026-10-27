@@ -2,6 +2,7 @@
 // failed command throws an `ApiError` carrying the Rust `AppError` code.
 import { Channel } from "@tauri-apps/api/core";
 import {
+	type Account_Serialize,
 	type Activity_Serialize,
 	type AppError,
 	type CheckResult,
@@ -15,6 +16,8 @@ import {
 	type Mode,
 	type Progress,
 	type Settings_Serialize,
+	type SignInEvent,
+	type SignInMethod,
 	type TerminalEvent,
 } from "./bindings";
 
@@ -24,6 +27,10 @@ type Result<T, E> = { status: "ok"; data: T } | { status: "error"; error: E };
 /** The exam desk's display settings */
 export type Settings = Settings_Serialize;
 export type { Progress };
+
+/** The Claude login the assistant answers as */
+export type Account = Account_Serialize;
+export type { SignInMethod };
 
 /** A long operation as the app sends it */
 export type Activity = Activity_Serialize;
@@ -185,6 +192,21 @@ export const coachApi = {
 		),
 	/** Stop the answer being written */
 	cancel: () => commands.coachCancel(),
+	/** The Claude login it answers as */
+	account: () => unwrap(commands.coachAccount()) as Promise<Account>,
+	/** Run the Claude CLI's login; `onOutput` gets what it prints (the link,
+	 * a prompt for the browser's code). Resolves when signed in. */
+	signIn: (method: SignInMethod, onOutput: (text: string) => void) =>
+		unwrap(
+			commands.coachSignIn(
+				method,
+				channel<SignInEvent>(e => onOutput(e.text))
+			)
+		),
+	/** Type a line into the running login (the browser's code) */
+	signInInput: (line: string) => unwrap(commands.coachSignInInput(line)),
+	signInCancel: () => unwrap(commands.coachSignInCancel()),
+	signOut: () => unwrap(commands.coachSignOut()),
 	/** Results per curriculum domain, per certification attempted */
 	studyStats: () => commands.studyStats(),
 	/** A study plan from the history; `onText` gets it as it is written */

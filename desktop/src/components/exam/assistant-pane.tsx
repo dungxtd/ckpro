@@ -1,3 +1,4 @@
+import { Button } from "@ckdry/ui/components/button";
 import { Chip } from "@ckdry/ui/components/chip";
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { menu, menuRow } from "@ckdry/ui/components/menu";
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { SignInDialog } from "@/components/account/sign-in-dialog";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
 import {
@@ -65,10 +67,13 @@ export function AssistantPane({
 	const [draft, setDraft] = useState("");
 	const [expanded, setExpanded] = useState(false);
 	const [history, setHistory] = useState<CoachThread[]>([]);
+	const [signingIn, setSigningIn] = useState(false);
+	const signedOut = coach.account?.signed_in === false;
 	const scroller = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		coachApi.status().then(setStatus);
+		if (!useCoach.getState().account) useCoach.getState().loadAccount();
 	}, []);
 	useEffect(() => {
 		coach.load(question.id);
@@ -137,7 +142,38 @@ export function AssistantPane({
 							<Ellipsis />
 						</IconButton>
 					</PopoverTrigger>
-					<PopoverContent align="end" className={cn(menu.surface, "w-56")}>
+					<PopoverContent align="end" className={cn(menu.surface, "w-60")}>
+						<div className={menu.header}>Claude account</div>
+						{coach.account?.signed_in ? (
+							<>
+								<div className={cn(menu.content, "flex flex-col py-1 text-xs")}>
+									<span className="truncate">{coach.account.email ?? "Signed in"}</span>
+									<span className="text-muted-foreground capitalize">
+										{coach.account.method === "console"
+											? "Anthropic Console"
+											: `Claude ${coach.account.plan ?? "subscription"}`}
+									</span>
+								</div>
+								<button
+									type="button"
+									className={menuRow()}
+									disabled={writing}
+									onClick={() =>
+										coachApi
+											.signOut()
+											.then(coach.loadAccount)
+											.catch(e => toast.error(String(e)))
+									}
+								>
+									Sign Out
+								</button>
+							</>
+						) : (
+							<button type="button" className={menuRow()} onClick={() => setSigningIn(true)}>
+								{coach.account ? "Sign In…" : "Checking…"}
+							</button>
+						)}
+						<div className={menu.separator} />
 						<button
 							type="button"
 							className={menuRow()}
@@ -184,8 +220,15 @@ export function AssistantPane({
 						<span className="text-muted-foreground text-xs">
 							{status && !status.ready
 								? status.problem
-								: "It reads the task, your last check and the cluster, and answers. It never runs anything. Answers may be inaccurate."}
+								: signedOut
+									? "Sign in with your Claude account to ask."
+									: "It reads the task, your last check and the cluster, and answers. It never runs anything. Answers may be inaccurate."}
 						</span>
+						{signedOut && status?.ready && (
+							<Button size="sm" className="mt-1" onClick={() => setSigningIn(true)}>
+								Sign in to Claude
+							</Button>
+						)}
 					</div>
 				) : (
 					<div className="flex flex-col">
@@ -234,8 +277,19 @@ export function AssistantPane({
 				{coach.error && (
 					<div className="mt-2 rounded-md bg-warning/10 px-3 py-1.5 text-muted-foreground text-xs">
 						{coach.error}
+						{signedOut && thread.length > 0 && (
+							<Button
+								size="sm"
+								variant="link"
+								className="h-auto px-1"
+								onClick={() => setSigningIn(true)}
+							>
+								Sign in
+							</Button>
+						)}
 					</div>
 				)}
+				<SignInDialog open={signingIn} onOpenChange={setSigningIn} />
 			</div>
 
 			{/* Message editor: context, the text, then one row of controls. The
@@ -349,7 +403,9 @@ export function AssistantPane({
 							variant="toolbar"
 							size="xs"
 							aria-label="Send"
-							disabled={!draft.trim() || !!coach.writing || (status !== null && !status.ready)}
+							disabled={
+								!draft.trim() || !!coach.writing || signedOut || (status !== null && !status.ready)
+							}
 							onClick={() => send(draft)}
 						>
 							<ArrowUp />

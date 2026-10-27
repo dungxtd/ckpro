@@ -239,6 +239,7 @@ pub async fn desktop_open_url(exams: State<'_, Arc<Exams>>, url: String) -> AppR
 
 // --- practice coach --------------------------------------------------------
 
+use crate::ai::account::{Account, SignInEvent, SignInMethod};
 use crate::ai::{Coach, CoachContext, CoachEvent, CoachReply, CoachStatus, CoachThread};
 use crate::ai::generate::{self, GenerateRequest, Generated, GeneratorTarget};
 use crate::lab::exam::StudyStats;
@@ -379,6 +380,45 @@ pub async fn generate_question(
     request: GenerateRequest,
 ) -> AppResult<Generated> {
     coach.generate(&exams, &infra, &activities, &crate::data_dir(), &request).await
+}
+
+/// The Claude login the assistant answers as.
+#[tauri::command]
+#[specta::specta]
+pub async fn coach_account(coach: State<'_, Coach>) -> AppResult<Account> {
+    coach.account().await
+}
+
+/// Sign in to Claude with the CLI's login; what it prints streams on
+/// `events` (the sign-in link, a prompt for the browser's code).
+#[tauri::command]
+#[specta::specta]
+pub async fn coach_sign_in(coach: State<'_, Coach>, method: SignInMethod, events: Channel<SignInEvent>) -> AppResult<()> {
+    coach
+        .sign_in(method, |e| {
+            let _ = events.send(e);
+        })
+        .await
+}
+
+/// Type a line into the running sign-in (the code the browser shows).
+#[tauri::command]
+#[specta::specta]
+pub async fn coach_sign_in_input(coach: State<'_, Coach>, line: String) -> AppResult<()> {
+    coach.sign_in_input(&line).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn coach_sign_in_cancel(coach: State<'_, Coach>) -> AppResult<()> {
+    coach.sign_in_cancel().await;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn coach_sign_out(coach: State<'_, Coach>) -> AppResult<()> {
+    coach.sign_out().await
 }
 
 /// Stop the answer being written.
