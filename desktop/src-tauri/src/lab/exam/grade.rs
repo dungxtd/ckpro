@@ -1,6 +1,7 @@
 //! Submitting and grading an attempt, and checking a question on demand.
 
 use super::*;
+use crate::runtime::preflight::Footprint;
 
 impl Exams {
     /// Submit automatically when the time is up (if still that attempt).
@@ -32,9 +33,23 @@ impl Exams {
         match op.end(self.grade(&attempt, started_at, note, id).await) {
             Ok(result) => {
                 self.save_history(&attempt, &result);
+                let clusters = attempt.clusters.clone();
                 self.set(ExamState::Finished { attempt, result });
+                self.measure_footprint(&clusters).await;
             }
             Err(e) => self.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string(), activity: Some(id) }),
+        }
+    }
+
+    /// Note what the graded attempt's nodes take on this machine: the
+    /// catalog's minimum follows it
+    async fn measure_footprint(&self, clusters: &[String]) {
+        let Ok(docker) = docker::connect().await else { return };
+        let Some(new) = Footprint::measure(&docker, clusters).await else { return };
+        let footprint = self.store.footprint().unwrap_or_default().blend(new);
+        tracing::info!(?footprint, "measured the exam nodes");
+        if let Err(e) = self.store.save_footprint(&footprint) {
+            tracing::warn!(error = %e, "saving the node footprint");
         }
     }
 

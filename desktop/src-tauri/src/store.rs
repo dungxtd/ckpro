@@ -3,6 +3,7 @@
 //! progress through it, exam history and UI settings. Rust owns it; the UI
 //! reads and writes through commands.
 
+use crate::runtime::preflight::Footprint;
 use crate::error::{AppError, AppResult};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::de::DeserializeOwned;
@@ -255,20 +256,35 @@ impl Store {
     }
 
     pub fn settings(&self) -> AppResult<Settings> {
+        self.setting("exam_desk")
+    }
+
+    pub fn save_settings(&self, settings: &Settings) -> AppResult<()> {
+        self.save_setting("exam_desk", settings)
+    }
+
+    /// What the exam nodes were measured to take on this machine
+    pub fn footprint(&self) -> AppResult<Footprint> {
+        self.setting("footprint")
+    }
+
+    pub fn save_footprint(&self, footprint: &Footprint) -> AppResult<()> {
+        self.save_setting("footprint", footprint)
+    }
+
+    /// A value kept as JSON under `key`; its default when unset or unreadable
+    fn setting<T: DeserializeOwned + Default>(&self, key: &str) -> AppResult<T> {
         let json: Option<String> = self
             .conn()
-            .query_row("SELECT value FROM settings WHERE key = 'exam_desk'", [], |r| r.get(0))
+            .query_row("SELECT value FROM settings WHERE key = ?1", params![key], |r| r.get(0))
             .optional()
             .map_err(db)?;
         Ok(json.and_then(|json| serde_json::from_str(&json).ok()).unwrap_or_default())
     }
 
-    pub fn save_settings(&self, settings: &Settings) -> AppResult<()> {
+    fn save_setting<T: Serialize>(&self, key: &str, value: &T) -> AppResult<()> {
         self.conn()
-            .execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('exam_desk', ?1)",
-                params![to_json(settings)?],
-            )
+            .execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)", params![key, to_json(value)?])
             .map_err(db)?;
         Ok(())
     }

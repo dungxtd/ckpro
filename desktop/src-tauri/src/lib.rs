@@ -687,6 +687,8 @@ mod tests {
         // Exactly what was done above: not ckdry's own restarts or kind's execs
         assert!(result.outside.len() == 2 && !result.outside.iter().any(|o| o.contains("disconnected")), "{:?}", result.outside);
         println!("ok: the result lists what was done outside the exam desktop: {:?}", result.outside);
+        eventually("the nodes' memory measured", 30, async || store.footprint().unwrap().control_plane_mb > 0).await;
+        println!("ok: measured the nodes: {:?}", store.footprint().unwrap());
         exams.end().await.unwrap();
         assert!(matches!(exams.state(), ExamState::Idle) && !f.kind.owned_clusters().contains(&cluster.to_string()));
         assert!(runtime::desktop::session(&runtime::docker::connect().await.unwrap(), desktop).await.unwrap().is_none());

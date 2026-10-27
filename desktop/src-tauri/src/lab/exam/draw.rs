@@ -1,10 +1,12 @@
 //! The exam catalog and drawing an attempt's questions and clusters.
 
 use super::*;
+use std::collections::HashMap;
 
 impl Exams {
     pub fn catalog(&self) -> Vec<ExamSummary> {
         let pack = self.pack();
+        let measured = self.store.footprint().unwrap_or_default();
         pack
             .exams
             .iter()
@@ -19,7 +21,7 @@ impl Exams {
                 let topology = worst_topology(&pack, &e.value);
                 Some(ExamSummary {
                     memory_mb: crate::runtime::preflight::exam_memory_mb(&topology),
-                    minimum_mb: crate::runtime::preflight::exam_minimum_mb(&topology),
+                    minimum_mb: crate::runtime::preflight::exam_minimum_mb(&topology, &measured),
                     nodes: topology.values().map(|w| 1 + u32::from(*w)).sum(),
                     clusters: topology.keys().cloned().collect(),
                     id: id.clone(),
@@ -43,16 +45,6 @@ impl Exams {
         allowed
     }
 
-    /// Questions answered in earlier attempts: whether one ever got full marks
-    fn seen_questions(&self) -> std::collections::HashMap<String, bool> {
-        let mut seen = std::collections::HashMap::new();
-        for q in self.history().iter().flat_map(|h| &h.result.questions) {
-            let solved: &mut bool = seen.entry(q.id.clone()).or_default();
-            *solved |= q.max_points > 0 && q.points == q.max_points;
-        }
-        seen
-    }
-
     pub(super) fn draw(&self, exam: &Exam) -> Vec<(String, Question)> {
         let pack = self.pack();
         let mut ids = exam.questions.clone();
@@ -60,7 +52,7 @@ impl Exams {
             let cert = &pack.pack.certifications[&exam.certification];
             let weights = draw.weights.as_ref().unwrap_or(&cert.domains);
             let mut rng = rand::rng();
-            let seen = self.seen_questions();
+            let seen = seen_questions(&self.history());
             let mut drawn = Vec::new();
             for (domain, count) in allocate(draw.count, weights) {
                 let mut pool: Vec<&String> = pack
@@ -77,11 +69,7 @@ impl Exams {
                 // Over several attempts the whole bank comes up: never
                 // answered first, then not yet solved, solved last (random
                 // within each)
-                pool.sort_by_key(|id| match seen.get(*id) {
-                    None => 0,
-                    Some(false) => 1,
-                    Some(true) => 2,
-                });
+                pool.sort_by_key(|id| coverage_rank(&seen, id));
                 drawn.extend(pool.into_iter().take(count as usize).cloned());
             }
             drawn.shuffle(&mut rng);
@@ -98,6 +86,25 @@ impl Exams {
                 Some((id, render::render(q, &render::pick(q, false), &q.cluster)))
             })
             .collect()
+    }
+}
+
+/// Questions answered in earlier attempts: whether one ever got full marks
+fn seen_questions(history: &[HistoryEntry]) -> HashMap<String, bool> {
+    let mut seen = HashMap::new();
+    for q in history.iter().flat_map(|h| &h.result.questions) {
+        let solved: &mut bool = seen.entry(q.id.clone()).or_default();
+        *solved |= q.max_points > 0 && q.points == q.max_points;
+    }
+    seen
+}
+
+/// Draw order over the bank: never answered, then not yet solved, then solved
+fn coverage_rank(seen: &HashMap<String, bool>, id: &str) -> u8 {
+    match seen.get(id) {
+        None => 0,
+        Some(false) => 1,
+        Some(true) => 2,
     }
 }
 
@@ -146,4 +153,46 @@ pub(super) fn allocate(count: u32, weights: &BTreeMap<String, u32>) -> Vec<(Stri
         left -= 1;
     }
     shares.into_iter().map(|(d, n, _)| (d, n)).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(questions: &[(&str, u32, u32)]) -> HistoryEntry {
+        HistoryEntry {
+            attempt_id: String::new(),
+            exam_id: String::new(),
+            title: String::new(),
+            mode: Mode::Practice,
+            pass_score: 66,
+            result: ExamResult {
+                score: 0.0,
+                passed: false,
+                started_at: 0.0,
+                finished_at: 0.0,
+                questions: questions
+                    .iter()
+                    .map(|(id, points, max_points)| QuestionResult {
+                        id: id.to_string(),
+                        title: String::new(),
+                        points: *points,
+                        max_points: *max_points,
+                        checks: Vec::new(),
+                    })
+                    .collect(),
+                outside: Vec::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn draws_cover_the_bank_new_then_unsolved_then_solved() {
+        // "a" solved once then failed: still solved; "b" never solved
+        let history = [entry(&[("a", 4, 4), ("b", 1, 4)]), entry(&[("a", 0, 4), ("b", 3, 4)])];
+        let seen = seen_questions(&history);
+        let mut pool = vec!["a", "b", "c"];
+        pool.sort_by_key(|id| coverage_rank(&seen, id));
+        assert_eq!(pool, ["c", "b", "a"]);
+    }
 }

@@ -2,7 +2,7 @@
 //! missing instead of from a failed kind run.
 
 use super::model::{ContainerStatus, DockerState, EnvState, NodeRole};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Rough memory use of kind nodes, measured on kubeadm v1.35 nodes (a
 /// control plane ~545 MB, a worker ~150 MB idle: room left for the tasks' pods)
@@ -30,12 +30,54 @@ pub fn exam_memory_mb(topology: &std::collections::BTreeMap<String, u8>) -> u32 
         + HEADROOM_MB
 }
 
-/// Memory an exam cannot run without: the same, idle and without headroom.
-/// Between the two it runs, slower (Docker swaps, pods start late)
-pub fn exam_minimum_mb(topology: &std::collections::BTreeMap<String, u8>) -> u32 {
-    topology.values().map(|workers| CONTROL_PLANE_IDLE_MB + WORKER_IDLE_MB * u32::from(*workers)).sum::<u32>()
+/// Memory an exam cannot run without: the same, idle and without headroom,
+/// or what its nodes took when last graded on this machine if more. Between
+/// the two it runs, slower (Docker swaps, pods start late)
+pub fn exam_minimum_mb(topology: &std::collections::BTreeMap<String, u8>, measured: &Footprint) -> u32 {
+    let control_plane = CONTROL_PLANE_IDLE_MB.max(measured.control_plane_mb);
+    let worker = WORKER_IDLE_MB.max(measured.worker_mb);
+    topology.values().map(|workers| control_plane + worker * u32::from(*workers)).sum::<u32>()
         + DESKTOP_IDLE_MB
         + SUPPORT_IDLE_MB
+}
+
+/// Memory a kind node took on this machine, per role (MB; 0: not measured)
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Footprint {
+    pub control_plane_mb: u32,
+    pub worker_mb: u32,
+}
+
+impl Footprint {
+    /// The largest node of each role among `clusters`, at grading (the tasks'
+    /// pods still run). One sample per node, without waiting for a CPU reading
+    pub async fn measure(docker: &bollard::Docker, clusters: &[String]) -> Option<Self> {
+        let nodes = crate::cluster::kind::node_containers(docker, None).await.ok()?;
+        let samples = nodes.iter().filter(|n| clusters.contains(&n.cluster) && n.state == "running").map(|n| async move {
+            let options = bollard::query_parameters::StatsOptions { stream: false, one_shot: true };
+            let stats = futures_util::StreamExt::next(&mut docker.stats(&n.name, Some(options))).await?.ok()?;
+            Some((n.control_plane, used_mb(&stats.memory_stats?)))
+        });
+        let mut footprint = Self::default();
+        for (control_plane, mb) in futures_util::future::join_all(samples).await.into_iter().flatten() {
+            let role = if control_plane { &mut footprint.control_plane_mb } else { &mut footprint.worker_mb };
+            *role = (*role).max(mb);
+        }
+        (footprint != Self::default()).then_some(footprint)
+    }
+
+    /// Averaged with the earlier measurement, so one heavy or light attempt
+    /// moves it only halfway
+    pub fn blend(self, new: Self) -> Self {
+        let mix = |old: u32, new: u32| if old == 0 || new == 0 { old.max(new) } else { (old + new) / 2 };
+        Self { control_plane_mb: mix(self.control_plane_mb, new.control_plane_mb), worker_mb: mix(self.worker_mb, new.worker_mb) }
+    }
+}
+
+/// Memory in use, without the page cache the kernel gives back under pressure
+fn used_mb(memory: &bollard::models::ContainerMemoryStats) -> u32 {
+    let cache = memory.stats.as_ref().and_then(|s| s.get("inactive_file").or_else(|| s.get("cache"))).copied().unwrap_or(0);
+    (memory.usage.unwrap_or(0).saturating_sub(cache) / (1024 * 1024)) as u32
 }
 
 /// Memory the running clusters take now (estimated per node), but `except`
@@ -144,11 +186,25 @@ mod tests {
         let one = std::collections::BTreeMap::from([("k8s".to_string(), 3u8)]);
         assert_eq!(exam_memory_mb(&one), 700 + 3 * 300 + 1100 + 100 + 1024);
         // It runs below that, slower, down to the idle footprint
-        assert_eq!(exam_minimum_mb(&one), 550 + 3 * 150 + 1050 + 50);
-        assert!(exam_fits(&docker(3072, 4), exam_minimum_mb(&one), &[]).is_ok());
-        let small = exam_fits(&docker(2048, 4), exam_minimum_mb(&one), &[]).unwrap_err();
+        let idle = Footprint::default();
+        assert_eq!(exam_minimum_mb(&one, &idle), 550 + 3 * 150 + 1050 + 50);
+        assert!(exam_fits(&docker(3072, 4), exam_minimum_mb(&one, &idle), &[]).is_ok());
+        let small = exam_fits(&docker(2048, 4), exam_minimum_mb(&one, &idle), &[]).unwrap_err();
         assert!(small.contains("at least 2.1 GB") && small.contains("2.0 GB free"), "{small}");
         assert!(exam_fits(&docker(8192, 1), 1000, &[]).unwrap_err().contains("2 CPUs"));
+    }
+
+    #[test]
+    fn the_minimum_follows_what_nodes_took_here() {
+        let one = std::collections::BTreeMap::from([("k8s".to_string(), 2u8)]);
+        // Heavier than idle raises it; lighter never lowers it below idle
+        let heavy = Footprint { control_plane_mb: 800, worker_mb: 400 };
+        assert_eq!(exam_minimum_mb(&one, &heavy), 800 + 2 * 400 + 1050 + 50);
+        let light = Footprint { control_plane_mb: 300, worker_mb: 100 };
+        assert_eq!(exam_minimum_mb(&one, &light), exam_minimum_mb(&one, &Footprint::default()));
+        // A new measurement moves the old one halfway; the first is taken as is
+        assert_eq!(Footprint::default().blend(heavy), heavy);
+        assert_eq!(heavy.blend(light), Footprint { control_plane_mb: 550, worker_mb: 250 });
     }
 
     #[test]
