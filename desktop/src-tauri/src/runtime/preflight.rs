@@ -15,13 +15,27 @@ const DESKTOP_MB: u32 = 1100;
 /// The task host and the registry mirror (~5 and ~50 MB measured)
 const SUPPORT_MB: u32 = 100;
 
-/// Memory an exam needs: its clusters (control plane and workers each), the
-/// desktop, the task host and mirror, and headroom
+/// What the same takes idle, as measured: below it the exam cannot run
+const CONTROL_PLANE_IDLE_MB: u32 = 550;
+const WORKER_IDLE_MB: u32 = 150;
+const DESKTOP_IDLE_MB: u32 = 1050;
+const SUPPORT_IDLE_MB: u32 = 50;
+
+/// Memory an exam runs comfortably in: its clusters (control plane and
+/// workers each), the desktop, the task host and mirror, and headroom
 pub fn exam_memory_mb(topology: &std::collections::BTreeMap<String, u8>) -> u32 {
     topology.values().map(|workers| CONTROL_PLANE_MB + WORKER_MB * u32::from(*workers)).sum::<u32>()
         + DESKTOP_MB
         + SUPPORT_MB
         + HEADROOM_MB
+}
+
+/// Memory an exam cannot run without: the same, idle and without headroom.
+/// Between the two it runs, slower (Docker swaps, pods start late)
+pub fn exam_minimum_mb(topology: &std::collections::BTreeMap<String, u8>) -> u32 {
+    topology.values().map(|workers| CONTROL_PLANE_IDLE_MB + WORKER_IDLE_MB * u32::from(*workers)).sum::<u32>()
+        + DESKTOP_IDLE_MB
+        + SUPPORT_IDLE_MB
 }
 
 /// Memory the running clusters take now (estimated per node), but `except`
@@ -36,9 +50,9 @@ fn in_use_mb(state: &EnvState, except: &[String]) -> u32 {
         .sum()
 }
 
-/// Whether an exam needing `needed_mb` fits in what Docker has left: the
-/// reason when it does not, before anything is created. Its own `clusters`,
-/// if they run, are replaced by it: not counted
+/// Whether an exam needing at least `needed_mb` (`exam_minimum_mb`) fits in
+/// what Docker has left: the reason when it does not, before anything is
+/// created. Its own `clusters`, if they run, are replaced by it: not counted
 pub fn exam_fits(state: &EnvState, needed_mb: u32, clusters: &[String]) -> Result<(), String> {
     let DockerState::Up { cpus, memory_mb, .. } = state.docker else {
         return Err("Docker is not running. Start OrbStack or Docker Desktop.".into());
@@ -50,7 +64,7 @@ pub fn exam_fits(state: &EnvState, needed_mb: u32, clusters: &[String]) -> Resul
     let free = memory_mb.saturating_sub(in_use);
     if free < needed_mb {
         return Err(format!(
-            "This exam needs ~{:.1} GB of memory; Docker has {:.1} GB free ({:.1} GB in all, ~{:.1} GB used by running clusters). Raise the memory limit in OrbStack or Docker Desktop, or delete a cluster.",
+            "This exam needs at least {:.1} GB of memory; Docker has {:.1} GB free ({:.1} GB in all, ~{:.1} GB used by running clusters). Raise the memory limit in OrbStack or Docker Desktop, or delete a cluster.",
             gb(needed_mb),
             gb(free),
             gb(memory_mb),
@@ -129,9 +143,11 @@ mod tests {
     fn an_exam_needs_its_clusters_the_desktop_and_headroom() {
         let one = std::collections::BTreeMap::from([("k8s".to_string(), 3u8)]);
         assert_eq!(exam_memory_mb(&one), 700 + 3 * 300 + 1100 + 100 + 1024);
-        assert!(exam_fits(&docker(8192, 4), exam_memory_mb(&one), &[]).is_ok());
-        let small = exam_fits(&docker(3072, 4), exam_memory_mb(&one), &[]).unwrap_err();
-        assert!(small.contains("needs ~3.7 GB") && small.contains("3.0 GB free"), "{small}");
+        // It runs below that, slower, down to the idle footprint
+        assert_eq!(exam_minimum_mb(&one), 550 + 3 * 150 + 1050 + 50);
+        assert!(exam_fits(&docker(3072, 4), exam_minimum_mb(&one), &[]).is_ok());
+        let small = exam_fits(&docker(2048, 4), exam_minimum_mb(&one), &[]).unwrap_err();
+        assert!(small.contains("at least 2.1 GB") && small.contains("2.0 GB free"), "{small}");
         assert!(exam_fits(&docker(8192, 1), 1000, &[]).unwrap_err().contains("2 CPUs"));
     }
 

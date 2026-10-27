@@ -424,8 +424,10 @@ export type ExamSummary = {
 	questions: number,
 	duration_minutes: number,
 	pass_score: number,
-	/**  Memory it needs on this machine, worst case of its draw (MB) */
+	/**  Memory it runs comfortably in, worst case of its draw (MB) */
 	memory_mb: number,
+	/**  Memory it cannot run without (MB); in between it runs, slower */
+	minimum_mb: number,
 	/**  Its Kubernetes nodes (control planes and workers) */
 	nodes: number,
 	/**  The clusters it runs on */

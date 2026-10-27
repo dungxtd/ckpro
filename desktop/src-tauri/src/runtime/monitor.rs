@@ -13,9 +13,9 @@ use super::activity::Activities;
 use super::infra::Infra;
 use super::guard::Guard;
 use super::{docker, reconcile};
-use crate::cluster::kind::Kind;
+use crate::cluster::kind::{CLUSTER_LABEL, Kind, node_containers};
 use bollard::Docker;
-use bollard::query_parameters::{EventsOptions, ListContainersOptions};
+use bollard::query_parameters::EventsOptions;
 use futures_util::{FutureExt, StreamExt};
 use k8s_openapi::api::core::v1::Node;
 use kube::runtime::{WatchStreamExt, watcher};
@@ -25,13 +25,11 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
 
-const CLUSTER_LABEL: &str = "io.x-k8s.kind.cluster";
 const RETRY_FIRST: Duration = Duration::from_secs(2);
 const RETRY_MAX: Duration = Duration::from_secs(30);
 const PING_EVERY: Duration = Duration::from_secs(30);
 /// A safety net under the events: one container list now and then
 const RESYNC_EVERY: Duration = Duration::from_secs(300);
-const ROLE_LABEL: &str = "io.x-k8s.kind.role";
 
 pub fn start(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>, guard: Arc<Guard>) {
     tauri::async_runtime::spawn(run(env, kind, infra, activities, guard));
@@ -149,14 +147,7 @@ async fn sync(
     guard: &Guard,
     watchers: &mut HashMap<String, JoinHandle<()>>,
 ) {
-    let containers = match docker
-        .list_containers(Some(ListContainersOptions {
-            all: true,
-            filters: Some(HashMap::from([("label".to_string(), vec![CLUSTER_LABEL.to_string()])])),
-            ..Default::default()
-        }))
-        .await
-    {
+    let containers = match node_containers(docker, None).await {
         Ok(containers) => containers,
         Err(e) => {
             tracing::warn!(error = %e, "listing kind containers");
@@ -169,20 +160,18 @@ async fn sync(
     let mut clusters: Vec<ClusterState> = Vec::new();
     let mut foreign: Vec<String> = Vec::new();
     for c in containers {
-        let labels = c.labels.unwrap_or_default();
-        let Some(cluster) = labels.get(CLUSTER_LABEL) else { continue };
+        let cluster = &c.cluster;
         if !owned.contains(cluster) {
             if !foreign.contains(cluster) {
                 foreign.push(cluster.clone());
             }
             continue;
         }
-        let name = c.names.and_then(|n| n.first().cloned()).unwrap_or_default();
-        let name = name.trim_start_matches('/').to_string();
-        let container = match c.state.map(|s| s.to_string()).as_deref() {
-            Some("running") => ContainerStatus::Running,
-            Some("exited") => ContainerStatus::Stopped,
-            other => ContainerStatus::Other { status: other.unwrap_or("unknown").to_string() },
+        let name = c.name;
+        let container = match c.state.as_str() {
+            "running" => ContainerStatus::Running,
+            "exited" => ContainerStatus::Stopped,
+            other => ContainerStatus::Other { status: other.to_string() },
         };
         // Readiness comes from the node watch; it is meaningless while stopped
         let ready = if container == ContainerStatus::Running {
@@ -196,10 +185,7 @@ async fn sync(
         } else {
             Readiness::Unknown
         };
-        let role = match labels.get(ROLE_LABEL).map(String::as_str) {
-            Some("control-plane") => NodeRole::ControlPlane,
-            _ => NodeRole::Worker,
-        };
+        let role = if c.control_plane { NodeRole::ControlPlane } else { NodeRole::Worker };
         let node = NodeState { name, role, container, ready };
         match clusters.iter_mut().find(|c| &c.name == cluster) {
             Some(existing) => existing.nodes.push(node),

@@ -288,6 +288,47 @@ fn cluster_config(workers: u8, registry_config: &Path) -> String {
     config
 }
 
+/// Label kind puts on every node container: the cluster's name
+pub const CLUSTER_LABEL: &str = "io.x-k8s.kind.cluster";
+const ROLE_LABEL: &str = "io.x-k8s.kind.role";
+
+/// A kind node container, as Docker lists it.
+pub struct NodeContainer {
+    pub name: String,
+    pub cluster: String,
+    pub control_plane: bool,
+    /// Docker's state: running, exited, paused, ...
+    pub state: String,
+}
+
+/// The node containers of every kind cluster on the engine (any owner), or
+/// of `cluster` alone.
+pub async fn node_containers(docker: &bollard::Docker, cluster: Option<&str>) -> AppResult<Vec<NodeContainer>> {
+    let label = match cluster {
+        Some(cluster) => format!("{CLUSTER_LABEL}={cluster}"),
+        None => CLUSTER_LABEL.to_string(),
+    };
+    let containers = docker
+        .list_containers(Some(bollard::query_parameters::ListContainersOptions {
+            all: true,
+            filters: Some(std::collections::HashMap::from([("label".to_string(), vec![label])])),
+            ..Default::default()
+        }))
+        .await?;
+    Ok(containers
+        .into_iter()
+        .filter_map(|c| {
+            let labels = c.labels.unwrap_or_default();
+            Some(NodeContainer {
+                name: c.names?.first()?.trim_start_matches('/').to_string(),
+                cluster: labels.get(CLUSTER_LABEL)?.clone(),
+                control_plane: labels.get(ROLE_LABEL).is_some_and(|r| r == "control-plane"),
+                state: c.state.map(|s| s.to_string()).unwrap_or_default(),
+            })
+        })
+        .collect())
+}
+
 pub fn validate_name(name: &str) -> AppResult<()> {
     let ok = name.starts_with(|c: char| c.is_ascii_lowercase())
         && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');

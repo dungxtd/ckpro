@@ -17,8 +17,10 @@ const gb = (mb: number) => (mb / 1024).toFixed(1);
 function ExamCard({ exam, dockerMb }: { exam: ExamSummary; dockerMb: number | null }) {
 	const start = useExam(s => s.start);
 	// Clearly too small whatever runs; the exact check (running clusters
-	// counted) happens on start
-	const tooSmall = dockerMb !== null && dockerMb < exam.memory_mb;
+	// counted) happens on start. Between the minimum and the comfortable
+	// size it runs, slower
+	const tooSmall = dockerMb !== null && dockerMb < exam.minimum_mb;
+	const tight = dockerMb !== null && !tooSmall && dockerMb < exam.memory_mb;
 	const ready = dockerMb !== null && !tooSmall;
 	return (
 		<Card className="flex flex-col gap-2">
@@ -31,9 +33,11 @@ function ExamCard({ exam, dockerMb }: { exam: ExamSummary; dockerMb: number | nu
 				{exam.questions} question{exam.questions === 1 ? "" : "s"} · {exam.duration_minutes} min ·
 				pass {exam.pass_score}%
 			</div>
-			<div className={tooSmall ? "text-warning text-xs" : "text-muted-foreground text-xs"}>
+			<div className={tooSmall || tight ? "text-warning text-xs" : "text-muted-foreground text-xs"}>
 				Needs ~{gb(exam.memory_mb)} GB · {exam.nodes} nodes
-				{tooSmall && ` (Docker has ${gb(dockerMb ?? 0)} GB: raise its memory limit)`}
+				{tooSmall &&
+					` (Docker has ${gb(dockerMb ?? 0)} GB, at least ${gb(exam.minimum_mb)} GB needed: raise its memory limit)`}
+				{tight && ` (Docker has ${gb(dockerMb ?? 0)} GB: it runs, slower)`}
 			</div>
 			<div className="mt-auto flex gap-2 pt-2">
 				<Button size="sm" disabled={!ready} onClick={() => start(exam.id, "exam")}>

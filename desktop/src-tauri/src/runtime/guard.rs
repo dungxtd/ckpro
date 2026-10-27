@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-const CLUSTER_LABEL: &str = "io.x-k8s.kind.cluster";
+use crate::cluster::kind::{CLUSTER_LABEL, node_containers};
 /// Marks ckdry's own firewall rule, to find and remove it again
 const RULE_COMMENT: &str = "ckdry-guard";
 
@@ -89,6 +89,8 @@ struct Active {
 
 pub struct Guard {
     active: Mutex<Option<Active>>,
+    /// What `follow` was last asked for
+    wanted: std::sync::atomic::AtomicBool,
     /// What happened outside ckdry during the attempt
     outside: Mutex<Vec<String>>,
     notify: Box<dyn Fn(&str) + Send + Sync>,
@@ -96,15 +98,33 @@ pub struct Guard {
 
 impl Guard {
     pub fn new(notify: impl Fn(&str) + Send + Sync + 'static) -> Arc<Self> {
-        Arc::new(Self { active: Mutex::new(None), outside: Mutex::default(), notify: Box::new(notify) })
+        Arc::new(Self { active: Mutex::new(None), wanted: Default::default(), outside: Mutex::default(), notify: Box::new(notify) })
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Option<Active>> {
         self.active.lock().unwrap_or_else(|p| p.into_inner())
     }
 
+    /// Guard `watch` (an attempt is running) or nothing; a change of what is
+    /// wanted activates or deactivates in the background, a repeat does nothing
+    pub fn follow(self: &Arc<Self>, watch: Option<Watch>) {
+        let wanted = watch.is_some();
+        if self.wanted.swap(wanted, std::sync::atomic::Ordering::SeqCst) == wanted {
+            return;
+        }
+        let guard = self.clone();
+        tauri::async_runtime::spawn(async move {
+            let docker = super::docker::connect().await.ok();
+            match (watch, docker) {
+                (Some(watch), Some(docker)) => guard.activate(&docker, watch).await,
+                (Some(_), None) => {}
+                (None, docker) => guard.deactivate(docker.as_ref()).await,
+            }
+        });
+    }
+
     /// Start guarding an attempt: close the host's way to its API servers
-    pub async fn activate(&self, docker: &Docker, watch: Watch) {
+    async fn activate(&self, docker: &Docker, watch: Watch) {
         let gateway = docker
             .inspect_network(NETWORK, None::<bollard::query_parameters::InspectNetworkOptions>)
             .await
@@ -124,7 +144,7 @@ impl Guard {
     }
 
     /// Stop guarding (the attempt ends): the host may reach the clusters again
-    pub async fn deactivate(&self, docker: Option<&Docker>) {
+    async fn deactivate(&self, docker: Option<&Docker>) {
         let Some(active) = self.lock().take() else { return };
         if let (Some(docker), Some(gateway)) = (docker, &active.gateway) {
             for cluster in &active.clusters {
@@ -142,12 +162,8 @@ impl Guard {
             return;
         };
         let mut names: Vec<String> = containers.into_iter().collect();
-        let filters = HashMap::from([("label".to_string(), clusters.iter().map(|c| format!("{CLUSTER_LABEL}={c}")).collect())]);
-        if let Ok(nodes) = docker
-            .list_containers(Some(bollard::query_parameters::ListContainersOptions { all: true, filters: Some(filters), ..Default::default() }))
-            .await
-        {
-            names.extend(nodes.into_iter().filter_map(|c| c.names?.first().map(|n| n.trim_start_matches('/').to_string())));
+        if let Ok(nodes) = node_containers(docker, None).await {
+            names.extend(nodes.into_iter().filter(|n| clusters.contains(&n.cluster)).map(|n| n.name));
         }
         for name in names {
             let Ok(c) = docker.inspect_container(&name, None).await else { continue };
@@ -170,6 +186,7 @@ impl Guard {
     /// Stop reacting at once, without undoing anything (the app is quitting
     /// and stops the containers itself; a resume guards them again)
     pub fn suspend(&self) {
+        self.wanted.store(false, std::sync::atomic::Ordering::SeqCst);
         self.lock().take();
     }
 

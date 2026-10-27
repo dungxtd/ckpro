@@ -23,6 +23,13 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 
+mod draw;
+mod grade;
+pub mod insights;
+
+pub use insights::{CoachSubject, StudyStats, StudySubject};
+use draw::topology;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum Mode {
@@ -39,8 +46,10 @@ pub struct ExamSummary {
     pub questions: u32,
     pub duration_minutes: u32,
     pub pass_score: u32,
-    /// Memory it needs on this machine, worst case of its draw (MB)
+    /// Memory it runs comfortably in, worst case of its draw (MB)
     pub memory_mb: u32,
+    /// Memory it cannot run without (MB); in between it runs, slower
+    pub minimum_mb: u32,
     /// Its Kubernetes nodes (control planes and workers)
     pub nodes: u32,
     /// The clusters it runs on
@@ -161,58 +170,6 @@ pub struct HistoryEntry {
     pub result: ExamResult,
 }
 
-/// How the candidate did in one curriculum domain, over all attempts
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-pub struct DomainStat {
-    pub domain: String,
-    /// Share of the exam, in percent (the curriculum)
-    pub weight: u32,
-    pub points: u32,
-    pub max_points: u32,
-    /// Questions answered in it
-    pub questions: u32,
-}
-
-/// One certification's results so far
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-pub struct StudyStats {
-    pub certification: String,
-    pub title: String,
-    /// Attempt scores, oldest first
-    pub scores: Vec<f64>,
-    /// Heaviest domain first
-    pub domains: Vec<DomainStat>,
-}
-
-/// A study plan's inputs (see `Exams::study_subject`)
-pub struct StudySubject {
-    pub stats: StudyStats,
-    pub kubernetes: String,
-    pub docs: Vec<String>,
-    /// Practice questions per domain (titles)
-    pub practice: BTreeMap<String, Vec<String>>,
-    /// Practice exams for the certification
-    pub exams: Vec<String>,
-}
-
-/// A question as the practice coach sees it (see `Exams::coach_subject`)
-pub struct CoachSubject {
-    pub attempt_id: String,
-    pub certification: String,
-    pub kubernetes: String,
-    pub domain: Option<String>,
-    /// Allowed documentation (URL prefixes)
-    pub docs: Vec<String>,
-    /// The reference answer, once the candidate opened it (always in review)
-    pub solution: Option<Solution>,
-    /// The attempt has its result: reviewing, no longer practising
-    pub review: bool,
-    pub cluster: String,
-    pub jumphost: String,
-    /// The question as the candidate reads it (vars filled in)
-    pub view: QuestionView,
-}
-
 pub struct Exams {
     /// The question bank: the core pack plus the candidate's own questions
     /// (replaced when a generated question is added)
@@ -282,33 +239,17 @@ impl Exams {
     }
 
     fn set(&self, state: ExamState) {
-        let was_running = matches!(*self.state.lock().unwrap_or_else(|p| p.into_inner()), ExamState::Running { .. });
         *self.state.lock().unwrap_or_else(|p| p.into_inner()) = state.clone();
         self.save_attempt(&state);
         (self.publish)(&state);
         // The guard watches a running attempt only
-        match (&state, was_running) {
-            (ExamState::Running { attempt, .. }, false) => {
-                let watch = Watch {
-                    clusters: attempt.clusters.clone(),
-                    containers: vec![self.desktop.clone(), self.jumphost.name.clone(), MIRROR.to_string()],
-                };
-                let guard = self.guard.clone();
-                tauri::async_runtime::spawn(async move {
-                    if let Ok(docker) = docker::connect().await {
-                        guard.activate(&docker, watch).await;
-                    }
-                });
-            }
-            (ExamState::Running { .. }, true) => {}
-            (_, true) => {
-                let guard = self.guard.clone();
-                tauri::async_runtime::spawn(async move {
-                    guard.deactivate(docker::connect().await.ok().as_ref()).await;
-                });
-            }
-            _ => {}
-        }
+        self.guard.follow(match &state {
+            ExamState::Running { attempt, .. } => Some(Watch {
+                clusters: attempt.clusters.clone(),
+                containers: vec![self.desktop.clone(), self.jumphost.name.clone(), MIRROR.to_string()],
+            }),
+            _ => None,
+        });
     }
 
     /// ckdry restarts the desktop itself (Reset desktop): not outside
@@ -426,36 +367,6 @@ impl Exams {
         Ok(())
     }
 
-    pub fn catalog(&self) -> Vec<ExamSummary> {
-        let pack = self.pack();
-        pack
-            .exams
-            .iter()
-            .filter_map(|(id, e)| {
-                let cert = pack.pack.certifications.get(&e.value.certification)?;
-                let fixed = e
-                    .value
-                    .questions
-                    .iter()
-                    .filter(|id| pack.questions.get(*id).is_some_and(|q| q.value.runnable()))
-                    .count() as u32;
-                let topology = worst_topology(&pack, &e.value);
-                Some(ExamSummary {
-                    memory_mb: crate::runtime::preflight::exam_memory_mb(&topology),
-                    nodes: topology.values().map(|w| 1 + u32::from(*w)).sum(),
-                    clusters: topology.keys().cloned().collect(),
-                    id: id.clone(),
-                    title: e.value.title.clone(),
-                    description: e.value.description.clone(),
-                    certification: e.value.certification.clone(),
-                    questions: fixed + e.value.random.as_ref().map_or(0, |r| r.count),
-                    duration_minutes: (e.value.duration.as_ref().unwrap_or(&cert.duration).seconds().unwrap_or(0) / 60) as u32,
-                    pass_score: e.value.pass_score.unwrap_or(cert.pass_score),
-                })
-            })
-            .collect()
-    }
-
     /// Start an attempt. Clusters with the names the exam needs must not exist
     /// unless `replace` (they are deleted).
     pub async fn start(self: &Arc<Self>, exam_id: &str, mode: Mode, replace: bool) -> AppResult<()> {
@@ -566,53 +477,6 @@ impl Exams {
         Ok(())
     }
 
-    /// The certification's allowed docs plus the tasks' own references
-    fn allowed_docs(&self, certification: &str, questions: &[(String, Question)]) -> Vec<String> {
-        let pack = self.pack();
-        let mut allowed = pack.pack.certifications.get(certification).map(|c| c.resources.clone()).unwrap_or_default();
-        allowed.extend(questions.iter().flat_map(|(_, q)| q.references.iter().cloned()));
-        allowed.dedup();
-        allowed
-    }
-
-    fn draw(&self, exam: &Exam) -> Vec<(String, Question)> {
-        let pack = self.pack();
-        let mut ids = exam.questions.clone();
-        if let Some(draw) = &exam.random {
-            let cert = &pack.pack.certifications[&exam.certification];
-            let weights = draw.weights.as_ref().unwrap_or(&cert.domains);
-            let mut rng = rand::rng();
-            let mut drawn = Vec::new();
-            for (domain, count) in allocate(draw.count, weights) {
-                let mut pool: Vec<&String> = pack
-                    .questions
-                    .iter()
-                    .filter(|(id, q)| {
-                        q.value.certifications.get(&exam.certification) == Some(&domain)
-                            && q.value.runnable()
-                            && !ids.contains(id)
-                    })
-                    .map(|(id, _)| id)
-                    .collect();
-                pool.shuffle(&mut rng);
-                drawn.extend(pool.into_iter().take(count as usize).cloned());
-            }
-            drawn.shuffle(&mut rng);
-            ids.extend(drawn);
-        }
-        ids.into_iter()
-            .filter_map(|id| {
-                let q = &pack.questions.get(&id)?.value;
-                if !q.runnable() {
-                    tracing::info!(question = %id, "left out: needs {:?}", q.requires);
-                    return None;
-                }
-                // The app's clusters keep their logical names
-                Some((id, render::render(q, &render::pick(q, false), &q.cluster)))
-            })
-            .collect()
-    }
-
     /// Create the attempt's clusters, task host and desktop and set up its
     /// tasks, reporting into the activity `activity` (planned in `start`).
     async fn prepare(
@@ -674,272 +538,6 @@ impl Exams {
             }
         }
         Ok(())
-    }
-
-    /// Submit automatically when the time is up (if still that attempt).
-    fn submit_at(self: &Arc<Self>, attempt_id: String, ends_at: f64) {
-        let this = self.clone();
-        tauri::async_runtime::spawn(async move {
-            let wait = (ends_at - now_ms()).max(0.0) as u64;
-            tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
-            if matches!(this.state(), ExamState::Running { attempt, .. } if attempt.id == attempt_id) {
-                tracing::info!(%attempt_id, "time is up, submitting");
-                let _ = this.submit();
-            }
-        });
-    }
-
-    /// Grade every question and finish the attempt.
-    pub fn submit(self: &Arc<Self>) -> AppResult<()> {
-        let ExamState::Running { attempt, started_at, .. } = self.state() else {
-            return Err(AppError::invalid("no exam is running"));
-        };
-        let this = self.clone();
-        tauri::async_runtime::spawn(async move { this.grade_and_finish(attempt, started_at, None).await });
-        Ok(())
-    }
-
-    async fn grade_and_finish(&self, attempt: Attempt, started_at: f64, note: Option<String>) {
-        let op = self.activities.begin(format!("Grading {}", attempt.title), vec!["Running every check".into()]);
-        let id = op.id();
-        match op.end(self.grade(&attempt, started_at, note, id).await) {
-            Ok(result) => {
-                self.save_history(&attempt, &result);
-                self.set(ExamState::Finished { attempt, result });
-            }
-            Err(e) => self.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string(), activity: Some(id) }),
-        }
-    }
-
-    async fn grade(&self, attempt: &Attempt, started_at: f64, note: Option<String>, activity: u32) -> AppResult<ExamResult> {
-        let op = self.activities.handle(activity);
-        let questions = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        let docker = docker::connect().await?;
-        let grading = |scores: Vec<Option<QuestionScore>>| ExamState::Grading {
-            attempt: attempt.clone(),
-            activity,
-            scores,
-            note: note.clone(),
-        };
-        self.set(grading(vec![None; questions.len()]));
-        if let Some(note) = &note {
-            op.log(note.clone());
-        }
-
-        // Every check at once; a question's score shows as soon as its last
-        // check is in
-        let owner: Vec<usize> = questions.iter().enumerate().flat_map(|(i, (_, q))| q.checks.iter().map(move |_| i)).collect();
-        let progress = Mutex::new((
-            questions.iter().map(|(_, q)| vec![None; q.checks.len()]).collect::<Vec<Vec<Option<(bool, u32)>>>>(),
-            vec![None; questions.len()],
-        ));
-        let starts: Vec<usize> = questions
-            .iter()
-            .scan(0, |next, (_, q)| {
-                let start = *next;
-                *next += q.checks.len();
-                Some(start)
-            })
-            .collect();
-        let all: Vec<_> = questions.iter().flat_map(|(_, q)| q.checks.iter().map(|c| (q.cluster.as_str(), c))).collect();
-        let mut graded = checks::run_checks(&docker, &self.jumphost.name, all, |index, result| {
-            let question = owner[index];
-            let mut state = progress.lock().unwrap_or_else(|p| p.into_inner());
-            state.0[question][index - starts[question]] = Some((result.passed, result.weight));
-            if state.0[question].iter().all(Option::is_some) {
-                let (points, max_points) = state.0[question]
-                    .iter()
-                    .flatten()
-                    .fold((0, 0), |(p, m), (passed, w)| (p + if *passed { *w } else { 0 }, m + w));
-                state.1[question] = Some(QuestionScore { points, max_points });
-                let mark = if points == max_points { "✓" } else { "✗" };
-                op.log(format!("{mark} {}: {points}/{max_points}", questions[question].1.title));
-                let done = state.1.iter().filter(|s| s.is_some()).count();
-                self.set(grading(state.1.clone()));
-                drop(state);
-                op.detail(format!("{done} of {} questions graded", questions.len()));
-            }
-        })
-        .await?
-        .into_iter();
-        let mut results = Vec::new();
-        for (id, q) in &questions {
-            let check_results: Vec<_> = graded.by_ref().take(q.checks.len()).collect();
-            results.push(QuestionResult {
-                id: id.clone(),
-                title: q.title.clone(),
-                points: check_results.iter().filter(|c| c.passed).map(|c| c.weight).sum(),
-                max_points: check_results.iter().map(|c| c.weight).sum(),
-                checks: check_results,
-            });
-        }
-        // Each question counts by its share of the exam, like on the real exam
-        let score: f64 = results
-            .iter()
-            .zip(&attempt.questions)
-            .map(|(r, view)| if r.max_points == 0 { 0.0 } else { view.weight * f64::from(r.points) / f64::from(r.max_points) })
-            .sum();
-        let score = (score * 10.0).round() / 10.0;
-        op.log(format!("Score {score}% (pass {}%)", attempt.pass_score));
-        Ok(ExamResult {
-            score,
-            passed: score >= f64::from(attempt.pass_score),
-            started_at,
-            finished_at: now_ms(),
-            questions: results,
-            outside: self.guard.take_outside(),
-        })
-    }
-
-    /// Practice mode: grade one question now.
-    pub async fn check_question(&self, question_id: &str) -> AppResult<Vec<CheckResult>> {
-        let ExamState::Running { attempt, .. } = self.state() else {
-            return Err(AppError::invalid("no exam is running"));
-        };
-        if attempt.mode != Mode::Practice {
-            return Err(AppError::invalid("checking answers is only available in practice mode"));
-        }
-        let question = self.question(question_id)?;
-        let docker = docker::connect().await?;
-        checks::run_checks(&docker, &self.jumphost.name, question.checks.iter().map(|c| (question.cluster.as_str(), c)), |_, _| {})
-            .await
-    }
-
-    /// The reference answer: in practice mode, or once the result is in.
-    pub fn solution(&self, question_id: &str) -> AppResult<Solution> {
-        match self.state() {
-            ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => {}
-            ExamState::Finished { .. } => {}
-            _ => return Err(AppError::invalid("solutions are shown after the exam")),
-        }
-        Ok(self.question(question_id)?.solution)
-    }
-
-    /// What the practice coach may know about a question: only while a
-    /// practice attempt runs, or once an attempt has its result. Never during
-    /// an exam-mode attempt (the real exam has no assistant). The solution
-    /// comes along only if the candidate has opened it.
-    pub fn coach_subject(&self, question_id: &str, solution_opened: bool) -> AppResult<CoachSubject> {
-        let pack = self.pack();
-        let (attempt, review) = match self.state() {
-            ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => (attempt, false),
-            // The exam is over: the review may show everything
-            ExamState::Finished { attempt, .. } => (attempt, true),
-            _ => return Err(AppError::invalid("the coach is available in practice mode and after the exam")),
-        };
-        let question = self.question(question_id)?;
-        let view = attempt
-            .questions
-            .iter()
-            .find(|q| q.id == question_id)
-            .cloned()
-            .ok_or_else(|| AppError::not_found(format!("question {question_id}")))?;
-        let certification = pack.pack.certifications.get(&attempt.certification);
-        let session = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        Ok(CoachSubject {
-            attempt_id: attempt.id.clone(),
-            certification: certification.map(|c| c.title.clone()).unwrap_or_else(|| attempt.certification.clone()),
-            kubernetes: certification.map(|c| c.kubernetes.clone()).unwrap_or_default(),
-            domain: question.certifications.get(&attempt.certification).cloned(),
-            docs: self.allowed_docs(&attempt.certification, &session),
-            solution: (solution_opened || review).then(|| question.solution.clone()),
-            review,
-            cluster: question.cluster.clone(),
-            jumphost: self.jumphost.name.clone(),
-            view,
-        })
-    }
-
-    /// An exam-mode attempt is under way (no assistant then, as on the real exam)
-    pub fn exam_in_progress(&self) -> bool {
-        match self.state() {
-            ExamState::Preparing { attempt, .. }
-            | ExamState::Resuming { attempt, .. }
-            | ExamState::Running { attempt, .. }
-            | ExamState::Grading { attempt, .. }
-            | ExamState::Ending { attempt, .. } => attempt.mode == Mode::Exam,
-            _ => false,
-        }
-    }
-
-    /// How the candidate did per curriculum domain, per certification they
-    /// have attempted, from the history (newest scores last)
-    pub fn study_stats(&self) -> Vec<StudyStats> {
-        let pack = self.pack();
-        let history = self.history();
-        let mut stats: Vec<StudyStats> = Vec::new();
-        for entry in history.iter().rev() {
-            let Some(cert_id) = pack.exams.get(&entry.exam_id).map(|e| e.value.certification.clone()) else {
-                continue;
-            };
-            let Some(cert) = pack.pack.certifications.get(&cert_id) else { continue };
-            let i = match stats.iter().position(|s| s.certification == cert_id) {
-                Some(i) => i,
-                None => {
-                    let mut domains: Vec<DomainStat> = cert
-                        .domains
-                        .iter()
-                        .map(|(domain, weight)| DomainStat { domain: domain.clone(), weight: *weight, points: 0, max_points: 0, questions: 0 })
-                        .collect();
-                    domains.sort_by(|a, b| b.weight.cmp(&a.weight));
-                    stats.push(StudyStats { certification: cert_id.clone(), title: cert.title.clone(), scores: Vec::new(), domains });
-                    stats.len() - 1
-                }
-            };
-            let stat = &mut stats[i];
-            stat.scores.push(entry.result.score);
-            for q in &entry.result.questions {
-                let domain = pack.questions.get(&q.id).and_then(|l| l.value.certifications.get(&cert_id));
-                if let Some(d) = domain.and_then(|d| stat.domains.iter_mut().find(|s| &s.domain == d)) {
-                    d.points += q.points;
-                    d.max_points += q.max_points;
-                    d.questions += 1;
-                }
-            }
-        }
-        stats
-    }
-
-    /// What the coach needs for a study plan: the stats, the curriculum and
-    /// what there is to practise. Not while an exam-mode attempt runs.
-    pub fn study_subject(&self, certification: &str) -> AppResult<StudySubject> {
-        let pack = self.pack();
-        if self.exam_in_progress() {
-            return Err(AppError::invalid("the coach is not available during an exam"));
-        }
-        let cert = pack.pack.certifications.get(certification).ok_or_else(|| AppError::not_found(format!("certification {certification}")))?;
-        let stats = self
-            .study_stats()
-            .into_iter()
-            .find(|s| s.certification == certification)
-            .ok_or_else(|| AppError::invalid("no finished attempt of this certification yet"))?;
-        let mut practice: BTreeMap<String, Vec<String>> = BTreeMap::new();
-        for q in pack.questions.values().filter(|q| q.value.runnable()) {
-            if let Some(domain) = q.value.certifications.get(certification) {
-                practice.entry(domain.clone()).or_default().push(q.value.title.clone());
-            }
-        }
-        let exams = self.catalog().into_iter().filter(|e| e.certification == certification).map(|e| e.title).collect();
-        Ok(StudySubject { stats, kubernetes: cert.kubernetes.clone(), docs: cert.resources.clone(), practice, exams })
-    }
-
-    /// The attempt the coach works in (practice mode, or with its result)
-    pub fn coach_attempt(&self) -> Option<String> {
-        match self.state() {
-            ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => Some(attempt.id),
-            ExamState::Finished { attempt, .. } => Some(attempt.id),
-            _ => None,
-        }
-    }
-
-    /// The documentation the current attempt's desktop may open
-    pub fn attempt_docs(&self) -> Vec<String> {
-        let certification = match self.state() {
-            ExamState::Running { attempt, .. } | ExamState::Finished { attempt, .. } => attempt.certification,
-            _ => return Vec::new(),
-        };
-        let session = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        self.allowed_docs(&certification, &session)
     }
 
     fn question(&self, id: &str) -> AppResult<Question> {
@@ -1028,53 +626,6 @@ impl Exams {
             Vec::new()
         })
     }
-}
-
-/// One cluster per name, as large as its most demanding question.
-/// The clusters an exam can need: its fixed questions, and for a random draw
-/// the largest each cluster gets among the questions it may draw
-fn worst_topology(pack: &LoadedPack, exam: &Exam) -> BTreeMap<String, u8> {
-    let fixed = exam.questions.iter().filter_map(|id| pack.questions.get(id));
-    let drawable = exam.random.as_ref().into_iter().flat_map(|_| {
-        pack.questions.values().filter(|q| q.value.certifications.contains_key(&exam.certification))
-    });
-    let mut clusters = BTreeMap::new();
-    for q in fixed.chain(drawable).filter(|q| q.value.runnable()) {
-        let workers: &mut u8 = clusters.entry(q.value.cluster.clone()).or_default();
-        *workers = (*workers).max(q.value.workers);
-    }
-    clusters
-}
-
-fn topology(questions: &[(String, Question)]) -> BTreeMap<String, u8> {
-    let mut clusters = BTreeMap::new();
-    for (_, q) in questions {
-        let workers: &mut u8 = clusters.entry(q.cluster.clone()).or_default();
-        *workers = (*workers).max(q.workers);
-    }
-    clusters
-}
-
-/// Split `count` questions across domains by weight (largest remainder).
-fn allocate(count: u32, weights: &BTreeMap<String, u32>) -> Vec<(String, u32)> {
-    let total: u32 = weights.values().sum();
-    if total == 0 {
-        return Vec::new();
-    }
-    let mut shares: Vec<(String, u32, u32)> = weights
-        .iter()
-        .map(|(d, w)| (d.clone(), count * w / total, (count * w) % total))
-        .collect();
-    let mut left = count - shares.iter().map(|s| s.1).sum::<u32>();
-    shares.sort_by(|a, b| b.2.cmp(&a.2));
-    for share in shares.iter_mut() {
-        if left == 0 {
-            break;
-        }
-        share.1 += 1;
-        left -= 1;
-    }
-    shares.into_iter().map(|(d, n, _)| (d, n)).collect()
 }
 
 fn now_ms() -> f64 {

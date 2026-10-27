@@ -17,8 +17,25 @@ fn candidate_sockets() -> Vec<PathBuf> {
     ]
 }
 
-/// First reachable Docker engine.
+/// The engine found last; `Docker` is a cheap handle over one connection pool.
+static CLIENT: std::sync::Mutex<Option<Docker>> = std::sync::Mutex::new(None);
+
+/// The Docker engine: the one found last while it still answers, otherwise
+/// the first reachable one.
 pub async fn connect() -> AppResult<Docker> {
+    let cached = CLIENT.lock().unwrap_or_else(|p| p.into_inner()).clone();
+    if let Some(docker) = cached {
+        if docker.ping().await.is_ok() {
+            return Ok(docker);
+        }
+    }
+    let docker = find().await;
+    *CLIENT.lock().unwrap_or_else(|p| p.into_inner()) = docker.as_ref().ok().cloned();
+    docker
+}
+
+/// First reachable Docker engine.
+async fn find() -> AppResult<Docker> {
     if let Ok(docker) = Docker::connect_with_local_defaults() {
         if docker.ping().await.is_ok() {
             return Ok(docker);

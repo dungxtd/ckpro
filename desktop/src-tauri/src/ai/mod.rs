@@ -541,7 +541,7 @@ mod tests {
 
     #[test]
     fn the_study_plan_prompt_has_the_scores_per_domain_and_what_to_practise() {
-        use crate::lab::exam::{DomainStat, StudyStats};
+        use crate::lab::exam::{StudyStats, insights::DomainStat};
         let subject = StudySubject {
             stats: StudyStats {
                 certification: "cka".into(),
@@ -568,7 +568,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn claude_writes_a_study_plan() {
-        use crate::lab::exam::{DomainStat, StudyStats};
+        use crate::lab::exam::{StudyStats, insights::DomainStat};
         let d = |domain: &str, weight, points, max_points, questions| DomainStat { domain: domain.into(), weight, points, max_points, questions };
         let subject = StudySubject {
             stats: StudyStats {
