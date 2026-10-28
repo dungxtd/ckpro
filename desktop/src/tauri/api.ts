@@ -73,6 +73,7 @@ export type {
 	NodeState,
 	PermissionOption,
 	Profile,
+	Provider,
 	Runtime,
 	RuntimeInfo,
 	Solution,

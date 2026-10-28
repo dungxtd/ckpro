@@ -15,10 +15,12 @@ import {
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { Switch } from "@ckdry/ui/components/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ckdry/ui/components/tabs";
+import { cn } from "@ckdry/ui/lib/utils";
 import { Copy, Info, Monitor, RotateCw, Sparkles, X } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SignInDialog } from "@/components/account/sign-in-dialog";
+import { AGENTS } from "@/components/ai/agents";
 import { ClaudeIcon } from "@/components/claude-icon";
 import { RESOLUTIONS, useDesktopSettings } from "@/components/exam/desktop-menu";
 import { TextSize } from "@/components/exam/question-panel";
@@ -31,6 +33,7 @@ import {
 	agentApi,
 	appApi,
 	coachApi,
+	type Provider,
 	type Runtime,
 	type RuntimeInfo,
 } from "@/tauri/api";
@@ -114,7 +117,10 @@ function AiSettings() {
 		agentApi.save(next).then(
 			saved => {
 				setSettings(saved);
-				useCoach.setState({ shared: { checks: saved.share_checks, cluster: saved.share_cluster } });
+				useCoach.setState({
+					provider: saved.provider,
+					shared: { checks: saved.share_checks, cluster: saved.share_cluster },
+				});
 				// Another runtime, another CLI: what runs now, and as whom
 				if ("runtime" in patch || "claude_path" in patch) {
 					recheck();
@@ -127,7 +133,7 @@ function AiSettings() {
 
 	return (
 		<>
-			<Group title="Assistant" description="Claude helps while you practise. Never in an exam.">
+			<Group title="Assistant" description="An agent helps while you practise. Never in an exam.">
 				<Row label="Use the assistant" detail="Off: the app has no AI anywhere, as in the exam">
 					<Switch
 						aria-label="Use the assistant"
@@ -135,6 +141,25 @@ function AiSettings() {
 						onCheckedChange={assistant_enabled => update({ assistant_enabled })}
 					/>
 				</Row>
+				{enabled && settings && (
+					<Row label="Default agent" detail="The agent new sessions use">
+						<Select
+							value={settings.provider}
+							onValueChange={provider => save({ provider: provider as Provider })}
+						>
+							<SelectTrigger aria-label="Default agent" className="w-52">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{AGENTS.map(a => (
+									<SelectItem key={a.id} value={a.id}>
+										<a.Icon className={cn("size-3.5", a.tint)} /> {a.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</Row>
+				)}
 				{enabled && settings && (
 					<Row label="Start in" detail="Ask answers; Agent may also run commands, each one allowed">
 						<SegmentedControl
@@ -152,6 +177,13 @@ function AiSettings() {
 			{enabled && !settings && <Loading fill />}
 			{enabled && settings && (
 				<>
+					<div className="-mb-3 px-1">
+						<h2 className="font-semibold text-base">Agents</h2>
+						<p className="text-muted-foreground text-xs">
+							Each runs over ACP with its own adapter and sign-in. The tool access and privacy below
+							apply to every one.
+						</p>
+					</div>
 					<ClaudeCodeCard settings={settings} save={save} runtime={runtime} onRecheck={recheck} />
 					<ToolAccess settings={settings} save={save} />
 					<Privacy settings={settings} save={save} />
@@ -200,9 +232,12 @@ function ClaudeCodeCard({
 			title={
 				<span className="flex items-center gap-2">
 					<ClaudeIcon className="size-4 text-claude" /> Claude Code
+					<span className="font-normal text-muted-foreground text-xs">Anthropic</span>
+					<AgentStatus runtime={runtime} signedIn={account?.signed_in ?? null} />
+					{settings.provider === "claude" && <Badge variant="subtle">Default</Badge>}
 				</span>
 			}
-			description="The agent behind the assistant, on your own Claude account."
+			description="On your own Claude account: this Mac's Claude CLI, or Docker."
 		>
 			<Row label="Runtime" detail={runtimeDetail(runtime)}>
 				<SegmentedControl
@@ -307,9 +342,30 @@ function ClaudeCodeCard({
 					</Select>
 				</Row>
 			)}
+			<Row label="Telemetry" detail="Claude Code's usage and error reports to Anthropic">
+				<Switch
+					aria-label="Claude Code telemetry"
+					checked={settings.telemetry}
+					onCheckedChange={telemetry => save({ telemetry })}
+				/>
+			</Row>
 			<SignInDialog open={signingIn} onOpenChange={setSigningIn} />
 		</Group>
 	);
+}
+
+/** Whether an agent can answer now: its runtime there, and signed in */
+function AgentStatus({
+	runtime,
+	signedIn,
+}: {
+	runtime: RuntimeInfo | null;
+	signedIn: boolean | null;
+}) {
+	if (runtime === null || signedIn === null) return null;
+	if (!runtime.using) return <Badge variant="destructive">Not available</Badge>;
+	if (!signedIn) return <Badge variant="destructive">Sign in needed</Badge>;
+	return <Badge variant="success">Ready</Badge>;
 }
 
 const runtimeDetail = (runtime: RuntimeInfo | null) =>
@@ -349,7 +405,7 @@ function ToolAccess({ settings, save }: Section) {
 	return (
 		<Group
 			title="Tool access"
-			description="Claude Code's own tools stay off. In Agent mode it gets two of the app's: run a command on the task host, and check the task."
+			description="For every agent: its own tools stay off. In Agent mode it gets two of the app's: run a command on the task host, and check the task."
 		>
 			<Row label="Agent commands" detail="Read-only: get, describe, logs, top, helm list…">
 				<Select
@@ -432,7 +488,7 @@ function Privacy({ settings, save }: Section) {
 	return (
 		<Group
 			title="Privacy"
-			description="The task itself always goes with a question. These decide what else does."
+			description="For every agent: the task always goes with a question; these decide what else does."
 		>
 			<Row label="Share the last check" detail="Which checks passed and why the others failed">
 				<Switch
@@ -456,13 +512,6 @@ function Privacy({ settings, save }: Section) {
 					aria-label="Name sessions"
 					checked={settings.auto_titles}
 					onCheckedChange={auto_titles => save({ auto_titles })}
-				/>
-			</Row>
-			<Row label="Claude Code telemetry" detail="Usage and error reports to Anthropic">
-				<Switch
-					aria-label="Claude Code telemetry"
-					checked={settings.telemetry}
-					onCheckedChange={telemetry => save({ telemetry })}
 				/>
 			</Row>
 		</Group>

@@ -14,6 +14,7 @@ import {
 	type ModelOption,
 	type PermissionOption,
 	type Profile,
+	type Provider,
 } from "@/tauri/api";
 import { useExam } from "./exam";
 import { useSettings } from "./settings";
@@ -52,6 +53,8 @@ interface CoachStore {
 	efforts: ModelOption[];
 	effort: string;
 	setEffort: (effort: string) => void;
+	/** The agent answering (Settings > AI > Default agent) */
+	provider: Provider;
 	/** What the candidate lets go to Claude at all (Settings > AI > Privacy) */
 	shared: { checks: boolean; cluster: boolean };
 	/** What goes with a question besides the task (the context chips) */
@@ -135,6 +138,7 @@ export const useCoach = create<CoachStore>()(
 		model: "sonnet",
 		context: { checks: true, cluster: true },
 		shared: { checks: true, cluster: true },
+		provider: "claude",
 		usage: {},
 		account: null,
 		ensureModels: () => {
@@ -145,6 +149,7 @@ export const useCoach = create<CoachStore>()(
 				.settings()
 				.then(s =>
 					set({
+						provider: s.provider,
 						profile: s.default_profile,
 						shared: { checks: s.share_checks, cluster: s.share_cluster },
 					})

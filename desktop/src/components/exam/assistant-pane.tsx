@@ -25,6 +25,7 @@ import {
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SignInDialog } from "@/components/account/sign-in-dialog";
+import { agentOf } from "@/components/ai/agents";
 import { ClaudeIcon } from "@/components/claude-icon";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
@@ -430,6 +431,7 @@ export function AssistantPane({
 								align="end"
 								className={cn(menu.surface, "max-h-96 w-64 overflow-y-auto")}
 							>
+								<div className={menu.header}>{agentOf(coach.provider).name}</div>
 								{coach.models.length === 0 && (
 									<div className={cn(menu.content, "py-1 text-muted-foreground text-xs")}>
 										Loading models…

@@ -243,6 +243,8 @@ export type AgentSettings = AgentSettings_Serialize | AgentSettings_Deserialize;
 
 /**  The assistant's settings, kept in the database */
 export type AgentSettings_Deserialize = {
+	/**  The agent new sessions use */
+	provider?: Provider,
 	/**  The profile a new app run starts in */
 	default_profile?: Profile,
 	permission?: AgentPermission,
@@ -267,6 +269,8 @@ export type AgentSettings_Deserialize = {
 
 /**  The assistant's settings, kept in the database */
 export type AgentSettings_Serialize = {
+	/**  The agent new sessions use */
+	provider: Provider,
 	/**  The profile a new app run starts in */
 	default_profile: Profile,
 	permission: AgentPermission,
@@ -725,6 +729,11 @@ export type Progress = {
 	/**  Hints opened per question (practice mode) */
 	hints_shown: { [key in string]: number },
 };
+
+/**  The agent behind the assistant (each runs over ACP with its own adapter) */
+export type Provider = 
+/**  Claude Code, through the Claude Agent adapter */
+"claude";
 
 export type QuestionResult = {
 	id: string,

@@ -16,6 +16,15 @@ pub enum AgentPermission {
     All,
 }
 
+/// The agent behind the assistant (each runs over ACP with its own adapter)
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum Provider {
+    /// Claude Code, through the Claude Agent adapter
+    #[default]
+    Claude,
+}
+
 /// Where the assistant runs
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -33,6 +42,8 @@ pub enum Runtime {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct AgentSettings {
+    /// The agent new sessions use
+    pub provider: Provider,
     /// The profile a new app run starts in
     pub default_profile: super::Profile,
     pub permission: AgentPermission,
@@ -56,6 +67,7 @@ pub struct AgentSettings {
 impl Default for AgentSettings {
     fn default() -> Self {
         Self {
+            provider: Provider::Claude,
             default_profile: super::Profile::Ask,
             permission: AgentPermission::Confirm,
             command_timeout: 60,
