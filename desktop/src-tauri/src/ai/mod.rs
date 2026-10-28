@@ -27,6 +27,13 @@ use tokio_util::sync::CancellationToken;
 pub const DEFAULT_MODEL: &str = "sonnet";
 /// Writing a question that has to pass on a cluster needs the most capable one
 const GENERATOR_MODEL: &str = "opus";
+/// Names a session from its first question: the quick model, and how
+const TITLE_MODEL: &str = "haiku";
+const TITLE_SYSTEM: &str = "You name a conversation about an exam task from its first message, like \
+a chat app's sidebar. Reply with the title only: 2 to 6 words, plain text, no quotes, no trailing \
+period, in the language of the message. Name the topic (\"PVC stuck in Pending\"); when the message \
+says little (\"hint?\"), name it after the task (\"Hint: Dynamic PVC\").";
+
 /// What a cluster snapshot may add to the prompt
 const SNAPSHOT_CHARS: usize = 6_000;
 /// Earlier turns a new session is given (the oldest are left out)
@@ -86,6 +93,8 @@ pub struct CoachContext {
 pub struct CoachReply {
     pub text: String,
     pub usage: Option<ContextUsage>,
+    /// The session's name, when this first question gave it one
+    pub title: Option<String>,
 }
 
 /// A coach session of the attempt: one per question asked about (the
@@ -103,6 +112,22 @@ pub struct CoachSession {
 pub struct CoachHistory {
     pub title: Option<String>,
     pub messages: Vec<CoachMessage>,
+}
+
+/// A model's title made fit for the session list: one line, no quotes or
+/// markup, at most 60 characters; none if nothing is left
+fn session_title(raw: &str) -> Option<String> {
+    let line = raw.lines().map(str::trim).find(|l| !l.is_empty())?;
+    let line = line.trim_start_matches(['#', '*', '-', ' ']).trim_start_matches("Title:").trim();
+    let line = line.trim_matches(|c: char| matches!(c, '"' | '\'' | '`' | '*' | '“' | '”')).trim_end_matches('.').trim();
+    if line.is_empty() {
+        return None;
+    }
+    let mut title: String = line.chars().take(60).collect();
+    if line.chars().count() > 60 {
+        title = format!("{}…", title.trim_end());
+    }
+    Some(title)
 }
 
 /// The practice coach: one ACP session per question's conversation, one
@@ -287,10 +312,20 @@ impl Coach {
             }
         };
         self.open.lock().await.insert(key.clone(), (session.clone(), model.to_string(), effort.to_string()));
-        let answer = self
-            .agent
-            .prompt(&session, &prompt, &cancel, &|t| on_event(CoachEvent::Text { text: t.to_string() }))
-            .await;
+        // The first question names the session (as Zed names a thread), while
+        // the answer is written: a quick model, nothing waits longer for it
+        let first = store.coach_messages(&subject.attempt_id, question_id)?.is_empty()
+            && store.coach_session_title(&subject.attempt_id, question_id)?.is_none();
+        let naming = async {
+            if !first {
+                return None;
+            }
+            let about = format!("Task: {}\n\nFirst message: {text}", subject.view.title);
+            let title = self.agent.ask_once(TITLE_SYSTEM, &about, TITLE_MODEL, &cancel, &|_| {}).await;
+            title.ok().and_then(|t| session_title(&t))
+        };
+        let stream = |t: &str| on_event(CoachEvent::Text { text: t.to_string() });
+        let (answer, title) = tokio::join!(self.agent.prompt(&session, &prompt, &cancel, &stream), naming);
         let answer = match answer {
             Ok(a) => a,
             Err(e) => {
@@ -309,7 +344,15 @@ impl Coach {
                 CoachMessage { role: Role::Assistant, text: answer.text.clone() },
             ],
         )?;
-        Ok(CoachReply { text: answer.text, usage: answer.usage })
+        // Unless the candidate named it meanwhile
+        let title = match title {
+            Some(t) if store.coach_session_title(&subject.attempt_id, question_id)?.is_none() => {
+                store.rename_coach_session(&subject.attempt_id, question_id, &t)?;
+                Some(t)
+            }
+            _ => None,
+        };
+        Ok(CoachReply { text: answer.text, usage: answer.usage, title })
     }
 
     /// Start the question's session over (the panel's New Session)
@@ -606,6 +649,35 @@ fn truncate(text: &str, max: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The real quick model names sessions (needs Node and a Claude login)
+    #[tokio::test]
+    #[ignore]
+    async fn names_a_session_from_its_first_question() {
+        let dir = std::env::temp_dir().join(format!("ckdry-title-{}", std::process::id()));
+        let agent = Agent::new(&dir);
+        for question in [
+            "Why does my PVC stay Pending even though the StorageClass exists?",
+            "tại sao kubectl drain node01 bị treo mãi không xong?",
+            "hint pls",
+        ] {
+            let about = format!("Task: Dynamic PVC and Pod\n\nFirst message: {question}");
+            let raw = agent.ask_once(TITLE_SYSTEM, &about, TITLE_MODEL, &CancellationToken::new(), &|_| {}).await.unwrap();
+            let title = session_title(&raw).unwrap();
+            println!("{question} -> {title}");
+            assert!(title.split_whitespace().count() <= 8 && !title.contains('"'), "{title}");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn titles_are_one_clean_line() {
+        assert_eq!(session_title("\"PVC stuck in Pending.\"\n").as_deref(), Some("PVC stuck in Pending"));
+        assert_eq!(session_title("\n**Title:** Node drain blocked\nmore").as_deref(), Some("Node drain blocked"));
+        assert_eq!(session_title("  \n "), None);
+        let long = session_title(&"word ".repeat(30)).unwrap();
+        assert!(long.ends_with('…') && long.chars().count() <= 61, "{long}");
+    }
     use crate::lab::exam::QuestionView;
     use crate::lab::model::Solution;
 

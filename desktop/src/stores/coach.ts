@@ -194,6 +194,8 @@ export const useCoach = create<CoachStore>()(
 					const last = s.sessions[questionId]?.at(-1);
 					if (last?.role === "assistant") last.text = reply.text;
 					if (reply.usage) s.usage[questionId] = reply.usage;
+					// Named from the first question, unless the candidate named it
+					if (reply.title && !s.titles[questionId]) s.titles[questionId] = reply.title;
 				});
 			} catch (e) {
 				const stopped = e instanceof ApiError && e.code === "cancelled";

@@ -350,12 +350,16 @@ export type CoachReply = CoachReply_Serialize | CoachReply_Deserialize;
 export type CoachReply_Deserialize = {
 	text: string,
 	usage?: ContextUsage | null,
+	/**  The session's name, when this first question gave it one */
+	title?: string | null,
 };
 
 /**  An answer and how much of the model's context the conversation uses */
 export type CoachReply_Serialize = {
 	text: string,
 	usage: ContextUsage | null,
+	/**  The session's name, when this first question gave it one */
+	title: string | null,
 };
 
 /**
