@@ -4,6 +4,7 @@ import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { noImage } from "@/components/markdown";
 import { copyToDesktop } from "./desktop-view";
 import { DocLink } from "./doc-link";
 
@@ -56,6 +57,8 @@ const COMPONENTS: Components = {
 	),
 	// Documentation opens where the candidate reads it: the desktop's Firefox
 	a: ({ href, children }) => <DocLink href={href}>{children}</DocLink>,
+	// An answer's images could carry the task out to any server: never loaded
+	img: noImage,
 };
 
 /** An assistant answer: Markdown, its code copyable to the desktop */

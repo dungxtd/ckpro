@@ -9,8 +9,13 @@ type Node = { type: string; value?: string; children?: Node[] };
 const textOf = (node?: Node): string =>
 	node?.type === "text" ? (node.value ?? "") : (node?.children ?? []).map(textOf).join("");
 
+/** Images are never fetched: a remote image is a request the text makes on
+ * its own (it can carry what the page shows). Their alt text stands in */
+export const noImage: Components["img"] = ({ alt }) => (alt ? <span>{alt}</span> : null);
+
 /** Code and code blocks copy to the exam desktop on click; links open in its Firefox */
 const COPY: Components = {
+	img: noImage,
 	code: ({ node }) => <CopyText text={textOf(node as Node)} />,
 	pre: ({ node }) => <CopyText block text={textOf(node as Node).replace(/\n$/, "")} />,
 	a: ({ href, children }) => <DocLink href={href}>{children}</DocLink>,
@@ -19,6 +24,7 @@ const COPY: Components = {
 /** Elsewhere a link opens in the system browser: followed in the app's own
  * window it would replace the app */
 const BROWSER: Components = {
+	img: noImage,
 	a: ({ href, children }) => (
 		<a
 			href={href}
