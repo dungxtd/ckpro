@@ -14,8 +14,13 @@ use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{mpsc, oneshot};
+use std::time::Duration;
 
 pub const PROTOCOL_VERSION: u64 = 1;
+/// How long the adapter may take to answer `initialize`: npx may fetch it first
+const INITIALIZE_TIMEOUT: Duration = Duration::from_secs(90);
+/// How long any other request may go unanswered (a prompt sets its own)
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 /// ACP's `authRequired` error: the agent has no login to work with
 const AUTH_REQUIRED: i64 = -32000;
 
@@ -37,6 +42,32 @@ pub struct Connection {
     /// Gone once the agent exits
     alive: Arc<std::sync::atomic::AtomicBool>,
     _child: Mutex<Child>,
+    /// The adapter's process group: npx, node and the Claude CLI under it
+    group: Option<u32>,
+}
+
+impl Drop for Connection {
+    /// `kill_on_drop` reaches only npx; the adapter and the CLI it started
+    /// are in the same group, and go with it
+    fn drop(&mut self) {
+        #[cfg(unix)]
+        if let Some(group) = self.group.and_then(|g| i32::try_from(g).ok()) {
+            // SAFETY: a plain signal to a group this connection started
+            unsafe {
+                libc::killpg(group, libc::SIGKILL);
+            }
+        }
+    }
+}
+
+/// Takes a request's entry out of `pending` however the request ends (a
+/// timeout, a failed write, the caller giving up)
+struct PendingEntry<'a>(&'a Pending, u64);
+
+impl Drop for PendingEntry<'_> {
+    fn drop(&mut self) {
+        self.0.lock().unwrap_or_else(|p| p.into_inner()).remove(&self.1);
+    }
 }
 
 impl Connection {
@@ -48,7 +79,11 @@ impl Connection {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
+        // A group of its own, so the whole adapter can be stopped
+        #[cfg(unix)]
+        command.process_group(0);
         let mut child = command.spawn().map_err(|e| AppError::assistant(format!("starting the agent: {e}")))?;
+        let group = if cfg!(unix) { child.id() } else { None };
         let stdin = child.stdin.take().expect("piped");
         let stdout = child.stdout.take().expect("piped");
         let stderr = child.stderr.take().expect("piped");
@@ -134,6 +169,7 @@ impl Connection {
             subscribers,
             alive,
             _child: Mutex::new(child),
+            group,
         });
         // Replies to the agent's requests share stdin with ours
         {
@@ -146,7 +182,8 @@ impl Connection {
             });
         }
         connection
-            .request(
+            .request_within(
+                INITIALIZE_TIMEOUT,
                 "initialize",
                 json!({
                     "protocolVersion": PROTOCOL_VERSION,
@@ -173,14 +210,23 @@ impl Connection {
 
     /// A request, and its result (an agent error becomes `AppError::Assistant`)
     pub async fn request(&self, method: &str, params: Value) -> AppResult<Value> {
+        self.request_within(REQUEST_TIMEOUT, method, params).await
+    }
+
+    /// `request`, failing when the agent has not answered within `timeout`
+    pub async fn request_within(&self, timeout: Duration, method: &str, params: Value) -> AppResult<Value> {
         if !self.alive() {
             return Err(AppError::assistant("the agent stopped"));
         }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let (tx, rx) = oneshot::channel();
         self.pending.lock().unwrap_or_else(|p| p.into_inner()).insert(id, tx);
+        let _entry = PendingEntry(&self.pending, id);
         self.write(&json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params })).await?;
-        match rx.await {
+        let reply = tokio::time::timeout(timeout, rx)
+            .await
+            .map_err(|_| AppError::assistant(format!("the agent did not answer {method} within {}s", timeout.as_secs())))?;
+        match reply {
             Ok(Ok(result)) => Ok(result),
             Ok(Err(error)) => {
                 let message = error.get("message").and_then(Value::as_str).unwrap_or("the agent returned an error").to_string();

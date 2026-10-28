@@ -14,6 +14,10 @@ use std::sync::Arc;
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 
+/// Longest one answer may take, tool calls and the candidate's approvals
+/// included; Stop ends it sooner
+const PROMPT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30 * 60);
+
 /// The adapter, pinned: a new release is tested first
 const ADAPTER: &str = "@agentclientprotocol/claude-agent-acp@0.97.0";
 
@@ -187,7 +191,9 @@ impl Agent {
         Self { connection: tokio::sync::Mutex::new(None), models: Default::default(), efforts: Default::default(), config: Default::default() }
     }
 
-    /// The running adapter, started (and initialized) when needed
+    /// The running adapter, started (and initialized) when needed. Starting
+    /// holds the slot so only one adapter starts; `initialize` times out, so
+    /// never for long
     async fn connection(&self) -> AppResult<Arc<Connection>> {
         let mut slot = self.connection.lock().await;
         if let Some(c) = slot.as_ref().filter(|c| c.alive()) {
@@ -430,7 +436,7 @@ impl Agent {
         };
         let c = self.connection().await?;
         let mut updates = c.subscribe(session);
-        let request = c.request("session/prompt", json!({ "sessionId": session, "prompt": [{ "type": "text", "text": text }] }));
+        let request = c.request_within(PROMPT_TIMEOUT, "session/prompt", json!({ "sessionId": session, "prompt": [{ "type": "text", "text": text }] }));
         tokio::pin!(request);
         let mut answer = String::new();
         let mut usage = None;
@@ -485,9 +491,11 @@ impl Agent {
         }
     }
 
-    /// Forget a conversation
+    /// Forget a conversation. Without a running adapter there is nothing to
+    /// forget: none is started for it
     pub async fn close(&self, session: &str) {
-        if let Ok(c) = self.connection().await {
+        let live = self.connection.lock().await.as_ref().filter(|c| c.alive()).cloned();
+        if let Some(c) = live {
             let _ = c.request("session/close", json!({ "sessionId": session })).await;
         }
     }
