@@ -25,7 +25,7 @@ import {
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SignInDialog } from "@/components/account/sign-in-dialog";
-import { agentOf } from "@/components/ai/agents";
+import { AGENTS, agentOf } from "@/components/ai/agents";
 import { ClaudeIcon } from "@/components/claude-icon";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
@@ -77,6 +77,9 @@ export function AssistantPane({
 	const [renaming, setRenaming] = useState(false);
 	const [moreOpen, setMoreOpen] = useState(false);
 	const signedOut = coach.account?.signed_in === false;
+	// The agents offered: turned on in Settings and signed in
+	const claudeOn = coach.enabledAgents.includes("claude");
+	const agents = AGENTS.filter(a => coach.enabledAgents.includes(a.id) && coach.account?.signed_in);
 	const scroller = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
@@ -125,15 +128,33 @@ export function AssistantPane({
 						{title}
 					</span>
 				)}
-				<IconButton
-					variant="toolbar"
-					size="xs"
-					aria-label="New Session"
-					onClick={() => coach.clear(question.id)}
-					disabled={writing || messages.length === 0}
-				>
-					<Plus />
-				</IconButton>
+				{/* A new session, with one of the agents offered */}
+				<Popover>
+					<PopoverTrigger asChild>
+						<IconButton
+							variant="toolbar"
+							size="xs"
+							aria-label="New Session"
+							disabled={writing || messages.length === 0 || agents.length === 0}
+						>
+							<Plus />
+						</IconButton>
+					</PopoverTrigger>
+					<PopoverContent align="end" className={cn(menu.surface, "w-56")}>
+						<div className={menu.header}>New session with</div>
+						{agents.map(a => (
+							<button
+								key={a.id}
+								type="button"
+								className={menuRow()}
+								onClick={() => coach.clear(question.id)}
+							>
+								<a.Icon className={cn("size-3.5", a.tint)} />
+								{a.name}
+							</button>
+						))}
+					</PopoverContent>
+				</Popover>
 				<Popover onOpenChange={open => open && coach.listSessions().then(setHistory)}>
 					<PopoverTrigger asChild>
 						<IconButton variant="toolbar" size="xs" aria-label="History">
@@ -309,7 +330,12 @@ export function AssistantPane({
 				)
 			)}
 
-			{signedOut ? (
+			{!claudeOn ? (
+				// No agent turned on: nothing to ask
+				<div className="flex select-none items-center gap-3 border-border border-t bg-card/40 px-3 py-3 text-muted-foreground text-xs">
+					No agent is turned on. Turn one on in Settings › AI.
+				</div>
+			) : signedOut ? (
 				// Signed out: the place to type becomes the way in
 				<div className="flex select-none items-center gap-3 border-border border-t bg-card/40 px-3 py-3">
 					<ClaudeIcon className="size-4 shrink-0 text-claude" />
@@ -431,7 +457,7 @@ export function AssistantPane({
 								align="end"
 								className={cn(menu.surface, "max-h-96 w-64 overflow-y-auto")}
 							>
-								<div className={menu.header}>{agentOf(coach.provider).name}</div>
+								<div className={menu.header}>{agentOf("claude").name}</div>
 								{coach.models.length === 0 && (
 									<div className={cn(menu.content, "py-1 text-muted-foreground text-xs")}>
 										Loading models…

@@ -1,8 +1,7 @@
-//! The MCP server the assistant's agent sessions reach from their container
-//! (`host.docker.internal`): the tools of `ckdry mcp --agent`, served by the
-//! app itself over HTTP (Streamable HTTP, JSON replies). Only the app's
-//! loopback, and only with this run's token; the session's question is in
-//! the path.
+//! The MCP server the assistant's agent sessions reach: the tools of
+//! `ckdry mcp --agent`, served by the app itself over HTTP (Streamable HTTP,
+//! JSON replies). Only the app's loopback, and only with this run's token;
+//! the session's question is in the path.
 
 use super::mcp::Server;
 use crate::error::{AppError, AppResult};
@@ -46,14 +45,12 @@ impl McpHttp {
     }
 
     /// The `mcpServers` entry that gives an agent session the tools for
-    /// `question`, reached from a container (`host.docker.internal`) or from
-    /// the Mac itself
-    pub fn server_for(&self, question: &str, from_container: bool) -> serde_json::Value {
-        let host = if from_container { "host.docker.internal" } else { "127.0.0.1" };
+    /// `question`
+    pub fn server_for(&self, question: &str) -> serde_json::Value {
         serde_json::json!({
             "type": "http",
             "name": "ckdry",
-            "url": format!("http://{host}:{}/mcp/{}", self.port, hex(question)),
+            "url": format!("http://127.0.0.1:{}/mcp/{}", self.port, hex(question)),
             "headers": [{ "name": "Authorization", "value": format!("Bearer {}", self.token) }],
         })
     }
@@ -122,32 +119,23 @@ fn constant_eq(a: &str, b: &str) -> bool {
 mod tests {
     use super::*;
 
-    /// From the agent's container (needs Docker and the agent image): the
-    /// tools answer with this run's token only
+    /// Over real HTTP (curl): the tools answer with this run's token only
     #[tokio::test]
-    #[ignore]
-    async fn agent_container_reaches_the_tools() {
+    async fn the_tools_answer_this_runs_token_only() {
         let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../packs/core"));
         let bank = Arc::new(crate::lab::load::load(&root).0.unwrap());
-        let server = McpHttp::start(move || bank.clone(), Arc::new(Store::in_memory().unwrap()), std::env::temp_dir(), ).await.unwrap();
-        let entry = server.server_for("core/cka-001/q01-namespace-and-pod-creation", true);
-        let call = |auth: &str| {
-            format!(
-                "fetch({url:?}, {{ method: 'POST', headers: {{ 'Content-Type': 'application/json', Authorization: {auth:?} }}, body: JSON.stringify({{ jsonrpc: '2.0', id: 1, method: 'tools/list' }}) }}).then(async r => console.log(r.status, await r.text()))",
-                url = entry["url"].as_str().unwrap(),
-            )
-        };
+        let server = McpHttp::start(move || bank.clone(), Arc::new(Store::in_memory().unwrap()), std::env::temp_dir()).await.unwrap();
+        let entry = server.server_for("core/cka-001/q01-namespace-and-pod-creation");
+        let url = entry["url"].as_str().unwrap().to_string();
         let token = entry["headers"][0]["value"].as_str().unwrap().to_string();
         for (auth, expect) in [(token.as_str(), "run_command"), ("Bearer nope", "401")] {
-            let out = tokio::process::Command::new(crate::runtime::docker::cli().unwrap())
-                .args(["run", "--rm", "--add-host", "host.docker.internal:host-gateway", "--entrypoint", "node"])
-                .arg(crate::runtime::infra::AGENT_IMAGE.tag())
-                .args(["-e", &call(auth)])
+            let out = tokio::process::Command::new("curl")
+                .args(["-s", "-w", "%{http_code}", "-H", &format!("Authorization: {auth}"), "-H", "Content-Type: application/json"])
+                .args(["-d", r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#, &url])
                 .output()
                 .await
                 .unwrap();
             let text = String::from_utf8_lossy(&out.stdout);
-            println!("{text}");
             assert!(text.contains(expect), "{text}");
         }
     }

@@ -1,4 +1,3 @@
-import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { Chip } from "@ckdry/ui/components/chip";
@@ -12,16 +11,22 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ckdry/ui/components/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@ckdry/ui/components/sheet";
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { Switch } from "@ckdry/ui/components/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ckdry/ui/components/tabs";
 import { cn } from "@ckdry/ui/lib/utils";
-import { Copy, Info, Monitor, RotateCw, Sparkles, X } from "lucide-react";
+import { ChevronRight, Copy, Info, Monitor, RotateCw, Sparkles, X } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SignInDialog } from "@/components/account/sign-in-dialog";
-import { AGENTS } from "@/components/ai/agents";
-import { ClaudeIcon } from "@/components/claude-icon";
+import { AGENTS, agentOf } from "@/components/ai/agents";
 import { RESOLUTIONS, useDesktopSettings } from "@/components/exam/desktop-menu";
 import { TextSize } from "@/components/exam/question-panel";
 import { useCoach } from "@/stores/coach";
@@ -34,7 +39,6 @@ import {
 	appApi,
 	coachApi,
 	type Provider,
-	type Runtime,
 	type RuntimeInfo,
 } from "@/tauri/api";
 
@@ -82,11 +86,6 @@ function Page({ children }: { children: ReactNode }) {
 
 // ---- AI ---------------------------------------------------------------------
 
-const RUNTIMES: { value: Runtime; label: string }[] = [
-	{ value: "auto", label: "Auto" },
-	{ value: "mac", label: "This Mac" },
-	{ value: "docker", label: "Docker" },
-];
 const PERMISSIONS: { value: AgentPermission; label: string }[] = [
 	{ value: "confirm", label: "Ask before every command" },
 	{ value: "read_only", label: "Run read-only commands unasked" },
@@ -94,12 +93,17 @@ const PERMISSIONS: { value: AgentPermission; label: string }[] = [
 ];
 const TIMEOUTS = [15, 30, 60, 120, 180, 300];
 
-/** The assistant, its runtime, its tools and what it is given: saved as they change */
+/**
+ * The assistant and its agents: a list of agents (each opens in a side
+ * panel), then what applies to every agent. Saved as they change
+ */
 function AiSettings() {
 	const enabled = useAssistantEnabled();
 	const update = useSettings(s => s.update);
+	const coach = useCoach();
 	const [settings, setSettings] = useState<AgentSettings | null>(null);
 	const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
+	const [open, setOpen] = useState<Provider | null>(null);
 	const recheck = useCallback(() => {
 		setRuntime(null);
 		coachApi.runtime().then(setRuntime, e => toast.error(String(e)));
@@ -108,8 +112,11 @@ function AiSettings() {
 		agentApi.settings().then(setSettings, e => toast.error(String(e)));
 	}, []);
 	useEffect(() => {
-		if (enabled) recheck();
-	}, [enabled, recheck]);
+		if (!enabled) return;
+		recheck();
+		coach.loadAccount();
+		coach.ensureModels();
+	}, [enabled, recheck, coach.loadAccount, coach.ensureModels]);
 	const save = (patch: Partial<AgentSettings>) => {
 		if (!settings) return;
 		const next = { ...settings, ...patch };
@@ -118,11 +125,11 @@ function AiSettings() {
 			saved => {
 				setSettings(saved);
 				useCoach.setState({
-					provider: saved.provider,
+					enabledAgents: saved.enabled,
 					shared: { checks: saved.share_checks, cluster: saved.share_cluster },
 				});
-				// Another runtime, another CLI: what runs now, and as whom
-				if ("runtime" in patch || "claude_path" in patch) {
+				// Another CLI: what runs now, and as whom
+				if ("claude_path" in patch) {
 					recheck();
 					useCoach.getState().loadAccount();
 				}
@@ -130,10 +137,11 @@ function AiSettings() {
 			e => toast.error(String(e))
 		);
 	};
+	const agent = open ? agentOf(open) : null;
 
 	return (
 		<>
-			<Group title="Assistant" description="An agent helps while you practise. Never in an exam.">
+			<Group title="Assistant" description="Agents help while you practise. Never in an exam.">
 				<Row label="Use the assistant" detail="Off: the app has no AI anywhere, as in the exam">
 					<Switch
 						aria-label="Use the assistant"
@@ -141,25 +149,6 @@ function AiSettings() {
 						onCheckedChange={assistant_enabled => update({ assistant_enabled })}
 					/>
 				</Row>
-				{enabled && settings && (
-					<Row label="Default agent" detail="The agent new sessions use">
-						<Select
-							value={settings.provider}
-							onValueChange={provider => save({ provider: provider as Provider })}
-						>
-							<SelectTrigger aria-label="Default agent" className="w-52">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{AGENTS.map(a => (
-									<SelectItem key={a.id} value={a.id}>
-										<a.Icon className={cn("size-3.5", a.tint)} /> {a.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</Row>
-				)}
 				{enabled && settings && (
 					<Row label="Start in" detail="Ask answers; Agent may also run commands, each one allowed">
 						<SegmentedControl
@@ -177,16 +166,56 @@ function AiSettings() {
 			{enabled && !settings && <Loading fill />}
 			{enabled && settings && (
 				<>
-					<div className="-mb-3 px-1">
-						<h2 className="font-semibold text-base">Agents</h2>
-						<p className="text-muted-foreground text-xs">
-							Each runs over ACP with its own adapter and sign-in. The tool access and privacy below
-							apply to every one.
-						</p>
-					</div>
-					<ClaudeCodeCard settings={settings} save={save} runtime={runtime} onRecheck={recheck} />
+					<Group
+						title="Agents"
+						description="Agents turned on and signed in are offered when you start a session."
+					>
+						{AGENTS.map(a => (
+							<button
+								key={a.id}
+								type="button"
+								onClick={() => setOpen(a.id)}
+								className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-foreground/5"
+							>
+								<a.Icon className={cn("size-5 shrink-0", a.tint)} />
+								<div className="min-w-0 flex-1">
+									<div className="text-sm">{a.name}</div>
+									<div className="truncate text-muted-foreground text-xs">
+										{agentSummary(settings.enabled.includes(a.id), runtime, coach.account)}
+									</div>
+								</div>
+								<AgentState
+									on={settings.enabled.includes(a.id)}
+									runtime={runtime}
+									signedIn={coach.account?.signed_in ?? null}
+								/>
+								<ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+							</button>
+						))}
+					</Group>
 					<ToolAccess settings={settings} save={save} />
 					<Privacy settings={settings} save={save} />
+					<Sheet open={agent !== null} onOpenChange={o => !o && setOpen(null)}>
+						<SheetContent className="w-[440px] gap-0 sm:max-w-md">
+							{agent && (
+								<>
+									<SheetHeader className="flex-row items-center gap-2 border-border border-b pr-14">
+										<agent.Icon className={cn("size-5", agent.tint)} />
+										<SheetTitle>{agent.name}</SheetTitle>
+										<SheetDescription className="sr-only">{agent.name}'s settings</SheetDescription>
+									</SheetHeader>
+									<div className="overflow-auto">
+										<ClaudeCodePanel
+											settings={settings}
+											save={save}
+											runtime={runtime}
+											onRecheck={recheck}
+										/>
+									</div>
+								</>
+							)}
+						</SheetContent>
+					</Sheet>
 				</>
 			)}
 		</>
@@ -195,11 +224,41 @@ function AiSettings() {
 
 type Section = { settings: AgentSettings; save: (patch: Partial<AgentSettings>) => void };
 
-/**
- * Claude Code, the agent: where it runs (this Mac's Claude CLI and its own
- * login, or Docker with a login of its own), the account, the model
- */
-function ClaudeCodeCard({
+/** One line under an agent's name: where it runs and as whom, or what it needs */
+function agentSummary(
+	on: boolean,
+	runtime: RuntimeInfo | null,
+	account: { signed_in: boolean; email: string | null } | null
+) {
+	if (!on) return "Turned off";
+	if (runtime === null || account === null) return "Checking…";
+	if (runtime.problem) return runtime.problem;
+	if (!account.signed_in) return "Not signed in";
+	return account.email ?? "Signed in";
+}
+
+/** Ready or not, as a dot and a word */
+function AgentState({
+	on,
+	runtime,
+	signedIn,
+}: {
+	on: boolean;
+	runtime: RuntimeInfo | null;
+	signedIn: boolean | null;
+}) {
+	if (!on || runtime === null || signedIn === null) return null;
+	const ready = !runtime.problem && signedIn;
+	return (
+		<span className="flex items-center gap-1.5 text-muted-foreground text-xs">
+			<span className={cn("size-1.5 rounded-full", ready ? "bg-success" : "bg-warning")} />
+			{ready ? "Ready" : runtime.problem ? "Not found" : "Sign in"}
+		</span>
+	);
+}
+
+/** Claude Code's own settings: on or off, the CLI, the account, the model */
+function ClaudeCodePanel({
 	settings,
 	save,
 	runtime,
@@ -208,64 +267,37 @@ function ClaudeCodeCard({
 	const coach = useCoach();
 	const [path, setPath] = useState(settings.claude_path ?? "");
 	const [signingIn, setSigningIn] = useState(false);
-	const [signingOut, setSigningOut] = useState(false);
-	useEffect(() => {
-		coach.loadAccount();
-		coach.ensureModels();
-	}, [coach.loadAccount, coach.ensureModels]);
-	const onMac = runtime?.using === "mac";
+	const on = settings.enabled.includes("claude");
 	const account = coach.account;
-	const signOut = async () => {
-		setSigningOut(true);
-		try {
-			await coachApi.signOut();
-			await coach.loadAccount();
-		} catch (e) {
-			toast.error(String(e));
-		} finally {
-			setSigningOut(false);
-		}
-	};
-
 	return (
-		<Group
-			title={
-				<span className="flex items-center gap-2">
-					<ClaudeIcon className="size-4 text-claude" /> Claude Code
-					<span className="font-normal text-muted-foreground text-xs">Anthropic</span>
-					<AgentStatus runtime={runtime} signedIn={account?.signed_in ?? null} />
-					{settings.provider === "claude" && <Badge variant="subtle">Default</Badge>}
-				</span>
-			}
-			description="On your own Claude account: this Mac's Claude CLI, or Docker."
-		>
-			<Row label="Runtime" detail={runtimeDetail(runtime)}>
-				<SegmentedControl
-					label="Runtime"
-					value={settings.runtime}
-					onChange={runtime => save({ runtime })}
-					options={RUNTIMES}
+		<div className="divide-y divide-border">
+			<Row label="Turned on" detail="Offered in the assistant once signed in">
+				<Switch
+					aria-label="Turn Claude Code on"
+					checked={on}
+					onCheckedChange={next =>
+						save({
+							enabled: next
+								? [...settings.enabled, "claude"]
+								: settings.enabled.filter(p => p !== "claude"),
+						})
+					}
 				/>
 			</Row>
 			<div className="flex flex-col gap-2 px-4 py-3">
 				<div className="flex items-center justify-between gap-3">
-					<div className="flex items-center gap-2 text-sm">
-						Claude CLI on this Mac
-						{runtime === null ? null : runtime.claude ? (
-							<Badge variant="success">Detected</Badge>
-						) : (
-							<Badge variant="destructive">Not found</Badge>
-						)}
-					</div>
+					<div className="text-sm">Claude CLI</div>
 					<Button size="push" variant="push" disabled={runtime === null} onClick={onRecheck}>
 						<RotateCw /> Recheck
 					</Button>
 				</div>
-				<div className="text-muted-foreground text-xs">
-					{runtime?.claude
-						? `${runtime.claude}${runtime.claude_version ? ` · ${runtime.claude_version}` : ""}`
-						: "Install Claude Code, or give its path. Docker runs without it."}
-					{runtime && !runtime.node && " · Node.js not found: This Mac needs it for the adapter"}
+				<div className="break-all text-muted-foreground text-xs">
+					{runtime === null
+						? "Checking…"
+						: runtime.claude
+							? `${runtime.claude}${runtime.claude_version ? ` · ${runtime.claude_version}` : ""}`
+							: "Not found: install Claude Code, or give its path"}
+					{runtime && !runtime.node && " · Node.js not found (it runs the adapter)"}
 				</div>
 				<form
 					className="flex gap-2"
@@ -277,7 +309,7 @@ function ClaudeCodeCard({
 					<Input
 						value={path}
 						onChange={e => setPath(e.target.value)}
-						placeholder="Custom path to claude (optional)"
+						placeholder="Custom path to claude"
 						aria-label="Custom path to the Claude CLI"
 						spellCheck={false}
 						className="h-8 font-mono text-xs md:text-xs"
@@ -294,27 +326,19 @@ function ClaudeCodeCard({
 			</div>
 			<Row
 				label="Account"
-				detail={
-					account?.signed_in
-						? accountDetail(account) + (onMac ? " · this Mac's Claude login" : "")
-						: undefined
-				}
+				detail={account?.signed_in ? `${accountDetail(account)} · the CLI's login` : undefined}
 			>
 				{account === null ? (
 					<span className="text-muted-foreground text-sm">Checking…</span>
-				) : !account.signed_in ? (
+				) : account.signed_in ? null : (
 					<Button size="push" variant="pushDefault" onClick={() => setSigningIn(true)}>
 						Sign In…
 					</Button>
-				) : onMac ? null : (
-					<Button size="push" variant="push" disabled={signingOut} onClick={signOut}>
-						{signingOut ? "Signing out…" : "Sign Out"}
-					</Button>
 				)}
 			</Row>
-			<Row label="Model" detail="Used for new questions; the assistant's picker changes it too">
+			<Row label="Model" detail="The assistant's picker changes it too">
 				<Select value={coach.model} onValueChange={coach.setModel}>
-					<SelectTrigger aria-label="Model" className="w-52">
+					<SelectTrigger aria-label="Model" className="w-44">
 						<SelectValue placeholder="Loading…" />
 					</SelectTrigger>
 					<SelectContent>
@@ -329,7 +353,7 @@ function ClaudeCodeCard({
 			{coach.efforts.length > 0 && (
 				<Row label="Effort">
 					<Select value={coach.effort} onValueChange={coach.setEffort}>
-						<SelectTrigger aria-label="Effort" className="w-52">
+						<SelectTrigger aria-label="Effort" className="w-44">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -350,32 +374,9 @@ function ClaudeCodeCard({
 				/>
 			</Row>
 			<SignInDialog open={signingIn} onOpenChange={setSigningIn} />
-		</Group>
+		</div>
 	);
 }
-
-/** Whether an agent can answer now: its runtime there, and signed in */
-function AgentStatus({
-	runtime,
-	signedIn,
-}: {
-	runtime: RuntimeInfo | null;
-	signedIn: boolean | null;
-}) {
-	if (runtime === null || signedIn === null) return null;
-	if (!runtime.using) return <Badge variant="destructive">Not available</Badge>;
-	if (!signedIn) return <Badge variant="destructive">Sign in needed</Badge>;
-	return <Badge variant="success">Ready</Badge>;
-}
-
-const runtimeDetail = (runtime: RuntimeInfo | null) =>
-	runtime === null
-		? "Checking…"
-		: runtime.problem
-			? runtime.problem
-			: runtime.using === "mac"
-				? "In use: this Mac's Claude CLI and its login"
-				: "In use: Docker, with a login of its own";
 
 const accountDetail = (account: {
 	email: string | null;

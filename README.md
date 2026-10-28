@@ -30,9 +30,8 @@ the cluster.
 
 That is all. Everything else runs in Docker or in the app's data directory:
 the clusters, task host, exam desktop and registry cache, kind and the
-kubeconfigs. The assistant uses the Claude CLI already signed in on the Mac
-when there is one (with Node.js), and otherwise runs in Docker with a login
-of its own; Settings > AI chooses.
+kubeconfigs. The assistant, optional, uses the agent CLIs installed on the Mac
+and their own logins: Claude Code (with Node.js, which runs its adapter).
 
 ## Development
 

@@ -74,7 +74,6 @@ export type {
 	PermissionOption,
 	Profile,
 	Provider,
-	Runtime,
 	RuntimeInfo,
 	Solution,
 	StudyStats,

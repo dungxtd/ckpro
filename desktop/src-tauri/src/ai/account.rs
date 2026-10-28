@@ -1,5 +1,5 @@
 //! The Claude login the assistant runs on, read and changed with the Claude
-//! CLI the adapter bundles (`--cli auth ...`), in the agent's container.
+//! CLI (`--cli auth ...` through the adapter).
 //! The login itself stays the CLI's (keychain or `~/.claude`): ckdry keeps no
 //! credentials.
 
@@ -232,50 +232,15 @@ mod tests {
         assert!(!parse_status("npm error").signed_in);
     }
 
-    /// The real CLI in the agent's container (needs Docker): it reads the
-    /// login kept in the volume, and a sign-in prints its link and waits for
-    /// the browser's code (cancelled here: nothing changes)
-    #[tokio::test]
-    #[ignore]
-    async fn the_container_reads_and_starts_a_login() {
-        let agent = Agent::new();
-        agent.configure(&crate::ai::policy::AgentSettings { runtime: crate::ai::policy::Runtime::Docker, ..Default::default() });
-        let account = account(&agent).await.unwrap();
-        println!("{account:?}");
-        let output = std::sync::Mutex::new(String::new());
-        let login = std::sync::Mutex::new(None);
-        let signing = sign_in(&agent, SignInMethod::Claude, |l| *login.lock().unwrap() = Some(l), |SignInEvent::Output { text }| {
-            output.lock().unwrap().push_str(&text)
-        });
-        tokio::pin!(signing);
-        let deadline = tokio::time::sleep(std::time::Duration::from_secs(40));
-        tokio::pin!(deadline);
-        loop {
-            tokio::select! {
-                result = &mut signing => panic!("the login ended by itself: {result:?}\n{}", output.lock().unwrap()),
-                () = &mut deadline => break,
-                () = tokio::time::sleep(std::time::Duration::from_millis(500)) => {
-                    if output.lock().unwrap().contains("https://") { tokio::time::sleep(std::time::Duration::from_secs(2)).await; break; }
-                }
-            }
-        }
-        let shown = output.lock().unwrap().clone();
-        println!("--- login output ---\n{shown}\n---");
-        login.lock().unwrap().take().unwrap().cancel();
-        assert!(matches!(signing.await, Err(AppError::Cancelled { .. })));
-        assert!(shown.contains("https://"), "{shown}");
-    }
-
     /// This Mac's runtime (needs its Claude CLI, signed in, and Node): the
     /// assistant uses the login the CLI already has
     #[tokio::test]
     #[ignore]
     async fn the_mac_runtime_uses_the_existing_login() {
         let agent = Agent::new();
-        assert!(agent.on_mac(), "Auto picks this Mac's CLI when it is there");
         let info = agent.info().await;
         println!("{info:?}");
-        assert_eq!(info.using.as_deref(), Some("mac"));
+        assert!(agent.ready() && info.problem.is_none());
         let account = account(&agent).await.unwrap();
         println!("{account:?}");
         assert!(account.signed_in);

@@ -69,19 +69,17 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 ## Assistant (`ai/`)
 
 - `acp.rs` is an Agent Client Protocol client over stdio; `agent.rs` runs the
-  Claude adapter where the settings say (`policy::Runtime`): Auto uses this
-  Mac's Claude CLI and its existing login when the CLI and Node.js are there,
-  otherwise a container of the `agent` image (`docker run -i`, one per
-  connection) with its own login in the `ckdry-claude` volume. `account.rs`
-  reads the login and signs in and out with that CLI (in the container, the
-  link opens on the host and the code is pasted back).
+  Claude adapter through npx on the Mac's Claude CLI (found, or a path set in
+  Settings) and its existing login; `account.rs` reads that login and signs
+  in with the CLI when there is none. Agents are turned on one by one
+  (`policy::AgentSettings::enabled`); the assistant offers those turned on
+  and signed in, and the core refuses the others.
 - Sessions are per question (renamable, kept in SQLite), named by a quick
   model from their first question, with the models and effort levels the
   agent offers for the signed-in plan.
 - Ask profile: no tools. Agent profile (practice only): Claude's built-in
   tools stay off; the session gets the app's own MCP server (`mcp_http.rs`:
-  Streamable HTTP on the host's loopback, reached as `host.docker.internal`,
-  one token per run) with `run_command` (bash on the task host with the task
+  Streamable HTTP on the loopback, one token per run) with `run_command` (bash on the task host with the task
   cluster's kubeconfig, a time limit and an output cap) and `check_my_work`.
   Each call is an ACP permission request shown as a card; `policy.rs` and
   Settings > AI > Tool access decide what runs unasked and what never runs.
@@ -105,8 +103,9 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 - Layout, panel sizes, the assistant's model and effort, and desk settings
   are kept in the database and restored on start; the window keeps its size
   and place.
-- Settings (⌘,), in tabs: Exam desk; AI (the assistant switch and profile,
-  Claude Code's runtime, CLI, account, model and effort, Tool access,
-  Privacy); About.
+- Settings (⌘,), in tabs: Exam desk; AI (the assistant switch and profile;
+  the agents as a list, each opening in a side panel: on or off, its CLI,
+  account, model, effort, telemetry; Tool access and Privacy for every
+  agent); About.
 - Areas that stop pointer events (the VNC canvas) register with the kit's
   `useDismissSurface`, so menus still close on a press there.

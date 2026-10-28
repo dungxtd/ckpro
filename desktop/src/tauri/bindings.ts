@@ -243,8 +243,8 @@ export type AgentSettings = AgentSettings_Serialize | AgentSettings_Deserialize;
 
 /**  The assistant's settings, kept in the database */
 export type AgentSettings_Deserialize = {
-	/**  The agent new sessions use */
-	provider?: Provider,
+	/**  The agents offered in the assistant (once signed in) */
+	enabled?: Provider[],
 	/**  The profile a new app run starts in */
 	default_profile?: Profile,
 	permission?: AgentPermission,
@@ -257,7 +257,6 @@ export type AgentSettings_Deserialize = {
 	never_run?: string[],
 	/**  Name sessions from their first question */
 	auto_titles?: boolean,
-	runtime?: Runtime,
 	/**  A Claude CLI to use instead of the one found on this Mac */
 	claude_path?: string | null,
 	/**  What Claude may be given: the last check, a look at the cluster */
@@ -269,8 +268,8 @@ export type AgentSettings_Deserialize = {
 
 /**  The assistant's settings, kept in the database */
 export type AgentSettings_Serialize = {
-	/**  The agent new sessions use */
-	provider: Provider,
+	/**  The agents offered in the assistant (once signed in) */
+	enabled: Provider[],
 	/**  The profile a new app run starts in */
 	default_profile: Profile,
 	permission: AgentPermission,
@@ -283,7 +282,6 @@ export type AgentSettings_Serialize = {
 	never_run: string[],
 	/**  Name sessions from their first question */
 	auto_titles: boolean,
-	runtime: Runtime,
 	/**  A Claude CLI to use instead of the one found on this Mac */
 	claude_path: string | null,
 	/**  What Claude may be given: the last check, a look at the cluster */
@@ -730,7 +728,10 @@ export type Progress = {
 	hints_shown: { [key in string]: number },
 };
 
-/**  The agent behind the assistant (each runs over ACP with its own adapter) */
+/**
+ *  An agent the assistant can run (each over ACP with its own adapter and
+ *  the CLI installed on the Mac)
+ */
 export type Provider = 
 /**  Claude Code, through the Claude Agent adapter */
 "claude";
@@ -794,41 +795,28 @@ export type Readiness =
 /**  Who said it, in a coach conversation */
 export type Role = "user" | "assistant";
 
-/**  Where the assistant runs */
-export type Runtime = 
-/**  This Mac's Claude CLI when it is there (its own login), else Docker */
-"auto" | 
-/**  This Mac's Claude CLI and its login (needs Node.js for the adapter) */
-"mac" | 
-/**  The agent image, its login in a Docker volume: nothing on the Mac */
-"docker";
-
-/**  What runs the assistant now, and what this Mac offers (Settings) */
+/**  What this Mac offers the assistant (Settings) */
 export type RuntimeInfo = RuntimeInfo_Serialize | RuntimeInfo_Deserialize;
 
-/**  What runs the assistant now, and what this Mac offers (Settings) */
+/**  What this Mac offers the assistant (Settings) */
 export type RuntimeInfo_Deserialize = {
-	/**  The runtime in use: `mac` or `docker`; none when neither can run */
-	using?: string | null,
 	/**  This Mac's Claude CLI: where, and its version */
 	claude?: string | null,
 	claude_version?: string | null,
 	/**  npx, which runs the adapter on the Mac */
 	node?: string | null,
-	/**  Why the chosen runtime cannot run */
+	/**  Why the assistant cannot run here */
 	problem?: string | null,
 };
 
-/**  What runs the assistant now, and what this Mac offers (Settings) */
+/**  What this Mac offers the assistant (Settings) */
 export type RuntimeInfo_Serialize = {
-	/**  The runtime in use: `mac` or `docker`; none when neither can run */
-	using: string | null,
 	/**  This Mac's Claude CLI: where, and its version */
 	claude: string | null,
 	claude_version: string | null,
 	/**  npx, which runs the adapter on the Mac */
 	node: string | null,
-	/**  Why the chosen runtime cannot run */
+	/**  Why the assistant cannot run here */
 	problem: string | null,
 };
 

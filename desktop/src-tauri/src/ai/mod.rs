@@ -156,6 +156,8 @@ pub struct Coach {
     /// The ACP sessions behind open coach sessions: (attempt, question) →
     /// (ACP session, model, effort, profile)
     open: tokio::sync::Mutex<HashMap<(String, String), (String, String, String, Profile)>>,
+    /// Claude Code is turned on (Settings > AI): off, nothing asks it
+    enabled: std::sync::atomic::AtomicBool,
     /// The tools agent sessions get, once their server listens
     tools: std::sync::OnceLock<mcp_http::McpHttp>,
     /// Permission requests waiting for the candidate, by id
@@ -172,6 +174,7 @@ impl Coach {
             open: Default::default(),
             permissions: Default::default(),
             tools: Default::default(),
+            enabled: std::sync::atomic::AtomicBool::new(true),
             signing_in: Default::default(),
         }
     }
@@ -192,6 +195,15 @@ impl Coach {
     /// Serve agent sessions these tools (the app's MCP server)
     pub fn serve_tools(&self, server: mcp_http::McpHttp) {
         let _ = self.tools.set(server);
+    }
+
+    /// Refuse when Claude Code is turned off in Settings
+    fn require_enabled(&self) -> AppResult<()> {
+        if self.enabled.load(std::sync::atomic::Ordering::SeqCst) {
+            Ok(())
+        } else {
+            Err(AppError::assistant("Claude Code is turned off in Settings > AI"))
+        }
     }
 
     /// Keep a permission request for the candidate; its id
@@ -270,25 +282,26 @@ impl Coach {
     }
 
     pub fn status(&self) -> CoachStatus {
-        if self.agent.on_mac() || crate::runtime::docker::cli().is_some() {
-            CoachStatus { ready: true, problem: None }
-        } else {
-            CoachStatus {
+        match self.agent.ready() {
+            true => CoachStatus { ready: true, problem: None },
+            false => CoachStatus {
                 ready: false,
-                problem: Some("The assistant needs this Mac's Claude CLI or Docker: see Settings > AI".into()),
-            }
+                problem: Some("Install Claude Code and Node.js, or set the Claude CLI's path in Settings > AI".into()),
+            },
         }
     }
 
-    /// Take the assistant settings; a new runtime restarts the adapter
+    /// Take the assistant settings; another CLI restarts the adapter
     pub async fn configure(&self, settings: &policy::AgentSettings) {
+        let on = settings.enabled.contains(&policy::Provider::Claude);
+        self.enabled.store(on, std::sync::atomic::Ordering::SeqCst);
         if self.agent.configure(settings) {
             self.agent.restart().await;
             self.open.lock().await.clear();
         }
     }
 
-    /// What runs the assistant, and what this Mac has (Settings)
+    /// What this Mac offers the assistant (Settings)
     pub async fn runtime(&self) -> agent::RuntimeInfo {
         self.agent.info().await
     }
@@ -339,6 +352,7 @@ impl Coach {
         if text.is_empty() {
             return Err(AppError::invalid("ask the coach something"));
         }
+        self.require_enabled()?;
         let subject = exams.coach_subject(question_id, solution_opened)?;
         // Commands only while practising: never in review (the environment
         // is graded) and never in an exam (coach_subject refuses it anyway)
@@ -374,8 +388,7 @@ impl Coach {
                     Profile::Agent => {
                         let system = format!("{}\n{AGENT}", system(&subject));
                         let tools = self.tools.get().ok_or_else(|| AppError::assistant("the agent's tools are not ready yet; try again"))?;
-                        let from_container = !self.agent.on_mac();
-                        self.agent.new_session_with(&system, model, serde_json::json!([tools.server_for(question_id, from_container)])).await?
+                        self.agent.new_session_with(&system, model, serde_json::json!([tools.server_for(question_id)])).await?
                     }
                 };
                 self.agent.set_effort(&session, model, effort).await?;
@@ -496,6 +509,7 @@ impl Coach {
         certification: &str,
         on_event: impl Fn(CoachEvent) + Sync,
     ) -> AppResult<String> {
+        self.require_enabled()?;
         let subject = exams.study_subject(certification)?;
         let cancel = self.start();
         let answer = self
@@ -525,6 +539,7 @@ impl Coach {
         if exams.exam_in_progress() {
             return Err(AppError::invalid("the coach is not available during an exam"));
         }
+        self.require_enabled()?;
         let bank = exams.bank();
         let cancel = self.start();
         let generated = generate::generate(&self.agent, GENERATOR_MODEL, &bank, infra, activities, data_dir, request, &cancel).await?;
