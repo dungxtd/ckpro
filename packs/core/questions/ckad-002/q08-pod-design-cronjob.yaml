@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-002 question 8
 title: Pod Design - CronJob
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-design-build
 difficulty: hard
 namespace: pod-design
@@ -147,7 +146,6 @@ solution:
               restartPolicy: OnFailure
     EOF
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Ensure namespace exists (should be created from Question 3)
     kubectl get namespace pod-design || kubectl create namespace pod-design

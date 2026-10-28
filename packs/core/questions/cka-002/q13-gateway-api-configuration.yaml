@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-002 question 13
 title: Gateway API Configuration
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: services-networking
 difficulty: hard
 namespace: gateway
@@ -266,7 +265,6 @@ solution:
       - port: 8080
         targetPort: 80
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: gateway.networking.k8s.io/v1beta1

@@ -1,4 +1,4 @@
-//! A minimal Agent Client Protocol (ACP v1) client, as Zed talks to agents:
+//! A minimal Agent Client Protocol (ACP v1) client:
 //! JSON-RPC 2.0, one message per line, over the agent's stdin/stdout. ckdry
 //! offers no file system or terminal (commands run through its own MCP tool,
 //! on the task host), and answers the agent's other requests with "method not

@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 12
 title: Create a Pod named 'health-pod' in namespace 'workloads' using 'nginx' image with a liveness probe that checks the path /healthz on port 80 every 15 seconds, and a readiness probe that checks port 80 every 10 seconds
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-observability-maintenance
 difficulty: medium
 namespace: workloads
@@ -256,7 +255,6 @@ solution:
     ```bash
     kubectl apply -f health-pod.yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     cat > health-pod.yaml <<'MANIFEST'
     apiVersion: v1

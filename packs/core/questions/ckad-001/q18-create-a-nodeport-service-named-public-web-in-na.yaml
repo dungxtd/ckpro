@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 18
 title: Create a NodePort service named public-web in namespace networking that will expose the web-frontend deployment to external users.
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: services-networking
 difficulty: medium
 namespace: networking
@@ -322,7 +321,6 @@ solution:
     ```bash
     kubectl apply -f loadbalancer-service.yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     cat > loadbalancer-service.yaml <<'MANIFEST'
     apiVersion: v1

@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-002 question 3
 title: "Pod Design - Deployment & Service"
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-design-build
 difficulty: hard
 namespace: pod-design
@@ -183,7 +182,6 @@ solution:
       type: ClusterIP
     EOF
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create namespace
     kubectl create namespace pod-design

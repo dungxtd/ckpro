@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-001 question 10
 title: Health Checks
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: workloads-scheduling
 difficulty: easy
 namespace: default
@@ -238,7 +237,6 @@ solution:
           initialDelaySeconds: 5
     EOF
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create pod
     cat << EOF | kubectl apply -f -

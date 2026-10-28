@@ -16,7 +16,7 @@ type Node = {
 const textOf = (n?: Node): string =>
 	n?.type === "text" ? (n.value ?? "") : (n?.children ?? []).map(textOf).join("");
 
-/** A code block as in Zed and TablePro: the kit's framed CodeBlock, its
+/** A code block: the kit's framed CodeBlock, its
  * language as the title, and Copy (to the exam desktop's clipboard:
  * Ctrl+Shift+V in its terminal) */
 function AnswerCode({ node }: { node?: Node }) {

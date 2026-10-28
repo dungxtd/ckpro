@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-003 question 3
 title: etcd Backup and Restore
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: cluster-architecture
 difficulty: hard
 namespace: default
@@ -103,7 +102,6 @@ solution:
     On the real CKA exam you run these commands **on the control-plane node itself** (`ssh {{control_plane}}` here), with etcd listening on `https://127.0.0.1:2379` and certs under `/etc/kubernetes/pki/etcd/`. That works in this simulator too. For convenience the jumphost can also reach etcd at `{{control_plane}}:2379`, with a client cert copied to `{{etcd_certs}}/`; the commands above use that.
 
     Also note: verification in this lab only checks that `etcdutl snapshot restore` produced a **structurally valid** etcd data directory (i.e. it contains a `member/snap` subdirectory). To practise the full restore, ssh to `{{control_plane}}` and point `/etc/kubernetes/manifests/etcd.yaml` at the restored data directory.
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     ETCDCTL_API=3 etcdctl snapshot save /tmp/exam/etcd-snapshot.db \
       --endpoints=https://{{control_plane}}:2379 \

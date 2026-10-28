@@ -119,7 +119,7 @@ export function TopBar({
 			{practice && (
 				<>
 					<Separator orientation="vertical" className="h-5 self-center" />
-					{/* Outermost, like Chrome's side panel button: the assistant opens at this edge */}
+					{/* Outermost, like a browser's side panel button: the assistant opens at this edge */}
 					<IconButton
 						variant="plain"
 						size="sm"

@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X helm-001 question 5
 title: List All Helm Releases
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: cluster-architecture
   ckad: application-deployment
 difficulty: medium
@@ -86,7 +85,6 @@ solution:
     # List all releases across all namespaces
     helm list -A > /tmp/exam/q5/releases.txt
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # List all releases across all namespaces
     helm list -A > /tmp/exam/q5/releases.txt

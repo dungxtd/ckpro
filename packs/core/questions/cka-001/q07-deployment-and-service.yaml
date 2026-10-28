@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-001 question 7
 title: Deployment and Service
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: workloads-scheduling
 difficulty: easy
 namespace: default
@@ -166,7 +165,6 @@ solution:
         app: web-app
     EOF
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create Deployment
     cat << EOF | kubectl apply -f -

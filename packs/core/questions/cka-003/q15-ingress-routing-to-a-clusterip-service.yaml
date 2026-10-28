@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-003 question 15
 title: Ingress Routing to a ClusterIP Service
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: services-networking
 difficulty: hard
 namespace: ing-internal
@@ -164,7 +163,6 @@ solution:
 
     ### Why this works
     `ingressClassName: nginx` tells the ingress-nginx controller (installed cluster-wide by this lab's setup, mirroring how `cka/002` installs Gateway API CRDs and `metrics-server` per-lab rather than baking them into the base image) that it is responsible for reconciling this Ingress object. The single rule routes any request whose path starts with `/hello` (`pathType: Prefix`) to the `hello` Service on port `5678`, which fronts the pre-existing `hello` Deployment.
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: networking.k8s.io/v1

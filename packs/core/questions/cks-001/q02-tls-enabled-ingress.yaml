@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cks-001 question 2
 title: TLS-Enabled Ingress
-certifications:  # review: domains guessed from concepts
+certifications:
   cks: cluster-setup
 difficulty: hard
 namespace: secure-ingress
@@ -242,7 +241,6 @@ solution:
     This Ingress:
     - Routes traffic for hostname `secure-app.example.com` to the `web-service` service
     - Uses the pre-created `secure-app-tls` secret for TLS termination
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: networking.k8s.io/v1

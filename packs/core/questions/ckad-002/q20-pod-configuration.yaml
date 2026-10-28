@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-002 question 20
 title: Pod Configuration
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-environment-configuration-security
 difficulty: hard
 namespace: pod-configuration
@@ -279,7 +278,6 @@ solution:
        - Environment variables from Secret (API_KEY, API_SECRET)
        - Mounting the ConfigMap as a volume at /etc/app-config
     4. Verification commands to ensure everything is working correctly
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create namespace
     kubectl create namespace pod-configuration

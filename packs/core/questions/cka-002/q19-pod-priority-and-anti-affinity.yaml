@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-002 question 19
 title: Pod Priority and Anti-affinity
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: workloads-scheduling
 # q07 taints {{worker2}} in the same cluster; anti-affinity needs two
 # schedulable workers besides it
@@ -244,7 +243,6 @@ solution:
                 - low
             topologyKey: kubernetes.io/hostname
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: scheduling.k8s.io/v1

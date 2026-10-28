@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 14
 title: Deploy the Bitnami Nginx chart in the 'web' namespace using Helm
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-deployment
 difficulty: medium
 namespace: cluster-admin
@@ -179,7 +178,6 @@ solution:
     helm list -n web
     kubectl get deployment -n web
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create the namespace if it doesn't exist
     kubectl create namespace web

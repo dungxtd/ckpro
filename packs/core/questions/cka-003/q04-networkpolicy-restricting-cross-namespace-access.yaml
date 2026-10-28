@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-003 question 4
 title: NetworkPolicy Restricting Cross-Namespace Access
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: services-networking
 difficulty: hard
 namespace: fubar
@@ -109,7 +108,6 @@ solution:
 
     ### Why this works
     An empty `podSelector: {}` selects every pod in the `fubar` namespace, so the policy applies namespace-wide. The single `ingress` rule combines a `namespaceSelector` (restricting the source to pods in `internal`) with a `ports` restriction (only `9000/tcp`) - both conditions inside the same rule entry must match, so this is strictly "from internal, to port 9000" and nothing else. Every namespace automatically carries the immutable label `kubernetes.io/metadata.name` equal to its own name (since Kubernetes 1.21+), so there's no need to manually label the `internal` namespace.
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: networking.k8s.io/v1

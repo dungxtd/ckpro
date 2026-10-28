@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X helm-001 question 6
 title: Get Release Status and Manifests
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: cluster-architecture
   ckad: application-deployment
 difficulty: medium
@@ -118,7 +117,6 @@ solution:
     # Get the manifests rendered by the chart
     helm get manifest web-server > /tmp/exam/q6/web-server-manifests.txt
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Get status of the web-server release
     helm status web-server > /tmp/exam/q6/web-server-status.txt

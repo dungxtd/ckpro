@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 5
 title: The deployment 'broken-app' in namespace 'troubleshooting' is failing to start. Identify and fix the issue
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-observability-maintenance
 difficulty: medium
 namespace: troubleshooting

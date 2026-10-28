@@ -72,7 +72,6 @@ export type {
 	PermissionOption,
 	Profile,
 	RuntimeInfo,
-	ScriptResult,
 	Solution,
 	StudyStats,
 	TerminalEvent,
@@ -123,7 +122,6 @@ export const clusterApi = {
 
 export const labApi = {
 	/** Run a lab script on the jumphost. */
-	runScript: (path: string) => unwrap(commands.runScript(path)),
 };
 
 export const terminalApi = {

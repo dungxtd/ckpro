@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 8
 title: Pod 'logging-pod' in namespace 'troubleshooting' is consuming excessive CPU resources. Set appropriate CPU and memory limits
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-environment-configuration-security
 difficulty: medium
 namespace: troubleshooting

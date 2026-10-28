@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 11
 title: Create a CronJob named 'log-cleaner' in namespace 'workloads' that runs hourly to clean up log files
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-design-build
 difficulty: medium
 namespace: workloads
@@ -155,7 +154,6 @@ solution:
     ```bash
     kubectl get cronjob log-cleaner -n workloads -o yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     cat > log-cleaner-cronjob.yaml <<'MANIFEST'
     apiVersion: batch/v1

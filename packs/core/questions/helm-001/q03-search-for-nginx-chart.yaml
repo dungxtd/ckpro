@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X helm-001 question 3
 title: Search for Nginx Chart
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: cluster-architecture
   ckad: application-deployment
 difficulty: medium
@@ -75,7 +74,6 @@ solution:
     # Save the results to a file
     helm search repo bitnami/nginx > /tmp/exam/q3/nginx-charts.txt
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Search for nginx in the Bitnami repo
     helm search repo bitnami/nginx

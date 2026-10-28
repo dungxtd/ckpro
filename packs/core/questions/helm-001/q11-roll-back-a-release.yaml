@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X helm-001 question 11
 title: Roll Back a Release
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: cluster-architecture
   ckad: application-deployment
 difficulty: medium
@@ -135,7 +134,6 @@ solution:
     helm status web-server
     kubectl get deployment -l app.kubernetes.io/instance=web-server
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Check the history
     helm history web-server

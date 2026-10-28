@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-002 question 16
 title: RBAC Configuration
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: workloads-scheduling
 difficulty: hard
 namespace: cluster-admin
@@ -215,7 +214,6 @@ solution:
               expirationSeconds: 3600
               audience: kubernetes.default.svc
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: v1

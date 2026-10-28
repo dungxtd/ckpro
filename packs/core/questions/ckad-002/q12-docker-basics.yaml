@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-002 question 12
 title: Docker Basics
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-design-build
 difficulty: hard
 namespace: docker-basics
@@ -191,7 +190,6 @@ solution:
     # Verify the container is running
     docker ps | grep my-web
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create the Dockerfile
     cat > /tmp/Dockerfile << 'EOF'

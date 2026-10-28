@@ -19,7 +19,7 @@ body,
 	overflow: clip;
 }
 
-/* As in nextflix's app stylesheet */
+/* Window behaviour of a desktop app */
 @layer base {
 	[data-theme="dark"] {
 		color-scheme: dark;

@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X helm-001 question 8
 title: Create Custom Values File and Install Redis
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: cluster-architecture
   ckad: application-deployment
 difficulty: medium
@@ -158,7 +157,6 @@ solution:
     ```bash
     helm install cache-db bitnami/redis -f /tmp/exam/q8/redis-values.yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     cat > /tmp/exam/q8/redis-values.yaml << EOF
     password: "password123"

@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-001 question 1
 title: Namespace and Pod Creation
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: workloads-scheduling
 difficulty: easy
 namespace: app-team1
@@ -121,7 +120,6 @@ solution:
     # Create pod
     kubectl run nginx-pod --image=nginx:1.19 -n app-team1 --labels=run=nginx-pod
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create namespace
     kubectl create namespace app-team1

@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 20
 title: Create a simple Kubernetes Job named 'hello-job' that executes a command and completes
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-design-build
 difficulty: medium
 namespace: networking
@@ -279,7 +278,6 @@ solution:
     # Check the logs to see the output message
     kubectl logs -n networking -l job-name=hello-job
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     cat > hello-job.yaml <<'MANIFEST'
     apiVersion: batch/v1

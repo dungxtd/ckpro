@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-001 question 4
 title: Logging Setup
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: troubleshooting
 difficulty: easy
 namespace: monitoring
@@ -181,7 +180,6 @@ solution:
         emptyDir: {}
     EOF
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create monitoring namespace
     kubectl create namespace monitoring

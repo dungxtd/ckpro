@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-002 question 5
 title: Node Affinity Configuration
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: workloads-scheduling
 difficulty: hard
 workers: 2
@@ -152,7 +151,6 @@ solution:
           - name: nginx
             image: nginx
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Label the node
     kubectl label node {{worker2}} disk=ssd

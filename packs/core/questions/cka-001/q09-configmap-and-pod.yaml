@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-001 question 9
 title: ConfigMap and Pod
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: workloads-scheduling
 difficulty: easy
 namespace: default
@@ -201,7 +200,6 @@ solution:
           name: app-config
     EOF
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create ConfigMap
     cat << EOF | kubectl apply -f -

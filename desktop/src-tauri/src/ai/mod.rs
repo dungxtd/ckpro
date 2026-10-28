@@ -381,7 +381,7 @@ impl Coach {
             }
         };
         self.open.lock().await.insert(key.clone(), (session.clone(), model.to_string(), effort.to_string(), profile));
-        // The first question names the session (as Zed names a thread), while
+        // The first question names the session, while
         // the answer is written: a quick model, nothing waits longer for it
         let first = store.coach_messages(&subject.attempt_id, question_id)?.is_empty()
             && store.coach_session_title(&subject.attempt_id, question_id)?.is_none();

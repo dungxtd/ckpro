@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-002 question 16
 title: Health Checks
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-observability-maintenance
 difficulty: hard
 namespace: health-checks
@@ -256,7 +255,6 @@ solution:
           failureThreshold: 3
     EOF
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create namespace
     kubectl create namespace health-checks

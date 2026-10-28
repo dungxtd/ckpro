@@ -52,7 +52,6 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::cancel_cluster,
         commands::repair_cluster,
         commands::adopt_cluster,
-        commands::run_script,
         commands::terminal_open,
         commands::terminal_write,
         commands::terminal_resize,
@@ -325,7 +324,7 @@ mod tests {
 
     /// A cluster as the candidate sees it on the exam: from the jumphost,
     /// a context per cluster, ssh to nodes, etcdctl, metrics, cached pulls,
-    /// and lab scripts graded there.
+    /// and checks graded there.
     #[tokio::test]
     #[ignore]
     async fn exam_cluster_from_the_jumphost() {
@@ -371,12 +370,12 @@ mod tests {
         assert!(catalog.text.contains("library/nginx"), "{}", catalog.text);
         println!("ok: image pulled through the docker.io cache");
 
-        // A CK-X validation script, graded on the jumphost: FAIL, then PASS
-        let ckx = "/Users/d/pwd/CK-X/facilitator/assets/exams/cka/001/scripts/validation/q1_s1_validate_namespace.sh";
-        assert_ne!(lab::script::run(&f.jumphost.name, ckx).await.unwrap().exit_code, 0);
+        // A check script, graded on the jumphost: FAIL, then PASS
+        let check = "kubectl get namespace app-team1";
+        assert_ne!(lab::checks::run_script(&docker, &f.jumphost.name, name, check, 30).await.unwrap().0, 0);
         assert_eq!(f.on_jumphost("kubectl create namespace app-team1").await.exit_code, 0);
-        assert_eq!(lab::script::run(&f.jumphost.name, ckx).await.unwrap().exit_code, 0);
-        println!("ok: lab script graded on the jumphost");
+        assert_eq!(lab::checks::run_script(&docker, &f.jumphost.name, name, check, 30).await.unwrap().0, 0);
+        println!("ok: a check graded on the jumphost");
 
         // Quitting the app stops the cluster and cache (and the app's own
         // jumphost, not this test's); starting it again brings them back,
@@ -466,52 +465,6 @@ mod tests {
         let (pack, findings) = lab::load::load(&pack_dir);
         assert!(findings.is_empty(), "{:?}", findings.iter().map(|f| &f.message).collect::<Vec<_>>());
         (pack_dir, pack.unwrap())
-    }
-
-    /// A practice exam held open for driving its desktop over VNC like a
-    /// candidate (tools/vnc-flows): its connection goes to
-    /// $TMPDIR/ckdry-vnc-session.json; touching $TMPDIR/ckdry-vnc-done ends
-    /// it (30 minutes at most) and removes everything.
-    /// `cargo test vnc_session -- --ignored --nocapture`
-    #[tokio::test]
-    #[ignore]
-    async fn vnc_session() {
-        use lab::exam::{ExamState, Exams, Mode};
-        let cluster = "ckdry-vnc";
-        let desktop = "ckdry-desktop-vnc";
-        let (_, pack) = one_question_pack("vnc", cluster);
-        let tmp = std::env::temp_dir();
-        let (session_file, done_file) = (tmp.join("ckdry-vnc-session.json"), tmp.join("ckdry-vnc-done"));
-        let _ = std::fs::remove_file(&session_file);
-        let _ = std::fs::remove_file(&done_file);
-        let db = tmp.join("ckdry-vnc.db");
-        let _ = std::fs::remove_file(&db);
-        let f = fixture("vnc");
-        let exams = Arc::new(Exams::new(pack, f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, Arc::new(store::Store::open(&db).unwrap()), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}")), runtime::guard::Guard::new(|what| println!("  guard: {what}"))));
-        exams.start("core/one", Mode::Practice, true).await.unwrap();
-        eventually("the exam is ready", 300, async || match exams.state() {
-            ExamState::Failed { message, .. } => panic!("exam failed: {message}"),
-            state => matches!(state, ExamState::Running { .. }),
-        })
-        .await;
-        let docker = runtime::docker::connect().await.unwrap();
-        let session = runtime::desktop::session(&docker, desktop).await.unwrap().unwrap();
-        let info = serde_json::json!({
-            "desktop": desktop, "password": session.password, "port": session.port,
-            "jumphost": f.jumphost.name, "host": cluster, "cluster": cluster,
-        });
-        std::fs::write(&session_file, info.to_string()).unwrap();
-        println!("ready: {info}");
-        for _ in 0..(30 * 60) {
-            if done_file.exists() {
-                break;
-            }
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-        exams.end().await.unwrap();
-        f.teardown().await;
-        let _ = std::fs::remove_file(&session_file);
-        println!("ok: session over, cleaned up");
     }
 
     #[tokio::test]

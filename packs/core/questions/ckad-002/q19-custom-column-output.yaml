@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-002 question 19
 title: Custom Column Output
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-design-build
 difficulty: hard
 namespace: custom-columns-demo
@@ -219,7 +218,6 @@ solution:
     This solution creates two output files:
     1. `/tmp/pod-images.txt` - Shows all pods with their names, namespaces, and primary container images
     2. `/tmp/all-container-images.txt` - Shows all pods with all container images, properly handling multi-container pods
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create namespace (should already be set up by the test environment)
     kubectl create namespace custom-columns-demo

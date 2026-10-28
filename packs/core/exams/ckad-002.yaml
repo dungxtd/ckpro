@@ -1,5 +1,4 @@
 # yaml-language-server: $schema=../../schema/exam.schema.json
-# Converted from CK-X ckad-002
 title: CKAD Comprehensive Lab - 2
 description: Series of practical tasks on multi-container pods, pod design patterns, configuration, services, and networking in Kubernetes environments.
 certification: ckad

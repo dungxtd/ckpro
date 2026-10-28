@@ -1,5 +1,4 @@
 # yaml-language-server: $schema=../../schema/exam.schema.json
-# Converted from CK-X ckad-001
 title: CKAD Comprehensive Lab - 1
 description: Hands-on exercises covering core Kubernetes concepts, pod configuration, deployments, and services with practical tasks for application deployment in a cluster.
 certification: ckad

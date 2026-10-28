@@ -1,5 +1,5 @@
 //! The Claude login the assistant runs on, read and changed with the Claude
-//! CLI the adapter bundles (`--cli auth ...`), as Zed's terminal auth does.
+//! CLI the adapter bundles (`--cli auth ...`).
 //! The login itself stays the CLI's (keychain or `~/.claude`): ckdry keeps no
 //! credentials.
 

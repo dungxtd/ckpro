@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 16
 title: "Create a NetworkPolicy named 'allow-traffic' in namespace 'networking' that allows traffic to pods with label 'app=web' only from pods with label 'tier=frontend' on port 80"
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: services-networking
 difficulty: medium
 namespace: networking
@@ -193,7 +192,6 @@ solution:
     ```bash
     kubectl apply -f network-policy.yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     cat > network-policy.yaml <<'MANIFEST'
     apiVersion: networking.k8s.io/v1

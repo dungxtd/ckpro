@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 9
 title: "Create a ConfigMap named 'app-config' in namespace 'workloads' containing the following key-value pairs: APP_ENV=production, LOG_LEVEL=info. Then create a Pod named 'config-pod' using 'nginx' image that mounts these configurations as environment variables"
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-environment-configuration-security
 difficulty: medium
 namespace: workloads
@@ -153,7 +152,6 @@ solution:
     ```bash
     kubectl apply -f config-pod.yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create the ConfigMap
     kubectl create configmap app-config -n workloads --from-literal=APP_ENV=production --from-literal=LOG_LEVEL=info

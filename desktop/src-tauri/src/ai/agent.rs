@@ -1,4 +1,4 @@
-//! Claude as an ACP agent, the way Zed runs it: the Claude Agent adapter
+//! Claude as an ACP agent: the Claude Agent adapter
 //! (`@agentclientprotocol/claude-agent-acp`, through npx) on the candidate's
 //! own Claude login. Ask only: the coach's system prompt replaces Claude
 //! Code's, and its sessions have no built-in tools, no MCP servers, no
@@ -17,7 +17,7 @@ use tokio_util::sync::CancellationToken;
 /// The adapter, pinned: a new release is tested before it is used
 pub const ADAPTER: &str = "@agentclientprotocol/claude-agent-acp@0.97.0";
 
-/// A model the agent offers (its `model` config option), as Zed lists them
+/// A model the agent offers (its `model` config option)
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 pub struct ModelOption {
     /// What `session/set_config_option` takes: an alias (`sonnet`) or an id

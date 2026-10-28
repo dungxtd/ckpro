@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-002 question 4
 title: Deployment with HPA
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: workloads-scheduling
 difficulty: hard
 namespace: scaling
@@ -221,7 +220,6 @@ solution:
       maxReplicas: 5
       targetCPUUtilizationPercentage: 70
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: apps/v1

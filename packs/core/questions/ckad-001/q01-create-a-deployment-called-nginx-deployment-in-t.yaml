@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 1
 title: "Create a deployment called nginx-deployment in the namespace dev with 3 replicas and image nginx:latest"
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-design-build
 difficulty: medium
 namespace: dev
@@ -89,7 +88,6 @@ solution:
     # Create the deployment with 3 replicas
     kubectl create deployment nginx-deployment -n dev --image=nginx:latest --replicas=3
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create the namespace if it doesn't exist
     kubectl create namespace dev

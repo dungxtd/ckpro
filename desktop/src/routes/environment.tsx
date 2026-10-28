@@ -8,7 +8,6 @@ import { ClusterCard } from "@/components/environment/cluster-card";
 import { CreateClusterForm } from "@/components/environment/create-cluster-form";
 import { ForeignClusters } from "@/components/environment/foreign-clusters";
 import { IssuesPanel } from "@/components/environment/issues-panel";
-import { ScriptCard } from "@/components/environment/script-card";
 import { StatusDot } from "@/components/environment/status-dot";
 import { TerminalView } from "@/components/terminal/terminal-view";
 import { useEnvironment } from "@/stores/environment";
@@ -78,7 +77,6 @@ export function EnvironmentRoute() {
 				))}
 				<ForeignClusters names={env.foreign_clusters} />
 				<CreateClusterForm />
-				{env.clusters.length > 0 && <ScriptCard />}
 				<section id="activity" className="flex flex-col gap-2">
 					<h2 className="font-semibold text-sm">Activity</h2>
 					<ActivityList />

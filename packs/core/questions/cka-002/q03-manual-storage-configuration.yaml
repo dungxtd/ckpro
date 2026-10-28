@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-002 question 3
 title: Manual Storage Configuration
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: storage
 difficulty: hard
 namespace: manual-storage
@@ -223,7 +222,6 @@ solution:
         persistentVolumeClaim:
           claimName: manual-pvc
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: v1

@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-003 question 5
 title: Named Container Port and NodePort Service
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: services-networking
 difficulty: hard
 namespace: default
@@ -144,7 +143,6 @@ solution:
 
     ### Why this works
     Naming a container port lets Services reference it symbolically via `targetPort: http` instead of a hard-coded number, which is more resilient to container spec changes. `type: NodePort` additionally opens a high port (30000-32767 by default) on every node, on top of the normal ClusterIP.
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl patch deployment front-end -n default --type='json' -p='[
       {"op": "add", "path": "/spec/template/spec/containers/0/ports", "value": [{"name": "http", "containerPort": 80, "protocol": "TCP"}]}

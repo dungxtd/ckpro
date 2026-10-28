@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X helm-001 question 12
 title: Debug a Problematic Release
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: troubleshooting
   ckad: application-observability-maintenance
 difficulty: medium
@@ -233,7 +232,6 @@ solution:
     ```bash
     helm upgrade buggy-app /tmp/exam/q12/buggy-chart --set image.tag=latest
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     helm status buggy-app
     kubectl get pods -l app.kubernetes.io/instance=buggy-app

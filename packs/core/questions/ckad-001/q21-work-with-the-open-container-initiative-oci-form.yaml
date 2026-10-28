@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 21
 title: Work with the Open Container Initiative (OCI) format
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-design-build
 difficulty: medium
 namespace: docker-oci
@@ -131,7 +130,6 @@ solution:
     ls -la /root/oci-images
     cat /root/oci-images/index.json  # Verify it's in OCI format
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Pull the image
     docker pull nginx:latest

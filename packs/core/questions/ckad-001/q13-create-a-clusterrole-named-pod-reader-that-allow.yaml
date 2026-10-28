@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 13
 title: Create a ClusterRole named 'pod-reader' that allows getting, watching, and listing pods. Then create a ClusterRoleBinding named 'read-pods' that grants this role to the user 'jane' in the namespace 'cluster-admin'
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-environment-configuration-security
 difficulty: medium
 namespace: cluster-admin
@@ -162,7 +161,6 @@ solution:
     kubectl apply -f cluster-role.yaml
     kubectl apply -f cluster-role-binding.yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create the ClusterRole
     kubectl create clusterrole pod-reader --verb=get,watch,list --resource=pods

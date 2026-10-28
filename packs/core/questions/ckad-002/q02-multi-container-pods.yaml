@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-002 question 2
 title: Multi-container Pods
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-design-build
 difficulty: hard
 namespace: multi-container
@@ -155,7 +154,6 @@ solution:
         emptyDir: {}
     EOF
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create namespace
     kubectl create namespace multi-container

@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X helm-001 question 4
 title: Install Nginx Chart with Custom Configuration
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: services-networking
   ckad: services-networking
 difficulty: medium
@@ -112,7 +111,6 @@ solution:
       --set service.type=NodePort \
       --set service.nodePorts.http=30080
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Install nginx chart with custom service configuration
     helm install web-server bitnami/nginx \

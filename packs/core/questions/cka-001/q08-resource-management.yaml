@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-001 question 8
 title: Resource Management
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: troubleshooting
 difficulty: easy
 namespace: monitoring
@@ -202,7 +201,6 @@ solution:
             memory: "256Mi"
     EOF
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create pod
     cat << EOF | kubectl apply -f -

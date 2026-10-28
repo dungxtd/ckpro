@@ -43,7 +43,7 @@ const tokens = (n: number) =>
 	n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n);
 
 /**
- * The assistant, laid out like Zed's agent panel: one read-only agent (ACP,
+ * The assistant, laid out as an agent panel: one agent (ACP,
  * Claude) and one conversation per question. It reads the task and, as
  * chosen with @, the last check and a look at the cluster; it never runs
  * anything. Code in answers copies to the exam desktop, links open in its
@@ -232,7 +232,7 @@ export function AssistantPane({
 				className="min-h-0 flex-1 select-text overflow-y-auto overflow-x-hidden p-2"
 			>
 				{messages.length === 0 ? (
-					// Quiet like Zed's empty panel: Claude's mark, and words only when
+					// Quiet: Claude's mark, and words only when
 					// something is needed (Node.js, signing in)
 					<div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
 						<ClaudeIcon className="size-8 text-claude opacity-80" />

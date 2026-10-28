@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-002 question 6
 title: Pod Security Policy
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: storage
 difficulty: hard
 namespace: security
@@ -171,7 +170,6 @@ solution:
       - name: html
         emptyDir: {}
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl label namespace security pod-security.kubernetes.io/enforce=restricted  pod-security.kubernetes.io/enforce-version=latest
 

@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-003 question 14
 title: StorageClass, PVC and Volume Expansion
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: storage
 difficulty: hard
 namespace: storage-pvc
@@ -179,7 +178,6 @@ solution:
     The real CKA exam curriculum references the `csi-hostpath-driver` for this style of question. This simulator has no CSI driver pre-installed cluster-wide (by design - see `docs/how-to-add-new-labs.md` conventions), so this lab uses kind's built-in `rancher.io/local-path` provisioner instead, which supports the same dynamic-provisioning and `allowVolumeExpansion` mechanics needed to complete the task. Also note `rancher.io/local-path` does not actually perform live filesystem expansion the way some CSI drivers do - verification here (matching the real exam's own grading behavior) only checks that the PVC's **declared/requested** size was patched to `70Mi`, not that the underlying hostPath filesystem was physically grown.
 
     `volumeBindingMode: WaitForFirstConsumer` is required on the StorageClass - unlike some CSI drivers, `rancher.io/local-path` needs to know which node the consuming Pod lands on before it can create the volume, and errors with "no node was specified" (leaving the PVC stuck `Pending` forever) under the default `Immediate` binding mode. This is a real, confirmed requirement of this environment, not just a style preference.
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: storage.k8s.io/v1

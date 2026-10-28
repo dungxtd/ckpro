@@ -8,7 +8,6 @@ use crate::runtime::jumphost::{Jumphost, app_placement};
 use crate::error::{AppError, AppResult};
 use crate::runtime::activity::Activities;
 use crate::store::{Progress, Settings, Store};
-use crate::lab::script::ScriptResult;
 use crate::runtime::model::{DockerState, Env, EnvState};
 use crate::runtime::preflight::{self, Check};
 use crate::terminal::{TerminalEvent, Terminals};
@@ -162,13 +161,6 @@ pub async fn repair_cluster(activities: State<'_, Arc<Activities>>, name: String
     let op = activities.begin(format!("Starting cluster {name}"), vec![format!("Starting the stopped nodes of {name}")]);
     let result = async { crate::runtime::reconcile::repair(&crate::runtime::docker::connect().await?, &name).await }.await;
     op.end(result)
-}
-
-/// Run a lab script on the jumphost.
-#[tauri::command]
-#[specta::specta]
-pub async fn run_script(jumphost: State<'_, Arc<Jumphost>>, path: String) -> AppResult<ScriptResult> {
-    crate::lab::script::run(&jumphost.name, &path).await
 }
 
 /// Shell on the jumphost (no `container`) or directly on a cluster node.

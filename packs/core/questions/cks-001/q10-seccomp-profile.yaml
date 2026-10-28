@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cks-001 question 10
 title: Seccomp Profile
-certifications:  # review: domains guessed from concepts
+certifications:
   cks: system-hardening
 difficulty: hard
 namespace: seccomp-profile
@@ -230,7 +229,6 @@ solution:
           ]
         }
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: v1

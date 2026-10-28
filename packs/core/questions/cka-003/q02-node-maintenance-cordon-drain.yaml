@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-003 question 2
 title: "Node Maintenance (Cordon + Drain)"
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: workloads-scheduling
 difficulty: hard
 workers: 2
@@ -154,7 +153,6 @@ solution:
 
     ### Why this works
     `kubectl cordon` sets `spec.unschedulable: true` on the node so the scheduler stops placing new pods there, without touching existing pods. `kubectl drain` additionally evicts existing non-DaemonSet pods so their owning controllers (in this case the `drain-target` Deployment) recreate them on other schedulable nodes. `--ignore-daemonsets` is required because DaemonSet pods cannot be evicted, and `--delete-emptydir-data` is required if any pod uses `emptyDir` volumes.
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     NODE=$(kubectl get nodes -l drain-target=true -o jsonpath='{.items[0].metadata.name}')
     kubectl cordon "$NODE"

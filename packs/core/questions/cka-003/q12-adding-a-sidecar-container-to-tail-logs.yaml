@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-003 question 12
 title: Adding a Sidecar Container to Tail Logs
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: storage
 difficulty: hard
 namespace: logging
@@ -144,7 +143,6 @@ solution:
 
     ### Why this works
     Kubernetes does not allow adding/removing containers on a running Pod (`spec.containers` is immutable), so the only way to add a sidecar to an existing Pod is to delete and recreate it with the updated spec. Mounting the same `emptyDir` volume (`varlog`) into both containers lets the new `sidecar` container tail the exact file the original `count` container is writing to.
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # The edit, scripted: the same pod with the sidecar appended
     mkdir -p /tmp/exam

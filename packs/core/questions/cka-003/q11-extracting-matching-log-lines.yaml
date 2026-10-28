@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-003 question 11
 title: Extracting Matching Log Lines
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: troubleshooting
 difficulty: hard
 namespace: logging
@@ -103,5 +102,4 @@ solution:
 
     ### Why this works
     `kubectl logs` streams the container's stdout; piping through `grep` with a literal (non-regex-sensitive) match extracts exactly the lines containing that string, with no false positives from other log lines.
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: "kubectl logs foo -n logging | grep \"error file-not-found\" > /tmp/exam/foo-errors.log"

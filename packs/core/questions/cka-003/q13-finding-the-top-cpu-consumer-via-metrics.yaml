@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-003 question 13
 title: Finding the Top CPU Consumer via Metrics
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: troubleshooting
 difficulty: hard
 namespace: monitoring
@@ -137,7 +136,6 @@ solution:
 
     ### Why this works
     `kubectl top pod` reads live usage data from `metrics-server` (installed in the setup step, same as `cka/002`'s HPA question). Sorting by the CPU column (`sort -k2 -h -r` handles the `m`/no-suffix millicore notation reasonably) and taking the first row identifies the highest consumer. Metrics can take 30-60 seconds to populate after pods start, so allow a short retry window if the command initially returns nothing.
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl top pod -n monitoring -l name=overloaded-cpu --no-headers \
       | sort -k2 -h -r | head -1 | awk '{print $1}' > /tmp/exam/top-cpu-pod.txt

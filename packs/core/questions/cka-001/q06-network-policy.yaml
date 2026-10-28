@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-001 question 6
 title: Network Policy
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: services-networking
 difficulty: easy
 namespace: networking
@@ -146,7 +145,6 @@ solution:
           port: 3306
     EOF
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create networking namespace
     kubectl create namespace networking

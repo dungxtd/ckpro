@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 7
 title: Service 'web-service' in namespace 'troubleshooting' is not routing traffic to pods properly. Identify and fix the issue
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-observability-maintenance
 difficulty: medium
 namespace: troubleshooting
@@ -210,7 +209,6 @@ solution:
     ```bash
     kubectl apply -f fixed-service.yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Check the service configuration
     kubectl get svc web-service -n troubleshooting

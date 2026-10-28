@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-002 question 5
 title: "Observability - Probes & Resource Limits"
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-observability-maintenance
 difficulty: hard
 namespace: observability
@@ -224,7 +223,6 @@ solution:
           periodSeconds: 3
     EOF
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create namespace
     kubectl create namespace observability

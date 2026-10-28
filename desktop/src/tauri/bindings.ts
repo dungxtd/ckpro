@@ -29,8 +29,6 @@ export const commands = {
 	repairCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("repair_cluster", { name })),
 	/**  Manage an existing kind cluster created outside ckdry. */
 	adoptCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("adopt_cluster", { name })),
-	/**  Run a lab script on the jumphost. */
-	runScript: (path: string) => typedError<ScriptResult, AppError>(__TAURI_INVOKE("run_script", { path })),
 	/**  Shell on the jumphost (no `container`) or directly on a cluster node. */
 	terminalOpen: (container: string | null, events: Channel<TerminalEvent>) => typedError<string, AppError>(__TAURI_INVOKE("terminal_open", { container, events })),
 	terminalWrite: (id: string, data: string) => typedError<null, AppError>(__TAURI_INVOKE("terminal_write", { id, data })),
@@ -614,10 +612,10 @@ export type ModelChoice = {
 	profile: Profile,
 };
 
-/**  A model the agent offers (its `model` config option), as Zed lists them */
+/**  A model the agent offers (its `model` config option) */
 export type ModelOption = ModelOption_Serialize | ModelOption_Deserialize;
 
-/**  A model the agent offers (its `model` config option), as Zed lists them */
+/**  A model the agent offers (its `model` config option) */
 export type ModelOption_Deserialize = {
 	/**  What `session/set_config_option` takes: an alias (`sonnet`) or an id */
 	value: string,
@@ -625,7 +623,7 @@ export type ModelOption_Deserialize = {
 	description?: string | null,
 };
 
-/**  A model the agent offers (its `model` config option), as Zed lists them */
+/**  A model the agent offers (its `model` config option) */
 export type ModelOption_Serialize = {
 	/**  What `session/set_config_option` takes: an alias (`sonnet`) or an id */
 	value: string,
@@ -775,11 +773,6 @@ export type RuntimePaths_Serialize = {
 	 *  (`CLAUDE_CODE_EXECUTABLE`)
 	 */
 	claude: string | null,
-};
-
-export type ScriptResult = {
-	exit_code: number,
-	output: string,
 };
 
 /**  The exam desk's display settings */

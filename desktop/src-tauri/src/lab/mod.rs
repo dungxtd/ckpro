@@ -5,7 +5,6 @@ pub mod load;
 pub mod mine;
 pub mod model;
 pub mod render;
-pub mod script;
 pub mod verify;
 
 /// JSON Schemas of the pack files, generated from the model types.

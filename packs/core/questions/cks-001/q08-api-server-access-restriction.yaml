@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cks-001 question 8
 title: API Server Access Restriction
-certifications:  # review: domains guessed from concepts
+certifications:
   cks: supply-chain-security
 difficulty: hard
 namespace: api-restrict

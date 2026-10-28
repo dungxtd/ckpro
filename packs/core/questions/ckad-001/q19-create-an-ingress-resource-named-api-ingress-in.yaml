@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 19
 title: Create an Ingress resource named 'api-ingress' in namespace 'networking' that routes traffic from 'api.example.com' to the service 'api-service' on port 80
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: services-networking
 difficulty: medium
 namespace: networking
@@ -256,7 +255,6 @@ solution:
     ```bash
     kubectl apply -f ingress.yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     cat > ingress.yaml <<'MANIFEST'
     apiVersion: networking.k8s.io/v1

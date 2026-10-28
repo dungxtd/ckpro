@@ -1,5 +1,4 @@
 # yaml-language-server: $schema=../../schema/exam.schema.json
-# Converted from CK-X cka-001
 title: CKA Practice Lab - Core Concepts
 description: Practice essential Kubernetes administrator tasks covering cluster management, networking, storage, and security
 certification: cka

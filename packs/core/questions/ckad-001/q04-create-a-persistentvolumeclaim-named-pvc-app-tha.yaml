@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 4
 title: Create a PersistentVolumeClaim named 'pvc-app' that requests 500Mi of storage with ReadWriteOnce access mode and uses the 'fast-storage' StorageClass
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-design-build
 difficulty: medium
 namespace: storage-test
@@ -116,7 +115,6 @@ solution:
     ```bash
     kubectl apply -f pvc.yaml -n storage-test
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     cat > pvc.yaml <<'MANIFEST'
     apiVersion: v1

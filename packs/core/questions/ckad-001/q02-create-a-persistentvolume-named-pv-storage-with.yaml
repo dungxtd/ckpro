@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 2
 title: Create a PersistentVolume named 'pv-storage' with 1Gi capacity, access mode ReadWriteOnce, hostPath type at /mnt/data, and reclaim policy Retain
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-environment-configuration-security
 difficulty: medium
 namespace: storage-test
@@ -107,7 +106,6 @@ solution:
     ```bash
     kubectl apply -f pv-storage.yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     cat > pv-storage.yaml <<'MANIFEST'
     apiVersion: v1

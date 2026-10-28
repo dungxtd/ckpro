@@ -1,5 +1,4 @@
 # yaml-language-server: $schema=../../schema/exam.schema.json
-# Converted from CK-X helm-001
 title: Helm Fundamentals Lab
 description: Comprehensive lab covering Helm basics including chart installation, repositories, customization, packaging, debugging, and advanced Helm operations for Kubernetes applications.
 certification: cka

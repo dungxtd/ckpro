@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 3
 title: Create a StorageClass named 'fast-storage' with provisioner 'kubernetes.io/no-provisioner' and volumeBindingMode 'WaitForFirstConsumer'
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-design-build
 difficulty: medium
 namespace: storage-test
@@ -79,7 +78,6 @@ solution:
     ```bash
     kubectl apply -f storage-class.yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     cat > storage-class.yaml <<'MANIFEST'
     apiVersion: storage.k8s.io/v1

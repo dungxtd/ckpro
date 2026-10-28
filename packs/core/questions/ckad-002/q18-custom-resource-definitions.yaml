@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-002 question 18
 title: Custom Resource Definitions
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-environment-configuration-security
 difficulty: hard
 namespace: crd-demo
@@ -196,7 +195,6 @@ solution:
     kubectl get crd applications.training.ckad.io
     kubectl get application -n crd-demo
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create namespace
     kubectl create namespace crd-demo

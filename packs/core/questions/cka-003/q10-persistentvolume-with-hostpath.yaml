@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-003 question 10
 title: PersistentVolume with hostPath
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: storage
 difficulty: hard
 namespace: storage-pv
@@ -74,7 +73,6 @@ solution:
 
     ### Why this works
     A `hostPath` PV binds directly to a path on whichever node the PV ends up mounted on - suitable for single-node or test scenarios (like this simulator's kind cluster) but not for production multi-node clusters, since the data is not available if a pod is rescheduled to a different node.
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: v1

@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X helm-001 question 2
 title: Add Bitnami Chart Repository
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: cluster-architecture
   ckad: application-deployment
 difficulty: medium
@@ -81,7 +80,6 @@ solution:
     # Verify by listing repositories
     helm repo list
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Add Bitnami repo
     helm repo add bitnami https://charts.bitnami.com/bitnami

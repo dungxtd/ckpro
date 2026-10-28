@@ -26,7 +26,7 @@ const METHODS: { method: SignInMethod; label: string; detail: string }[] = [
 const linkIn = (output: string) => output.match(/https:\/\/\S+/g)?.at(-1);
 
 /**
- * Sign in to Claude the way Zed does: the Claude CLI's own login runs (it
+ * Sign in to Claude: the Claude CLI's own login runs (it
  * opens the browser), its output shows here, and a code the browser shows
  * can be pasted back. The login stays Claude Code's; ckdry keeps none.
  */

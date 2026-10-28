@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X helm-001 question 7
 title: Upgrade Release with New Replica Count
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: cluster-architecture
   ckad: application-deployment
 difficulty: medium
@@ -118,7 +117,6 @@ solution:
     # Verify the update
     kubectl get pods -l app.kubernetes.io/instance=web-server
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Upgrade the release to set 3 replicas
     helm upgrade web-server bitnami/nginx --set replicaCount=3

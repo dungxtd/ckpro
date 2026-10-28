@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-002 question 11
 title: Helm Chart Deployment
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: workloads-scheduling
 difficulty: hard
 namespace: helm-test
@@ -139,7 +138,6 @@ solution:
       --set service.type=NodePort \
       --set replicaCount=2
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Add bitnami repo
     helm repo add bitnami https://charts.bitnami.com/bitnami

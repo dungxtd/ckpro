@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-001 question 5
 title: RBAC Setup
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: cluster-architecture
 difficulty: easy
 namespace: default
@@ -177,7 +176,6 @@ solution:
       apiGroup: rbac.authorization.k8s.io
     EOF
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Create ServiceAccount
     kubectl create serviceaccount app-sa

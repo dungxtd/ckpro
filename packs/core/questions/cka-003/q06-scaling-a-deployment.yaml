@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-003 question 6
 title: Scaling a Deployment
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: workloads-scheduling
 difficulty: hard
 namespace: default
@@ -78,5 +77,4 @@ solution:
 
     ### Why this works
     `kubectl scale` patches `spec.replicas` directly; the Deployment controller then reconciles the actual replica count to match, creating 2 additional pods.
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: "kubectl scale deployment presentation -n default --replicas=3"

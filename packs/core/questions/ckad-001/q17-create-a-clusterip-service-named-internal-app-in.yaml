@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 17
 title: "Create a ClusterIP service named 'internal-app' in namespace 'networking' that routes traffic to pods with label 'app=backend' on port 8080, exposing the service on port 80"
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: services-networking
 difficulty: medium
 namespace: networking
@@ -168,7 +167,6 @@ solution:
     ```bash
     kubectl apply -f internal-service.yaml
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     cat > internal-service.yaml <<'MANIFEST'
     apiVersion: v1

@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-003 question 9
 title: Multi-Container Pod
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: workloads-scheduling
 difficulty: hard
 namespace: multi-container
@@ -86,7 +85,6 @@ solution:
 
     ### Why this works
     Multiple containers in the same Pod share the same network namespace and can share volumes; here they're just independent processes with no explicit inter-dependency, which is enough to satisfy the task. A specific image tag (`1.15`, not `latest`) is used for the `consul` container so the pull is deterministic and reproducible.
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: v1

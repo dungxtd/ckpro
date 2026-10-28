@@ -10,7 +10,7 @@ export interface IconButtonOptions {
 	 * glass: round dark-glass circle with a lit rim (actions over imagery:
 	 * My List, remove, close, PiP). plain: no wrap, just the icon (toolbars,
 	 * nav icons, slider arrows, player controls). toolbar: a dense panel's
-	 * buttons (Zed's): square, a tint on hover, no growing.
+	 * buttons: square, a tint on hover, no growing.
 	 */
 	variant?: IconButtonVariant;
 	/** xs 24px · sm 32px · md 40px · lg 48px · auto: caller sizes the box and icon. */

@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-001 question 6
 title: Create a multi-container pod with sidecar logging pattern
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-design-build
 difficulty: medium
 namespace: troubleshooting
@@ -180,7 +179,6 @@ solution:
     # Check events related to the pod
     kubectl describe pod sidecar-pod -n troubleshooting
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     cat > sidecar-pod.yaml <<'MANIFEST'
     apiVersion: v1

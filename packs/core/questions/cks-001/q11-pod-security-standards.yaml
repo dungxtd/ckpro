@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cks-001 question 11
 title: Pod Security Standards
-certifications:  # review: domains guessed from concepts
+certifications:
   cks: minimize-microservice-vulnerabilities
 difficulty: hard
 namespace: pod-security
@@ -202,7 +201,6 @@ solution:
         securityContext:
           privileged: true
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Label the namespace
     kubectl label namespace pod-security pod-security.kubernetes.io/enforce=baseline

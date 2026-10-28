@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X cka-002 question 2
 title: Storage Class Configuration
-certifications:  # review: domains guessed from concepts
+certifications:
   cka: storage
 difficulty: hard
 namespace: storage-class
@@ -116,7 +115,6 @@ solution:
     kubectl patch storageclass default-test -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
     kubectl patch storageclass standard -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
     ```
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     kubectl apply -f - <<'MANIFEST'
     apiVersion: storage.k8s.io/v1

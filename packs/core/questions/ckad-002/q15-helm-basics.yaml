@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../../schema/question.schema.json
-# Converted from CK-X ckad-002 question 15
 title: "- Helm Basics"
-certifications:  # review: domains guessed from concepts
+certifications:
   ckad: application-deployment
 difficulty: hard
 namespace: helm-basics
@@ -121,7 +120,6 @@ solution:
     2. Add the Bitnami Helm chart repository and update it to get the latest charts
     3. Install the nginx chart from Bitnami in the helm-basics namespace with the release name "nginx-release"
     4. Save the release notes to /tmp/release-notes.txt using the `helm get notes` command
-  # review: commands extracted from the CK-X answer; `ckdry lab verify` confirms them
   run: |
     # Step 1: Create the namespace
     kubectl create namespace helm-basics
