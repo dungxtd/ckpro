@@ -1,12 +1,15 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import { type Settings, settingsApi } from "@/tauri/api";
+import { ApiError, type Settings, settingsApi } from "@/tauri/api";
 
 interface SettingsStore {
 	/** Mirror of what the app database keeps */
 	settings: Settings;
 	/** Read once at start: the desk opens as it was left, not with defaults first */
 	loaded: boolean;
+	/** Why they could not be read; the app waits for a retry rather than
+	 * opening on defaults it would then save over them */
+	error: string | null;
 	load: () => Promise<void>;
 	/** Change some settings; saved to the app database */
 	update: (patch: Partial<Settings>) => void;
@@ -26,15 +29,22 @@ export const useSettings = create<SettingsStore>()(
 			assistant_enabled: true,
 		},
 		loaded: false,
+		error: null,
 		load: async () => {
-			const settings = await settingsApi.load().catch(e => {
-				console.error("loading settings", e);
-				return null;
-			});
 			set(s => {
-				if (settings) s.settings = settings;
-				s.loaded = true;
+				s.error = null;
 			});
+			try {
+				const settings = await settingsApi.load();
+				set(s => {
+					s.settings = settings;
+					s.loaded = true;
+				});
+			} catch (e) {
+				set(s => {
+					s.error = e instanceof ApiError ? e.message : String(e);
+				});
+			}
 		},
 		update: patch => {
 			set(s => {

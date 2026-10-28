@@ -32,6 +32,8 @@ interface ExamStore extends AttemptUi {
 	/** Exam waiting for confirmation to replace existing clusters */
 	pendingReplace: { id: string; mode: Mode; message: string } | null;
 	error: string | null;
+	/** The state could not be read as the app opened */
+	connectError: string | null;
 
 	connect: () => Promise<() => void>;
 	loadCatalog: () => Promise<void>;
@@ -83,6 +85,7 @@ export const useExam = create<ExamStore>()(
 			catalog: [],
 			pendingReplace: null,
 			error: null,
+			connectError: null,
 
 			connect: async () => {
 				const apply = (state: ExamState) =>
@@ -92,33 +95,56 @@ export const useExam = create<ExamStore>()(
 						if (id && id !== s.attemptId) {
 							Object.assign(s, freshAttempt(id));
 							// Back where the candidate was (the app reopened mid-attempt)
-							progressApi.load(id).then(saved =>
-								set(t => {
-									if (t.attemptId !== id) return;
-									t.current = saved.current;
-									t.flagged = saved.flagged;
-									t.hintsShown = saved.hints_shown as Record<string, number>;
-								})
-							);
+							progressApi
+								.load(id)
+								.then(saved =>
+									set(t => {
+										if (t.attemptId !== id) return;
+										t.current = saved.current;
+										t.flagged = saved.flagged;
+										t.hintsShown = saved.hints_shown as Record<string, number>;
+									})
+								)
+								// The attempt goes on from its first question
+								.catch(e => console.error("loading exam progress", e));
 						}
 					});
-				const unsubscribe = await examApi.subscribe(apply);
-				// What the guard put back or noted, as it happens
-				const unsubscribeGuard = await examApi.onGuardNotice(message =>
-					toast.warning(message, { duration: 8000 })
-				);
-				apply(await examApi.state());
-				return () => {
-					unsubscribe();
-					unsubscribeGuard();
+				set(s => {
+					s.connectError = null;
+				});
+				const stops: (() => void)[] = [];
+				const stop = () => {
+					for (const fn of stops) fn();
 				};
+				try {
+					stops.push(await examApi.subscribe(apply));
+					// What the guard put back or noted, as it happens
+					stops.push(
+						await examApi.onGuardNotice(message => toast.warning(message, { duration: 8000 }))
+					);
+					apply(await examApi.state());
+				} catch (e) {
+					// Without the state the app cannot open: it says so and offers a retry
+					stop();
+					set(s => {
+						s.connectError = message(e);
+					});
+					return () => {};
+				}
+				return stop;
 			},
 
 			loadCatalog: async () => {
-				const catalog = await examApi.list();
-				set(s => {
-					s.catalog = catalog;
-				});
+				try {
+					const catalog = await examApi.list();
+					set(s => {
+						s.catalog = catalog;
+					});
+				} catch (e) {
+					set(s => {
+						s.error = message(e);
+					});
+				}
 			},
 
 			start: async (id, mode, replace = false) => {

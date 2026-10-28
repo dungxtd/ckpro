@@ -1,9 +1,11 @@
+import { Alert } from "@ckdry/ui/components/alert";
+import { Button } from "@ckdry/ui/components/button";
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Loading } from "@ckdry/ui/components/loading";
 import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import { Toaster } from "@ckdry/ui/components/sonner";
-import { Settings } from "lucide-react";
-import { StrictMode, useEffect } from "react";
+import { CircleAlert, Settings } from "lucide-react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
 	HashRouter,
@@ -91,15 +93,22 @@ function App() {
 	const connectExam = useExam(s => s.connect);
 	const connectActivities = useActivities(s => s.connect);
 	const loadSettings = useSettings(s => s.load);
+	// Bumped by Try Again: everything is read and followed afresh
+	const [boot, setBoot] = useState(0);
 	// Follow the Rust environment, exam state and long operations for the
 	// life of the app
 	useEffect(() => {
+		void boot;
 		loadSettings();
 		const stops = [connectEnv(), connectExam(), connectActivities()];
 		return () => {
-			for (const stop of stops) stop.then(fn => fn());
+			for (const stop of stops)
+				stop.then(
+					fn => fn(),
+					() => {}
+				);
 		};
-	}, [connectEnv, connectExam, connectActivities, loadSettings]);
+	}, [connectEnv, connectExam, connectActivities, loadSettings, boot]);
 	// Opened straight on the right screen: the settings and where the exam is
 	// are known before anything shows (no catalog flashing before a resume)
 	const settingsLoaded = useSettings(s => s.loaded);
@@ -109,6 +118,10 @@ function App() {
 		if (assistantOn) useCoach.getState().warm();
 	}, [assistantOn]);
 	const examKnown = useExam(s => s.state !== null);
+	const settingsError = useSettings(s => s.error);
+	const examError = useExam(s => s.connectError);
+	const failed = settingsError ?? examError;
+	if (failed) return <OpenFailed message={failed} onRetry={() => setBoot(b => b + 1)} />;
 	if (!settingsLoaded || !examKnown) return <Loading fill label="Opening ckdry…" />;
 
 	return (
@@ -127,6 +140,27 @@ function App() {
 			</HashRouter>
 			<Toaster />
 		</>
+	);
+}
+
+/** The app could not read its settings or the exam's state: nothing opens
+ * on a guess; it says why and tries again when asked */
+function OpenFailed({ message, onRetry }: { message: string; onRetry: () => void }) {
+	return (
+		<div className="flex h-full items-center justify-center p-6">
+			<Alert variant="destructive" className="w-full max-w-md">
+				<CircleAlert />
+				<div className="flex min-w-0 flex-1 flex-col gap-3">
+					<div>
+						<strong>ckdry could not open</strong>
+						<p className="mt-1 break-words text-muted-foreground">{message}</p>
+					</div>
+					<Button size="push" variant="push" className="self-end" onClick={onRetry}>
+						Try Again
+					</Button>
+				</div>
+			</Alert>
+		</div>
 	);
 }
 
