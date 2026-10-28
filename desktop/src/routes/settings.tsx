@@ -167,28 +167,44 @@ function AiSettings() {
 						title="Agents"
 						description="Agents turned on and signed in are offered when you start a session."
 					>
-						{AGENTS.map(a => (
-							<button
-								key={a.id}
-								type="button"
-								onClick={() => setOpen(a.id)}
-								className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-foreground/5"
-							>
-								<a.Icon className={cn("size-5 shrink-0", a.tint)} />
-								<div className="min-w-0 flex-1">
-									<div className="text-sm">{a.name}</div>
-									<div className="truncate text-muted-foreground text-xs">
-										{agentSummary(settings.enabled.includes(a.id), runtime, coach.account)}
-									</div>
+						{AGENTS.map(a => {
+							const on = settings.enabled.includes(a.id);
+							return (
+								// The switch turns it on or off in place; the rest of the row opens it
+								<div key={a.id} className="flex items-center gap-3 pr-4 hover:bg-foreground/5">
+									<button
+										type="button"
+										onClick={() => setOpen(a.id)}
+										className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 text-left"
+									>
+										<a.Icon className={cn("size-5 shrink-0", a.tint, !on && "opacity-50")} />
+										<div className="min-w-0 flex-1">
+											<div className="text-sm">{a.name}</div>
+											<div className="truncate text-muted-foreground text-xs">
+												{agentSummary(on, runtime, coach.account)}
+											</div>
+										</div>
+										<AgentState
+											on={on}
+											runtime={runtime}
+											signedIn={coach.account?.signed_in ?? null}
+										/>
+										<ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+									</button>
+									<Switch
+										aria-label={`Turn ${a.name} on`}
+										checked={on}
+										onCheckedChange={next =>
+											save({
+												enabled: next
+													? [...settings.enabled, a.id]
+													: settings.enabled.filter(p => p !== a.id),
+											})
+										}
+									/>
 								</div>
-								<AgentState
-									on={settings.enabled.includes(a.id)}
-									runtime={runtime}
-									signedIn={coach.account?.signed_in ?? null}
-								/>
-								<ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-							</button>
-						))}
+							);
+						})}
 					</Group>
 					<ToolAccess settings={settings} save={save} />
 					<Privacy settings={settings} save={save} />
@@ -266,23 +282,9 @@ function ClaudeCodePanel({
 	const coach = useCoach();
 	const [path, setPath] = useState(settings.claude_path ?? "");
 	const [signingIn, setSigningIn] = useState(false);
-	const on = settings.enabled.includes("claude");
 	const account = coach.account;
 	return (
 		<div className="divide-y divide-border">
-			<Row label="Turned on" detail="Offered in the assistant once signed in">
-				<Switch
-					aria-label="Turn Claude Code on"
-					checked={on}
-					onCheckedChange={next =>
-						save({
-							enabled: next
-								? [...settings.enabled, "claude"]
-								: settings.enabled.filter(p => p !== "claude"),
-						})
-					}
-				/>
-			</Row>
 			<div className="flex flex-col gap-2 px-4 py-3">
 				<div className="flex items-center justify-between gap-3">
 					<div className="text-sm">Claude CLI</div>
