@@ -58,6 +58,8 @@ export function DesktopView({
 		const connect = async () => {
 			if (stopped || !screen.current) return;
 			const session = await desktopApi.session().catch(() => null);
+			// Closed while it was asked for: nothing to connect, nothing to retry
+			if (stopped || !screen.current) return;
 			if (!session) {
 				retry = setTimeout(connect, 1000);
 				return;
