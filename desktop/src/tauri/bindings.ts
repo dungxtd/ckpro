@@ -42,7 +42,7 @@ export const commands = {
 	 *  or nothing when no attempt has one.
 	 */
 	desktopSession: () => typedError<DesktopSession | null, AppError>(__TAURI_INVOKE("desktop_session")),
-	/**  Restart the exam desktop (its windows close; the client reconnects). */
+	/**  Reset the exam desktop: a new one, every window closed; the client reconnects. */
 	desktopReset: () => typedError<null, AppError>(__TAURI_INVOKE("desktop_reset")),
 	/**  Open allowed documentation in the exam desktop's Firefox. */
 	desktopOpenUrl: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("desktop_open_url", { url })),
@@ -783,6 +783,8 @@ export type Settings_Deserialize = {
 	/**  The assistant's model and effort, as last picked */
 	assistant_model?: string | null,
 	assistant_effort?: string | null,
+	/**  The assistant at all: off, the app has no AI anywhere */
+	assistant_enabled?: boolean,
 };
 
 /**  The exam desk's display settings */
@@ -801,6 +803,8 @@ export type Settings_Serialize = {
 	/**  The assistant's model and effort, as last picked */
 	assistant_model: string | null,
 	assistant_effort: string | null,
+	/**  The assistant at all: off, the app has no AI anywhere */
+	assistant_enabled: boolean,
 };
 
 export type Severity = "error" | "warning";

@@ -37,6 +37,7 @@ export function TopBar({
 	onView,
 	desktop,
 	assistantOpen,
+	assistantAvailable,
 	onAssistant,
 	onFinish,
 	onQuit,
@@ -48,6 +49,8 @@ export function TopBar({
 	onView: (view: DeskView) => void;
 	desktop: DesktopMenuProps;
 	assistantOpen: boolean;
+	/** Practice, with the assistant turned on in Settings */
+	assistantAvailable: boolean;
 	onAssistant: (open: boolean) => void;
 	/** Grade every task (End Exam, Finish) */
 	onFinish: () => void;
@@ -116,7 +119,7 @@ export function TopBar({
 				</Confirm>
 			</div>
 
-			{practice && (
+			{assistantAvailable && (
 				<>
 					<Separator orientation="vertical" className="h-5 self-center" />
 					{/* Outermost, like a browser's side panel button: the assistant opens at this edge */}

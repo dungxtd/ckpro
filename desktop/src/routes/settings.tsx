@@ -20,6 +20,7 @@ import { ClaudeIcon } from "@/components/claude-icon";
 import { RESOLUTIONS, useDesktopSettings } from "@/components/exam/desktop-menu";
 import { TextSize } from "@/components/exam/question-panel";
 import { useCoach } from "@/stores/coach";
+import { useAssistantEnabled, useSettings } from "@/stores/settings";
 import {
 	type AgentPermission,
 	type AgentSettings,
@@ -35,10 +36,11 @@ import {
  * app keeps its data. The desk's own controls change the same settings.
  */
 export function SettingsRoute() {
+	const enabled = useAssistantEnabled();
 	return (
 		<div className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
 			<ClaudeSettings />
-			<AssistantSettings />
+			{enabled && <AssistantSettings />}
 			<DeskSettings />
 			<AboutSettings />
 		</div>
@@ -46,13 +48,17 @@ export function SettingsRoute() {
 }
 
 function ClaudeSettings() {
+	const enabled = useAssistantEnabled();
+	const update = useSettings(s => s.update);
 	const coach = useCoach();
 	const [signingIn, setSigningIn] = useState(false);
 	const [signingOut, setSigningOut] = useState(false);
+	// Off, nothing starts the assistant's container
 	useEffect(() => {
+		if (!enabled) return;
 		coach.loadAccount();
 		coach.ensureModels();
-	}, [coach.loadAccount, coach.ensureModels]);
+	}, [enabled, coach.loadAccount, coach.ensureModels]);
 	const account = coach.account;
 	const signOut = async () => {
 		setSigningOut(true);
@@ -75,48 +81,59 @@ function ClaudeSettings() {
 			}
 			description="The assistant answers with your own Claude account. It runs in Docker; the login stays in the app's volume."
 		>
-			<Row label="Account" detail={account?.signed_in ? accountDetail(account) : undefined}>
-				{account === null ? (
-					<span className="text-muted-foreground text-sm">Checking…</span>
-				) : account.signed_in ? (
-					<Button size="push" variant="push" disabled={signingOut} onClick={signOut}>
-						{signingOut ? "Signing out…" : "Sign Out"}
-					</Button>
-				) : (
-					<Button size="push" variant="pushDefault" onClick={() => setSigningIn(true)}>
-						Sign In…
-					</Button>
-				)}
+			<Row label="Use the assistant" detail="Off: the app has no AI anywhere, as in the exam">
+				<Switch
+					aria-label="Use the assistant"
+					checked={enabled}
+					onCheckedChange={assistant_enabled => update({ assistant_enabled })}
+				/>
 			</Row>
-			<Row label="Model" detail="Used for new questions; the assistant's picker changes it too">
-				<Select value={coach.model} onValueChange={coach.setModel}>
-					<SelectTrigger aria-label="Model" className="w-52">
-						<SelectValue placeholder="Loading…" />
-					</SelectTrigger>
-					<SelectContent>
-						{coach.models.map(m => (
-							<SelectItem key={m.value} value={m.value}>
-								{m.name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</Row>
-			{coach.efforts.length > 0 && (
-				<Row label="Effort">
-					<Select value={coach.effort} onValueChange={coach.setEffort}>
-						<SelectTrigger aria-label="Effort" className="w-52">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{coach.efforts.map(e => (
-								<SelectItem key={e.value} value={e.value}>
-									{e.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</Row>
+			{enabled && (
+				<>
+					<Row label="Account" detail={account?.signed_in ? accountDetail(account) : undefined}>
+						{account === null ? (
+							<span className="text-muted-foreground text-sm">Checking…</span>
+						) : account.signed_in ? (
+							<Button size="push" variant="push" disabled={signingOut} onClick={signOut}>
+								{signingOut ? "Signing out…" : "Sign Out"}
+							</Button>
+						) : (
+							<Button size="push" variant="pushDefault" onClick={() => setSigningIn(true)}>
+								Sign In…
+							</Button>
+						)}
+					</Row>
+					<Row label="Model" detail="Used for new questions; the assistant's picker changes it too">
+						<Select value={coach.model} onValueChange={coach.setModel}>
+							<SelectTrigger aria-label="Model" className="w-52">
+								<SelectValue placeholder="Loading…" />
+							</SelectTrigger>
+							<SelectContent>
+								{coach.models.map(m => (
+									<SelectItem key={m.value} value={m.value}>
+										{m.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</Row>
+					{coach.efforts.length > 0 && (
+						<Row label="Effort">
+							<Select value={coach.effort} onValueChange={coach.setEffort}>
+								<SelectTrigger aria-label="Effort" className="w-52">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{coach.efforts.map(e => (
+										<SelectItem key={e.value} value={e.value}>
+											{e.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</Row>
+					)}
+				</>
 			)}
 			<SignInDialog open={signingIn} onOpenChange={setSigningIn} />
 		</Group>

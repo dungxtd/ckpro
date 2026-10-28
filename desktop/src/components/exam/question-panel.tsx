@@ -8,7 +8,7 @@ import { Lightbulb, ListChecks } from "lucide-react";
 import { Markdown } from "@/components/markdown";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
-import { useSettings } from "@/stores/settings";
+import { useAssistantEnabled, useSettings } from "@/stores/settings";
 import type { Attempt, QuestionView } from "@/tauri/api";
 import { CheckList } from "./check-list";
 import { CopyText } from "./copy-text";
@@ -27,6 +27,7 @@ const SIZES = [
 export function QuestionPanel({ attempt, question }: { attempt: Attempt; question: QuestionView }) {
 	const { hintsShown, checks } = useExam();
 	const askCoach = useCoach(s => s.ask);
+	const assistant = useAssistantEnabled();
 	const practice = attempt.mode === "practice";
 	const hints = question.hints.slice(0, hintsShown[question.id] ?? 0);
 	const result = checks[question.id];
@@ -80,11 +81,14 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 					{Array.isArray(result) && (
 						<CheckList
 							checks={result}
-							onWhy={c =>
-								askCoach(
-									question.id,
-									`Why does the check "${c.name}" fail${c.detail ? ` (${c.detail})` : ""}? Point me to the cause, not the full solution.`
-								)
+							onWhy={
+								assistant
+									? c =>
+											askCoach(
+												question.id,
+												`Why does the check "${c.name}" fail${c.detail ? ` (${c.detail})` : ""}? Point me to the cause, not the full solution.`
+											)
+									: undefined
 							}
 						/>
 					)}

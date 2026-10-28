@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { GenerateCard } from "@/components/catalog/generate-card";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
+import { useAssistantEnabled } from "@/stores/settings";
 import type { ExamSummary } from "@/tauri/api";
 import { envApi } from "@/tauri/api";
 
@@ -58,6 +59,7 @@ function ExamCard({ exam, dockerMb }: { exam: ExamSummary; dockerMb: number | nu
 
 /** Every exam of the bundled pack, grouped by certification. */
 export function CatalogRoute() {
+	const assistant = useAssistantEnabled();
 	const { catalog, loadCatalog, pendingReplace, start, cancelReplace, error } = useExam();
 	// Live, not a remembered error: it clears itself when Docker is back
 	const docker = useEnvironment(s => s.env?.docker);
@@ -94,7 +96,7 @@ export function CatalogRoute() {
 			)}
 			{docker?.state === "connecting" && <Alert>Connecting to Docker…</Alert>}
 			{error && <Alert variant="destructive">{error}</Alert>}
-			<GenerateCard onGenerated={loadCatalog} />
+			{assistant && <GenerateCard onGenerated={loadCatalog} />}
 			{certs.map(cert => (
 				<section key={cert}>
 					<h2 className="mb-3 font-semibold text-lg">{cert.toUpperCase()}</h2>

@@ -90,6 +90,8 @@ pub struct Settings {
     /// The assistant's model and effort, as last picked
     pub assistant_model: Option<String>,
     pub assistant_effort: Option<String>,
+    /// The assistant at all: off, the app has no AI anywhere
+    pub assistant_enabled: bool,
 }
 
 impl Default for Settings {
@@ -103,6 +105,7 @@ impl Default for Settings {
             assistant_width: 380,
             assistant_model: None,
             assistant_effort: None,
+            assistant_enabled: true,
         }
     }
 }
@@ -447,6 +450,7 @@ mod tests {
             assistant_width: 460,
             assistant_model: Some("opus".into()),
             assistant_effort: Some("high".into()),
+            assistant_enabled: false,
         };
         store.save_settings(&settings).unwrap();
         assert_eq!(store.settings().unwrap(), settings);
@@ -454,6 +458,7 @@ mod tests {
         store.save_setting("exam_desk", &serde_json::json!({ "desktop_zoom": 2.0, "question_size": 3 })).unwrap();
         let old = store.settings().unwrap();
         assert_eq!((old.desktop_zoom, old.question_size, old.task_width, old.assistant_width), (2.0, 3, 34.0, 380));
+        assert!(old.assistant_enabled);
     }
 
     #[test]

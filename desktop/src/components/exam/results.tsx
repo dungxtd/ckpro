@@ -17,6 +17,7 @@ import { useState } from "react";
 import { ClaudeIcon } from "@/components/claude-icon";
 import { Markdown } from "@/components/markdown";
 import { useExam } from "@/stores/exam";
+import { useAssistantEnabled } from "@/stores/settings";
 import type { Attempt, ExamResult } from "@/tauri/api";
 import { AssistantPane } from "./assistant-pane";
 import { CheckList } from "./check-list";
@@ -28,6 +29,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 	const [review, setReview] = useState(false);
 	// The question reviewed with the coach, in a side sheet
 	const [coached, setCoached] = useState<string | null>(null);
+	const assistant = useAssistantEnabled();
 	const coachedResult = result.questions.find(q => q.id === coached);
 	const coachedQuestion = attempt.questions.find(q => q.id === coached);
 	const minutes = Math.round(((result.finished_at ?? 0) - (result.started_at ?? 0)) / 60000);
@@ -93,14 +95,16 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 								</span>
 							</header>
 							<CheckList checks={q.checks} />
-							<Button
-								size="push"
-								variant="ghost"
-								className="mt-2 text-highlight"
-								onClick={() => setCoached(q.id)}
-							>
-								<ClaudeIcon className="text-claude" /> Review with Claude
-							</Button>
+							{assistant && (
+								<Button
+									size="push"
+									variant="ghost"
+									className="mt-2 text-highlight"
+									onClick={() => setCoached(q.id)}
+								>
+									<ClaudeIcon className="text-claude" /> Review with Claude
+								</Button>
+							)}
 							<ReviewSolution questionId={q.id} />
 						</Card>
 					);

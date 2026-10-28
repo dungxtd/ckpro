@@ -23,6 +23,7 @@ export const useSettings = create<SettingsStore>()(
 			assistant_width: 380,
 			assistant_model: null,
 			assistant_effort: null,
+			assistant_enabled: true,
 		},
 		loaded: false,
 		load: async () => {
@@ -43,3 +44,6 @@ export const useSettings = create<SettingsStore>()(
 		},
 	}))
 );
+
+/** Whether the app offers the assistant at all (Settings > Claude) */
+export const useAssistantEnabled = () => useSettings(s => s.settings.assistant_enabled);

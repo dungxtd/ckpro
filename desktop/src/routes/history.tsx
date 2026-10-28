@@ -9,10 +9,12 @@ import {
 } from "@ckdry/ui/components/table";
 import { useEffect, useState } from "react";
 import { StudyPlan } from "@/components/history/study-plan";
+import { useAssistantEnabled } from "@/stores/settings";
 import { examApi, type HistoryEntry } from "@/tauri/api";
 
 /** Past attempts, newest first. */
 export function HistoryRoute() {
+	const assistant = useAssistantEnabled();
 	const [history, setHistory] = useState<HistoryEntry[]>([]);
 	useEffect(() => {
 		examApi.history().then(setHistory);
@@ -22,7 +24,7 @@ export function HistoryRoute() {
 		return <div className="p-6 text-muted-foreground text-sm">No attempts yet.</div>;
 	return (
 		<div className="flex flex-col gap-6 p-6">
-			<StudyPlan />
+			{assistant && <StudyPlan />}
 			<h2 className="-mb-3 font-semibold">Attempts</h2>
 			<Table>
 				<TableHeader>

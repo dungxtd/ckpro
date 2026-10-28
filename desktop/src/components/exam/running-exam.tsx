@@ -65,7 +65,9 @@ export function RunningExam({
 	// Desktop zoom and resolution, the panels' sizes and the assistant pane
 	// live in the app database: the desk reopens as it was left
 	const { settings, update } = useSettings();
-	const assistantOpen = settings.assistant_open && attempt.mode === "practice";
+	// The assistant: practice only, and only if the app offers it
+	const assistantAvailable = attempt.mode === "practice" && settings.assistant_enabled;
+	const assistantOpen = settings.assistant_open && assistantAvailable;
 	// While a border is dragged; saved when it is let go
 	const [dragged, setDragged] = useState<{ task?: number; assistant?: number }>({});
 	const width = dragged.task ?? settings.task_width;
@@ -116,6 +118,7 @@ export function RunningExam({
 				onView={setTab}
 				desktop={desktop}
 				assistantOpen={assistantOpen}
+				assistantAvailable={assistantAvailable}
 				onAssistant={setAssistantOpen}
 				onFinish={submit}
 				onQuit={end}
