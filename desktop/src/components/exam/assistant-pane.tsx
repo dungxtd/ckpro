@@ -579,10 +579,16 @@ function PermissionCard({
 		// message) does not answer it
 		const shown = performance.now();
 		const keys = (e: KeyboardEvent) => {
-			if (e.repeat || performance.now() - shown < 400) return;
+			if (e.defaultPrevented || e.repeat || performance.now() - shown < 400) return;
 			// Not while typing a message (focus stays in the editor after sending)
 			const typing = e.target instanceof HTMLTextAreaElement && e.target.value.trim() !== "";
-			if (e.key === "Enter" && once && !typing) {
+			// Enter on another control (Skip, Always allow, a field) is that control's
+			const control =
+				e.target instanceof HTMLElement &&
+				(e.target.isContentEditable ||
+					e.target.closest("button, a[href], input, select, [role=menuitem], [role=option]") !==
+						null);
+			if (e.key === "Enter" && once && !typing && !control) {
 				e.preventDefault();
 				onAnswer(once.id);
 			}
