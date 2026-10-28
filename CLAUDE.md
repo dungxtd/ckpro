@@ -1,42 +1,48 @@
-# ckdry
+# CK --dry-run (ckdry)
 
-Tauri v2 app (Rust runtime in `desktop/src-tauri`, Vite + React 19 frontend in
-`desktop/src`) for practising the CKA/CKAD/CKS exams on local kind clusters.
+Tauri v2 desktop app for practising the CKA/CKAD/CKS exams on local kind
+clusters: Rust core in `desktop/src-tauri`, React 19 interface in
+`desktop/src`, UI kit in `packages/ckdry-ui`, question bank in `packs/core`.
 Architecture: `docs/ARCHITECTURE.md`.
 
-## UI
+## Invariants
 
-The frontend follows the nextflix stack and its kit conventions.
+- **Exam mode is AI-free.** Every assistant command and MCP tool refuses
+  while an exam-mode attempt runs; Agent (commands) is practice-only.
+- **The environment is the app's.** Clusters, task host, desktop and mirror
+  run in Docker under the `ckdry` compose project; kubeconfigs stay in the
+  data directory. During an attempt the guard keeps them as set up.
+- **State lives in SQLite** (`store.rs`): settings, attempts, history, coach
+  sessions. New fields get `#[serde(default)]`; schema changes are new
+  migrations, never edits to old ones.
+- **Rust owns the truth**; the interface renders events and never polls.
+- **Errors are typed** (`AppError`) where they happen; the interface branches
+  on `code`.
 
-- **The kit first.** `packages/ckdry-ui` (`@ckdry/ui`, forked from
-  `@nextflix/ui`: Radix + `cva` + `cn()`, imported as
-  `@ckdry/ui/components/<name>`) owns every reusable control and surface:
-  - `Button` for text actions, `IconButton` for icon-only ones (its label
-    is the tooltip).
-  - `SegmentedControl` for 2–5 options, `Stepper` for − value +, `Select`
-    for longer lists.
-  - `Popover` with the `menu` classes for menus, `AlertDialog` to confirm.
-  - `Tooltip`, never a native `title=`.
-  - `Card` for grouped surfaces, `Alert` for inline messages, `CodeBlock`
-    for commands, manifests and logs.
-  - `Separator`, `Badge`, `Chip`, `Spinner`.
+## Interface rules
 
-  Hand-rolled `<button>`, `<select>` or bordered `div`s are a missing kit
-  component: add it to the kit instead.
-- **The design system, live:** `desktop/kit.html` (`cd desktop && pnpm exec
-  vite`, then `/kit.html`) shows every kit component and the app's patterns in
-  both themes. A new component or variant goes there too.
-- **Tokens, not palette colours.** Use the theme's tokens: `background`,
-  `card`, `muted`, `border`, `highlight`, `success`, `warning`,
-  `destructive`, and so on. Exam-specific accents are app tokens in
-  `desktop/src/index.css` (`exam-value`, `exam-concept`). No hex values or
-  `red-500` in classNames.
-- **A repeated class string becomes a component or a `cva` variant.**
-  `style={{…}}` is only for runtime values.
-- **Dark by default.** `data-theme="dark"` on `<html>`; `dark:` follows
-  `data-theme`.
-- **Accessible names.** Icon-only controls have an `aria-label`; labels that
-  hide in narrow layouts use `sr-only`, not `hidden`.
+- **The kit first.** `@ckdry/ui` (`@ckdry/ui/components/<name>`) owns every
+  control and surface: `Button`, `IconButton` (its label is the tooltip),
+  `SegmentedControl`, `Stepper`, `Select`, `Switch`, `Popover` with the
+  `menu` classes, `Dialog`/`AlertDialog`, `Tooltip`, `Card`, `Alert`,
+  `CodeBlock`, `Badge`, `Chip`, `Spinner`. A hand-rolled control or a class
+  string used twice becomes a kit component or variant.
+- **The design system, live**: `desktop/kit.html` (`pnpm exec vite`, then
+  `/kit.html`). New components and variants go there.
+- **Tokens, not colours**: theme tokens (`background`, `card`, `muted`,
+  `border`, `highlight`, …) and app tokens in `desktop/src/index.css`
+  (`exam-value`, `exam-concept`, `claude`). No hex values in classNames.
+- **App chrome is not selectable** (`select-none`); content is.
+- **Accessible names** on icon-only controls; `sr-only`, not `hidden`.
+- Areas that stop pointer events (the VNC canvas) register with
+  `useDismissSurface` so menus still close.
+
+## Commits
+
+Conventional Commits: `type(scope): subject`, imperative, lower case, no
+period, at most 72 characters; a body of plain prose for the why. No
+trailers, no tool or AI mentions, no references to other projects. Local
+only until asked to push.
 
 ## Checks
 
@@ -44,7 +50,10 @@ The frontend follows the nextflix stack and its kit conventions.
 cd desktop && pnpm typecheck
 pnpm exec biome check <files you touched> --write
 cd src-tauri && cargo test            # unit tests; e2e: cargo test -- --ignored
+cargo run -- lab lint ../../packs/core
 ```
 
-Desktop image files change the image tag: regenerate the manifest with
-`cargo run -- images > resources/images.json`.
+Commands or types changed: regenerate the bindings with
+`cargo test bindings_export` and copy `$TMPDIR/ckdry-bindings.ts` to
+`desktop/src/tauri/bindings.ts`. Image files changed: regenerate the manifest
+with `cargo run -- images > resources/images.json`.
