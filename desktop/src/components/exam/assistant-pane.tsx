@@ -233,16 +233,12 @@ export function AssistantPane({
 			>
 				{messages.length === 0 ? (
 					// Quiet: Claude's mark, and words only when
-					// something is needed (Docker, signing in)
+					// something is needed (Docker); signing in takes the editor's place
 					<div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
 						<ClaudeIcon className="size-8 text-claude opacity-80" />
-						{status && !status.ready ? (
+						{status && !status.ready && (
 							<span className="text-muted-foreground text-xs">{status.problem}</span>
-						) : signedOut ? (
-							<Button size="sm" onClick={() => setSigningIn(true)}>
-								Sign in to Claude
-							</Button>
-						) : null}
+						)}
 					</div>
 				) : (
 					<div className="flex flex-col">
@@ -291,16 +287,6 @@ export function AssistantPane({
 				{coach.error && (
 					<div className="mt-2 rounded-md bg-warning/10 px-3 py-1.5 text-muted-foreground text-xs">
 						{coach.error}
-						{signedOut && messages.length > 0 && (
-							<Button
-								size="sm"
-								variant="link"
-								className="h-auto px-1"
-								onClick={() => setSigningIn(true)}
-							>
-								Sign in
-							</Button>
-						)}
 					</div>
 				)}
 				<SignInDialog open={signingIn} onOpenChange={setSigningIn} />
@@ -322,185 +308,201 @@ export function AssistantPane({
 				)
 			)}
 
-			{/* Message editor: context, the text, then one row of controls. The
-			    profile: Ask reads and answers; Agent may also run commands (practice) */}
-			<div className="flex select-none flex-col gap-2 border-border border-t bg-card/40 p-2.5">
-				<div className="flex flex-wrap gap-1">
-					<Chip size="xs">Task</Chip>
-					{checks && coach.context.checks && (
-						<Chip size="xs" onRemove={() => coach.setContext({ checks: false })}>
-							Last check
-						</Chip>
-					)}
-					{coach.context.cluster && (
-						<Chip size="xs" onRemove={() => coach.setContext({ cluster: false })}>
-							Cluster
-						</Chip>
-					)}
+			{signedOut ? (
+				// Signed out: the place to type becomes the way in
+				<div className="flex select-none items-center gap-3 border-border border-t bg-card/40 px-3 py-3">
+					<ClaudeIcon className="size-4 shrink-0 text-claude" />
+					<span className="flex-1 text-muted-foreground text-xs">
+						Sign in with your Claude account to ask about this task.
+					</span>
+					<Button size="push" variant="pushDefault" onClick={() => setSigningIn(true)}>
+						Sign in
+					</Button>
 				</div>
-				<div className="relative">
-					<Textarea
-						variant="bare"
-						value={draft}
-						onChange={e => setDraft(e.target.value)}
-						onKeyDown={e => {
-							if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-								e.preventDefault();
-								send(draft);
-							}
-						}}
-						rows={expanded ? 12 : 2}
-						placeholder={review ? "Ask Claude about your answer…" : "Ask Claude about this task…"}
-						aria-label="Ask the assistant"
-						className={cn("select-text pr-7 text-[13px]", expanded ? "min-h-64" : "max-h-32")}
-					/>
-					<IconButton
-						variant="toolbar"
-						size="xs"
-						className="absolute top-0 right-0"
-						aria-label={expanded ? "Collapse" : "Expand Message Editor"}
-						onClick={() => setExpanded(e => !e)}
-					>
-						{expanded ? <Minimize2 /> : <Maximize2 />}
-					</IconButton>
-				</div>
-				<div className="flex items-center gap-1">
-					<Popover>
-						<PopoverTrigger asChild>
-							<IconButton variant="toolbar" size="xs" aria-label="Add Context">
-								<AtSign />
-							</IconButton>
-						</PopoverTrigger>
-						<PopoverContent side="top" className={cn(menu.surface, "w-60")}>
-							<div className={menu.header}>Add context</div>
-							<ContextRow
-								on={coach.context.checks}
-								disabled={!checks}
-								label="Last check"
-								hint={checks ? undefined : "run Check my work"}
-								toggle={() => coach.setContext({ checks: !coach.context.checks })}
-							/>
-							<ContextRow
-								on={coach.context.cluster}
-								label="Cluster snapshot"
-								hint="read-only"
-								toggle={() => coach.setContext({ cluster: !coach.context.cluster })}
-							/>
-						</PopoverContent>
-					</Popover>
-					<span className="ml-auto" />
-					{review ? (
-						<span className="text-[11px] text-muted-foreground">Ask</span>
-					) : (
+			) : (
+				// The editor: context, the text, then one row of controls. The
+				// profile: Ask reads and answers; Agent may also run commands (practice)
+				<div className="flex select-none flex-col gap-2 border-border border-t bg-card/40 p-2.5">
+					<div className="flex flex-wrap gap-1">
+						<Chip size="xs">Task</Chip>
+						{checks && coach.context.checks && (
+							<Chip size="xs" onRemove={() => coach.setContext({ checks: false })}>
+								Last check
+							</Chip>
+						)}
+						{coach.context.cluster && (
+							<Chip size="xs" onRemove={() => coach.setContext({ cluster: false })}>
+								Cluster
+							</Chip>
+						)}
+					</div>
+					<div className="relative">
+						<Textarea
+							variant="bare"
+							value={draft}
+							onChange={e => setDraft(e.target.value)}
+							onKeyDown={e => {
+								if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+									e.preventDefault();
+									send(draft);
+								}
+							}}
+							rows={expanded ? 12 : 2}
+							placeholder={review ? "Ask Claude about your answer…" : "Ask Claude about this task…"}
+							aria-label="Ask the assistant"
+							className={cn("select-text pr-7 text-[13px]", expanded ? "min-h-64" : "max-h-32")}
+						/>
+						<IconButton
+							variant="toolbar"
+							size="xs"
+							className="absolute top-0 right-0"
+							aria-label={expanded ? "Collapse" : "Expand Message Editor"}
+							onClick={() => setExpanded(e => !e)}
+						>
+							{expanded ? <Minimize2 /> : <Maximize2 />}
+						</IconButton>
+					</div>
+					<div className="flex items-center gap-1">
 						<Popover>
 							<PopoverTrigger asChild>
-								<PickerButton aria-label="Profile">
-									{coach.profile === "agent" ? "Agent" : "Ask"}
-								</PickerButton>
+								<IconButton variant="toolbar" size="xs" aria-label="Add Context">
+									<AtSign />
+								</IconButton>
 							</PopoverTrigger>
-							<PopoverContent side="top" align="end" className={cn(menu.surface, "w-64")}>
-								{PROFILES.map(p => (
+							<PopoverContent side="top" className={cn(menu.surface, "w-60")}>
+								<div className={menu.header}>Add context</div>
+								<ContextRow
+									on={coach.context.checks}
+									disabled={!checks}
+									label="Last check"
+									hint={checks ? undefined : "run Check my work"}
+									toggle={() => coach.setContext({ checks: !coach.context.checks })}
+								/>
+								<ContextRow
+									on={coach.context.cluster}
+									label="Cluster snapshot"
+									hint="read-only"
+									toggle={() => coach.setContext({ cluster: !coach.context.cluster })}
+								/>
+							</PopoverContent>
+						</Popover>
+						<span className="ml-auto" />
+						{review ? (
+							<span className="text-[11px] text-muted-foreground">Ask</span>
+						) : (
+							<Popover>
+								<PopoverTrigger asChild>
+									<PickerButton aria-label="Profile">
+										{coach.profile === "agent" ? "Agent" : "Ask"}
+									</PickerButton>
+								</PopoverTrigger>
+								<PopoverContent side="top" align="end" className={cn(menu.surface, "w-64")}>
+									{PROFILES.map(p => (
+										<button
+											key={p.value}
+											type="button"
+											className={menuRow(menu.twoLine)}
+											onClick={() => coach.setProfile(p.value)}
+										>
+											{coach.profile === p.value && <Checked />}
+											<span className="flex min-w-0 flex-col">
+												<span>{p.name}</span>
+												<span className={cn(menu.detail, "whitespace-normal")}>{p.detail}</span>
+											</span>
+										</button>
+									))}
+								</PopoverContent>
+							</Popover>
+						)}
+						<Popover>
+							<PopoverTrigger asChild>
+								<PickerButton aria-label="Model">{modelName}</PickerButton>
+							</PopoverTrigger>
+							<PopoverContent
+								side="top"
+								align="end"
+								className={cn(menu.surface, "max-h-96 w-64 overflow-y-auto")}
+							>
+								{coach.models.length === 0 && (
+									<div className={cn(menu.content, "py-1 text-muted-foreground text-xs")}>
+										Loading models…
+									</div>
+								)}
+								{coach.models.map(m => (
 									<button
-										key={p.value}
+										key={m.value}
 										type="button"
 										className={menuRow(menu.twoLine)}
-										onClick={() => coach.setProfile(p.value)}
+										onClick={() => coach.setModel(m.value)}
 									>
-										{coach.profile === p.value && <Checked />}
+										{coach.model === m.value && <Checked />}
 										<span className="flex min-w-0 flex-col">
-											<span>{p.name}</span>
-											<span className={cn(menu.detail, "whitespace-normal")}>{p.detail}</span>
+											<span className="truncate">{m.name}</span>
+											{m.description && <span className={menu.detail}>{m.description}</span>}
 										</span>
 									</button>
 								))}
 							</PopoverContent>
 						</Popover>
-					)}
-					<Popover>
-						<PopoverTrigger asChild>
-							<PickerButton aria-label="Model">{modelName}</PickerButton>
-						</PopoverTrigger>
-						<PopoverContent
-							side="top"
-							align="end"
-							className={cn(menu.surface, "max-h-96 w-64 overflow-y-auto")}
-						>
-							{coach.models.length === 0 && (
-								<div className={cn(menu.content, "py-1 text-muted-foreground text-xs")}>
-									Loading models…
-								</div>
-							)}
-							{coach.models.map(m => (
-								<button
-									key={m.value}
-									type="button"
-									className={menuRow(menu.twoLine)}
-									onClick={() => coach.setModel(m.value)}
-								>
-									{coach.model === m.value && <Checked />}
-									<span className="flex min-w-0 flex-col">
-										<span className="truncate">{m.name}</span>
-										{m.description && <span className={menu.detail}>{m.description}</span>}
-									</span>
-								</button>
-							))}
-						</PopoverContent>
-					</Popover>
-					{coach.efforts.length > 0 && (
-						<Popover>
-							<PopoverTrigger asChild>
-								<PickerButton aria-label="Effort">
-									{coach.effort === "default"
-										? "Effort"
-										: (coach.efforts.find(e => e.value === coach.effort)?.name ?? coach.effort)}
-								</PickerButton>
-							</PopoverTrigger>
-							<PopoverContent side="top" align="end" className={cn(menu.surface, "w-36")}>
-								<div className={menu.header}>Effort</div>
-								{coach.efforts.map(e => (
-									<button
-										key={e.value}
-										type="button"
-										className={menuRow()}
-										onClick={() => coach.setEffort(e.value)}
-									>
-										{coach.effort === e.value && <Checked />}
-										{e.name}
-									</button>
-								))}
-							</PopoverContent>
-						</Popover>
-					)}
-					{usage && (
-						<span className="px-1 text-[11px] text-muted-foreground tabular-nums">
-							{tokens(usage.used)} / {tokens(usage.size)}
-						</span>
-					)}
-					{writing ? (
-						<IconButton
-							variant="toolbar"
-							size="xs"
-							className="text-destructive"
-							aria-label="Stop"
-							onClick={coach.stop}
-						>
-							<Square className="fill-current" />
-						</IconButton>
-					) : (
-						<IconButton
-							variant="toolbar"
-							size="xs"
-							aria-label="Send"
-							disabled={
-								!draft.trim() || !!coach.writing || signedOut || (status !== null && !status.ready)
-							}
-							onClick={() => send(draft)}
-						>
-							<ArrowUp />
-						</IconButton>
-					)}
+						{coach.efforts.length > 0 && (
+							<Popover>
+								<PopoverTrigger asChild>
+									<PickerButton aria-label="Effort">
+										{coach.effort === "default"
+											? "Effort"
+											: (coach.efforts.find(e => e.value === coach.effort)?.name ?? coach.effort)}
+									</PickerButton>
+								</PopoverTrigger>
+								<PopoverContent side="top" align="end" className={cn(menu.surface, "w-36")}>
+									<div className={menu.header}>Effort</div>
+									{coach.efforts.map(e => (
+										<button
+											key={e.value}
+											type="button"
+											className={menuRow()}
+											onClick={() => coach.setEffort(e.value)}
+										>
+											{coach.effort === e.value && <Checked />}
+											{e.name}
+										</button>
+									))}
+								</PopoverContent>
+							</Popover>
+						)}
+						{usage && (
+							<span className="px-1 text-[11px] text-muted-foreground tabular-nums">
+								{tokens(usage.used)} / {tokens(usage.size)}
+							</span>
+						)}
+						{writing ? (
+							<IconButton
+								variant="toolbar"
+								size="xs"
+								className="text-destructive"
+								aria-label="Stop"
+								onClick={coach.stop}
+							>
+								<Square className="fill-current" />
+							</IconButton>
+						) : (
+							<IconButton
+								variant="toolbar"
+								size="xs"
+								aria-label="Send"
+								disabled={
+									!draft.trim() ||
+									!!coach.writing ||
+									signedOut ||
+									(status !== null && !status.ready)
+								}
+								onClick={() => send(draft)}
+							>
+								<ArrowUp />
+							</IconButton>
+						)}
+					</div>
 				</div>
-			</div>
+			)}
 		</aside>
 	);
 }
