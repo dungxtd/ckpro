@@ -29,9 +29,10 @@ the cluster.
 - A Docker engine: OrbStack or Docker Desktop, with 4 GB of memory or more
 
 That is all. Everything else runs in Docker or in the app's data directory:
-the clusters, task host, exam desktop and registry cache; the assistant (its
-runtime is an image, its Claude login a volume); kind and the kubeconfigs.
-Nothing is read from or written to the host's tools or settings.
+the clusters, task host, exam desktop and registry cache, kind and the
+kubeconfigs. The assistant uses the Claude CLI already signed in on the Mac
+when there is one (with Node.js), and otherwise runs in Docker with a login
+of its own; Settings > AI chooses.
 
 ## Development
 

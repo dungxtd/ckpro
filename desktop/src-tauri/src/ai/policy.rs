@@ -16,6 +16,19 @@ pub enum AgentPermission {
     All,
 }
 
+/// Where the assistant runs
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum Runtime {
+    /// This Mac's Claude CLI when it is there (its own login), else Docker
+    #[default]
+    Auto,
+    /// This Mac's Claude CLI and its login (needs Node.js for the adapter)
+    Mac,
+    /// The agent image, its login in a Docker volume: nothing on the Mac
+    Docker,
+}
+
 /// The assistant's settings, kept in the database
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
@@ -30,6 +43,14 @@ pub struct AgentSettings {
     pub never_run: Vec<String>,
     /// Name sessions from their first question
     pub auto_titles: bool,
+    pub runtime: Runtime,
+    /// A Claude CLI to use instead of the one found on this Mac
+    pub claude_path: Option<String>,
+    /// What Claude may be given: the last check, a look at the cluster
+    pub share_checks: bool,
+    pub share_cluster: bool,
+    /// Claude Code's usage and error reports to Anthropic
+    pub telemetry: bool,
 }
 
 impl Default for AgentSettings {
@@ -40,6 +61,11 @@ impl Default for AgentSettings {
             command_timeout: 60,
             never_run: Vec::new(),
             auto_titles: true,
+            runtime: Runtime::Auto,
+            claude_path: None,
+            share_checks: true,
+            share_cluster: true,
+            telemetry: false,
         }
     }
 }
@@ -53,6 +79,7 @@ impl AgentSettings {
         self.command_timeout = self.command_timeout.clamp(5, COMMAND_MAX_SECS);
         self.never_run = self.never_run.into_iter().map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect();
         self.never_run.dedup();
+        self.claude_path = self.claude_path.map(|p| p.trim().to_string()).filter(|p| !p.is_empty());
         self
     }
 

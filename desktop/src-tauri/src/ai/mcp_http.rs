@@ -46,12 +46,14 @@ impl McpHttp {
     }
 
     /// The `mcpServers` entry that gives an agent session the tools for
-    /// `question`
-    pub fn server_for(&self, question: &str) -> serde_json::Value {
+    /// `question`, reached from a container (`host.docker.internal`) or from
+    /// the Mac itself
+    pub fn server_for(&self, question: &str, from_container: bool) -> serde_json::Value {
+        let host = if from_container { "host.docker.internal" } else { "127.0.0.1" };
         serde_json::json!({
             "type": "http",
             "name": "ckdry",
-            "url": format!("http://host.docker.internal:{}/mcp/{}", self.port, hex(question)),
+            "url": format!("http://{host}:{}/mcp/{}", self.port, hex(question)),
             "headers": [{ "name": "Authorization", "value": format!("Bearer {}", self.token) }],
         })
     }
@@ -128,7 +130,7 @@ mod tests {
         let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../packs/core"));
         let bank = Arc::new(crate::lab::load::load(&root).0.unwrap());
         let server = McpHttp::start(move || bank.clone(), Arc::new(Store::in_memory().unwrap()), std::env::temp_dir(), ).await.unwrap();
-        let entry = server.server_for("core/cka-001/q01-namespace-and-pod-creation");
+        let entry = server.server_for("core/cka-001/q01-namespace-and-pod-creation", true);
         let call = |auth: &str| {
             format!(
                 "fetch({url:?}, {{ method: 'POST', headers: {{ 'Content-Type': 'application/json', Authorization: {auth:?} }}, body: JSON.stringify({{ jsonrpc: '2.0', id: 1, method: 'tools/list' }}) }}).then(async r => console.log(r.status, await r.text()))",

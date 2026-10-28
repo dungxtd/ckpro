@@ -56,6 +56,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ckdry/ui/components/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ckdry/ui/components/tabs";
 import { Textarea } from "@ckdry/ui/components/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/tooltip";
 import {
@@ -63,6 +64,7 @@ import {
 	CircleAlert,
 	Info,
 	Lightbulb,
+	Monitor,
 	Plus,
 	Settings,
 	Sparkles,
@@ -398,6 +400,27 @@ function Gallery() {
 							<CodeBlock wrap>▸ Creating nodes{"\n"}▸ Waiting for the control plane</CodeBlock>
 						</Disclosure>
 					</Card>
+				</Section>
+
+				<Section title="Tabs" note="Sections of one page with a sidebar (Settings).">
+					<div className="flex h-36 overflow-hidden rounded-lg border border-border">
+						<Tabs defaultValue="a">
+							<TabsList aria-label="Example">
+								<TabsTrigger value="a">
+									<Monitor /> Exam desk
+								</TabsTrigger>
+								<TabsTrigger value="b">
+									<Sparkles /> AI
+								</TabsTrigger>
+							</TabsList>
+							<TabsContent value="a" className="p-4 text-sm">
+								The first section
+							</TabsContent>
+							<TabsContent value="b" className="p-4 text-sm">
+								The second section
+							</TabsContent>
+						</Tabs>
+					</div>
 				</Section>
 
 				<Section

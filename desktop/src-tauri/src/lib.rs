@@ -65,6 +65,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::app_info,
         commands::agent_settings,
         commands::save_agent_settings,
+        commands::coach_runtime,
         commands::coach_history,
         commands::coach_ask,
         commands::coach_cancel,
@@ -209,6 +210,12 @@ pub fn run() {
             // files moves in once
             let store = Arc::new(store::Store::open(&data_dir.join("ckdry.db"))?);
             store.import_files(&data_dir);
+            // The assistant runs where its settings say
+            {
+                let settings = store.agent_settings().unwrap_or_default().normalized();
+                let handle = app.handle().clone();
+                tauri::async_runtime::block_on(async move { handle.state::<ai::Coach>().configure(&settings).await });
+            }
             app.manage(store.clone());
             let exams_handle = app.handle().clone();
             let exams = Arc::new(lab::exam::Exams::new(

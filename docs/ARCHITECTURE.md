@@ -69,11 +69,12 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 ## Assistant (`ai/`)
 
 - `acp.rs` is an Agent Client Protocol client over stdio; `agent.rs` runs the
-  Claude adapter in a container of the `agent` image (`docker run -i`, one
-  per connection) on the candidate's own Claude login, kept in the
-  `ckdry-claude` volume; `account.rs` reads it and signs in and out with the
-  Claude CLI in that container (the link opens on the host, the code is
-  pasted back).
+  Claude adapter where the settings say (`policy::Runtime`): Auto uses this
+  Mac's Claude CLI and its existing login when the CLI and Node.js are there,
+  otherwise a container of the `agent` image (`docker run -i`, one per
+  connection) with its own login in the `ckdry-claude` volume. `account.rs`
+  reads the login and signs in and out with that CLI (in the container, the
+  link opens on the host and the code is pasted back).
 - Sessions are per question (renamable, kept in SQLite), named by a quick
   model from their first question, with the models and effort levels the
   agent offers for the signed-in plan.
@@ -83,7 +84,9 @@ packs/core/               the question bank (YAML) and its JSON Schemas
   one token per run) with `run_command` (bash on the task host with the task
   cluster's kubeconfig, a time limit and an output cap) and `check_my_work`.
   Each call is an ACP permission request shown as a card; `policy.rs` and
-  the Assistant settings decide what runs unasked and what never runs.
+  Settings > AI > Tool access decide what runs unasked and what never runs.
+  Privacy settings decide whether the last check and a cluster snapshot go
+  with a question, and whether Claude Code reports telemetry.
   Commands run go into the answer; a question they touched shows "Claude
   helped" on the result.
 - `mcp.rs` holds the tools, shared by the HTTP server and `ckdry mcp` (stdio,
@@ -102,8 +105,8 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 - Layout, panel sizes, the assistant's model and effort, and desk settings
   are kept in the database and restored on start; the window keeps its size
   and place.
-- Settings (⌘,): Claude account, model and effort; the Assistant's profile,
-  command permissions, time limit and never-run list; desk defaults; the data
-  folder.
+- Settings (⌘,), in tabs: Exam desk; AI (the assistant switch and profile,
+  Claude Code's runtime, CLI, account, model and effort, Tool access,
+  Privacy); About.
 - Areas that stop pointer events (the VNC canvas) register with the kit's
   `useDismissSurface`, so menus still close on a press there.

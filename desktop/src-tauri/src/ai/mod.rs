@@ -270,13 +270,27 @@ impl Coach {
     }
 
     pub fn status(&self) -> CoachStatus {
-        match crate::runtime::docker::cli() {
-            Some(_) => CoachStatus { ready: true, problem: None },
-            None => CoachStatus {
+        if self.agent.on_mac() || crate::runtime::docker::cli().is_some() {
+            CoachStatus { ready: true, problem: None }
+        } else {
+            CoachStatus {
                 ready: false,
-                problem: Some("The assistant runs in Docker: install OrbStack or Docker Desktop".into()),
-            },
+                problem: Some("The assistant needs this Mac's Claude CLI or Docker: see Settings > AI".into()),
+            }
         }
+    }
+
+    /// Take the assistant settings; a new runtime restarts the adapter
+    pub async fn configure(&self, settings: &policy::AgentSettings) {
+        if self.agent.configure(settings) {
+            self.agent.restart().await;
+            self.open.lock().await.clear();
+        }
+    }
+
+    /// What runs the assistant, and what this Mac has (Settings)
+    pub async fn runtime(&self) -> agent::RuntimeInfo {
+        self.agent.info().await
     }
 
 
@@ -330,8 +344,10 @@ impl Coach {
         // is graded) and never in an exam (coach_subject refuses it anyway)
         let profile = if subject.review { Profile::Ask } else { profile };
         let cancel = self.start();
-        let checks = if context.checks { checks } else { &[] };
-        let snapshot = if context.cluster { snapshot(&subject).await } else { None };
+        // What the candidate shares with Claude (Settings > AI > Privacy)
+        let shared = store.agent_settings().unwrap_or_default();
+        let checks = if context.checks && shared.share_checks { checks } else { &[] };
+        let snapshot = if context.cluster && shared.share_cluster { snapshot(&subject).await } else { None };
         let key = (subject.attempt_id.clone(), question_id.to_string());
         let opened = match self.open.lock().await.get(&key).cloned() {
             // Another profile is another session (other tools); the history goes along
@@ -358,7 +374,8 @@ impl Coach {
                     Profile::Agent => {
                         let system = format!("{}\n{AGENT}", system(&subject));
                         let tools = self.tools.get().ok_or_else(|| AppError::assistant("the agent's tools are not ready yet; try again"))?;
-                        self.agent.new_session_with(&system, model, serde_json::json!([tools.server_for(question_id)])).await?
+                        let from_container = !self.agent.on_mac();
+                        self.agent.new_session_with(&system, model, serde_json::json!([tools.server_for(question_id, from_container)])).await?
                     }
                 };
                 self.agent.set_effort(&session, model, effort).await?;

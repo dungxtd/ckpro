@@ -325,12 +325,12 @@ export function AssistantPane({
 				<div className="flex select-none flex-col gap-2 border-border border-t bg-card/40 p-2.5">
 					<div className="flex flex-wrap gap-1">
 						<Chip size="xs">Task</Chip>
-						{checks && coach.context.checks && (
+						{checks && coach.shared.checks && coach.context.checks && (
 							<Chip size="xs" onRemove={() => coach.setContext({ checks: false })}>
 								Last check
 							</Chip>
 						)}
-						{coach.context.cluster && (
+						{coach.shared.cluster && coach.context.cluster && (
 							<Chip size="xs" onRemove={() => coach.setContext({ cluster: false })}>
 								Cluster
 							</Chip>
@@ -372,16 +372,23 @@ export function AssistantPane({
 							<PopoverContent side="top" className={cn(menu.surface, "w-60")}>
 								<div className={menu.header}>Add context</div>
 								<ContextRow
-									on={coach.context.checks}
-									disabled={!checks}
+									on={coach.context.checks && coach.shared.checks}
+									disabled={!checks || !coach.shared.checks}
 									label="Last check"
-									hint={checks ? undefined : "run Check my work"}
+									hint={
+										!coach.shared.checks
+											? "off in Settings"
+											: checks
+												? undefined
+												: "run Check my work"
+									}
 									toggle={() => coach.setContext({ checks: !coach.context.checks })}
 								/>
 								<ContextRow
-									on={coach.context.cluster}
+									on={coach.context.cluster && coach.shared.cluster}
+									disabled={!coach.shared.cluster}
 									label="Cluster snapshot"
-									hint="read-only"
+									hint={coach.shared.cluster ? "read-only" : "off in Settings"}
 									toggle={() => coach.setContext({ cluster: !coach.context.cluster })}
 								/>
 							</PopoverContent>

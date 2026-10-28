@@ -53,6 +53,11 @@ export const commands = {
 	/**  How far the assistant's agent may go on its own. */
 	agentSettings: () => typedError<AgentSettings_Serialize, AppError>(__TAURI_INVOKE("agent_settings")),
 	saveAgentSettings: (settings: AgentSettings_Deserialize) => typedError<AgentSettings_Serialize, AppError>(__TAURI_INVOKE("save_agent_settings", { settings })),
+	/**
+	 *  What runs the assistant (this Mac's Claude CLI or Docker), and what this
+	 *  Mac has.
+	 */
+	coachRuntime: () => typedError<RuntimeInfo_Serialize, AppError>(__TAURI_INVOKE("coach_runtime")),
 	/**  The question's coach session in the current attempt: its name and messages. */
 	coachHistory: (questionId: string) => typedError<CoachHistory_Serialize, AppError>(__TAURI_INVOKE("coach_history", { questionId })),
 	/**
@@ -250,6 +255,14 @@ export type AgentSettings_Deserialize = {
 	never_run?: string[],
 	/**  Name sessions from their first question */
 	auto_titles?: boolean,
+	runtime?: Runtime,
+	/**  A Claude CLI to use instead of the one found on this Mac */
+	claude_path?: string | null,
+	/**  What Claude may be given: the last check, a look at the cluster */
+	share_checks?: boolean,
+	share_cluster?: boolean,
+	/**  Claude Code's usage and error reports to Anthropic */
+	telemetry?: boolean,
 };
 
 /**  The assistant's settings, kept in the database */
@@ -266,6 +279,14 @@ export type AgentSettings_Serialize = {
 	never_run: string[],
 	/**  Name sessions from their first question */
 	auto_titles: boolean,
+	runtime: Runtime,
+	/**  A Claude CLI to use instead of the one found on this Mac */
+	claude_path: string | null,
+	/**  What Claude may be given: the last check, a look at the cluster */
+	share_checks: boolean,
+	share_cluster: boolean,
+	/**  Claude Code's usage and error reports to Anthropic */
+	telemetry: boolean,
 };
 
 export type AppError = 
@@ -763,6 +784,44 @@ export type Readiness =
 
 /**  Who said it, in a coach conversation */
 export type Role = "user" | "assistant";
+
+/**  Where the assistant runs */
+export type Runtime = 
+/**  This Mac's Claude CLI when it is there (its own login), else Docker */
+"auto" | 
+/**  This Mac's Claude CLI and its login (needs Node.js for the adapter) */
+"mac" | 
+/**  The agent image, its login in a Docker volume: nothing on the Mac */
+"docker";
+
+/**  What runs the assistant now, and what this Mac offers (Settings) */
+export type RuntimeInfo = RuntimeInfo_Serialize | RuntimeInfo_Deserialize;
+
+/**  What runs the assistant now, and what this Mac offers (Settings) */
+export type RuntimeInfo_Deserialize = {
+	/**  The runtime in use: `mac` or `docker`; none when neither can run */
+	using?: string | null,
+	/**  This Mac's Claude CLI: where, and its version */
+	claude?: string | null,
+	claude_version?: string | null,
+	/**  npx, which runs the adapter on the Mac */
+	node?: string | null,
+	/**  Why the chosen runtime cannot run */
+	problem?: string | null,
+};
+
+/**  What runs the assistant now, and what this Mac offers (Settings) */
+export type RuntimeInfo_Serialize = {
+	/**  The runtime in use: `mac` or `docker`; none when neither can run */
+	using: string | null,
+	/**  This Mac's Claude CLI: where, and its version */
+	claude: string | null,
+	claude_version: string | null,
+	/**  npx, which runs the adapter on the Mac */
+	node: string | null,
+	/**  Why the chosen runtime cannot run */
+	problem: string | null,
+};
 
 /**  The exam desk's display settings */
 export type Settings = Settings_Serialize | Settings_Deserialize;

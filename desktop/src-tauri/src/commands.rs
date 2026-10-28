@@ -230,7 +230,7 @@ pub async fn desktop_open_url(exams: State<'_, Arc<Exams>>, url: String) -> AppR
 // --- practice coach --------------------------------------------------------
 
 use crate::ai::account::{Account, SignInEvent, SignInMethod};
-use crate::ai::agent::ModelOption;
+use crate::ai::agent::{ModelOption, RuntimeInfo};
 use crate::ai::policy::AgentSettings;
 use crate::ai::{Coach, CoachContext, CoachModels, ModelChoice, CoachEvent, CoachReply, CoachHistory, CoachSession, CoachStatus};
 use crate::ai::generate::{self, GenerateRequest, Generated, GeneratorTarget};
@@ -252,10 +252,19 @@ pub fn agent_settings(store: State<'_, Arc<Store>>) -> AppResult<AgentSettings> 
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_agent_settings(store: State<'_, Arc<Store>>, settings: AgentSettings) -> AppResult<AgentSettings> {
+pub async fn save_agent_settings(coach: State<'_, Coach>, store: State<'_, Arc<Store>>, settings: AgentSettings) -> AppResult<AgentSettings> {
     let settings = settings.normalized();
     store.save_agent_settings(&settings)?;
+    coach.configure(&settings).await;
     Ok(settings)
+}
+
+/// What runs the assistant (this Mac's Claude CLI or Docker), and what this
+/// Mac has.
+#[tauri::command]
+#[specta::specta]
+pub async fn coach_runtime(coach: State<'_, Coach>) -> AppResult<RuntimeInfo> {
+    Ok(coach.runtime().await)
 }
 
 /// Where the app keeps its data, and its version.

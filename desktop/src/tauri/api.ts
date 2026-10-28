@@ -73,6 +73,8 @@ export type {
 	NodeState,
 	PermissionOption,
 	Profile,
+	Runtime,
+	RuntimeInfo,
 	Solution,
 	StudyStats,
 	TerminalEvent,
@@ -223,6 +225,8 @@ export const coachApi = {
 	signInInput: (line: string) => unwrap(commands.coachSignInInput(line)),
 	signInCancel: () => unwrap(commands.coachSignInCancel()),
 	signOut: () => unwrap(commands.coachSignOut()),
+	/** What runs the assistant (this Mac's Claude CLI or Docker), and what this Mac has */
+	runtime: () => unwrap(commands.coachRuntime()),
 	/** Results per curriculum domain, per certification attempted */
 	studyStats: () => commands.studyStats(),
 	/** A study plan from the history; `onText` gets it as it is written */

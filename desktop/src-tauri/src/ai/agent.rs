@@ -10,9 +10,13 @@ use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
+
+/// The adapter, pinned (also the agent image's): a new release is tested first
+const ADAPTER: &str = "@agentclientprotocol/claude-agent-acp@0.97.0";
 
 /// The volume the Claude login is kept in, and where the container sees it
 const LOGIN_VOLUME: &str = "ckdry-claude";
@@ -34,6 +38,72 @@ pub struct ModelOption {
 pub struct ContextUsage {
     pub used: u32,
     pub size: u32,
+}
+
+/// Where npx is: an app started from the Dock or Finder does not get the
+/// shell's PATH, so the usual Node install locations are tried too
+pub fn detect_npx() -> Option<PathBuf> {
+    let home = dirs::home_dir().unwrap_or_default();
+    let from_path = std::env::var_os("PATH")
+        .map(|path| std::env::split_paths(&path).map(|dir| dir.join("npx")).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let mut nvm: Vec<PathBuf> = std::fs::read_dir(home.join(".nvm/versions/node"))
+        .map(|d| d.flatten().map(|e| e.path().join("bin/npx")).collect())
+        .unwrap_or_default();
+    nvm.sort();
+    from_path
+        .into_iter()
+        .chain([
+            PathBuf::from("/opt/homebrew/bin/npx"),
+            PathBuf::from("/usr/local/bin/npx"),
+            home.join(".volta/bin/npx"),
+            home.join(".local/bin/npx"),
+        ])
+        .chain(nvm.into_iter().rev())
+        .find(|p| p.is_file())
+}
+/// An installed Claude CLI (`claude`), where installers put it
+pub fn detect_claude() -> Option<PathBuf> {
+    let home = dirs::home_dir().unwrap_or_default();
+    std::env::var_os("PATH")
+        .map(|path| std::env::split_paths(&path).map(|dir| dir.join("claude")).collect::<Vec<_>>())
+        .unwrap_or_default()
+        .into_iter()
+        .chain([
+            home.join(".claude/local/claude"),
+            home.join(".local/bin/claude"),
+            PathBuf::from("/opt/homebrew/bin/claude"),
+            PathBuf::from("/usr/local/bin/claude"),
+        ])
+        .find(|p| p.is_file())
+}
+
+/// What runs the assistant now, and what this Mac offers (Settings)
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
+pub struct RuntimeInfo {
+    /// The runtime in use: `mac` or `docker`; none when neither can run
+    pub using: Option<String>,
+    /// This Mac's Claude CLI: where, and its version
+    pub claude: Option<String>,
+    pub claude_version: Option<String>,
+    /// npx, which runs the adapter on the Mac
+    pub node: Option<String>,
+    /// Why the chosen runtime cannot run
+    pub problem: Option<String>,
+}
+
+/// How to run the adapter, from the settings
+#[derive(Clone, Debug, Default, PartialEq)]
+struct RunConfig {
+    runtime: super::policy::Runtime,
+    claude_path: Option<String>,
+    telemetry: bool,
+}
+
+/// Where the adapter runs, resolved
+enum Resolved {
+    Mac { npx: PathBuf, claude: PathBuf },
+    Docker,
 }
 
 /// The agent's own default model (`Default (recommended)`)
@@ -67,6 +137,7 @@ pub struct Agent {
     efforts: std::sync::Mutex<HashMap<String, Vec<ModelOption>>>,
     /// The image is there (pulled or built once per app run)
     image_ready: std::sync::atomic::AtomicBool,
+    config: std::sync::RwLock<RunConfig>,
 }
 
 /// What a session reports while it answers
@@ -131,7 +202,7 @@ pub struct Answer {
 
 impl Agent {
     pub fn new() -> Self {
-        Self { connection: tokio::sync::Mutex::new(None), models: Default::default(), efforts: Default::default(), image_ready: Default::default() }
+        Self { connection: tokio::sync::Mutex::new(None), models: Default::default(), efforts: Default::default(), image_ready: Default::default(), config: Default::default() }
     }
 
     /// The running adapter, started (and initialized) when needed
@@ -145,10 +216,113 @@ impl Agent {
         Ok(c)
     }
 
-    /// The adapter in its container, with `args` (`--cli ...` runs the
-    /// Claude CLI it bundles), stdio attached; in a pseudo-terminal when
-    /// `in_terminal` (an interactive login)
+    /// Take the settings' runtime; whether it changed (the adapter restarts)
+    pub fn configure(&self, settings: &super::policy::AgentSettings) -> bool {
+        let next = RunConfig { runtime: settings.runtime, claude_path: settings.claude_path.clone(), telemetry: settings.telemetry };
+        let mut config = self.config.write().unwrap_or_else(|p| p.into_inner());
+        let changed = *config != next;
+        *config = next;
+        changed
+    }
+
+    /// The Claude CLI to use on the Mac: the one set, else the one found
+    fn mac_claude(&self) -> Option<PathBuf> {
+        let set = self.config.read().unwrap_or_else(|p| p.into_inner()).claude_path.clone();
+        match set {
+            Some(path) => Some(PathBuf::from(path)).filter(|p| p.is_file()),
+            None => detect_claude(),
+        }
+    }
+
+    fn resolve(&self) -> AppResult<Resolved> {
+        let runtime = self.config.read().unwrap_or_else(|p| p.into_inner()).runtime;
+        let mac = || Some(Resolved::Mac { npx: detect_npx()?, claude: self.mac_claude()? });
+        match runtime {
+            super::policy::Runtime::Docker => Ok(Resolved::Docker),
+            super::policy::Runtime::Auto => Ok(mac().unwrap_or(Resolved::Docker)),
+            super::policy::Runtime::Mac => mac().ok_or_else(|| {
+                AppError::assistant("This Mac's runtime needs the Claude CLI and Node.js (for the adapter): install them, or choose Docker in Settings")
+            }),
+        }
+    }
+
+    /// Whether the adapter runs on the Mac (it reaches the app's tools on
+    /// the loopback), not in a container
+    pub fn on_mac(&self) -> bool {
+        matches!(self.resolve(), Ok(Resolved::Mac { .. }))
+    }
+
+    /// What runs the assistant, and what this Mac has
+    pub async fn info(&self) -> RuntimeInfo {
+        let claude = self.mac_claude();
+        let claude_version = match &claude {
+            Some(path) => {
+                let run = Command::new(path).arg("--version").kill_on_drop(true).output();
+                tokio::time::timeout(std::time::Duration::from_secs(10), run)
+                    .await
+                    .ok()
+                    .and_then(Result::ok)
+                    .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                    .filter(|v| !v.is_empty())
+            }
+            None => None,
+        };
+        let (using, problem) = match self.resolve() {
+            Ok(Resolved::Mac { .. }) => (Some("mac".to_string()), None),
+            Ok(Resolved::Docker) if crate::runtime::docker::cli().is_some() => (Some("docker".to_string()), None),
+            Ok(Resolved::Docker) => (None, Some("Docker is not installed".to_string())),
+            Err(e) => (None, Some(e.to_string())),
+        };
+        RuntimeInfo {
+            using,
+            claude: claude.map(|p| p.display().to_string()),
+            claude_version,
+            node: detect_npx().map(|p| p.display().to_string()),
+            problem,
+        }
+    }
+
+    /// The working directory sessions are given: empty, nothing to read
+    fn session_cwd(&self) -> String {
+        if self.on_mac() {
+            let dir = std::env::temp_dir().join("ckdry-agent");
+            let _ = std::fs::create_dir_all(&dir);
+            dir.display().to_string()
+        } else {
+            WORKDIR.to_string()
+        }
+    }
+
+    /// The adapter with `args` (`--cli ...` runs its Claude CLI), stdio
+    /// attached, where the settings say: on the Mac with its Claude CLI and
+    /// login, or in its container with the login in a volume. In a
+    /// pseudo-terminal when `in_terminal` (an interactive login)
     pub(super) async fn adapter(&self, args: &[&str], in_terminal: bool) -> AppResult<Command> {
+        let telemetry = self.config.read().unwrap_or_else(|p| p.into_inner()).telemetry;
+        let quiet: &[(&str, &str)] = if telemetry { &[] } else { &[("DISABLE_TELEMETRY", "1"), ("DISABLE_ERROR_REPORTING", "1")] };
+        if let Resolved::Mac { npx, claude } = self.resolve()? {
+            let mut argv: Vec<std::ffi::OsString> = vec![npx.clone().into(), "-y".into(), ADAPTER.into()];
+            argv.extend(args.iter().map(Into::into));
+            let mut command = if in_terminal { super::account::in_terminal(&argv) } else { Command::new(&argv[0]) };
+            if !in_terminal {
+                command.args(&argv[1..]);
+            }
+            // npx and the adapter are Node scripts: node must be on their PATH
+            let path = std::env::join_paths(
+                npx.parent().map(PathBuf::from).into_iter().chain(std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect::<Vec<_>>()).unwrap_or_default()),
+            )
+            .unwrap_or_default();
+            command
+                .current_dir(self.session_cwd())
+                // The candidate's Claude login, not an API key that happens to be set
+                .env_remove("ANTHROPIC_API_KEY")
+                .env_remove("ANTHROPIC_AUTH_TOKEN")
+                .env("PATH", path)
+                .env("CLAUDE_CODE_EXECUTABLE", claude)
+                .envs(quiet.iter().copied())
+                .kill_on_drop(true);
+            return Ok(command);
+        }
         let docker_cli = crate::runtime::docker::cli()
             .ok_or_else(|| AppError::assistant("The docker command was not found: install OrbStack or Docker Desktop"))?;
         let image = crate::runtime::infra::AGENT_IMAGE.tag();
@@ -163,6 +337,9 @@ impl Agent {
         }
         for (key, value) in crate::runtime::docker::compose_labels("agent") {
             argv.extend(["--label".into(), format!("{key}={value}").into()]);
+        }
+        for (key, value) in quiet {
+            argv.extend(["-e".into(), format!("{key}={value}").into()]);
         }
         argv.extend([
             // The app's MCP server, from the container (ai::mcp_http)
@@ -202,7 +379,7 @@ impl Agent {
             .request(
                 "session/new",
                 json!({
-                    "cwd": WORKDIR,
+                    "cwd": self.session_cwd(),
                     "mcpServers": mcp_servers,
                     "systemPrompt": { "mode": "override", "content": [{ "type": "text", "text": system }] },
                     "_meta": { "claudeCode": { "options": {

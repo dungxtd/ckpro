@@ -52,6 +52,8 @@ interface CoachStore {
 	efforts: ModelOption[];
 	effort: string;
 	setEffort: (effort: string) => void;
+	/** What the candidate lets go to Claude at all (Settings > AI > Privacy) */
+	shared: { checks: boolean; cluster: boolean };
 	/** What goes with a question besides the task (the context chips) */
 	context: CoachContext;
 	/** How much of the model's context each conversation uses */
@@ -132,6 +134,7 @@ export const useCoach = create<CoachStore>()(
 		models: [],
 		model: "sonnet",
 		context: { checks: true, cluster: true },
+		shared: { checks: true, cluster: true },
 		usage: {},
 		account: null,
 		ensureModels: () => {
@@ -140,7 +143,12 @@ export const useCoach = create<CoachStore>()(
 			// A new run starts in the profile Settings name
 			agentApi
 				.settings()
-				.then(s => set({ profile: s.default_profile }))
+				.then(s =>
+					set({
+						profile: s.default_profile,
+						shared: { checks: s.share_checks, cluster: s.share_cluster },
+					})
+				)
 				.catch(() => {});
 		},
 		loadAccount: async () => {

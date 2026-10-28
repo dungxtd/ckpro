@@ -239,6 +239,7 @@ mod tests {
     #[ignore]
     async fn the_container_reads_and_starts_a_login() {
         let agent = Agent::new();
+        agent.configure(&crate::ai::policy::AgentSettings { runtime: crate::ai::policy::Runtime::Docker, ..Default::default() });
         let account = account(&agent).await.unwrap();
         println!("{account:?}");
         let output = std::sync::Mutex::new(String::new());
@@ -263,6 +264,21 @@ mod tests {
         login.lock().unwrap().take().unwrap().cancel();
         assert!(matches!(signing.await, Err(AppError::Cancelled { .. })));
         assert!(shown.contains("https://"), "{shown}");
+    }
+
+    /// This Mac's runtime (needs its Claude CLI, signed in, and Node): the
+    /// assistant uses the login the CLI already has
+    #[tokio::test]
+    #[ignore]
+    async fn the_mac_runtime_uses_the_existing_login() {
+        let agent = Agent::new();
+        assert!(agent.on_mac(), "Auto picks this Mac's CLI when it is there");
+        let info = agent.info().await;
+        println!("{info:?}");
+        assert_eq!(info.using.as_deref(), Some("mac"));
+        let account = account(&agent).await.unwrap();
+        println!("{account:?}");
+        assert!(account.signed_in);
     }
 
     #[test]
