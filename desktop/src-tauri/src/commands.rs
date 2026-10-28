@@ -212,13 +212,11 @@ pub fn list_exams(exams: State<'_, Arc<Exams>>) -> Vec<ExamSummary> {
     exams.catalog()
 }
 
-/// Restart the exam desktop (its windows close; the client reconnects).
+/// Reset the exam desktop: a new one, every window closed; the client reconnects.
 #[tauri::command]
 #[specta::specta]
 pub async fn desktop_reset(exams: State<'_, Arc<Exams>>) -> AppResult<()> {
-    // ckdry's own restart: the guard does not report it
-    exams.expect_restart(crate::runtime::desktop::NAME);
-    crate::runtime::desktop::reset(&crate::runtime::docker::connect().await?, crate::runtime::desktop::NAME).await
+    exams.reset_desktop().await
 }
 
 /// Open allowed documentation in the exam desktop's Firefox.

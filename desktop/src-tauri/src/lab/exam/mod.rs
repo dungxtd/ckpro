@@ -264,9 +264,21 @@ impl Exams {
         });
     }
 
-    /// ckdry restarts the desktop itself (Reset desktop): not outside
-    pub fn expect_restart(&self, container: &str) {
-        self.guard.expect(container);
+    /// The exam's "Reset Desktop": a new desktop from the current image, every
+    /// window closed (a desktop that went black comes back); the attempt's
+    /// allowed docs and hosts stay, the app's client reconnects
+    pub async fn reset_desktop(&self) -> AppResult<()> {
+        let (ExamState::Running { attempt, .. } | ExamState::Resuming { attempt, .. }) = self.state() else {
+            return Err(AppError::invalid("no exam is running"));
+        };
+        let allowed = {
+            let session = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            self.allowed_docs(&attempt.certification, &session)
+        };
+        // ckdry's own: the guard does not report the old one going away
+        self.guard.expect(&self.desktop);
+        let docker = docker::connect().await?;
+        desktop::start(&docker, &self.desktop, &allowed, &attempt.clusters, &self.jumphost.name).await
     }
 
     /// Keep a running attempt; anything else has nothing to resume. While

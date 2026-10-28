@@ -641,7 +641,7 @@ mod tests {
             println!("  {line}");
         }
         assert_eq!(on_base("command -v codium").await.exit_code, 0);
-        runtime::desktop::reset(&docker, desktop).await.unwrap();
+        exams.reset_desktop().await.unwrap();
         // VNC itself must be back, not just the container (a stale X lock once
         // kept Xvnc down while websockify kept the container up)
         eventually("Reset desktop brings back VNC, VSCodium and the same allowed docs", 30, async || {

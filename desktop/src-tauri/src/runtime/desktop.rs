@@ -98,15 +98,6 @@ pub async fn session(docker: &Docker, name: &str) -> AppResult<Option<DesktopSes
     Ok(port.zip(password).map(|(port, password)| DesktopSession { port, password }))
 }
 
-/// The exam's "Reset Desktop": restart it, closing every window. The
-/// attempt's allowed docs and hosts stay; the app's client reconnects.
-pub async fn reset(docker: &Docker, name: &str) -> AppResult<()> {
-    docker
-        .restart_container(name, Some(bollard::query_parameters::RestartContainerOptions { t: Some(2), ..Default::default() }))
-        .await?;
-    Ok(())
-}
-
 /// Open a page in the desktop's Firefox (a new tab, or Firefox itself), as
 /// the candidate would. Only documentation the exam allows: Firefox's policy
 /// would block anything else anyway.
