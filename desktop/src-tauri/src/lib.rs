@@ -63,6 +63,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::desktop_reset,
         commands::desktop_open_url,
         commands::coach_status,
+        commands::coach_runtime,
+        commands::set_coach_runtime,
+        commands::app_info,
         commands::coach_history,
         commands::coach_ask,
         commands::coach_cancel,
@@ -206,6 +209,8 @@ pub fn run() {
             // files moves in once
             let store = Arc::new(store::Store::open(&data_dir.join("ckdry.db"))?);
             store.import_files(&data_dir);
+            // npx and Claude Code where Settings put them
+            app.state::<ai::Coach>().load_runtime(store.assistant_runtime().unwrap_or_default());
             app.manage(store.clone());
             let exams_handle = app.handle().clone();
             let exams = Arc::new(lab::exam::Exams::new(
@@ -575,7 +580,7 @@ mod tests {
 
         // The practice coach answers about the failing check (the real model,
         // when Claude Code is installed) and keeps the conversation
-        if ai::Coach::status().ready {
+        if ai::agent::detect_npx().is_some() {
             let streamed = std::sync::Mutex::new(String::new());
             let coach = ai::Coach::new(&std::env::temp_dir().join("ckdry-e2e-coach"));
             let context = ai::CoachContext { checks: true, cluster: true };

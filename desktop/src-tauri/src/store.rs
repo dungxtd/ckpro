@@ -322,6 +322,15 @@ impl Store {
         self.save_setting("exam_desk", settings)
     }
 
+    /// Where the assistant's runtime is, as set in Settings
+    pub fn assistant_runtime(&self) -> AppResult<crate::ai::agent::RuntimePaths> {
+        self.setting("assistant_runtime")
+    }
+
+    pub fn save_assistant_runtime(&self, paths: &crate::ai::agent::RuntimePaths) -> AppResult<()> {
+        self.save_setting("assistant_runtime", paths)
+    }
+
     /// What the exam nodes were measured to take on this machine
     pub fn footprint(&self) -> AppResult<Footprint> {
         self.setting("footprint")

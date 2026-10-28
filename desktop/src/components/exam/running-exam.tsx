@@ -16,13 +16,11 @@ import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
 import type { Attempt } from "@/tauri/api";
 import { AssistantPane } from "./assistant-pane";
+import { useDesktopSettings } from "./desktop-menu";
 import { DesktopView } from "./desktop-view";
 import { PracticeActions, QuestionPanel, TextSize } from "./question-panel";
 import { ReadMe } from "./readme";
 import { type DeskView, TopBar } from "./top-bar";
-
-/** The ExamUI's +/-: how much larger the desktop is drawn */
-const ZOOMS = [1, 1.25, 1.5, 1.75, 2];
 
 /** Like the exam's timer bar: alerts at 30, 15 and 5 minutes left */
 const ALERTS_MIN = [30, 15, 5];
@@ -72,13 +70,7 @@ export function RunningExam({
 	const [dragged, setDragged] = useState<{ task?: number; assistant?: number }>({});
 	const width = dragged.task ?? settings.task_width;
 	const assistantWidth = dragged.assistant ?? settings.assistant_width;
-	const zoom = ZOOMS.includes(settings.desktop_zoom ?? 1) ? (settings.desktop_zoom ?? 1) : 1;
-	const resolution = settings.desktop_resolution ?? null;
-	const changeZoom = (step: number) => {
-		const next = ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, ZOOMS.indexOf(zoom) + step))] ?? 1;
-		update({ desktop_zoom: next });
-	};
-	const changeResolution = (next: [number, number] | null) => update({ desktop_resolution: next });
+	const desktop = useDesktopSettings();
 	const [tab, setTab] = useState<DeskView>("desktop");
 	useTimeAlerts(endsAt);
 	const desk = useRef<HTMLDivElement>(null);
@@ -122,14 +114,7 @@ export function RunningExam({
 				endsAt={endsAt}
 				view={tab}
 				onView={setTab}
-				desktop={{
-					zoom,
-					canZoomOut: zoom > ZOOMS[0],
-					canZoomIn: zoom < ZOOMS[ZOOMS.length - 1],
-					onZoom: changeZoom,
-					resolution,
-					onResolution: changeResolution,
-				}}
+				desktop={desktop}
 				assistantOpen={assistantOpen}
 				onAssistant={setAssistantOpen}
 				onFinish={submit}
@@ -240,7 +225,7 @@ export function RunningExam({
 				<section className="relative min-w-0 flex-1">
 					{/* Stays connected behind the Readme; a new attempt is a new desktop */}
 					<div className={cn("absolute inset-0", tab !== "desktop" && "invisible")}>
-						<DesktopView key={attempt.id} zoom={zoom} resolution={resolution} />
+						<DesktopView key={attempt.id} zoom={desktop.zoom} resolution={desktop.resolution} />
 					</div>
 					{tab === "readme" && (
 						<div className="absolute inset-0 bg-background">

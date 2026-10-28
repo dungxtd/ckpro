@@ -6,6 +6,8 @@
 @theme {
 	--color-exam-value: #f472b6;
 	--color-exam-concept: #38bdf8;
+	/* Claude's own colour, where its mark stands for the assistant */
+	--color-claude: #d97757;
 }
 
 /* An app window: only the areas meant to scroll do. clip, not hidden:

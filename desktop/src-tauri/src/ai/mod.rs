@@ -56,6 +56,14 @@ pub struct ModelChoice {
     pub effort: String,
 }
 
+/// The assistant's runtime: the paths set in Settings and what the machine has
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
+pub struct RuntimeInfo {
+    pub paths: agent::RuntimePaths,
+    pub npx_found: Option<String>,
+    pub claude_found: Option<String>,
+}
+
 /// The models the coach can use
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 pub struct CoachModels {
@@ -182,14 +190,32 @@ impl Coach {
         result
     }
 
-    pub fn status() -> CoachStatus {
-        match agent::npx() {
+    pub fn status(&self) -> CoachStatus {
+        match self.agent.npx() {
             Some(_) => CoachStatus { ready: true, problem: None },
             None => CoachStatus {
                 ready: false,
-                problem: Some("Install Node.js (nodejs.org): the assistant runs Claude through npx, signed in with your Claude account".into()),
+                problem: Some("Install Node.js (nodejs.org), or set where npx is in Settings: the assistant runs Claude through npx, signed in with your Claude account".into()),
             },
         }
+    }
+
+    /// Where npx and Claude Code are, as set and as found
+    pub fn runtime(&self, paths: agent::RuntimePaths) -> RuntimeInfo {
+        let found = |p: Option<std::path::PathBuf>| p.map(|p| p.display().to_string());
+        RuntimeInfo { paths, npx_found: found(agent::detect_npx()), claude_found: found(agent::detect_claude()) }
+    }
+
+    /// Use other runtime paths: the adapter restarts on them
+    pub async fn set_runtime(&self, paths: agent::RuntimePaths) {
+        self.agent.set_paths(paths);
+        self.agent.restart().await;
+        self.open.lock().await.clear();
+    }
+
+    /// The runtime paths kept in the settings, at start
+    pub fn load_runtime(&self, paths: agent::RuntimePaths) {
+        self.agent.set_paths(paths);
     }
 
     pub fn history(exams: &Exams, store: &Store, question_id: &str) -> AppResult<CoachHistory> {

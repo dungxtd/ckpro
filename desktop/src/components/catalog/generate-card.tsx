@@ -10,9 +10,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ckdry/ui/components/select";
-import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ActivityProgress } from "@/components/activity/activity-progress";
+import { ClaudeIcon } from "@/components/claude-icon";
 import { useActivityList } from "@/stores/activity";
 import { useExam } from "@/stores/exam";
 import {
@@ -73,7 +73,7 @@ export function GenerateCard({ onGenerated }: { onGenerated: () => void }) {
 	return (
 		<Card className="flex flex-col gap-3">
 			<header className="flex items-center gap-2">
-				<Sparkles className="size-4 text-highlight" />
+				<ClaudeIcon className="size-4 text-claude" />
 				<strong className="flex-1">Generate a question</strong>
 				<SegmentedControl
 					label="Certification"
@@ -127,7 +127,7 @@ export function GenerateCard({ onGenerated }: { onGenerated: () => void }) {
 					disabled={running || !domain || (status !== null && !status.ready)}
 					onClick={generate}
 				>
-					<Sparkles /> {running ? "Generating…" : "Generate"}
+					<ClaudeIcon /> {running ? "Generating…" : "Generate"}
 				</Button>
 				{status && !status.ready && (
 					<span className="text-muted-foreground text-xs">{status.problem}</span>

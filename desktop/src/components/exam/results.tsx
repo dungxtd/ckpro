@@ -11,8 +11,9 @@ import {
 	SheetTitle,
 } from "@ckdry/ui/components/sheet";
 import { cn } from "@ckdry/ui/lib/utils";
-import { ShieldAlert, Sparkles } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { useState } from "react";
+import { ClaudeIcon } from "@/components/claude-icon";
 import { Markdown } from "@/components/markdown";
 import { useExam } from "@/stores/exam";
 import type { Attempt, ExamResult } from "@/tauri/api";
@@ -91,7 +92,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 								className="mt-2 text-highlight"
 								onClick={() => setCoached(q.id)}
 							>
-								<Sparkles /> Review with AI
+								<ClaudeIcon className="text-claude" /> Review with Claude
 							</Button>
 							<ReviewSolution questionId={q.id} />
 						</Card>
@@ -102,7 +103,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 				<SheetContent className="w-[min(480px,92vw)] gap-0 overflow-hidden p-0 sm:max-w-none">
 					{/* For screen readers; the pane shows the session's title */}
 					<SheetHeader className="sr-only">
-						<SheetTitle>Review with AI</SheetTitle>
+						<SheetTitle>Review with Claude</SheetTitle>
 						<SheetDescription>{coachedQuestion?.title}</SheetDescription>
 					</SheetHeader>
 					{coachedQuestion && coachedResult && (

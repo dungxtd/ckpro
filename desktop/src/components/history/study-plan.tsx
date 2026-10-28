@@ -12,8 +12,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ckdry/ui/components/table";
-import { Sparkles, Square } from "lucide-react";
+import { Square } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ClaudeIcon } from "@/components/claude-icon";
 import { Markdown } from "@/components/markdown";
 import {
 	ApiError,
@@ -119,7 +120,7 @@ export function StudyPlan() {
 						disabled={status !== null && !status.ready}
 						onClick={write}
 					>
-						<Sparkles /> {plan ? "Write a new study plan" : "Write my study plan"}
+						<ClaudeIcon /> {plan ? "Write a new study plan" : "Write my study plan"}
 					</Button>
 				)}
 				<span className="text-muted-foreground text-xs">

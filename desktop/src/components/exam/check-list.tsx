@@ -1,5 +1,6 @@
 import { Button } from "@ckdry/ui/components/button";
-import { CircleCheck, CircleX, Sparkles } from "lucide-react";
+import { CircleCheck, CircleX } from "lucide-react";
+import { ClaudeIcon } from "@/components/claude-icon";
 import type { CheckResult } from "@/tauri/api";
 
 /** Check results; `onWhy` adds a "Why?" to failing ones (the practice coach) */
@@ -36,7 +37,7 @@ export function CheckList({
 							className="shrink-0 text-highlight"
 							onClick={() => onWhy(check)}
 						>
-							<Sparkles /> Why?
+							<ClaudeIcon className="text-claude" /> Why?
 						</Button>
 					)}
 				</li>

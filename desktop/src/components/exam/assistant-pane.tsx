@@ -18,13 +18,13 @@ import {
 	Minimize2,
 	Plus,
 	RotateCw,
-	Sparkles,
 	Square,
 	X,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SignInDialog } from "@/components/account/sign-in-dialog";
+import { ClaudeIcon } from "@/components/claude-icon";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
 import {
@@ -175,19 +175,6 @@ export function AssistantPane({
 											: `Claude ${coach.account.plan ?? "subscription"}`}
 									</span>
 								</div>
-								<button
-									type="button"
-									className={menuRow()}
-									disabled={writing}
-									onClick={() =>
-										coachApi
-											.signOut()
-											.then(coach.loadAccount)
-											.catch(e => toast.error(String(e)))
-									}
-								>
-									Sign Out
-								</button>
 							</>
 						) : (
 							<button type="button" className={menuRow()} onClick={() => setSigningIn(true)}>
@@ -244,23 +231,17 @@ export function AssistantPane({
 				className="min-h-0 flex-1 select-text overflow-y-auto overflow-x-hidden p-2"
 			>
 				{messages.length === 0 ? (
-					<div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-						<Sparkles className="size-9 text-muted-foreground/70" strokeWidth={1.5} />
-						<span className="font-semibold text-[15px]">
-							{review ? "Review this task with AI" : "Ask AI about this task"}
-						</span>
-						<span className="text-muted-foreground text-xs">
-							{status && !status.ready
-								? status.problem
-								: signedOut
-									? "Sign in with your Claude account to ask."
-									: "It reads the task, your last check and the cluster, and answers. It never runs anything. Answers may be inaccurate."}
-						</span>
-						{signedOut && status?.ready && (
-							<Button size="sm" className="mt-1" onClick={() => setSigningIn(true)}>
+					// Quiet like Zed's empty panel: Claude's mark, and words only when
+					// something is needed (Node.js, signing in)
+					<div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+						<ClaudeIcon className="size-8 text-claude opacity-80" />
+						{status && !status.ready ? (
+							<span className="text-muted-foreground text-xs">{status.problem}</span>
+						) : signedOut ? (
+							<Button size="sm" onClick={() => setSigningIn(true)}>
 								Sign in to Claude
 							</Button>
-						)}
+						) : null}
 					</div>
 				) : (
 					<div className="flex flex-col">
@@ -283,7 +264,7 @@ export function AssistantPane({
 							) : (
 								// biome-ignore lint/suspicious/noArrayIndexKey: append-only list
 								<div key={i} className="my-1 flex min-w-0 flex-col gap-1.5 px-2">
-									<Sparkles className="size-3 text-muted-foreground" />
+									<ClaudeIcon className="size-3.5 text-claude" />
 									{m.text ? (
 										<Answer>{m.text}</Answer>
 									) : (
@@ -352,7 +333,7 @@ export function AssistantPane({
 							}
 						}}
 						rows={expanded ? 12 : 2}
-						placeholder="Ask about this task…"
+						placeholder={review ? "Ask Claude about your answer…" : "Ask Claude about this task…"}
 						aria-label="Ask the assistant"
 						className={cn("select-text pr-7 text-[13px]", expanded ? "min-h-64" : "max-h-32")}
 					/>

@@ -33,9 +33,21 @@ pub struct ContextUsage {
     pub size: u32,
 }
 
+/// Where the assistant's runtime is, when the candidate set it (Settings);
+/// unset, it is found on the machine
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(default)]
+pub struct RuntimePaths {
+    /// npx, which runs the ACP adapter
+    pub npx: Option<String>,
+    /// A Claude Code CLI to use instead of the one the adapter bundles
+    /// (`CLAUDE_CODE_EXECUTABLE`)
+    pub claude: Option<String>,
+}
+
 /// Where npx is: an app started from the Dock or Finder does not get the
 /// shell's PATH, so the usual Node install locations are tried too
-pub fn npx() -> Option<PathBuf> {
+pub fn detect_npx() -> Option<PathBuf> {
     let home = dirs::home_dir().unwrap_or_default();
     let from_path = std::env::var_os("PATH")
         .map(|path| std::env::split_paths(&path).map(|dir| dir.join("npx")).collect::<Vec<_>>())
@@ -53,6 +65,22 @@ pub fn npx() -> Option<PathBuf> {
             home.join(".local/bin/npx"),
         ])
         .chain(nvm.into_iter().rev())
+        .find(|p| p.is_file())
+}
+
+/// An installed Claude Code CLI (`claude`), where installers put it
+pub fn detect_claude() -> Option<PathBuf> {
+    let home = dirs::home_dir().unwrap_or_default();
+    std::env::var_os("PATH")
+        .map(|path| std::env::split_paths(&path).map(|dir| dir.join("claude")).collect::<Vec<_>>())
+        .unwrap_or_default()
+        .into_iter()
+        .chain([
+            home.join(".claude/local/claude"),
+            home.join(".local/bin/claude"),
+            PathBuf::from("/opt/homebrew/bin/claude"),
+            PathBuf::from("/usr/local/bin/claude"),
+        ])
         .find(|p| p.is_file())
 }
 
@@ -87,6 +115,8 @@ pub struct Agent {
     models: std::sync::Mutex<Vec<ModelOption>>,
     /// Effort levels per model, as sessions reported them (they differ by model)
     efforts: std::sync::Mutex<HashMap<String, Vec<ModelOption>>>,
+    /// npx and Claude Code as set in Settings
+    paths: std::sync::RwLock<RuntimePaths>,
 }
 
 /// One answer: its text and the session's context use after it
@@ -97,7 +127,7 @@ pub struct Answer {
 
 impl Agent {
     pub fn new(data_dir: &Path) -> Self {
-        Self { workdir: data_dir.join("agent"), connection: tokio::sync::Mutex::new(None), models: Default::default(), efforts: Default::default() }
+        Self { workdir: data_dir.join("agent"), connection: tokio::sync::Mutex::new(None), models: Default::default(), efforts: Default::default(), paths: Default::default() }
     }
 
     /// The running adapter, started (and initialized) when needed
@@ -111,10 +141,22 @@ impl Agent {
         Ok(c)
     }
 
-    /// The adapter with `args` (`--cli ...` runs the Claude CLI it bundles),
-    /// in a pseudo-terminal when `in_terminal` (an interactive login)
+    /// Use these paths from now on (the next adapter start)
+    pub fn set_paths(&self, paths: RuntimePaths) {
+        *self.paths.write().unwrap_or_else(|p| p.into_inner()) = paths;
+    }
+
+    /// npx as set in Settings, else as found on the machine
+    pub fn npx(&self) -> Option<PathBuf> {
+        let set = self.paths.read().unwrap_or_else(|p| p.into_inner()).npx.clone();
+        set.map(PathBuf::from).filter(|p| p.is_file()).or_else(detect_npx)
+    }
+
+    /// The adapter with `args` (`--cli ...` runs the Claude CLI it bundles,
+    /// or the one set in Settings), in a pseudo-terminal when `in_terminal`
+    /// (an interactive login)
     pub(super) fn adapter(&self, args: &[&str], in_terminal: bool) -> AppResult<Command> {
-        let npx = npx().ok_or_else(|| {
+        let npx = self.npx().ok_or_else(|| {
             AppError::assistant("Node.js is not installed: the assistant runs Claude through npx (nodejs.org)")
         })?;
         std::fs::create_dir_all(&self.workdir).map_err(|e| AppError::io("creating the agent directory", e))?;
@@ -136,6 +178,10 @@ impl Agent {
             .env_remove("ANTHROPIC_AUTH_TOKEN")
             .env("PATH", path)
             .kill_on_drop(true);
+        match self.paths.read().unwrap_or_else(|p| p.into_inner()).claude.as_deref() {
+            Some(claude) => command.env("CLAUDE_CODE_EXECUTABLE", claude),
+            None => command.env_remove("CLAUDE_CODE_EXECUTABLE"),
+        };
         Ok(command)
     }
 

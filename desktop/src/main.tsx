@@ -1,5 +1,7 @@
+import { IconButton } from "@ckdry/ui/components/icon-button";
 import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import { Toaster } from "@ckdry/ui/components/sonner";
+import { Settings } from "lucide-react";
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -16,6 +18,7 @@ import { CatalogRoute } from "@/routes/catalog";
 import { EnvironmentRoute } from "@/routes/environment";
 import { ExamRoute } from "@/routes/exam";
 import { HistoryRoute } from "@/routes/history";
+import { SettingsRoute } from "@/routes/settings";
 import { useActivities } from "@/stores/activity";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
@@ -31,6 +34,17 @@ const NAV = [
 function Layout() {
 	const { pathname } = useLocation();
 	const navigate = useNavigate();
+	// ⌘, opens Settings, as in every Mac app
+	useEffect(() => {
+		const open = (e: KeyboardEvent) => {
+			if (e.metaKey && e.key === ",") {
+				e.preventDefault();
+				navigate("/settings");
+			}
+		};
+		window.addEventListener("keydown", open);
+		return () => window.removeEventListener("keydown", open);
+	}, [navigate]);
 	return (
 		<div className="flex h-full flex-col">
 			<header className="flex select-none items-center gap-4 border-border border-b px-4 py-2">
@@ -38,7 +52,19 @@ function Layout() {
 				<nav>
 					<SegmentedControl label="Sections" options={NAV} value={pathname} onChange={navigate} />
 				</nav>
-				<ActivityChip />
+				<div className="ml-auto flex items-center gap-2">
+					<ActivityChip />
+					<IconButton
+						variant="plain"
+						size="sm"
+						className="size-7"
+						active={pathname === "/settings"}
+						aria-label="Settings (⌘,)"
+						onClick={() => navigate("/settings")}
+					>
+						<Settings />
+					</IconButton>
+				</div>
 			</header>
 			<main className="min-h-0 flex-1 overflow-auto">
 				<Outlet />
@@ -82,6 +108,7 @@ function App() {
 						<Route path="/" element={<CatalogRoute />} />
 						<Route path="/history" element={<HistoryRoute />} />
 						<Route path="/environment" element={<EnvironmentRoute />} />
+						<Route path="/settings" element={<SettingsRoute />} />
 					</Route>
 				</Routes>
 			</HashRouter>

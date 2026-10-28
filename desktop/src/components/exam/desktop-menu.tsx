@@ -6,6 +6,7 @@ import { cn } from "@ckdry/ui/lib/utils";
 import { Check, RotateCcw, Settings } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useSettings } from "@/stores/settings";
 import { desktopApi } from "@/tauri/api";
 
 export const RESOLUTIONS: [number, number][] = [
@@ -14,6 +15,25 @@ export const RESOLUTIONS: [number, number][] = [
 	[1600, 900],
 	[1920, 1080],
 ];
+
+/** The ExamUI's +/-: how much larger the desktop is drawn */
+const ZOOMS = [1, 1.25, 1.5, 1.75, 2];
+
+/** The desktop's size and resolution, kept in the settings */
+export function useDesktopSettings(): DesktopMenuProps {
+	const { settings, update } = useSettings();
+	const zoom = ZOOMS.find(z => z === settings.desktop_zoom) ?? 1;
+	const at = ZOOMS.indexOf(zoom);
+	return {
+		zoom,
+		canZoomOut: at > 0,
+		canZoomIn: at < ZOOMS.length - 1,
+		onZoom: step =>
+			update({ desktop_zoom: ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, at + step))] ?? 1 }),
+		resolution: settings.desktop_resolution ?? null,
+		onResolution: resolution => update({ desktop_resolution: resolution }),
+	};
+}
 
 export interface DesktopMenuProps {
 	/** How much larger the desktop is drawn (the ExamUI's +/-) */

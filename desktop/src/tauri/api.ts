@@ -16,6 +16,7 @@ import {
 	type Mode,
 	type ModelChoice,
 	type Progress,
+	type RuntimePaths_Deserialize,
 	type Settings_Serialize,
 	type SignInEvent,
 	type SignInMethod,
@@ -32,6 +33,7 @@ export type { Progress };
 /** The Claude login the assistant answers as */
 export type Account = Account_Serialize;
 export type { SignInMethod };
+export type RuntimePaths = RuntimePaths_Deserialize;
 
 /** A long operation as the app sends it */
 export type Activity = Activity_Serialize;
@@ -44,6 +46,7 @@ export type QuestionView = Attempt["questions"][number];
 
 export type {
 	AppError,
+	AppInfo,
 	Check,
 	CheckResult,
 	ClusterState,
@@ -65,6 +68,7 @@ export type {
 	Mode,
 	ModelOption,
 	NodeState,
+	RuntimeInfo,
 	ScriptResult,
 	Solution,
 	StudyStats,
@@ -214,6 +218,10 @@ export const coachApi = {
 	signInInput: (line: string) => unwrap(commands.coachSignInInput(line)),
 	signInCancel: () => unwrap(commands.coachSignInCancel()),
 	signOut: () => unwrap(commands.coachSignOut()),
+	/** Where npx and Claude Code are: as set in Settings, and as found */
+	runtime: () => unwrap(commands.coachRuntime()),
+	/** Set them (empty: found on the machine); the assistant restarts on them */
+	setRuntime: (paths: RuntimePaths) => unwrap(commands.setCoachRuntime(paths)),
 	/** Results per curriculum domain, per certification attempted */
 	studyStats: () => commands.studyStats(),
 	/** A study plan from the history; `onText` gets it as it is written */
@@ -234,6 +242,11 @@ export const generatorApi = {
 	/** Write a question, prove it on a cluster, keep it in "My questions"
 	 * (progress as an activity) */
 	generate: (request: GenerateRequest) => unwrap(commands.generateQuestion(request)),
+};
+
+export const appApi = {
+	/** Where the app keeps its data, and its version */
+	info: () => commands.appInfo(),
 };
 
 /** Web pages outside the exam desktop open in the system browser */

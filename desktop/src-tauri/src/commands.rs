@@ -240,16 +240,73 @@ pub async fn desktop_open_url(exams: State<'_, Arc<Exams>>, url: String) -> AppR
 // --- practice coach --------------------------------------------------------
 
 use crate::ai::account::{Account, SignInEvent, SignInMethod};
-use crate::ai::agent::ModelOption;
-use crate::ai::{Coach, CoachContext, CoachModels, ModelChoice, CoachEvent, CoachReply, CoachHistory, CoachSession, CoachStatus};
+use crate::ai::agent::{ModelOption, RuntimePaths};
+use crate::ai::{Coach, CoachContext, CoachModels, ModelChoice, RuntimeInfo, CoachEvent, CoachReply, CoachHistory, CoachSession, CoachStatus};
 use crate::ai::generate::{self, GenerateRequest, Generated, GeneratorTarget};
 use crate::lab::exam::StudyStats;
 
-/// Whether the coach can run (Claude Code installed).
+/// Whether the coach can run (Node.js for the adapter found).
 #[tauri::command]
 #[specta::specta]
-pub fn coach_status() -> CoachStatus {
-    Coach::status()
+pub fn coach_status(coach: State<'_, Coach>) -> CoachStatus {
+    coach.status()
+}
+
+/// Where npx and Claude Code are: as set in Settings, and as found.
+#[tauri::command]
+#[specta::specta]
+pub fn coach_runtime(coach: State<'_, Coach>, store: State<'_, Arc<Store>>) -> AppResult<RuntimeInfo> {
+    Ok(coach.runtime(store.assistant_runtime()?))
+}
+
+/// Set where npx and Claude Code are (unset: found on the machine); each
+/// set path must be an executable file. The assistant restarts on them.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_coach_runtime(
+    coach: State<'_, Coach>,
+    store: State<'_, Arc<Store>>,
+    paths: RuntimePaths,
+) -> AppResult<RuntimeInfo> {
+    let paths = RuntimePaths { npx: runtime_path(paths.npx, "npx")?, claude: runtime_path(paths.claude, "Claude Code")? };
+    store.save_assistant_runtime(&paths)?;
+    coach.set_runtime(paths.clone()).await;
+    Ok(coach.runtime(paths))
+}
+
+/// A runtime path as typed: none when empty, `~/` expanded, and it must be
+/// an executable file
+fn runtime_path(path: Option<String>, what: &str) -> AppResult<Option<String>> {
+    let Some(path) = path.map(|p| p.trim().to_string()).filter(|p| !p.is_empty()) else { return Ok(None) };
+    let expanded = match path.strip_prefix("~/") {
+        Some(rest) => dirs::home_dir().unwrap_or_default().join(rest),
+        None => std::path::PathBuf::from(&path),
+    };
+    if !expanded.is_absolute() {
+        return Err(AppError::invalid(format!("{what}: give the full path (/…)")));
+    }
+    if !is_executable(&expanded) {
+        return Err(AppError::invalid(format!("{what}: no executable file at {}", expanded.display())));
+    }
+    Ok(Some(expanded.display().to_string()))
+}
+
+fn is_executable(path: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+}
+
+/// Where the app keeps its data, and its version.
+#[tauri::command]
+#[specta::specta]
+pub fn app_info() -> AppInfo {
+    AppInfo { data_dir: crate::data_dir().display().to_string(), version: env!("CARGO_PKG_VERSION").into() }
+}
+
+#[derive(serde::Serialize, specta::Type)]
+pub struct AppInfo {
+    pub data_dir: String,
+    pub version: String,
 }
 
 /// The question's coach session in the current attempt: its name and messages.
@@ -538,4 +595,19 @@ pub fn question_solution(exams: State<'_, Arc<Exams>>, question_id: String) -> A
 #[specta::specta]
 pub fn exam_history(exams: State<'_, Arc<Exams>>) -> Vec<HistoryEntry> {
     exams.history()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn runtime_paths_are_executable_files_or_nothing() {
+        assert_eq!(runtime_path(Some("  ".into()), "npx").unwrap(), None);
+        assert_eq!(runtime_path(None, "npx").unwrap(), None);
+        assert_eq!(runtime_path(Some("/bin/sh".into()), "npx").unwrap().as_deref(), Some("/bin/sh"));
+        assert!(runtime_path(Some("npx".into()), "npx").unwrap_err().to_string().contains("full path"));
+        assert!(runtime_path(Some("/etc/hosts".into()), "npx").unwrap_err().to_string().contains("no executable"));
+        assert!(runtime_path(Some("/nonexistent/claude".into()), "Claude Code").is_err());
+    }
 }

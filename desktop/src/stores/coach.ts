@@ -41,6 +41,8 @@ interface CoachStore {
 	account: Account | null;
 	/** Read the login again (after signing in or out) */
 	loadAccount: () => Promise<void>;
+	/** Read the models the agent offers, once (Settings, the pane) */
+	ensureModels: () => void;
 	/** Show or hide the assistant pane (kept in the settings) */
 	setOpen: (open: boolean) => void;
 	setModel: (model: string) => void;
@@ -113,6 +115,9 @@ export const useCoach = create<CoachStore>()(
 		context: { checks: true, cluster: true },
 		usage: {},
 		account: null,
+		ensureModels: () => {
+			if (get().models.length === 0) loadModels(set, get);
+		},
 		loadAccount: async () => {
 			try {
 				set({ account: await coachApi.account() });
@@ -140,7 +145,7 @@ export const useCoach = create<CoachStore>()(
 			}),
 		load: async questionId => {
 			set(forAttempt);
-			if (get().models.length === 0) loadModels(set, get);
+			get().ensureModels();
 			if (get().sessions[questionId]) return;
 			try {
 				const { title, messages } = await coachApi.history(questionId);

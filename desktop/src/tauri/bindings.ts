@@ -48,8 +48,17 @@ export const commands = {
 	desktopReset: () => typedError<null, AppError>(__TAURI_INVOKE("desktop_reset")),
 	/**  Open allowed documentation in the exam desktop's Firefox. */
 	desktopOpenUrl: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("desktop_open_url", { url })),
-	/**  Whether the coach can run (Claude Code installed). */
+	/**  Whether the coach can run (Node.js for the adapter found). */
 	coachStatus: () => __TAURI_INVOKE<CoachStatus_Serialize>("coach_status"),
+	/**  Where npx and Claude Code are: as set in Settings, and as found. */
+	coachRuntime: () => typedError<RuntimeInfo_Serialize, AppError>(__TAURI_INVOKE("coach_runtime")),
+	/**
+	 *  Set where npx and Claude Code are (unset: found on the machine); each
+	 *  set path must be an executable file. The assistant restarts on them.
+	 */
+	setCoachRuntime: (paths: RuntimePaths_Deserialize) => typedError<RuntimeInfo_Serialize, AppError>(__TAURI_INVOKE("set_coach_runtime", { paths })),
+	/**  Where the app keeps its data, and its version. */
+	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
 	/**  The question's coach session in the current attempt: its name and messages. */
 	coachHistory: (questionId: string) => typedError<CoachHistory_Serialize, AppError>(__TAURI_INVOKE("coach_history", { questionId })),
 	/**
@@ -235,6 +244,11 @@ export type AppError =
 { code: "assistant"; message: string } | 
 /**  The assistant has no Claude login (or it expired). */
 { code: "sign_in_required"; message: string };
+
+export type AppInfo = {
+	data_dir: string,
+	version: string,
+};
 
 export type Attempt = Attempt_Serialize | Attempt_Deserialize;
 
@@ -674,6 +688,57 @@ export type Readiness =
 
 /**  Who said it, in a coach conversation */
 export type Role = "user" | "assistant";
+
+/**  The assistant's runtime: the paths set in Settings and what the machine has */
+export type RuntimeInfo = RuntimeInfo_Serialize | RuntimeInfo_Deserialize;
+
+/**  The assistant's runtime: the paths set in Settings and what the machine has */
+export type RuntimeInfo_Deserialize = {
+	paths: RuntimePaths_Deserialize,
+	npx_found?: string | null,
+	claude_found?: string | null,
+};
+
+/**  The assistant's runtime: the paths set in Settings and what the machine has */
+export type RuntimeInfo_Serialize = {
+	paths: RuntimePaths_Serialize,
+	npx_found: string | null,
+	claude_found: string | null,
+};
+
+/**
+ *  Where the assistant's runtime is, when the candidate set it (Settings);
+ *  unset, it is found on the machine
+ */
+export type RuntimePaths = RuntimePaths_Serialize | RuntimePaths_Deserialize;
+
+/**
+ *  Where the assistant's runtime is, when the candidate set it (Settings);
+ *  unset, it is found on the machine
+ */
+export type RuntimePaths_Deserialize = {
+	/**  npx, which runs the ACP adapter */
+	npx?: string | null,
+	/**
+	 *  A Claude Code CLI to use instead of the one the adapter bundles
+	 *  (`CLAUDE_CODE_EXECUTABLE`)
+	 */
+	claude?: string | null,
+};
+
+/**
+ *  Where the assistant's runtime is, when the candidate set it (Settings);
+ *  unset, it is found on the machine
+ */
+export type RuntimePaths_Serialize = {
+	/**  npx, which runs the ACP adapter */
+	npx: string | null,
+	/**
+	 *  A Claude Code CLI to use instead of the one the adapter bundles
+	 *  (`CLAUDE_CODE_EXECUTABLE`)
+	 */
+	claude: string | null,
+};
 
 export type ScriptResult = {
 	exit_code: number,
