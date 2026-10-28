@@ -20,7 +20,14 @@ for _ in $(seq 50); do [ -S /tmp/.X11-unix/X1 ] && break; sleep 0.1; done
 # xfdesktop shows them (and so this script can see the session come up)
 eval "$(dbus-launch --sh-syntax)"
 trust-launchers
-startxfce4 >/tmp/xfce.log 2>&1 &
+# Logging out (there is no menu item for it, but a terminal can) or a crash
+# ends the session: start it again, as Reset desktop would, rather than leave
+# the candidate a black screen
+(while :; do
+  startxfce4 >>/tmp/xfce.log 2>&1
+  echo "the session ended: starting it again" >>/tmp/xfce.log
+  sleep 1
+done) &
 
 # The app connects, and sets the desktop to its size, only once the panel and
 # the desktop are up: resized while they start, they stay laid out for the old

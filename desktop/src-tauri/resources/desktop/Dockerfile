@@ -67,6 +67,15 @@ RUN conf=/home/candidate/.config/xfce4 \
       && cp /usr/share/applications/${launcher#*:}.desktop $conf/panel/launcher-${launcher%%:*}/; \
     done
 
+# No way to log out or shut down from the desktop (it would leave a black
+# screen): the user button lists no session actions, the menu no Log Out
+RUN conf=/home/candidate/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml \
+ && sed -i 's|<property name="plugin-10" type="string" value="actions"/>|<property name="plugin-10" type="string" value="actions"><property name="items" type="array"><value type="string" value="-lock-screen"/><value type="string" value="-switch-user"/><value type="string" value="-separator"/><value type="string" value="-suspend"/><value type="string" value="-hibernate"/><value type="string" value="-hybrid-sleep"/><value type="string" value="-separator"/><value type="string" value="-shutdown"/><value type="string" value="-restart"/><value type="string" value="-separator"/><value type="string" value="-logout"/><value type="string" value="-logout-dialog"/></property></property>|' $conf \
+ && grep -q 'value="-logout-dialog"' $conf \
+ && mkdir -p /home/candidate/.local/share/applications \
+ && sed '/^\[Desktop Entry\]/a NoDisplay=true' /usr/share/applications/xfce4-session-logout.desktop \
+      > /home/candidate/.local/share/applications/xfce4-session-logout.desktop
+
 RUN mkdir -m 1777 -p /tmp/.ICE-unix \
  && chmod +x /usr/local/bin/start-desktop /usr/local/bin/trust-launchers /home/candidate/Desktop/*.desktop \
  && chown -R candidate:candidate /home/candidate
