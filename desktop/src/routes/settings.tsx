@@ -337,7 +337,7 @@ function ClaudeCodePanel({
 			</Row>
 			<Row label="Model" detail="The assistant's picker changes it too">
 				<Select value={coach.model} onValueChange={coach.setModel}>
-					<SelectTrigger aria-label="Model" className="w-44">
+					<SelectTrigger aria-label="Model">
 						<SelectValue placeholder="Loading…" />
 					</SelectTrigger>
 					<SelectContent>
@@ -352,7 +352,7 @@ function ClaudeCodePanel({
 			{coach.efforts.length > 0 && (
 				<Row label="Effort">
 					<Select value={coach.effort} onValueChange={coach.setEffort}>
-						<SelectTrigger aria-label="Effort" className="w-44">
+						<SelectTrigger aria-label="Effort">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -412,7 +412,7 @@ function ToolAccess({ settings, save }: Section) {
 					value={settings.permission}
 					onValueChange={permission => save({ permission: permission as AgentPermission })}
 				>
-					<SelectTrigger aria-label="Agent commands" className="w-64">
+					<SelectTrigger aria-label="Agent commands">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
@@ -547,7 +547,7 @@ function DeskSettings() {
 						)
 					}
 				>
-					<SelectTrigger aria-label="Desktop resolution" className="w-52">
+					<SelectTrigger aria-label="Desktop resolution">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
