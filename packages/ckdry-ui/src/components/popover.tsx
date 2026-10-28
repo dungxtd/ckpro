@@ -1,5 +1,6 @@
 import { useThemeScope } from "@ckdry/ui/components/theme-scope";
 import { cn } from "@ckdry/ui/lib/utils";
+import { useDismissableLayerSurface } from "@radix-ui/react-dismissable-layer";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import type * as React from "react";
 
@@ -33,3 +34,11 @@ function PopoverContent({
 }
 
 export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger };
+
+/**
+ * A ref for an area that handles its own pointer events and stops them (a
+ * remote desktop's canvas, an embedded editor). Popovers, menus and dialogs
+ * otherwise read that as "handled there" and stay open; a press on the area
+ * closes them like any press outside.
+ */
+export const useDismissSurface = useDismissableLayerSurface;

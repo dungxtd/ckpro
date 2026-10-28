@@ -1,3 +1,4 @@
+import { useDismissSurface } from "@ckdry/ui/components/popover";
 import RFB from "@novnc/novnc";
 import { useEffect, useRef, useState } from "react";
 import { desktopApi } from "@/tauri/api";
@@ -46,6 +47,8 @@ export function DesktopView({
 	const zoomRef = useRef(zoom);
 	const resolutionRef = useRef(resolution);
 	const [connected, setConnected] = useState(false);
+	// noVNC stops its canvas's mouse events: a press on it still closes menus
+	const surface = useDismissSurface();
 
 	useEffect(() => {
 		let retry: ReturnType<typeof setTimeout> | undefined;
@@ -137,7 +140,7 @@ export function DesktopView({
 	}, [zoom, resolution]);
 
 	return (
-		<div className="relative h-full w-full bg-[#1e1e1e]">
+		<div ref={surface} className="relative h-full w-full bg-[#1e1e1e]">
 			<div ref={screen} className="h-full w-full" />
 			{!connected && (
 				<div className="absolute inset-0 grid place-items-center text-muted-foreground text-sm">
