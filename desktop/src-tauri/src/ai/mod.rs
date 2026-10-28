@@ -46,6 +46,29 @@ const STUDY_PLANS: &str = "study-plan";
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CoachEvent {
     Text { text: String },
+    /// A command the agent runs (Agent profile), as it goes
+    Tool { id: String, command: String, status: String },
+    /// The agent asks to run a command: the candidate picks an option
+    /// (`coach_permit`)
+    Permission { id: u32, command: String, options: Vec<PermissionOption> },
+}
+
+/// One way to answer a permission request (ACP's options: allow once,
+/// allow always, reject once…)
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
+pub struct PermissionOption {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+}
+
+/// Ask: the coach reads and answers. Agent: it may also run commands on the
+/// task's host, each approved by the candidate (practice only)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum Profile {
+    Ask,
+    Agent,
 }
 
 /// Whether the coach can run here
@@ -61,6 +84,7 @@ pub struct CoachStatus {
 pub struct ModelChoice {
     pub model: String,
     pub effort: String,
+    pub profile: Profile,
 }
 
 /// The assistant's runtime: the paths set in Settings and what the machine has
@@ -136,8 +160,10 @@ pub struct Coach {
     agent: Agent,
     running: Mutex<Option<CancellationToken>>,
     /// The ACP sessions behind open coach sessions: (attempt, question) →
-    /// (ACP session, model, effort)
-    open: tokio::sync::Mutex<HashMap<(String, String), (String, String, String)>>,
+    /// (ACP session, model, effort, profile)
+    open: tokio::sync::Mutex<HashMap<(String, String), (String, String, String, Profile)>>,
+    /// Permission requests waiting for the candidate, by id
+    permissions: Mutex<HashMap<u32, tokio::sync::oneshot::Sender<serde_json::Value>>>,
     /// The Claude login being run, if any
     signing_in: tokio::sync::Mutex<Option<account::SigningIn>>,
 }
@@ -148,6 +174,7 @@ impl Coach {
             agent: Agent::new(data_dir),
             running: Mutex::new(None),
             open: Default::default(),
+            permissions: Default::default(),
             signing_in: Default::default(),
         }
     }
@@ -163,6 +190,31 @@ impl Coach {
     /// The effort levels `model` takes (none when it has no effort setting)
     pub async fn efforts(&self, model: &str) -> AppResult<Vec<agent::ModelOption>> {
         self.agent.efforts(model).await
+    }
+
+    /// Keep a permission request for the candidate; its id
+    fn next_permission(&self, reply: tokio::sync::oneshot::Sender<serde_json::Value>) -> u32 {
+        static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+        let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.permissions.lock().unwrap_or_else(|p| p.into_inner()).insert(id, reply);
+        id
+    }
+
+    /// The candidate's answer to a permission request: one of its options,
+    /// or none to cancel
+    pub fn permit(&self, id: u32, option: Option<String>) -> AppResult<()> {
+        let reply = self
+            .permissions
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .remove(&id)
+            .ok_or_else(|| AppError::not_found("that request was already answered or stopped"))?;
+        let outcome = match option {
+            Some(option) => serde_json::json!({ "outcome": { "outcome": "selected", "optionId": option } }),
+            None => serde_json::json!({ "outcome": { "outcome": "cancelled" } }),
+        };
+        let _ = reply.send(outcome);
+        Ok(())
     }
 
     /// Who the assistant answers as
@@ -280,6 +332,7 @@ impl Coach {
         solution_opened: bool,
         model: &str,
         effort: &str,
+        profile: Profile,
         context: CoachContext,
         on_event: impl Fn(CoachEvent) + Sync,
     ) -> AppResult<CoachReply> {
@@ -288,13 +341,23 @@ impl Coach {
             return Err(AppError::invalid("ask the coach something"));
         }
         let subject = exams.coach_subject(question_id, solution_opened)?;
+        // Commands only while practising: never in review (the environment
+        // is graded) and never in an exam (coach_subject refuses it anyway)
+        let profile = if subject.review { Profile::Ask } else { profile };
         let cancel = self.start();
         let checks = if context.checks { checks } else { &[] };
         let snapshot = if context.cluster { snapshot(&subject).await } else { None };
         let key = (subject.attempt_id.clone(), question_id.to_string());
-        let opened = self.open.lock().await.get(&key).cloned();
+        let opened = match self.open.lock().await.get(&key).cloned() {
+            // Another profile is another session (other tools); the history goes along
+            Some((session, .., open_profile)) if open_profile != profile => {
+                self.agent.close(&session).await;
+                None
+            }
+            opened => opened,
+        };
         let (session, prompt) = match opened {
-            Some((session, current, current_effort)) => {
+            Some((session, current, current_effort, _)) => {
                 if current != model {
                     self.agent.set_model(&session, model).await?;
                 }
@@ -305,13 +368,19 @@ impl Coach {
             }
             // A new session (or the app restarted): the task, and what was said before
             None => {
-                let session = self.agent.new_session(&system(&subject), model).await?;
+                let session = match profile {
+                    Profile::Ask => self.agent.new_session(&system(&subject), model).await?,
+                    Profile::Agent => {
+                        let system = format!("{}\n{AGENT}", system(&subject));
+                        self.agent.new_session_with(&system, model, agent_tools(question_id)?).await?
+                    }
+                };
                 self.agent.set_effort(&session, model, effort).await?;
                 let history = store.coach_messages(&subject.attempt_id, question_id)?;
                 (session, prompt(&subject, checks, snapshot.as_deref(), &history, text))
             }
         };
-        self.open.lock().await.insert(key.clone(), (session.clone(), model.to_string(), effort.to_string()));
+        self.open.lock().await.insert(key.clone(), (session.clone(), model.to_string(), effort.to_string(), profile));
         // The first question names the session (as Zed names a thread), while
         // the answer is written: a quick model, nothing waits longer for it
         let first = store.coach_messages(&subject.attempt_id, question_id)?.is_empty()
@@ -324,8 +393,50 @@ impl Coach {
             let title = self.agent.ask_once(TITLE_SYSTEM, &about, TITLE_MODEL, &cancel, &|_| {}).await;
             title.ok().and_then(|t| session_title(&t))
         };
-        let stream = |t: &str| on_event(CoachEvent::Text { text: t.to_string() });
-        let (answer, title) = tokio::join!(self.agent.prompt(&session, &prompt, &cancel, &stream), naming);
+        // The answer as kept: its text with the commands run, in order
+        let transcript = Mutex::new(String::new());
+        let ran = std::sync::atomic::AtomicBool::new(false);
+        let text_out = |t: &str| {
+            transcript.lock().unwrap_or_else(|p| p.into_inner()).push_str(t);
+            on_event(CoachEvent::Text { text: t.to_string() });
+        };
+        let stream = |event: agent::AgentEvent| match event {
+            agent::AgentEvent::Text(t) => text_out(t),
+            agent::AgentEvent::Tool(call) => {
+                let command = call.input["command"].as_str().unwrap_or(&call.title).to_string();
+                on_event(CoachEvent::Tool { id: call.id.clone(), command: command.clone(), status: call.status.clone() });
+                if matches!(call.status.as_str(), "completed" | "failed") {
+                    ran.store(true, std::sync::atomic::Ordering::SeqCst);
+                    let output = call.output.as_deref().unwrap_or("").trim_end();
+                    text_out(&format!("\n\n```console\n$ {command}\n{output}\n```\n\n"));
+                }
+            }
+            agent::AgentEvent::Permission(params, reply) => {
+                let id = self.next_permission(reply);
+                let command = params["toolCall"]["rawInput"]["command"]
+                    .as_str()
+                    .or(params["toolCall"]["title"].as_str())
+                    .unwrap_or("a tool")
+                    .to_string();
+                let options = params["options"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|o| PermissionOption {
+                        id: o["optionId"].as_str().unwrap_or_default().to_string(),
+                        name: o["name"].as_str().unwrap_or_default().to_string(),
+                        kind: o["kind"].as_str().unwrap_or_default().to_string(),
+                    })
+                    .collect();
+                on_event(CoachEvent::Permission { id, command, options });
+            }
+        };
+        let (answer, title) = tokio::join!(self.agent.prompt_with(&session, &prompt, &cancel, &stream), naming);
+        // Requests left unanswered (stopped, failed) are cancelled with it
+        self.permissions.lock().unwrap_or_else(|p| p.into_inner()).clear();
+        if ran.load(std::sync::atomic::Ordering::SeqCst) {
+            store.mark_assisted(&subject.attempt_id, question_id)?;
+        }
         let answer = match answer {
             Ok(a) => a,
             Err(e) => {
@@ -336,12 +447,13 @@ impl Coach {
                 return Err(e);
             }
         };
+        let kept = transcript.into_inner().unwrap_or_else(|p| p.into_inner());
         store.add_coach_messages(
             &subject.attempt_id,
             question_id,
             &[
                 CoachMessage { role: Role::User, text: text.to_string() },
-                CoachMessage { role: Role::Assistant, text: answer.text.clone() },
+                CoachMessage { role: Role::Assistant, text: kept.clone() },
             ],
         )?;
         // Unless the candidate named it meanwhile
@@ -352,13 +464,13 @@ impl Coach {
             }
             _ => None,
         };
-        Ok(CoachReply { text: answer.text, usage: answer.usage, title })
+        Ok(CoachReply { text: kept, usage: answer.usage, title })
     }
 
     /// Start the question's session over (the panel's New Session)
     pub async fn clear(&self, exams: &Exams, store: &Store, question_id: &str) -> AppResult<()> {
         let subject = exams.coach_subject(question_id, false)?;
-        if let Some((session, _, _)) = self.open.lock().await.remove(&(subject.attempt_id.clone(), question_id.to_string())) {
+        if let Some((session, ..)) = self.open.lock().await.remove(&(subject.attempt_id.clone(), question_id.to_string())) {
             self.agent.close(&session).await;
         }
         store.clear_coach_messages(&subject.attempt_id, question_id)
@@ -482,6 +594,29 @@ page fast is the skill the exam tests.\n\
 shows the cause.\n\
 - Be brief: short paragraphs and lists, Markdown. No preamble.\n",
 );
+
+/// What the Agent profile adds: it may run commands, with the candidate's say
+const AGENT: &str = "Agent mode: you can run commands on the task's host with the `run_command` \
+tool (kubectl already points at the task's cluster; nodes are reached with `ssh <node>`), and run \
+the task's checks with `check_my_work`. The candidate approves each command and watches it run, so:\n\
+- Say in one line what you will run and why, then run it. One step at a time.\n\
+- Look before you change: get, describe, logs, events. Change the cluster only when the candidate \
+asked you to fix or solve it.\n\
+- After changing anything, verify (`check_my_work`, or a get). Explain what each step did, so they \
+can do it themselves next time.\n\
+- Never touch ckdry itself (docker, kind) or other tasks' namespaces.\n";
+
+/// The MCP server an agent session gets: ckdry itself, its agent tools for
+/// this question (`ckdry mcp --agent`)
+fn agent_tools(question_id: &str) -> AppResult<serde_json::Value> {
+    let ckdry = std::env::current_exe().map_err(|e| AppError::io("finding ckdry", e))?;
+    Ok(serde_json::json!([{
+        "name": "ckdry",
+        "command": ckdry,
+        "args": ["mcp", "--agent", question_id],
+        "env": [],
+    }]))
+}
 
 /// How the coach helps once the attempt has its result
 const REVIEW: &str = "You are a Kubernetes certification coach inside ckdry, an exam simulator. \

@@ -130,6 +130,7 @@ impl Exams {
             finished_at: now_ms(),
             questions: results,
             outside: self.guard.take_outside(),
+            assisted: self.store.assisted(&attempt.id).unwrap_or_default(),
         })
     }
 

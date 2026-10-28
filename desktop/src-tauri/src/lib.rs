@@ -69,6 +69,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::coach_history,
         commands::coach_ask,
         commands::coach_cancel,
+        commands::coach_permit,
         commands::coach_account,
         commands::coach_sign_in,
         commands::coach_sign_in_input,
@@ -585,8 +586,10 @@ mod tests {
             let coach = ai::Coach::new(&std::env::temp_dir().join("ckdry-e2e-coach"));
             let context = ai::CoachContext { checks: true, cluster: true };
             let answer = coach
-                .ask(&exams, &store, question, "Why do my checks fail? One sentence.", &failing, false, "haiku", "default", context, |ai::CoachEvent::Text { text }| {
-                    streamed.lock().unwrap().push_str(&text)
+                .ask(&exams, &store, question, "Why do my checks fail? One sentence.", &failing, false, "haiku", "default", ai::Profile::Ask, context, |event| {
+                    if let ai::CoachEvent::Text { text } = event {
+                        streamed.lock().unwrap().push_str(&text)
+                    }
                 })
                 .await
                 .unwrap()

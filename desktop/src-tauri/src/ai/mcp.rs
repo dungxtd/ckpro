@@ -27,13 +27,23 @@ pub struct Server {
     bank: LoadedPack,
     store: Store,
     data_dir: PathBuf,
+    /// The assistant's agent session for this question (`ckdry mcp --agent`):
+    /// its tools run commands for it, on the task's host
+    agent: Option<String>,
 }
 
-/// Serve on stdin/stdout until stdin closes
-pub fn serve(bank: LoadedPack, store: Store, data_dir: PathBuf) -> AppResult<()> {
+/// Longest a command may run, and the default
+const COMMAND_MAX_SECS: u64 = 300;
+const COMMAND_DEFAULT_SECS: u64 = 60;
+/// Output a command returns to the model (its end, where errors are)
+const OUTPUT_MAX_BYTES: usize = 16 * 1024;
+
+/// Serve on stdin/stdout until stdin closes; `agent`: the question of the
+/// assistant's agent session
+pub fn serve(bank: LoadedPack, store: Store, data_dir: PathBuf, agent: Option<String>) -> AppResult<()> {
     // Its checks exec in the app's containers: tell the app's guard they are ckdry's
     crate::runtime::guard::share_own_execs();
-    let server = Server { bank, store, data_dir };
+    let server = Server { bank, store, data_dir, agent };
     let runtime = tokio::runtime::Runtime::new().map_err(|e| AppError::io("starting the MCP server", e))?;
     let stdout = std::io::stdout();
     for line in std::io::stdin().lock().lines() {
@@ -58,7 +68,7 @@ impl Server {
         let result = match message["method"].as_str().unwrap_or_default() {
             "initialize" => Ok(self.initialize(&params)),
             "ping" => Ok(json!({})),
-            "tools/list" => Ok(json!({ "tools": tools() })),
+            "tools/list" => Ok(json!({ "tools": if self.agent.is_some() { agent_tools() } else { tools() } })),
             "tools/call" => Ok(self.call(&params).await),
             method => Err(json!({ "code": -32601, "message": format!("{method} is not supported") })),
         };
@@ -90,9 +100,10 @@ Coach: explain and point to kubernetes.io docs; do not solve the task for them u
             "list_questions" => self.list_questions(text("certification"), text("domain")),
             "get_question" => self.get_question(&text("id").unwrap_or_default(), args["solution"].as_bool().unwrap_or(false)),
             "current_question" => self.current_question(),
-            "check_my_work" => self.check_my_work(text("question_id")).await,
+            "check_my_work" => self.check_my_work(text("question_id").or_else(|| self.agent.clone())).await,
             "study_stats" => self.study_stats(),
             "lint_question" => self.lint_question(&text("yaml").unwrap_or_default()),
+            "run_command" => self.run_command(&text("command").unwrap_or_default(), args["timeout_seconds"].as_u64()).await,
             name => Err(AppError::invalid(format!("no tool named {name}"))),
         };
         match result {
@@ -172,12 +183,7 @@ Coach: explain and point to kubernetes.io docs; do not solve the task for them u
             None => questions.get(current),
         }
         .ok_or_else(|| AppError::not_found("no such question in the attempt"))?;
-        let docker = crate::runtime::docker::connect().await?;
-        let host = crate::runtime::jumphost::APP_NAME;
-        let running = docker.inspect_container(host, None).await.ok().and_then(|c| c.state?.running).unwrap_or(false);
-        if !running {
-            return Err(AppError::invalid("The attempt's cluster is not running: open ckdry to resume the attempt, then check again."));
-        }
+        let (docker, host) = task_host().await?;
         let results = checks::run_checks(
             &docker,
             host,
@@ -193,6 +199,26 @@ Coach: explain and point to kubernetes.io docs; do not solve the task for them u
         Ok(text)
     }
 
+    /// Run `command` (bash) on the task host for the agent session's question,
+    /// as the candidate would after `ssh <host>`. The candidate approved it in
+    /// ckdry (the agent asks before each tool use)
+    async fn run_command(&self, command: &str, timeout: Option<u64>) -> AppResult<String> {
+        let question_id = self.agent.as_deref().ok_or_else(|| AppError::invalid("commands run only in the assistant's agent sessions"))?;
+        let (_, questions) = self.attempt()?.ok_or_else(|| AppError::not_found("no practice attempt is running in ckdry"))?;
+        let (_, question) = questions.iter().find(|(id, _)| id == question_id).ok_or_else(|| AppError::not_found("the question is not in the attempt"))?;
+        let command = command.trim();
+        if command.is_empty() {
+            return Err(AppError::invalid("no command given"));
+        }
+        if let Some(reason) = refused(command) {
+            return Err(AppError::invalid(format!("Not run: {reason}. Do it another way, or ask the candidate to.")));
+        }
+        let (docker, host) = task_host().await?;
+        let secs = timeout.unwrap_or(COMMAND_DEFAULT_SECS).clamp(1, COMMAND_MAX_SECS) as u32;
+        let (exit, output) = checks::run_script(&docker, host, &question.cluster, command, secs).await?;
+        Ok(format!("{}\n[exit code {exit}]", tail(&output, OUTPUT_MAX_BYTES)))
+    }
+
     fn study_stats(&self) -> AppResult<String> {
         self.attempt()?;
         let history = self.store.history().unwrap_or_default();
@@ -204,6 +230,60 @@ Coach: explain and point to kubernetes.io docs; do not solve the task for them u
         let errors = super::generate::lint_question(&self.bank, &self.data_dir, yaml);
         Ok(if errors.is_empty() { "No errors: the question is valid. `ckdry lab verify` proves it on a cluster.".into() } else { format!("Errors:\n- {}", errors.join("\n- ")) })
     }
+}
+
+/// The task host (the jumphost), running
+async fn task_host() -> AppResult<(bollard::Docker, &'static str)> {
+    let docker = crate::runtime::docker::connect().await?;
+    let host = crate::runtime::jumphost::APP_NAME;
+    let running = docker.inspect_container(host, None).await.ok().and_then(|c| c.state?.running).unwrap_or(false);
+    if !running {
+        return Err(AppError::invalid("The attempt's cluster is not running: open ckdry to resume the attempt, then try again."));
+    }
+    Ok((docker, host))
+}
+
+/// Why a command is never run for the agent, whatever the candidate
+/// approved: it would break the practice environment itself, not the task.
+/// Not a security boundary (the candidate owns the machine): a guard
+/// against a model's mistakes
+fn refused(command: &str) -> Option<&'static str> {
+    let lower = command.to_lowercase();
+    let words: Vec<&str> = lower.split(|c: char| !(c.is_ascii_alphanumeric() || "-_./*".contains(c))).filter(|w| !w.is_empty()).collect();
+    let has = |w: &str| words.contains(&w);
+    let follows = |a: &str, b: &str| words.windows(2).any(|p| p[0] == a && p[1] == b);
+    if follows("kind", "delete") || follows("kind", "create") {
+        return Some("it would remove or replace the exam's cluster");
+    }
+    if has("docker") || has("podman") {
+        return Some("ckdry's containers are not part of the task");
+    }
+    if ["reboot", "shutdown", "halt", "poweroff"].iter().any(|w| has(w)) || follows("init", "0") {
+        return Some("it would take the host down");
+    }
+    if lower.contains(":(){") || lower.contains(":() {") {
+        return Some("it would exhaust the host");
+    }
+    let wipes = lower.split(['\n', ';', '&', '|']).any(|part| {
+        let part: Vec<&str> = part.split_whitespace().collect();
+        part.first() == Some(&"rm") && part.iter().any(|a| a.starts_with('-') && a.contains('r')) && part.iter().any(|a| matches!(*a, "/" | "/*" | "~" | "~/"))
+    });
+    if wipes {
+        return Some("it would wipe the host");
+    }
+    None
+}
+
+/// The last `max` bytes of `text`, on a character boundary, marked when cut
+fn tail(text: &str, max: usize) -> String {
+    if text.len() <= max {
+        return text.to_string();
+    }
+    let mut start = text.len() - max;
+    while !text.is_char_boundary(start) {
+        start += 1;
+    }
+    format!("[… {} bytes cut]\n{}", start, &text[start..])
 }
 
 /// A question as Markdown: what the candidate reads, and the reference
@@ -263,6 +343,30 @@ fn tools() -> Value {
     ])
 }
 
+/// What an agent session gets: commands on the task host, and the checks
+fn agent_tools() -> Value {
+    json!([
+        {
+            "name": "run_command",
+            "description": "Run a bash command on the task's host (kubectl is set to the task's cluster; nodes are \
+reached with `ssh <node>`), as the candidate would. The candidate approves each command. Prefer reading \
+(get, describe, logs) and say why before changing anything. Non-interactive only (no `-it`, no editors); \
+wait for what you create (`kubectl wait`, `rollout status`).",
+            "inputSchema": { "type": "object", "properties": {
+                "command": { "type": "string" },
+                "timeout_seconds": { "type": "integer", "minimum": 1, "maximum": COMMAND_MAX_SECS } },
+                "required": ["command"] },
+            "annotations": { "destructiveHint": true, "openWorldHint": false },
+        },
+        {
+            "name": "check_my_work",
+            "description": "Run the task's own checks: which pass, and why the others fail. Changes nothing.",
+            "inputSchema": { "type": "object", "properties": {} },
+            "annotations": { "readOnlyHint": true },
+        },
+    ])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -270,7 +374,7 @@ mod tests {
     fn server() -> Server {
         let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../packs/core"));
         let bank = crate::lab::load::load(&root).0.unwrap();
-        Server { bank, store: Store::in_memory().unwrap(), data_dir: std::env::temp_dir().join("ckdry-mcp-test") }
+        Server { bank, store: Store::in_memory().unwrap(), data_dir: std::env::temp_dir().join("ckdry-mcp-test"), agent: None }
     }
 
     async fn call(server: &Server, name: &str, arguments: Value) -> (String, bool) {
@@ -280,6 +384,23 @@ mod tests {
             .unwrap();
         let result = &reply["result"];
         (result["content"][0]["text"].as_str().unwrap_or_default().to_string(), result["isError"] == true)
+    }
+
+    #[test]
+    fn commands_that_break_the_environment_are_refused() {
+        for bad in ["kind delete cluster --name k8s", "docker rm -f ckdry-jumphost", "sudo reboot", "rm -rf /", "cd /tmp && rm -fr ~", ":(){ :|:& };:"] {
+            assert!(refused(bad).is_some(), "{bad}");
+        }
+        for ok in ["kubectl get pods -A", "rm -rf /tmp/work", "ssh node01 'systemctl restart kubelet'", "kubectl rollout restart deploy/web", "echo dockerfile"] {
+            assert_eq!(refused(ok), None, "{ok}");
+        }
+    }
+
+    #[test]
+    fn long_output_keeps_its_end() {
+        assert_eq!(tail("short", 10), "short");
+        let cut = tail(&format!("{}END", "é".repeat(100)), 11);
+        assert!(cut.ends_with("END") && cut.starts_with("[…"), "{cut}");
     }
 
     #[tokio::test]

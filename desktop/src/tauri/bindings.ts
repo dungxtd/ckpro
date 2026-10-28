@@ -68,6 +68,11 @@ export const commands = {
 	coachAsk: (questionId: string, text: string, checks: CheckResult[], solutionOpened: boolean, model: ModelChoice, context: CoachContext, events: Channel<CoachEvent>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("coach_ask", { questionId, text, checks, solutionOpened, model, context, events })),
 	/**  Stop the answer being written. */
 	coachCancel: () => __TAURI_INVOKE<void>("coach_cancel"),
+	/**
+	 *  Answer the assistant's request to run a command: one of its options
+	 *  (allow once, always, reject…), or none to cancel.
+	 */
+	coachPermit: (id: number, option: string | null) => typedError<null, AppError>(__TAURI_INVOKE("coach_permit", { id, option })),
 	/**  The Claude login the assistant answers as. */
 	coachAccount: () => typedError<Account_Serialize, AppError>(__TAURI_INVOKE("coach_account")),
 	/**
@@ -304,7 +309,14 @@ export type CoachContext = {
 };
 
 /**  The coach's answer as it is written */
-export type CoachEvent = { kind: "text"; text: string };
+export type CoachEvent = { kind: "text"; text: string } | 
+/**  A command the agent runs (Agent profile), as it goes */
+{ kind: "tool"; id: string; command: string; status: string } | 
+/**
+ *  The agent asks to run a command: the candidate picks an option
+ *  (`coach_permit`)
+ */
+{ kind: "permission"; id: number; command: string; options: PermissionOption[] };
 
 /**  A question's coach session: its own name (if renamed) and its messages */
 export type CoachHistory = CoachHistory_Serialize | CoachHistory_Deserialize;
@@ -460,6 +472,8 @@ export type ExamResult_Deserialize = {
 	questions: QuestionResult[],
 	/**  What happened to the environment outside the exam desktop (the guard) */
 	outside?: string[],
+	/**  Questions the assistant ran commands for (Agent): their points were helped */
+	assisted?: string[],
 };
 
 export type ExamResult_Serialize = {
@@ -471,6 +485,8 @@ export type ExamResult_Serialize = {
 	questions: QuestionResult[],
 	/**  What happened to the environment outside the exam desktop (the guard) */
 	outside: string[],
+	/**  Questions the assistant ran commands for (Agent): their points were helped */
+	assisted: string[],
 };
 
 export type ExamState = ExamState_Serialize | ExamState_Deserialize;
@@ -595,6 +611,7 @@ export type Mode = "exam" | "practice";
 export type ModelChoice = {
 	model: string,
 	effort: string,
+	profile: Profile,
 };
 
 /**  A model the agent offers (its `model` config option), as Zed lists them */
@@ -625,6 +642,22 @@ export type NodeState = {
 	container: ContainerStatus,
 	ready: Readiness,
 };
+
+/**
+ *  One way to answer a permission request (ACP's options: allow once,
+ *  allow always, reject once…)
+ */
+export type PermissionOption = {
+	id: string,
+	name: string,
+	kind: string,
+};
+
+/**
+ *  Ask: the coach reads and answers. Agent: it may also run commands on the
+ *  task's host, each approved by the candidate (practice only)
+ */
+export type Profile = "ask" | "agent";
 
 /**  Where the candidate is in an attempt */
 export type Progress = {

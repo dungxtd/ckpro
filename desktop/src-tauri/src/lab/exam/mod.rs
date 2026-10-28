@@ -109,6 +109,9 @@ pub struct ExamResult {
     /// What happened to the environment outside the exam desktop (the guard)
     #[serde(default)]
     pub outside: Vec<String>,
+    /// Questions the assistant ran commands for (Agent): their points were helped
+    #[serde(default)]
+    pub assisted: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, specta::Type)]

@@ -51,6 +51,7 @@ export type {
 	CheckResult,
 	ClusterState,
 	CoachContext,
+	CoachEvent,
 	CoachMessage,
 	CoachModels,
 	CoachSession,
@@ -68,6 +69,8 @@ export type {
 	Mode,
 	ModelOption,
 	NodeState,
+	PermissionOption,
+	Profile,
 	RuntimeInfo,
 	ScriptResult,
 	Solution,
@@ -180,7 +183,8 @@ export const coachApi = {
 	clear: (questionId: string) => unwrap(commands.coachClear(questionId)),
 	/** The question's session in the current attempt: its name and messages */
 	history: (questionId: string) => unwrap(commands.coachHistory(questionId)),
-	/** Ask about a question; `onText` gets the answer as it is written. */
+	/** Ask about a question; `onEvent` gets the answer as it is written, and
+	 * in Agent the commands it runs and its requests to run them. */
 	ask: (
 		questionId: string,
 		text: string,
@@ -188,7 +192,7 @@ export const coachApi = {
 		solutionOpened: boolean,
 		model: ModelChoice,
 		context: CoachContext,
-		onText: (text: string) => void
+		onEvent: (event: CoachEvent) => void
 	) =>
 		unwrap(
 			commands.coachAsk(
@@ -198,9 +202,11 @@ export const coachApi = {
 				solutionOpened,
 				model,
 				context,
-				channel<CoachEvent>(e => onText(e.text))
+				channel<CoachEvent>(onEvent)
 			)
 		),
+	/** Answer a request to run a command: an option's id, or null to cancel */
+	permit: (id: number, option: string | null) => unwrap(commands.coachPermit(id, option)),
 	/** Stop the answer being written */
 	cancel: () => commands.coachCancel(),
 	/** The Claude login it answers as */
@@ -229,7 +235,7 @@ export const coachApi = {
 		unwrap(
 			commands.coachStudyPlan(
 				certification,
-				channel<CoachEvent>(e => onText(e.text))
+				channel<CoachEvent>(e => e.kind === "text" && onText(e.text))
 			)
 		),
 	/** The latest study plan for a certification */

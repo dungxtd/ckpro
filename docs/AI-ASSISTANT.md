@@ -124,6 +124,25 @@ just hidden in the UI: tools refuse while an exam-mode attempt is
 - Left out: `search_docs`, `verify_question` and `add_question` (writes and
   cluster runs stay in the app and `ckdry lab verify` / `lab generate`).
 
+### Agent profile (built)
+Researched against Netcatty (GPL-3.0: ideas only) and Zed. Claude Code's own
+tools stay off (they would run on the Mac, which cannot reach the clusters
+during an attempt); an Agent session instead gets ckdry's MCP server for its
+question (`ckdry mcp --agent <question>`): `run_command` (bash on the task
+host with the task cluster's kubeconfig, 60 s by default and 300 s at most,
+the output's last 16 KB) and `check_my_work`. Every call goes through ACP's
+`session/request_permission`, shown as a card above the editor: Run (Enter),
+Always allow, Skip (Escape). A short list (`kind`/`docker`, reboot, `rm -r /`)
+is never run whatever is approved: a guard against a model's mistakes, not
+a security boundary. Commands run go into the answer as console blocks; a
+question Claude ran commands for shows "Claude helped" on the result. Practice
+only: review and exam mode stay Ask (exam mode has no assistant at all).
+
+### Session titles (built)
+With a session's first question, Haiku names it (2-6 words, the message's
+language, the task's name as context) while the answer is written; a name
+the candidate gave is kept.
+
 ### Sign-in (built)
 The Claude CLI bundled in the adapter (`--cli auth status|login|logout`) reads
 the login, signs in (in a pseudo-terminal: its output and the browser's code

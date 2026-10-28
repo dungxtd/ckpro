@@ -11,7 +11,7 @@ import {
 } from "@ckdry/ui/components/select";
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { Copy } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SignInDialog } from "@/components/account/sign-in-dialog";
 import { ClaudeIcon } from "@/components/claude-icon";
@@ -133,14 +133,14 @@ function RuntimeSettings() {
 	const [claude, setClaude] = useState("");
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const show = (next: RuntimeInfo) => {
+	const show = useCallback((next: RuntimeInfo) => {
 		setInfo(next);
 		setNpx(next.paths.npx ?? "");
 		setClaude(next.paths.claude ?? "");
-	};
+	}, []);
 	useEffect(() => {
 		coachApi.runtime().then(show, e => setError(String(e)));
-	}, []);
+	}, [show]);
 	const changed =
 		info !== null && (npx !== (info.paths.npx ?? "") || claude !== (info.paths.claude ?? ""));
 	const save = async () => {

@@ -54,6 +54,13 @@ const MIGRATIONS: &[&str] = &["
         title TEXT NOT NULL,
         PRIMARY KEY (attempt_id, question_id)
     );
+", "
+    -- Questions where the assistant ran commands (Agent): their score was helped
+    CREATE TABLE assisted (
+        attempt_id TEXT NOT NULL,
+        question_id TEXT NOT NULL,
+        PRIMARY KEY (attempt_id, question_id)
+    );
 "];
 
 /// Where the candidate is in an attempt
@@ -272,6 +279,22 @@ impl Store {
         let rows = stmt
             .query_map(params![attempt_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, u32>(2)?)))
             .map_err(db)?;
+        rows.collect::<Result<_, _>>().map_err(db)
+    }
+
+    /// The assistant ran commands for this question (Agent)
+    pub fn mark_assisted(&self, attempt_id: &str, question_id: &str) -> AppResult<()> {
+        self.conn()
+            .execute("INSERT OR IGNORE INTO assisted (attempt_id, question_id) VALUES (?1, ?2)", params![attempt_id, question_id])
+            .map(|_| ())
+            .map_err(db)
+    }
+
+    /// The attempt's questions the assistant ran commands for
+    pub fn assisted(&self, attempt_id: &str) -> AppResult<Vec<String>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT question_id FROM assisted WHERE attempt_id = ?1").map_err(db)?;
+        let rows = stmt.query_map(params![attempt_id], |r| r.get(0)).map_err(db)?;
         rows.collect::<Result<_, _>>().map_err(db)
     }
 

@@ -1,4 +1,5 @@
 import { Alert } from "@ckdry/ui/components/alert";
+import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
@@ -76,6 +77,12 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 								<strong>
 									{i + 1}. {q.title}
 								</strong>
+								{/* Claude ran commands for it (Agent): the points were helped */}
+								{result.assisted?.includes(q.id) && (
+									<Badge variant="subtle" className="shrink-0 gap-1">
+										<ClaudeIcon className="size-3 text-claude" /> Claude helped
+									</Badge>
+								)}
 								<span
 									className={cn(
 										"ml-auto text-sm tabular-nums",

@@ -1,5 +1,6 @@
 import { Button } from "@ckdry/ui/components/button";
 import { Chip } from "@ckdry/ui/components/chip";
+import { CodeBlock } from "@ckdry/ui/components/code-block";
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Input } from "@ckdry/ui/components/input";
 import { menu, menuRow } from "@ckdry/ui/components/menu";
@@ -32,6 +33,8 @@ import {
 	type CoachSession,
 	type CoachStatus,
 	coachApi,
+	type PermissionOption,
+	type Profile,
 	type QuestionView,
 } from "@/tauri/api";
 import { Answer } from "./answer";
@@ -166,16 +169,14 @@ export function AssistantPane({
 					<PopoverContent align="end" className={cn(menu.surface, "w-60")}>
 						<div className={menu.header}>Claude account</div>
 						{coach.account?.signed_in ? (
-							<>
-								<div className={cn(menu.content, "flex flex-col py-1 text-xs")}>
-									<span className="truncate">{coach.account.email ?? "Signed in"}</span>
-									<span className="text-muted-foreground capitalize">
-										{coach.account.method === "console"
-											? "Anthropic Console"
-											: `Claude ${coach.account.plan ?? "subscription"}`}
-									</span>
-								</div>
-							</>
+							<div className={cn(menu.content, "flex flex-col py-1 text-xs")}>
+								<span className="truncate">{coach.account.email ?? "Signed in"}</span>
+								<span className="text-muted-foreground capitalize">
+									{coach.account.method === "console"
+										? "Anthropic Console"
+										: `Claude ${coach.account.plan ?? "subscription"}`}
+								</span>
+							</div>
 						) : (
 							<button type="button" className={menuRow()} onClick={() => setSigningIn(true)}>
 								{coach.account ? "Sign In…" : "Checking…"}
@@ -305,8 +306,24 @@ export function AssistantPane({
 				<SignInDialog open={signingIn} onOpenChange={setSigningIn} />
 			</div>
 
+			{/* What the agent is doing (Agent): the command running, or one it asks to run */}
+			{coach.permission?.questionId === question.id ? (
+				<PermissionCard
+					command={coach.permission.command}
+					options={coach.permission.options}
+					onAnswer={coach.permit}
+				/>
+			) : (
+				coach.running?.questionId === question.id && (
+					<div className="flex items-center gap-2 border-border border-t px-3 py-2 text-muted-foreground text-xs">
+						<Spinner size="inline" className="size-3.5" />
+						<code className="min-w-0 truncate font-mono">$ {coach.running.command}</code>
+					</div>
+				)
+			)}
+
 			{/* Message editor: context, the text, then one row of controls. The
-			    profile is fixed to Ask (read-only), so it is text */}
+			    profile: Ask reads and answers; Agent may also run commands (practice) */}
 			<div className="flex select-none flex-col gap-2 border-border border-t bg-card/40 p-2.5">
 				<div className="flex flex-wrap gap-1">
 					<Chip size="xs">Task</Chip>
@@ -371,7 +388,34 @@ export function AssistantPane({
 							/>
 						</PopoverContent>
 					</Popover>
-					<span className="ml-auto text-[11px] text-muted-foreground">Ask</span>
+					<span className="ml-auto" />
+					{review ? (
+						<span className="text-[11px] text-muted-foreground">Ask</span>
+					) : (
+						<Popover>
+							<PopoverTrigger asChild>
+								<PickerButton aria-label="Profile">
+									{coach.profile === "agent" ? "Agent" : "Ask"}
+								</PickerButton>
+							</PopoverTrigger>
+							<PopoverContent side="top" align="end" className={cn(menu.surface, "w-64")}>
+								{PROFILES.map(p => (
+									<button
+										key={p.value}
+										type="button"
+										className={menuRow(menu.twoLine)}
+										onClick={() => coach.setProfile(p.value)}
+									>
+										{coach.profile === p.value && <Checked />}
+										<span className="flex min-w-0 flex-col">
+											<span>{p.name}</span>
+											<span className={cn(menu.detail, "whitespace-normal")}>{p.detail}</span>
+										</span>
+									</button>
+								))}
+							</PopoverContent>
+						</Popover>
+					)}
 					<Popover>
 						<PopoverTrigger asChild>
 							<PickerButton aria-label="Model">{modelName}</PickerButton>
@@ -466,6 +510,77 @@ const Checked = () => (
 		<Check className="size-3" />
 	</span>
 );
+
+const PROFILES: { value: Profile; name: string; detail: string }[] = [
+	{ value: "ask", name: "Ask", detail: "Reads the task and answers. Runs nothing." },
+	{
+		value: "agent",
+		name: "Agent",
+		detail: "May also run commands on the task's host, each one after you allow it.",
+	},
+];
+
+/**
+ * The agent asks to run a command: allow it (Enter), always for this session,
+ * or skip it (Escape). Ask's answers come as the agent's own options
+ */
+function PermissionCard({
+	command,
+	options,
+	onAnswer,
+}: {
+	command: string;
+	options: PermissionOption[];
+	onAnswer: (option: string | null) => void;
+}) {
+	const once = options.find(o => o.kind === "allow_once");
+	const always = options.find(o => o.kind === "allow_always");
+	const reject =
+		options.find(o => o.kind === "reject_once") ?? options.find(o => o.kind === "reject_always");
+	useEffect(() => {
+		// A key already down when the card came (the Enter that sent the
+		// message) does not answer it
+		const shown = performance.now();
+		const keys = (e: KeyboardEvent) => {
+			if (e.repeat || performance.now() - shown < 400) return;
+			// Not while typing a message (focus stays in the editor after sending)
+			const typing = e.target instanceof HTMLTextAreaElement && e.target.value.trim() !== "";
+			if (e.key === "Enter" && once && !typing) {
+				e.preventDefault();
+				onAnswer(once.id);
+			}
+			if (e.key === "Escape") {
+				e.preventDefault();
+				onAnswer(reject?.id ?? null);
+			}
+		};
+		window.addEventListener("keydown", keys);
+		return () => window.removeEventListener("keydown", keys);
+	}, [once, reject, onAnswer]);
+	return (
+		<div className="flex flex-col gap-2 border-border border-t bg-card/60 p-3">
+			<span className="text-muted-foreground text-xs">Run on the task's host?</span>
+			<CodeBlock wrap className="max-h-32">
+				$ {command}
+			</CodeBlock>
+			<div className="flex flex-wrap justify-end gap-1.5">
+				<Button size="push" variant="push" onClick={() => onAnswer(reject?.id ?? null)}>
+					Skip <kbd className="text-muted-foreground text-xs">esc</kbd>
+				</Button>
+				{always && (
+					<Button size="push" variant="push" onClick={() => onAnswer(always.id)}>
+						Always allow
+					</Button>
+				)}
+				{once && (
+					<Button size="push" variant="pushDefault" onClick={() => onAnswer(once.id)}>
+						Run <kbd className="opacity-70 text-xs">↵</kbd>
+					</Button>
+				)}
+			</div>
+		</div>
+	);
+}
 
 /**
  * The session's name, edited in place: Enter or leaving it keeps it (empty:

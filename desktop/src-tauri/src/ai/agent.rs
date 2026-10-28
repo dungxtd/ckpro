@@ -4,7 +4,7 @@
 //! Code's, and its sessions have no built-in tools, no MCP servers, no
 //! settings from the machine and nothing kept on disk.
 
-use super::acp::Connection;
+use super::acp::{Connection, Update};
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -119,6 +119,60 @@ pub struct Agent {
     paths: std::sync::RwLock<RuntimePaths>,
 }
 
+/// What a session reports while it answers
+pub enum AgentEvent<'a> {
+    Text(&'a str),
+    /// A tool call, as it is now (sent again on every change)
+    Tool(ToolCall),
+    /// The agent asks to use a tool: ACP `session/request_permission`'s
+    /// params, and where the chosen outcome goes
+    Permission(serde_json::Value, tokio::sync::oneshot::Sender<serde_json::Value>),
+}
+
+/// A tool call as ACP's `tool_call` and `tool_call_update` describe it
+#[derive(Clone, Debug, Default)]
+pub struct ToolCall {
+    pub id: String,
+    pub title: String,
+    /// pending, in_progress, completed, failed
+    pub status: String,
+    /// The tool's arguments (`rawInput`)
+    pub input: serde_json::Value,
+    /// Its text output, once there
+    pub output: Option<String>,
+}
+
+impl ToolCall {
+    /// Take what an update says; it may carry any of the fields
+    fn update(&mut self, update: &serde_json::Value) {
+        if let Some(title) = update["title"].as_str() {
+            self.title = title.to_string();
+        }
+        if let Some(status) = update["status"].as_str() {
+            self.status = status.to_string();
+        }
+        if !update["rawInput"].is_null() {
+            self.input = update["rawInput"].clone();
+        }
+        let text: String = update["content"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|c| c["content"]["text"].as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        if !text.is_empty() {
+            // The adapter fences tool output as Markdown: keep the text
+            let trimmed = text.trim();
+            let unfenced = trimmed
+                .strip_prefix("```")
+                .and_then(|t| t.strip_suffix("```"))
+                .map(|t| t.split_once('\n').map_or("", |(_, body)| body).trim_end_matches('\n'));
+            self.output = Some(unfenced.unwrap_or(trimmed).to_string());
+        }
+    }
+}
+
 /// One answer: its text and the session's context use after it
 pub struct Answer {
     pub text: String,
@@ -195,13 +249,19 @@ impl Agent {
 
     /// A new conversation with `system` as its instructions, on `model`
     pub async fn new_session(&self, system: &str, model: &str) -> AppResult<String> {
+        self.new_session_with(system, model, json!([])).await
+    }
+
+    /// A new conversation that may use these MCP servers' tools (Claude
+    /// Code's own tools stay off: what it can do is only what they offer)
+    pub async fn new_session_with(&self, system: &str, model: &str, mcp_servers: serde_json::Value) -> AppResult<String> {
         let c = self.connection().await?;
         let result = c
             .request(
                 "session/new",
                 json!({
                     "cwd": self.workdir,
-                    "mcpServers": [],
+                    "mcpServers": mcp_servers,
                     "systemPrompt": { "mode": "override", "content": [{ "type": "text", "text": system }] },
                     "_meta": { "claudeCode": { "options": {
                         "tools": [],
@@ -284,7 +344,7 @@ impl Agent {
     }
 
     /// Send `text` in the session; the answer streams to `on_text`. Stops
-    /// (ACP `session/cancel`) when `cancel` fires.
+    /// (ACP `session/cancel`) when `cancel` fires. Tools are refused.
     pub async fn prompt(
         &self,
         session: &str,
@@ -292,6 +352,31 @@ impl Agent {
         cancel: &CancellationToken,
         on_text: &(dyn Fn(&str) + Sync),
     ) -> AppResult<Answer> {
+        self.prompt_with(session, text, cancel, &|event| {
+            if let AgentEvent::Text(t) = event {
+                on_text(t);
+            }
+        })
+        .await
+    }
+
+    /// `prompt`, with the session's tool calls and permission requests too:
+    /// a permission is answered on its sender (dropped: cancelled)
+    pub async fn prompt_with(
+        &self,
+        session: &str,
+        text: &str,
+        cancel: &CancellationToken,
+        on_event: &(dyn Fn(AgentEvent) + Sync),
+    ) -> AppResult<Answer> {
+        let on_text = |t: &str| on_event(AgentEvent::Text(t));
+        let mut tools: HashMap<String, ToolCall> = HashMap::new();
+        let mut on_update = |update: &serde_json::Value| {
+            let Some(id) = update["toolCallId"].as_str() else { return };
+            let call = tools.entry(id.to_string()).or_insert_with(|| ToolCall { id: id.to_string(), ..Default::default() });
+            call.update(update);
+            on_event(AgentEvent::Tool(call.clone()));
+        };
         let c = self.connection().await?;
         let mut updates = c.subscribe(session);
         let request = c.request("session/prompt", json!({ "sessionId": session, "prompt": [{ "type": "text", "text": text }] }));
@@ -302,7 +387,10 @@ impl Agent {
         let result = loop {
             tokio::select! {
                 result = &mut request => break result,
-                Some(update) = updates.recv() => match update["sessionUpdate"].as_str() {
+                Some(update) = updates.recv() => match update {
+                    Update::Permission(params, reply) => on_event(AgentEvent::Permission(params, reply)),
+                    Update::Session(update) => match update["sessionUpdate"].as_str() {
+                    Some("tool_call" | "tool_call_update") => on_update(&update),
                     Some("agent_message_chunk") => {
                         if let Some(t) = update["content"]["text"].as_str() {
                             answer.push_str(t);
@@ -316,6 +404,7 @@ impl Agent {
                         });
                     }
                     _ => {}
+                    },
                 },
                 () = cancel.cancelled(), if !cancelling => {
                     cancelling = true;
@@ -325,11 +414,16 @@ impl Agent {
         };
         // Updates that arrived with the reply
         while let Ok(update) = updates.try_recv() {
-            if update["sessionUpdate"] == "agent_message_chunk" {
-                if let Some(t) = update["content"]["text"].as_str() {
-                    answer.push_str(t);
-                    on_text(t);
+            let Update::Session(update) = update else { continue };
+            match update["sessionUpdate"].as_str() {
+                Some("agent_message_chunk") => {
+                    if let Some(t) = update["content"]["text"].as_str() {
+                        answer.push_str(t);
+                        on_text(t);
+                    }
                 }
+                Some("tool_call" | "tool_call_update") => on_update(&update),
+                _ => {}
             }
         }
         c.unsubscribe(session);
@@ -366,6 +460,46 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The real adapter with ckdry's agent tools (needs Node, a Claude login
+    /// and `cargo build`): it asks before running a command, runs it once
+    /// allowed, and reports the call
+    #[tokio::test]
+    #[ignore]
+    async fn agent_asks_then_runs_ckdry_tools() {
+        let dir = std::env::temp_dir().join(format!("ckdry-agent-{}", std::process::id()));
+        let agent = Agent::new(&dir);
+        let ckdry = concat!(env!("CARGO_MANIFEST_DIR"), "/target/debug/ckdry");
+        let tools = json!([{ "name": "ckdry", "command": ckdry, "args": ["mcp", "--agent", "core/none"], "env": [] }]);
+        let session = agent.new_session_with("You run what the user asks with your tools, then say what happened in one sentence.", "haiku", tools).await.unwrap();
+        let asked = std::sync::Mutex::new(Vec::new());
+        let calls = std::sync::Mutex::new(Vec::new());
+        let answer = agent
+            .prompt_with(&session, "Use the run_command tool to run `kubectl get nodes`.", &CancellationToken::new(), &|event| match event {
+                AgentEvent::Permission(params, reply) => {
+                    let option = params["options"].as_array().unwrap().iter().find(|o| o["kind"] == "allow_once").unwrap()["optionId"].clone();
+                    asked.lock().unwrap().push(params["toolCall"]["rawInput"]["command"].as_str().unwrap_or_default().to_string());
+                    let _ = reply.send(json!({ "outcome": { "outcome": "selected", "optionId": option } }));
+                }
+                AgentEvent::Tool(call) => calls.lock().unwrap().push(call),
+                AgentEvent::Text(_) => {}
+            })
+            .await
+            .unwrap();
+        let asked = asked.into_inner().unwrap();
+        let calls = calls.into_inner().unwrap();
+        println!("asked: {asked:?}");
+        for c in &calls {
+            println!("tool {} {} {:?} -> {:?}", c.status, c.title, c.input, c.output);
+        }
+        println!("answer: {}", answer.text);
+        assert!(!asked.is_empty() && asked.iter().all(|c| c == "kubectl get nodes"), "{asked:?}");
+        // It ran: no attempt runs for this question, so the tool says why
+        let done = calls.iter().rev().find(|c| matches!(c.status.as_str(), "completed" | "failed")).expect("a finished call");
+        let output = done.output.as_deref().unwrap_or_default();
+        assert!(output.contains("attempt") && !output.contains("```"), "{done:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn models_come_from_the_session() {

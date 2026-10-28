@@ -5,11 +5,14 @@ import {
 	ApiError,
 	type CheckResult,
 	type CoachContext,
+	type CoachEvent,
 	type CoachMessage,
 	type CoachSession,
 	type ContextUsage,
 	coachApi,
 	type ModelOption,
+	type PermissionOption,
+	type Profile,
 } from "@/tauri/api";
 import { useExam } from "./exam";
 import { useSettings } from "./settings";
@@ -29,6 +32,21 @@ interface CoachStore {
 	/** Models the agent offers on this login, and the one in use */
 	models: ModelOption[];
 	model: string;
+	/** Ask (it reads and answers) or Agent (it may also run commands on the
+	 * task's host, each approved); practice only, Ask on every start */
+	profile: Profile;
+	setProfile: (profile: Profile) => void;
+	/** The command the agent runs now, while it runs */
+	running: { questionId: string; command: string } | null;
+	/** A request to run a command, waiting for the candidate */
+	permission: {
+		questionId: string;
+		id: number;
+		command: string;
+		options: PermissionOption[];
+	} | null;
+	/** Answer it: an option's id, or null to cancel */
+	permit: (option: string | null) => Promise<void>;
 	/** The effort levels the model takes (empty: none), and the one in use */
 	efforts: ModelOption[];
 	effort: string;
@@ -130,6 +148,16 @@ export const useCoach = create<CoachStore>()(
 		setOpen: open => useSettings.getState().update({ assistant_open: open }),
 		efforts: [],
 		effort: "default",
+		profile: "ask",
+		setProfile: profile => set({ profile }),
+		running: null,
+		permission: null,
+		permit: async option => {
+			const asked = get().permission;
+			if (!asked) return;
+			set({ permission: null });
+			await coachApi.permit(asked.id, option).catch(() => {});
+		},
 		setModel: model => {
 			set({ model });
 			useSettings.getState().update({ assistant_model: model });
@@ -173,22 +201,29 @@ export const useCoach = create<CoachStore>()(
 					{ role: "assistant", text: "" },
 				];
 			});
-			// Appends to the answer being written (the last message)
-			const append = (t: string) =>
+			// The answer as it is written, the command running, a request to run one
+			const onEvent = (e: CoachEvent) =>
 				set(s => {
-					const last = s.sessions[questionId]?.at(-1);
-					if (last?.role === "assistant") last.text += t;
+					if (e.kind === "text") {
+						const last = s.sessions[questionId]?.at(-1);
+						if (last?.role === "assistant") last.text += e.text;
+					} else if (e.kind === "tool") {
+						const done = e.status === "completed" || e.status === "failed";
+						s.running = done ? null : { questionId, command: e.command };
+					} else {
+						s.permission = { questionId, id: e.id, command: e.command, options: e.options };
+					}
 				});
 			try {
-				const { model, effort, context } = get();
+				const { model, effort, profile, context } = get();
 				const reply = await coachApi.ask(
 					questionId,
 					text,
 					given ?? (Array.isArray(checked) ? checked : []),
 					questionId in solutions,
-					{ model, effort },
+					{ model, effort, profile },
 					context,
-					append
+					onEvent
 				);
 				set(s => {
 					const last = s.sessions[questionId]?.at(-1);
@@ -211,6 +246,8 @@ export const useCoach = create<CoachStore>()(
 			} finally {
 				set(s => {
 					if (s.writing === questionId) s.writing = null;
+					s.running = null;
+					s.permission = null;
 				});
 			}
 		},

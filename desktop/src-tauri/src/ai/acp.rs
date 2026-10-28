@@ -1,8 +1,9 @@
 //! A minimal Agent Client Protocol (ACP v1) client, as Zed talks to agents:
 //! JSON-RPC 2.0, one message per line, over the agent's stdin/stdout. ckdry
-//! is a read-only client: it offers no file system or terminal, refuses every
-//! permission request, and answers the agent's other requests with "method
-//! not found". Session updates go to whoever subscribed to that session.
+//! offers no file system or terminal (commands run through its own MCP tool,
+//! on the task host), and answers the agent's other requests with "method not
+//! found". Session updates and permission requests go to whoever follows that
+//! session; a permission nobody is asked about is cancelled.
 
 use crate::error::{AppError, AppResult};
 use serde_json::{Value, json};
@@ -19,7 +20,14 @@ pub const PROTOCOL_VERSION: u64 = 1;
 const AUTH_REQUIRED: i64 = -32000;
 
 type Pending = Mutex<HashMap<u64, oneshot::Sender<Result<Value, Value>>>>;
-type Subscribers = Mutex<HashMap<String, mpsc::UnboundedSender<Value>>>;
+type Subscribers = Mutex<HashMap<String, mpsc::UnboundedSender<Update>>>;
+
+/// What the agent sends about a session: an update, or a permission to ask
+/// the candidate (answered on the sender with the chosen outcome)
+pub enum Update {
+    Session(Value),
+    Permission(Value, oneshot::Sender<Value>),
+}
 
 pub struct Connection {
     stdin: tokio::sync::Mutex<ChildStdin>,
@@ -66,21 +74,37 @@ impl Connection {
                                 });
                             }
                         }
-                        // A request from the agent: refused or not supported
+                        // A request from the agent. A permission goes to whoever
+                        // follows the session (the candidate decides; cancelled
+                        // when nobody does); anything else is not supported
                         (Some(id), Some(method)) => {
-                            let reply = if method == "session/request_permission" {
-                                json!({ "jsonrpc": "2.0", "id": id, "result": { "outcome": { "outcome": "cancelled" } } })
+                            let cancelled = || json!({ "outcome": { "outcome": "cancelled" } });
+                            if method == "session/request_permission" {
+                                let params = message.get("params").cloned().unwrap_or(Value::Null);
+                                let session = params.get("sessionId").and_then(Value::as_str).unwrap_or_default().to_string();
+                                let (tx, rx) = oneshot::channel();
+                                let asked = subscribers
+                                    .lock()
+                                    .unwrap_or_else(|p| p.into_inner())
+                                    .get(&session)
+                                    .is_some_and(|s| s.send(Update::Permission(params, tx)).is_ok());
+                                let (id, replies_tx) = (id.clone(), replies_tx.clone());
+                                tokio::spawn(async move {
+                                    let outcome = if asked { rx.await.unwrap_or_else(|_| cancelled()) } else { cancelled() };
+                                    let _ = replies_tx.send(json!({ "jsonrpc": "2.0", "id": id, "result": outcome }));
+                                });
                             } else {
-                                json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": format!("{method} is not supported") } })
-                            };
-                            let _ = replies_tx.send(reply);
+                                let _ = replies_tx.send(
+                                    json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": format!("{method} is not supported") } }),
+                                );
+                            }
                         }
                         // A notification: session updates go to the session's subscriber
                         (None, Some("session/update")) => {
                             let params = message.get("params").cloned().unwrap_or(Value::Null);
                             if let Some(session) = params.get("sessionId").and_then(Value::as_str) {
                                 if let Some(tx) = subscribers.lock().unwrap_or_else(|p| p.into_inner()).get(session) {
-                                    let _ = tx.send(params.get("update").cloned().unwrap_or(Value::Null));
+                                    let _ = tx.send(Update::Session(params.get("update").cloned().unwrap_or(Value::Null)));
                                 }
                             }
                         }
@@ -174,8 +198,8 @@ impl Connection {
         self.write(&json!({ "jsonrpc": "2.0", "method": method, "params": params })).await
     }
 
-    /// The updates of a session, until `unsubscribe`
-    pub fn subscribe(&self, session: &str) -> mpsc::UnboundedReceiver<Value> {
+    /// The updates of a session and its permission requests, until `unsubscribe`
+    pub fn subscribe(&self, session: &str) -> mpsc::UnboundedReceiver<Update> {
         let (tx, rx) = mpsc::unbounded_channel();
         self.subscribers.lock().unwrap_or_else(|p| p.into_inner()).insert(session.to_string(), tx);
         rx

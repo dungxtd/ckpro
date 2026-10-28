@@ -337,7 +337,7 @@ pub async fn coach_ask(
     events: Channel<CoachEvent>,
 ) -> AppResult<CoachReply> {
     coach
-        .ask(&exams, &store, &question_id, &text, &checks, solution_opened, &model.model, &model.effort, context, |e| {
+        .ask(&exams, &store, &question_id, &text, &checks, solution_opened, &model.model, &model.effort, model.profile, context, |e| {
             let _ = events.send(e);
         })
         .await
@@ -488,6 +488,14 @@ pub async fn coach_sign_in_cancel(coach: State<'_, Coach>) -> AppResult<()> {
 #[specta::specta]
 pub async fn coach_sign_out(coach: State<'_, Coach>) -> AppResult<()> {
     coach.sign_out().await
+}
+
+/// Answer the assistant's request to run a command: one of its options
+/// (allow once, always, reject…), or none to cancel.
+#[tauri::command]
+#[specta::specta]
+pub fn coach_permit(coach: State<'_, Coach>, id: u32, option: Option<String>) -> AppResult<()> {
+    coach.permit(id, option)
 }
 
 /// Stop the answer being written.
