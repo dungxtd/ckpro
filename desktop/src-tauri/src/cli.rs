@@ -165,7 +165,7 @@ fn generate_question(root: &PathBuf, certification: String, domain: String, diff
         let docker = crate::runtime::docker::connect().await?;
         infra.ensure(&docker, &|line| eprintln!("  | {line}")).await?;
         let cancel = tokio_util::sync::CancellationToken::new();
-        let agent = crate::ai::agent::Agent::new(&data_dir);
+        let agent = crate::ai::agent::Agent::new();
         crate::ai::generate::generate(&agent, "opus", &bank, &infra, &activities, &data_dir, &request, &cancel).await
     });
     match result {

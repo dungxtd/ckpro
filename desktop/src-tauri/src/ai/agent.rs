@@ -1,21 +1,24 @@
 //! Claude as an ACP agent: the Claude Agent adapter
-//! (`@agentclientprotocol/claude-agent-acp`, through npx) on the candidate's
-//! own Claude login. Ask only: the coach's system prompt replaces Claude
-//! Code's, and its sessions have no built-in tools, no MCP servers, no
-//! settings from the machine and nothing kept on disk.
+//! (`@agentclientprotocol/claude-agent-acp`) in a container of its own (the
+//! `agent` image), so the host needs nothing but Docker. The candidate's
+//! Claude login lives in the `ckdry-claude` volume. The coach's system prompt
+//! replaces Claude Code's; sessions have no built-in tools, no settings from
+//! anywhere and nothing kept on disk beyond the login.
 
 use super::acp::{Connection, Update};
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 
-/// The adapter, pinned: a new release is tested before it is used
-pub const ADAPTER: &str = "@agentclientprotocol/claude-agent-acp@0.97.0";
+/// The volume the Claude login is kept in, and where the container sees it
+const LOGIN_VOLUME: &str = "ckdry-claude";
+const LOGIN_DIR: &str = "/home/node/.claude";
+/// The agent's working directory in its container: empty, nothing to read
+const WORKDIR: &str = "/home/node/work";
 
 /// A model the agent offers (its `model` config option)
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
@@ -31,57 +34,6 @@ pub struct ModelOption {
 pub struct ContextUsage {
     pub used: u32,
     pub size: u32,
-}
-
-/// Where the assistant's runtime is, when the candidate set it (Settings);
-/// unset, it is found on the machine
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
-#[serde(default)]
-pub struct RuntimePaths {
-    /// npx, which runs the ACP adapter
-    pub npx: Option<String>,
-    /// A Claude Code CLI to use instead of the one the adapter bundles
-    /// (`CLAUDE_CODE_EXECUTABLE`)
-    pub claude: Option<String>,
-}
-
-/// Where npx is: an app started from the Dock or Finder does not get the
-/// shell's PATH, so the usual Node install locations are tried too
-pub fn detect_npx() -> Option<PathBuf> {
-    let home = dirs::home_dir().unwrap_or_default();
-    let from_path = std::env::var_os("PATH")
-        .map(|path| std::env::split_paths(&path).map(|dir| dir.join("npx")).collect::<Vec<_>>())
-        .unwrap_or_default();
-    let mut nvm: Vec<PathBuf> = std::fs::read_dir(home.join(".nvm/versions/node"))
-        .map(|d| d.flatten().map(|e| e.path().join("bin/npx")).collect())
-        .unwrap_or_default();
-    nvm.sort();
-    from_path
-        .into_iter()
-        .chain([
-            PathBuf::from("/opt/homebrew/bin/npx"),
-            PathBuf::from("/usr/local/bin/npx"),
-            home.join(".volta/bin/npx"),
-            home.join(".local/bin/npx"),
-        ])
-        .chain(nvm.into_iter().rev())
-        .find(|p| p.is_file())
-}
-
-/// An installed Claude Code CLI (`claude`), where installers put it
-pub fn detect_claude() -> Option<PathBuf> {
-    let home = dirs::home_dir().unwrap_or_default();
-    std::env::var_os("PATH")
-        .map(|path| std::env::split_paths(&path).map(|dir| dir.join("claude")).collect::<Vec<_>>())
-        .unwrap_or_default()
-        .into_iter()
-        .chain([
-            home.join(".claude/local/claude"),
-            home.join(".local/bin/claude"),
-            PathBuf::from("/opt/homebrew/bin/claude"),
-            PathBuf::from("/usr/local/bin/claude"),
-        ])
-        .find(|p| p.is_file())
 }
 
 /// The agent's own default model (`Default (recommended)`)
@@ -108,15 +60,13 @@ fn config_options(result: &serde_json::Value, id: &str) -> Vec<ModelOption> {
 }
 
 pub struct Agent {
-    /// An empty directory the agent works in: there is nothing to read there
-    workdir: PathBuf,
     connection: tokio::sync::Mutex<Option<Arc<Connection>>>,
     /// The models the last session offered (they follow the login's plan)
     models: std::sync::Mutex<Vec<ModelOption>>,
     /// Effort levels per model, as sessions reported them (they differ by model)
     efforts: std::sync::Mutex<HashMap<String, Vec<ModelOption>>>,
-    /// npx and Claude Code as set in Settings
-    paths: std::sync::RwLock<RuntimePaths>,
+    /// The image is there (pulled or built once per app run)
+    image_ready: std::sync::atomic::AtomicBool,
 }
 
 /// What a session reports while it answers
@@ -180,8 +130,8 @@ pub struct Answer {
 }
 
 impl Agent {
-    pub fn new(data_dir: &Path) -> Self {
-        Self { workdir: data_dir.join("agent"), connection: tokio::sync::Mutex::new(None), models: Default::default(), efforts: Default::default(), paths: Default::default() }
+    pub fn new() -> Self {
+        Self { connection: tokio::sync::Mutex::new(None), models: Default::default(), efforts: Default::default(), image_ready: Default::default() }
     }
 
     /// The running adapter, started (and initialized) when needed
@@ -190,52 +140,44 @@ impl Agent {
         if let Some(c) = slot.as_ref().filter(|c| c.alive()) {
             return Ok(c.clone());
         }
-        let c = Connection::spawn(self.adapter(&[], false)?).await?;
+        let c = Connection::spawn(self.adapter(&[], false).await?).await?;
         *slot = Some(c.clone());
         Ok(c)
     }
 
-    /// Use these paths from now on (the next adapter start)
-    pub fn set_paths(&self, paths: RuntimePaths) {
-        *self.paths.write().unwrap_or_else(|p| p.into_inner()) = paths;
-    }
-
-    /// npx as set in Settings, else as found on the machine
-    pub fn npx(&self) -> Option<PathBuf> {
-        let set = self.paths.read().unwrap_or_else(|p| p.into_inner()).npx.clone();
-        set.map(PathBuf::from).filter(|p| p.is_file()).or_else(detect_npx)
-    }
-
-    /// The adapter with `args` (`--cli ...` runs the Claude CLI it bundles,
-    /// or the one set in Settings), in a pseudo-terminal when `in_terminal`
-    /// (an interactive login)
-    pub(super) fn adapter(&self, args: &[&str], in_terminal: bool) -> AppResult<Command> {
-        let npx = self.npx().ok_or_else(|| {
-            AppError::assistant("Node.js is not installed: the assistant runs Claude through npx (nodejs.org)")
-        })?;
-        std::fs::create_dir_all(&self.workdir).map_err(|e| AppError::io("creating the agent directory", e))?;
-        let mut argv: Vec<std::ffi::OsString> = vec![npx.clone().into(), "-y".into(), ADAPTER.into()];
+    /// The adapter in its container, with `args` (`--cli ...` runs the
+    /// Claude CLI it bundles), stdio attached; in a pseudo-terminal when
+    /// `in_terminal` (an interactive login)
+    pub(super) async fn adapter(&self, args: &[&str], in_terminal: bool) -> AppResult<Command> {
+        let docker_cli = crate::runtime::docker::cli()
+            .ok_or_else(|| AppError::assistant("The docker command was not found: install OrbStack or Docker Desktop"))?;
+        let image = crate::runtime::infra::AGENT_IMAGE.tag();
+        if !self.image_ready.load(std::sync::atomic::Ordering::SeqCst) {
+            let docker = crate::runtime::docker::connect().await?;
+            crate::runtime::infra::obtain(&docker, &crate::runtime::infra::AGENT_IMAGE, &|line| tracing::info!(target: "agent", "{line}")).await?;
+            self.image_ready.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        let mut argv: Vec<std::ffi::OsString> = vec![docker_cli.into(), "run".into(), "--rm".into(), "-i".into()];
+        if in_terminal {
+            argv.push("-t".into());
+        }
+        for (key, value) in crate::runtime::docker::compose_labels("agent") {
+            argv.extend(["--label".into(), format!("{key}={value}").into()]);
+        }
+        argv.extend([
+            // The app's MCP server, from the container (ai::mcp_http)
+            "--add-host".into(),
+            "host.docker.internal:host-gateway".into(),
+            "-v".into(),
+            format!("{LOGIN_VOLUME}:{LOGIN_DIR}").into(),
+            image.into(),
+        ]);
         argv.extend(args.iter().map(Into::into));
         let mut command = if in_terminal { super::account::in_terminal(&argv) } else { Command::new(&argv[0]) };
         if !in_terminal {
             command.args(&argv[1..]);
         }
-        // npx and the adapter are Node scripts: node must be on their PATH
-        let path = std::env::join_paths(
-            npx.parent().map(Path::to_path_buf).into_iter().chain(std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect::<Vec<_>>()).unwrap_or_default()),
-        )
-        .unwrap_or_default();
-        command
-            .current_dir(&self.workdir)
-            // The candidate's Claude login, not an API key that happens to be set
-            .env_remove("ANTHROPIC_API_KEY")
-            .env_remove("ANTHROPIC_AUTH_TOKEN")
-            .env("PATH", path)
-            .kill_on_drop(true);
-        match self.paths.read().unwrap_or_else(|p| p.into_inner()).claude.as_deref() {
-            Some(claude) => command.env("CLAUDE_CODE_EXECUTABLE", claude),
-            None => command.env_remove("CLAUDE_CODE_EXECUTABLE"),
-        };
+        command.env("PATH", crate::runtime::docker::cli_path()).kill_on_drop(true);
         Ok(command)
     }
 
@@ -260,7 +202,7 @@ impl Agent {
             .request(
                 "session/new",
                 json!({
-                    "cwd": self.workdir,
+                    "cwd": WORKDIR,
                     "mcpServers": mcp_servers,
                     "systemPrompt": { "mode": "override", "content": [{ "type": "text", "text": system }] },
                     "_meta": { "claudeCode": { "options": {
@@ -467,8 +409,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn agent_asks_then_runs_ckdry_tools() {
-        let dir = std::env::temp_dir().join(format!("ckdry-agent-{}", std::process::id()));
-        let agent = Agent::new(&dir);
+        let agent = Agent::new();
         let ckdry = concat!(env!("CARGO_MANIFEST_DIR"), "/target/debug/ckdry");
         let tools = json!([{ "name": "ckdry", "command": ckdry, "args": ["mcp", "--agent", "core/none"], "env": [] }]);
         let session = agent.new_session_with("You run what the user asks with your tools, then say what happened in one sentence.", "haiku", tools).await.unwrap();
@@ -498,7 +439,6 @@ mod tests {
         let done = calls.iter().rev().find(|c| matches!(c.status.as_str(), "completed" | "failed")).expect("a finished call");
         let output = done.output.as_deref().unwrap_or_default();
         assert!(output.contains("attempt") && !output.contains("```"), "{done:?}");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -520,8 +460,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn claude_over_acp() {
-        let dir = std::env::temp_dir().join(format!("ckdry-acp-{}", std::process::id()));
-        let agent = Agent::new(&dir);
+        let agent = Agent::new();
         let session = agent.new_session("You are a terse Kubernetes coach. One sentence per answer.", "haiku").await.unwrap();
         // The models this login offers, as the agent lists them
         let models = agent.models().await.unwrap();
@@ -558,6 +497,5 @@ mod tests {
             .await;
         assert!(matches!(stopped, Err(AppError::Cancelled { .. })), "{:?}", stopped.err());
         agent.close(&session).await;
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

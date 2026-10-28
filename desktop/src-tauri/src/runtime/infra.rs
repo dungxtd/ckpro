@@ -51,7 +51,7 @@ impl Image {
     }
 }
 
-pub const IMAGES: [&Image; 3] = [&NODE_IMAGE, &JUMPHOST_IMAGE, &DESKTOP_IMAGE];
+pub const IMAGES: [&Image; 4] = [&NODE_IMAGE, &JUMPHOST_IMAGE, &DESKTOP_IMAGE, &AGENT_IMAGE];
 
 /// What CI builds and publishes (`ckdry images`, `resources/images.json`)
 pub fn manifest() -> serde_json::Value {
@@ -109,6 +109,13 @@ pub const DESKTOP_IMAGE: Image = Image {
         ("codium.desktop", include_bytes!("../../resources/desktop/codium.desktop")),
     ],
     args: &[],
+};
+
+/// The assistant's runtime: the Claude ACP adapter on Node (ai/agent.rs)
+pub const AGENT_IMAGE: Image = Image {
+    name: "agent",
+    files: &[("Dockerfile", include_bytes!("../../resources/agent/Dockerfile"))],
+    args: &[("ADAPTER_VERSION", "0.97.0")],
 };
 
 /// Pull-through cache for every upstream, in one container and one volume.
@@ -310,7 +317,7 @@ async fn pull(docker: &Docker, image: &str, log: &(dyn Fn(String) + Sync)) -> Ap
 /// Get `image` unless it is here: pull the published one, or build it when it
 /// is not published (a change not released yet, or offline). Then drop the
 /// versions it replaces.
-async fn obtain(docker: &Docker, image: &Image, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
+pub async fn obtain(docker: &Docker, image: &Image, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
     let tag = image.tag();
     if docker.inspect_image(&tag).await.is_ok() {
         return Ok(());

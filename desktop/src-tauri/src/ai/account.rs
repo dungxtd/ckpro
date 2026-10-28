@@ -1,5 +1,5 @@
 //! The Claude login the assistant runs on, read and changed with the Claude
-//! CLI the adapter bundles (`--cli auth ...`).
+//! CLI the adapter bundles (`--cli auth ...`), in the agent's container.
 //! The login itself stays the CLI's (keychain or `~/.claude`): ckdry keeps no
 //! credentials.
 
@@ -71,7 +71,7 @@ pub fn in_terminal(argv: &[OsString]) -> Command {
 }
 
 pub async fn account(agent: &Agent) -> AppResult<Account> {
-    let mut command = agent.adapter(&["--cli", "auth", "status", "--json"], false)?;
+    let mut command = agent.adapter(&["--cli", "auth", "status", "--json"], false).await?;
     command.stdin(Stdio::null()).stderr(Stdio::null());
     let output = tokio::time::timeout(CLI_TIMEOUT, command.output())
         .await
@@ -104,7 +104,7 @@ pub async fn sign_in(
         SignInMethod::Claude => "--claudeai",
         SignInMethod::Console => "--console",
     };
-    let mut command = agent.adapter(&["--cli", "auth", "login", flag], true)?;
+    let mut command = agent.adapter(&["--cli", "auth", "login", flag], true).await?;
     command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = command.spawn().map_err(|e| AppError::assistant(format!("starting the Claude login: {e}")))?;
     let mut stdout = child.stdout.take().expect("piped");
@@ -162,7 +162,7 @@ impl SigningIn {
 }
 
 pub async fn sign_out(agent: &Agent) -> AppResult<()> {
-    let mut command = agent.adapter(&["--cli", "auth", "logout"], false)?;
+    let mut command = agent.adapter(&["--cli", "auth", "logout"], false).await?;
     command.stdin(Stdio::null());
     let output = tokio::time::timeout(CLI_TIMEOUT, command.output())
         .await
@@ -232,22 +232,37 @@ mod tests {
         assert!(!parse_status("npm error").signed_in);
     }
 
-    /// The real CLI (needs Node and a Claude login on this machine)
+    /// The real CLI in the agent's container (needs Docker): it reads the
+    /// login kept in the volume, and a sign-in prints its link and waits for
+    /// the browser's code (cancelled here: nothing changes)
     #[tokio::test]
     #[ignore]
-    async fn reads_this_machines_login() {
-        let dir = std::env::temp_dir().join(format!("ckdry-account-{}", std::process::id()));
-        let account = account(&Agent::new(&dir)).await.unwrap();
+    async fn the_container_reads_and_starts_a_login() {
+        let agent = Agent::new();
+        let account = account(&agent).await.unwrap();
         println!("{account:?}");
-        assert!(account.signed_in && account.method.is_some());
-        // The login's way: in a pseudo-terminal, read back without its codes
-        let mut command = Agent::new(&dir).adapter(&["--cli", "auth", "status", "--json"], true).unwrap();
-        let output = command.stdin(Stdio::null()).output().await.unwrap();
-        let text = strip_terminal_codes(&String::from_utf8_lossy(&output.stdout));
-        // (`script` echoes the closed stdin as ^D first)
-        let json = &text[text.find('{').unwrap_or(0)..=text.rfind('}').unwrap_or(0)];
-        assert!(output.status.success() && parse_status(json.trim()).signed_in, "{text}");
-        let _ = std::fs::remove_dir_all(&dir);
+        let output = std::sync::Mutex::new(String::new());
+        let login = std::sync::Mutex::new(None);
+        let signing = sign_in(&agent, SignInMethod::Claude, |l| *login.lock().unwrap() = Some(l), |SignInEvent::Output { text }| {
+            output.lock().unwrap().push_str(&text)
+        });
+        tokio::pin!(signing);
+        let deadline = tokio::time::sleep(std::time::Duration::from_secs(40));
+        tokio::pin!(deadline);
+        loop {
+            tokio::select! {
+                result = &mut signing => panic!("the login ended by itself: {result:?}\n{}", output.lock().unwrap()),
+                () = &mut deadline => break,
+                () = tokio::time::sleep(std::time::Duration::from_millis(500)) => {
+                    if output.lock().unwrap().contains("https://") { tokio::time::sleep(std::time::Duration::from_secs(2)).await; break; }
+                }
+            }
+        }
+        let shown = output.lock().unwrap().clone();
+        println!("--- login output ---\n{shown}\n---");
+        login.lock().unwrap().take().unwrap().cancel();
+        assert!(matches!(signing.await, Err(AppError::Cancelled { .. })));
+        assert!(shown.contains("https://"), "{shown}");
     }
 
     #[test]

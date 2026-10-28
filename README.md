@@ -26,13 +26,12 @@ the cluster.
 ## Requirements
 
 - macOS (Apple silicon or Intel)
-- A Docker engine: OrbStack, Docker Desktop, Colima or Rancher Desktop,
-  with 4 GB of memory or more
-- Node.js 22 or later, for the assistant only
+- A Docker engine: OrbStack or Docker Desktop, with 4 GB of memory or more
 
-Nothing else is installed on the host: kind, the cluster images and the exam
-desktop are fetched and run by the app, and their kubeconfigs stay in the
-app's data directory.
+That is all. Everything else runs in Docker or in the app's data directory:
+the clusters, task host, exam desktop and registry cache; the assistant (its
+runtime is an image, its Claude login a volume); kind and the kubeconfigs.
+Nothing is read from or written to the host's tools or settings.
 
 ## Development
 

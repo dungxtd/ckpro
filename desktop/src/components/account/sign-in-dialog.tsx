@@ -28,7 +28,7 @@ const linkIn = (output: string) => output.match(/https:\/\/\S+/g)?.at(-1);
 /**
  * Sign in to Claude: the Claude CLI's own login runs (it
  * opens the browser), its output shows here, and a code the browser shows
- * can be pasted back. The login stays Claude Code's; ckdry keeps none.
+ * can be pasted back. The login stays in the assistant's Docker volume.
  */
 export function SignInDialog({
 	open,
@@ -77,8 +77,8 @@ export function SignInDialog({
 				<DialogHeader>
 					<DialogTitle>Sign in to Claude</DialogTitle>
 					<DialogDescription>
-						The assistant answers with your own Claude account. The login is Claude Code's; ckdry
-						keeps no password or key.
+						Open the sign-in page, approve, and paste the code it shows. The login stays in the
+						assistant's Docker volume, not on this Mac.
 					</DialogDescription>
 				</DialogHeader>
 

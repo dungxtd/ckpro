@@ -25,8 +25,8 @@ use std::path::PathBuf;
 const PROTOCOL_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
 pub struct Server {
-    bank: LoadedPack,
-    store: Store,
+    bank: std::sync::Arc<LoadedPack>,
+    store: std::sync::Arc<Store>,
     data_dir: PathBuf,
     /// The assistant's agent session for this question (`ckdry mcp --agent`):
     /// its tools run commands for it, on the task's host
@@ -41,7 +41,7 @@ const OUTPUT_MAX_BYTES: usize = 16 * 1024;
 pub fn serve(bank: LoadedPack, store: Store, data_dir: PathBuf, agent: Option<String>) -> AppResult<()> {
     // Its checks exec in the app's containers: tell the app's guard they are ckdry's
     crate::runtime::guard::share_own_execs();
-    let server = Server { bank, store, data_dir, agent };
+    let server = Server::new(std::sync::Arc::new(bank), std::sync::Arc::new(store), data_dir, agent);
     let runtime = tokio::runtime::Runtime::new().map_err(|e| AppError::io("starting the MCP server", e))?;
     let stdout = std::io::stdout();
     for line in std::io::stdin().lock().lines() {
@@ -59,6 +59,11 @@ pub fn serve(bank: LoadedPack, store: Store, data_dir: PathBuf, agent: Option<St
 }
 
 impl Server {
+    /// `agent`: the question of an assistant agent session (its tools)
+    pub fn new(bank: std::sync::Arc<LoadedPack>, store: std::sync::Arc<Store>, data_dir: PathBuf, agent: Option<String>) -> Self {
+        Self { bank, store, data_dir, agent }
+    }
+
     /// The reply to a message; none for notifications
     pub async fn handle(&self, message: &Value) -> Option<Value> {
         let id = message.get("id")?.clone();
@@ -376,7 +381,7 @@ mod tests {
     fn server() -> Server {
         let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../packs/core"));
         let bank = crate::lab::load::load(&root).0.unwrap();
-        Server { bank, store: Store::in_memory().unwrap(), data_dir: std::env::temp_dir().join("ckdry-mcp-test"), agent: None }
+        Server::new(std::sync::Arc::new(bank), std::sync::Arc::new(Store::in_memory().unwrap()), std::env::temp_dir().join("ckdry-mcp-test"), None)
     }
 
     async fn call(server: &Server, name: &str, arguments: Value) -> (String, bool) {

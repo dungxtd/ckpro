@@ -20,5 +20,12 @@
     "args": {},
     "image": "ghcr.io/dungxtd/ckdry-desktop:3ff6a9c8",
     "name": "desktop"
+  },
+  {
+    "args": {
+      "ADAPTER_VERSION": "0.97.0"
+    },
+    "image": "ghcr.io/dungxtd/ckdry-agent:4318ccd5",
+    "name": "agent"
   }
 ]

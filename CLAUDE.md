@@ -9,9 +9,11 @@ Architecture: `docs/ARCHITECTURE.md`.
 
 - **Exam mode is AI-free.** Every assistant command and MCP tool refuses
   while an exam-mode attempt runs; Agent (commands) is practice-only.
-- **The environment is the app's.** Clusters, task host, desktop and mirror
-  run in Docker under the `ckdry` compose project; kubeconfigs stay in the
-  data directory. During an attempt the guard keeps them as set up.
+- **The host needs only Docker.** Clusters, task host, desktop, mirror and
+  the assistant run in Docker under the `ckdry` compose project; the Claude
+  login is a volume; kind and kubeconfigs stay in the data directory. Never
+  depend on host tools or settings. During an attempt the guard keeps the
+  environment as set up.
 - **State lives in SQLite** (`store.rs`): settings, attempts, history, coach
   sessions. New fields get `#[serde(default)]`; schema changes are new
   migrations, never edits to old ones.

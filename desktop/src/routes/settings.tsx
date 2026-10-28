@@ -1,4 +1,3 @@
-import { Alert } from "@ckdry/ui/components/alert";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { Chip } from "@ckdry/ui/components/chip";
@@ -14,7 +13,7 @@ import {
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { Switch } from "@ckdry/ui/components/switch";
 import { Copy, X } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SignInDialog } from "@/components/account/sign-in-dialog";
 import { ClaudeIcon } from "@/components/claude-icon";
@@ -28,7 +27,6 @@ import {
 	agentApi,
 	appApi,
 	coachApi,
-	type RuntimeInfo,
 } from "@/tauri/api";
 
 /**
@@ -41,7 +39,6 @@ export function SettingsRoute() {
 		<div className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
 			<ClaudeSettings />
 			<AssistantSettings />
-			<RuntimeSettings />
 			<DeskSettings />
 			<AboutSettings />
 		</div>
@@ -76,7 +73,7 @@ function ClaudeSettings() {
 					<ClaudeIcon className="size-4 text-claude" /> Claude
 				</span>
 			}
-			description="The assistant answers with your own Claude account, through Claude Code."
+			description="The assistant answers with your own Claude account. It runs in Docker; the login stays in the app's volume."
 		>
 			<Row label="Account" detail={account?.signed_in ? accountDetail(account) : undefined}>
 				{account === null ? (
@@ -269,132 +266,6 @@ function AssistantSettings() {
 				/>
 			</Row>
 		</Group>
-	);
-}
-
-/** Where npx (which runs the ACP adapter) and Claude Code are */
-function RuntimeSettings() {
-	const [info, setInfo] = useState<RuntimeInfo | null>(null);
-	const [npx, setNpx] = useState("");
-	const [claude, setClaude] = useState("");
-	const [saving, setSaving] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const show = useCallback((next: RuntimeInfo) => {
-		setInfo(next);
-		setNpx(next.paths.npx ?? "");
-		setClaude(next.paths.claude ?? "");
-	}, []);
-	useEffect(() => {
-		coachApi.runtime().then(show, e => setError(String(e)));
-	}, [show]);
-	const changed =
-		info !== null && (npx !== (info.paths.npx ?? "") || claude !== (info.paths.claude ?? ""));
-	const save = async () => {
-		setSaving(true);
-		setError(null);
-		try {
-			show(await coachApi.setRuntime({ npx: npx.trim() || null, claude: claude.trim() || null }));
-			// Another runtime may sign in as someone else and offer other models
-			useCoach.getState().loadAccount();
-			toast.success("The assistant restarts with these paths");
-		} catch (e) {
-			setError(e instanceof Error ? e.message : String(e));
-		} finally {
-			setSaving(false);
-		}
-	};
-
-	return (
-		<Group
-			title="Claude runtime"
-			description="Empty fields use what is found on this Mac. The assistant restarts when they change."
-			footer={
-				<>
-					{error && (
-						<Alert variant="destructive" className="flex-1">
-							{error}
-						</Alert>
-					)}
-					<Button size="push" variant="pushDefault" disabled={!changed || saving} onClick={save}>
-						{saving ? "Saving…" : "Save"}
-					</Button>
-				</>
-			}
-		>
-			<PathRow
-				label="Node.js (npx)"
-				hint="Runs the Claude ACP adapter"
-				value={npx}
-				onChange={setNpx}
-				found={info?.npx_found}
-				fallback="Not found: install Node.js from nodejs.org"
-			/>
-			<PathRow
-				label="Claude Code CLI"
-				hint="Leave empty to use the one bundled with the adapter"
-				value={claude}
-				onChange={setClaude}
-				found={info?.claude_found}
-				fallback="Bundled with the adapter"
-				placeholderIsDefault={false}
-			/>
-		</Group>
-	);
-}
-
-/**
- * A path: what is set, or empty for what the app finds. `found` is offered
- * to fill in; with `placeholderIsDefault` the found path is what an empty
- * field uses (npx), otherwise the empty field means `fallback` (the bundled
- * Claude Code)
- */
-function PathRow({
-	label,
-	hint,
-	value,
-	onChange,
-	found,
-	fallback,
-	placeholderIsDefault = true,
-}: {
-	label: string;
-	hint: string;
-	value: string;
-	onChange: (value: string) => void;
-	found: string | null | undefined;
-	fallback: string;
-	placeholderIsDefault?: boolean;
-}) {
-	const placeholder = placeholderIsDefault ? (found ?? fallback) : fallback;
-	return (
-		<div className="flex flex-col gap-1.5 px-4 py-3">
-			<div className="flex items-baseline justify-between gap-3">
-				<span className="text-sm">{label}</span>
-				<span className="text-muted-foreground text-xs">{hint}</span>
-			</div>
-			<Input
-				value={value}
-				onChange={e => onChange(e.target.value)}
-				placeholder={placeholder}
-				spellCheck={false}
-				aria-label={label}
-				className="h-8 font-mono text-xs md:text-xs"
-			/>
-			{/* An empty npx field already uses what was found */}
-			{found && found !== value && (!placeholderIsDefault || value) && (
-				<div className="flex items-center gap-2 text-muted-foreground text-xs">
-					<span className="min-w-0 truncate">Found at {found}</span>
-					<Button
-						size="push"
-						variant="link"
-						className="h-auto px-0"
-						onClick={() => onChange(found)}
-					>
-						Use it
-					</Button>
-				</div>
-			)}
-		</div>
 	);
 }
 

@@ -62,8 +62,6 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::desktop_reset,
         commands::desktop_open_url,
         commands::coach_status,
-        commands::coach_runtime,
-        commands::set_coach_runtime,
         commands::app_info,
         commands::agent_settings,
         commands::save_agent_settings,
@@ -167,7 +165,7 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(terminal::Terminals::default())
         .manage(cluster::jobs::Jobs::default())
-        .manage(ai::Coach::new(&data_dir()))
+        .manage(ai::Coach::new())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             if let Ok(dir) = app.path().app_log_dir() {
@@ -211,8 +209,6 @@ pub fn run() {
             // files moves in once
             let store = Arc::new(store::Store::open(&data_dir.join("ckdry.db"))?);
             store.import_files(&data_dir);
-            // npx and Claude Code where Settings put them
-            app.state::<ai::Coach>().load_runtime(store.assistant_runtime().unwrap_or_default());
             app.manage(store.clone());
             let exams_handle = app.handle().clone();
             let exams = Arc::new(lab::exam::Exams::new(
@@ -221,7 +217,7 @@ pub fn run() {
                 infra,
                 jumphost,
                 runtime::desktop::NAME,
-                store,
+                store.clone(),
                 move |state| {
                     let _ = ExamChanged(state.clone()).emit(&exams_handle);
                 },
@@ -229,6 +225,16 @@ pub fn run() {
                 guard,
             ));
             exams.restore();
+            // The agent sessions' tools, served to their container
+            {
+                let (handle, exams, store, dir) = (app.handle().clone(), exams.clone(), store.clone(), data_dir.clone());
+                tauri::async_runtime::spawn(async move {
+                    match ai::mcp_http::McpHttp::start(move || exams.bank(), store, dir).await {
+                        Ok(server) => handle.state::<ai::Coach>().serve_tools(server),
+                        Err(e) => tracing::warn!(error = %e, "the agent's tools are unavailable"),
+                    }
+                });
+            }
             app.manage(exams);
             app.manage(kind);
             app.manage(env);
@@ -536,9 +542,9 @@ mod tests {
 
         // The practice coach answers about the failing check (the real model,
         // when Claude Code is installed) and keeps the conversation
-        if ai::agent::detect_npx().is_some() {
+        if runtime::docker::cli().is_some() {
             let streamed = std::sync::Mutex::new(String::new());
-            let coach = ai::Coach::new(&std::env::temp_dir().join("ckdry-e2e-coach"));
+            let coach = ai::Coach::new();
             let context = ai::CoachContext { checks: true, cluster: true };
             let answer = coach
                 .ask(&exams, &store, question, "Why do my checks fail? One sentence.", &failing, false, "haiku", "default", ai::Profile::Ask, context, |event| {

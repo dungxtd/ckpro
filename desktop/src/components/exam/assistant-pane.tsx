@@ -233,7 +233,7 @@ export function AssistantPane({
 			>
 				{messages.length === 0 ? (
 					// Quiet: Claude's mark, and words only when
-					// something is needed (Node.js, signing in)
+					// something is needed (Docker, signing in)
 					<div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
 						<ClaudeIcon className="size-8 text-claude opacity-80" />
 						{status && !status.ready ? (

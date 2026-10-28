@@ -63,12 +63,17 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 ## Assistant (`ai/`)
 
 - `acp.rs` is an Agent Client Protocol client over stdio; `agent.rs` runs the
-  Claude adapter through npx on the candidate's own Claude login
-  (`account.rs` reads it and signs in and out with the Claude CLI).
+  Claude adapter in a container of the `agent` image (`docker run -i`, one
+  per connection) on the candidate's own Claude login, kept in the
+  `ckdry-claude` volume; `account.rs` reads it and signs in and out with the
+  Claude CLI in that container (the link opens on the host, the code is
+  pasted back).
 - Sessions are per question, named from their first question, with the
   models and effort levels the agent offers.
 - Ask profile: no tools. Agent profile: Claude's built-in tools stay off; the
-  session gets ckdry's own MCP server (`ckdry mcp --agent <question>`) with
+  session gets the app's own MCP server (`mcp_http.rs`: Streamable HTTP on
+  the host's loopback, reached as `host.docker.internal`, one token per run)
+  with
   `run_command` (bash on the task host, the task cluster's kubeconfig, a time
   limit and an output cap) and `check_my_work`. Each call is a permission
   request the interface shows as a card; `policy.rs` decides what runs

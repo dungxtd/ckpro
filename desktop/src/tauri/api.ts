@@ -17,7 +17,6 @@ import {
 	type Mode,
 	type ModelChoice,
 	type Progress,
-	type RuntimePaths_Deserialize,
 	type Settings_Serialize,
 	type SignInEvent,
 	type SignInMethod,
@@ -36,7 +35,6 @@ export type Account = Account_Serialize;
 export type { SignInMethod };
 /** The assistant's agent settings */
 export type AgentSettings = AgentSettings_Serialize;
-export type RuntimePaths = RuntimePaths_Deserialize;
 
 /** A long operation as the app sends it */
 export type Activity = Activity_Serialize;
@@ -75,7 +73,6 @@ export type {
 	NodeState,
 	PermissionOption,
 	Profile,
-	RuntimeInfo,
 	Solution,
 	StudyStats,
 	TerminalEvent,
@@ -171,7 +168,7 @@ export const desktopApi = {
 };
 
 export const coachApi = {
-	/** Whether the agent can run (Node.js for the Claude ACP adapter) */
+	/** Whether the assistant can run (Docker, which runs it) */
 	status: () => commands.coachStatus(),
 	/** Models to pick from, as the agent lists them for this login, and the default */
 	models: () => unwrap(commands.coachModels()),
@@ -226,10 +223,6 @@ export const coachApi = {
 	signInInput: (line: string) => unwrap(commands.coachSignInInput(line)),
 	signInCancel: () => unwrap(commands.coachSignInCancel()),
 	signOut: () => unwrap(commands.coachSignOut()),
-	/** Where npx and Claude Code are: as set in Settings, and as found */
-	runtime: () => unwrap(commands.coachRuntime()),
-	/** Set them (empty: found on the machine); the assistant restarts on them */
-	setRuntime: (paths: RuntimePaths) => unwrap(commands.setCoachRuntime(paths)),
 	/** Results per curriculum domain, per certification attempted */
 	studyStats: () => commands.studyStats(),
 	/** A study plan from the history; `onText` gets it as it is written */

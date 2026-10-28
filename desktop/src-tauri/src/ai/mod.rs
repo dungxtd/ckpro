@@ -9,6 +9,7 @@ mod acp;
 pub mod agent;
 pub mod generate;
 pub mod mcp;
+pub mod mcp_http;
 pub mod policy;
 
 use crate::error::{AppError, AppResult};
@@ -88,14 +89,6 @@ pub struct ModelChoice {
     pub profile: Profile,
 }
 
-/// The assistant's runtime: the paths set in Settings and what the machine has
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-pub struct RuntimeInfo {
-    pub paths: agent::RuntimePaths,
-    pub npx_found: Option<String>,
-    pub claude_found: Option<String>,
-}
-
 /// The models the coach can use
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 pub struct CoachModels {
@@ -163,6 +156,8 @@ pub struct Coach {
     /// The ACP sessions behind open coach sessions: (attempt, question) →
     /// (ACP session, model, effort, profile)
     open: tokio::sync::Mutex<HashMap<(String, String), (String, String, String, Profile)>>,
+    /// The tools agent sessions get, once their server listens
+    tools: std::sync::OnceLock<mcp_http::McpHttp>,
     /// Permission requests waiting for the candidate, by id
     permissions: Mutex<HashMap<u32, tokio::sync::oneshot::Sender<serde_json::Value>>>,
     /// The Claude login being run, if any
@@ -170,12 +165,13 @@ pub struct Coach {
 }
 
 impl Coach {
-    pub fn new(data_dir: &std::path::Path) -> Self {
+    pub fn new() -> Self {
         Self {
-            agent: Agent::new(data_dir),
+            agent: Agent::new(),
             running: Mutex::new(None),
             open: Default::default(),
             permissions: Default::default(),
+            tools: Default::default(),
             signing_in: Default::default(),
         }
     }
@@ -191,6 +187,11 @@ impl Coach {
     /// The effort levels `model` takes (none when it has no effort setting)
     pub async fn efforts(&self, model: &str) -> AppResult<Vec<agent::ModelOption>> {
         self.agent.efforts(model).await
+    }
+
+    /// Serve agent sessions these tools (the app's MCP server)
+    pub fn serve_tools(&self, server: mcp_http::McpHttp) {
+        let _ = self.tools.set(server);
     }
 
     /// Keep a permission request for the candidate; its id
@@ -269,32 +270,15 @@ impl Coach {
     }
 
     pub fn status(&self) -> CoachStatus {
-        match self.agent.npx() {
+        match crate::runtime::docker::cli() {
             Some(_) => CoachStatus { ready: true, problem: None },
             None => CoachStatus {
                 ready: false,
-                problem: Some("Install Node.js (nodejs.org), or set where npx is in Settings: the assistant runs Claude through npx, signed in with your Claude account".into()),
+                problem: Some("The assistant runs in Docker: install OrbStack or Docker Desktop".into()),
             },
         }
     }
 
-    /// Where npx and Claude Code are, as set and as found
-    pub fn runtime(&self, paths: agent::RuntimePaths) -> RuntimeInfo {
-        let found = |p: Option<std::path::PathBuf>| p.map(|p| p.display().to_string());
-        RuntimeInfo { paths, npx_found: found(agent::detect_npx()), claude_found: found(agent::detect_claude()) }
-    }
-
-    /// Use other runtime paths: the adapter restarts on them
-    pub async fn set_runtime(&self, paths: agent::RuntimePaths) {
-        self.agent.set_paths(paths);
-        self.agent.restart().await;
-        self.open.lock().await.clear();
-    }
-
-    /// The runtime paths kept in the settings, at start
-    pub fn load_runtime(&self, paths: agent::RuntimePaths) {
-        self.agent.set_paths(paths);
-    }
 
     pub fn history(exams: &Exams, store: &Store, question_id: &str) -> AppResult<CoachHistory> {
         let subject = exams.coach_subject(question_id, false)?;
@@ -373,7 +357,8 @@ impl Coach {
                     Profile::Ask => self.agent.new_session(&system(&subject), model).await?,
                     Profile::Agent => {
                         let system = format!("{}\n{AGENT}", system(&subject));
-                        self.agent.new_session_with(&system, model, agent_tools(question_id)?).await?
+                        let tools = self.tools.get().ok_or_else(|| AppError::assistant("the agent's tools are not ready yet; try again"))?;
+                        self.agent.new_session_with(&system, model, serde_json::json!([tools.server_for(question_id)])).await?
                     }
                 };
                 self.agent.set_effort(&session, model, effort).await?;
@@ -615,18 +600,6 @@ asked you to fix or solve it.\n\
 can do it themselves next time.\n\
 - Never touch ckdry itself (docker, kind) or other tasks' namespaces.\n";
 
-/// The MCP server an agent session gets: ckdry itself, its agent tools for
-/// this question (`ckdry mcp --agent`)
-fn agent_tools(question_id: &str) -> AppResult<serde_json::Value> {
-    let ckdry = std::env::current_exe().map_err(|e| AppError::io("finding ckdry", e))?;
-    Ok(serde_json::json!([{
-        "name": "ckdry",
-        "command": ckdry,
-        "args": ["mcp", "--agent", question_id],
-        "env": [],
-    }]))
-}
-
 /// How the coach helps once the attempt has its result
 const REVIEW: &str = "You are a Kubernetes certification coach inside ckdry, an exam simulator. \
 The candidate finished an exam and reviews one task with you; the exam is over, so explain fully.\n\n\
@@ -798,8 +771,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn names_a_session_from_its_first_question() {
-        let dir = std::env::temp_dir().join(format!("ckdry-title-{}", std::process::id()));
-        let agent = Agent::new(&dir);
+        let agent = Agent::new();
         for question in [
             "Why does my PVC stay Pending even though the StorageClass exists?",
             "tại sao kubectl drain node01 bị treo mãi không xong?",
@@ -811,7 +783,6 @@ mod tests {
             println!("{question} -> {title}");
             assert!(title.split_whitespace().count() <= 8 && !title.contains('"'), "{title}");
         }
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -881,7 +852,7 @@ mod tests {
         let snapshot = "NAME                             STATUS    VOLUME   CAPACITY   STORAGECLASS\npersistentvolumeclaim/data-pvc   Pending                       standrad\n# events\nWarning ProvisioningFailed persistentvolumeclaim/data-pvc storageclass.storage.k8s.io \"standrad\" not found";
         let prompt = prompt(&subject, &checks, Some(snapshot), &[], "Why do my checks fail? Point me to the cause, not the full solution.");
         let chunks = std::sync::atomic::AtomicUsize::new(0);
-        let agent = Agent::new(&std::env::temp_dir().join("ckdry-coach-test"));
+        let agent = Agent::new();
         let answer = agent
             .ask_once(&system(&subject), &prompt, DEFAULT_MODEL, &CancellationToken::new(), &|_| {
                 chunks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -935,7 +906,7 @@ mod tests {
             practice: [("troubleshooting".to_string(), vec!["Fix a crashing Deployment".to_string()]), ("storage".to_string(), vec!["PVC and Pod".to_string()])].into(),
             exams: vec!["CKA Practice Exam 1".into()],
         };
-        let agent = Agent::new(&std::env::temp_dir().join("ckdry-coach-test"));
+        let agent = Agent::new();
         let plan = agent.ask_once(&study_system(&subject), &study_prompt(&subject), DEFAULT_MODEL, &CancellationToken::new(), &|_| {}).await.unwrap();
         println!("{plan}");
         assert!(plan.to_lowercase().contains("troubleshooting"));
