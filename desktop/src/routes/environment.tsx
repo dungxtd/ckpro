@@ -1,6 +1,7 @@
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
+import { Loading } from "@ckdry/ui/components/loading";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import { ActivityList } from "@/components/activity/activity-list";
@@ -62,7 +63,7 @@ export function EnvironmentRoute() {
 		if (hash === "#activity")
 			document.getElementById("activity")?.scrollIntoView({ behavior: "smooth" });
 	}, [hash]);
-	if (!env) return null;
+	if (!env) return <Loading fill label="Reading the environment…" />;
 
 	return (
 		<div className="flex h-full gap-3 p-3">

@@ -1,4 +1,5 @@
 import { IconButton } from "@ckdry/ui/components/icon-button";
+import { Loading } from "@ckdry/ui/components/loading";
 import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import { Toaster } from "@ckdry/ui/components/sonner";
 import { Settings } from "lucide-react";
@@ -34,6 +35,8 @@ const NAV = [
 function Layout() {
 	const { pathname } = useLocation();
 	const navigate = useNavigate();
+	// An attempt in progress: ExamGuard moves to it; nothing flashes meanwhile
+	const busy = useExam(s => s.state !== null && s.state.phase !== "idle");
 	// ⌘, opens Settings, as in every Mac app
 	useEffect(() => {
 		const open = (e: KeyboardEvent) => {
@@ -45,6 +48,7 @@ function Layout() {
 		window.addEventListener("keydown", open);
 		return () => window.removeEventListener("keydown", open);
 	}, [navigate]);
+	if (busy) return null;
 	return (
 		<div className="flex h-full flex-col">
 			<header className="flex select-none items-center gap-4 border-border border-b px-4 py-2">
@@ -95,8 +99,11 @@ function App() {
 			for (const stop of stops) stop.then(fn => fn());
 		};
 	}, [connectEnv, connectExam, connectActivities, loadSettings]);
+	// Opened straight on the right screen: the settings and where the exam is
+	// are known before anything shows (no catalog flashing before a resume)
 	const settingsLoaded = useSettings(s => s.loaded);
-	if (!settingsLoaded) return null;
+	const examKnown = useExam(s => s.state !== null);
+	if (!settingsLoaded || !examKnown) return <Loading fill label="Opening ckdry…" />;
 
 	return (
 		<>

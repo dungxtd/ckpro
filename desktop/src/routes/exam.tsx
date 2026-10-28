@@ -1,5 +1,6 @@
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
+import { Loading } from "@ckdry/ui/components/loading";
 import { Navigate } from "react-router";
 import { ActivityPage } from "@/components/activity/activity-progress";
 import { Grading } from "@/components/exam/grading";
@@ -12,7 +13,7 @@ const modeLabel = (mode: string) => (mode === "exam" ? "Exam mode" : "Practice m
 /** The current attempt, whatever phase it is in. */
 export function ExamRoute() {
 	const { state, end, start } = useExam();
-	if (!state) return null;
+	if (!state) return <Loading fill />;
 
 	switch (state.phase) {
 		case "idle":

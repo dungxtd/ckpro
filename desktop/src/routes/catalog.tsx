@@ -2,7 +2,8 @@ import { Alert } from "@ckdry/ui/components/alert";
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
-import { useEffect } from "react";
+import { Loading } from "@ckdry/ui/components/loading";
+import { useEffect, useState } from "react";
 import { GenerateCard } from "@/components/catalog/generate-card";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
@@ -63,8 +64,10 @@ export function CatalogRoute() {
 	const { catalog, loadCatalog, pendingReplace, start, cancelReplace, error } = useExam();
 	// Live, not a remembered error: it clears itself when Docker is back
 	const docker = useEnvironment(s => s.env?.docker);
+	// The exams once read (the list is kept between visits)
+	const [loaded, setLoaded] = useState(catalog.length > 0);
 	useEffect(() => {
-		loadCatalog();
+		loadCatalog().finally(() => setLoaded(true));
 	}, [loadCatalog]);
 
 	const certs = [...new Set(catalog.map(e => e.certification))].sort(
@@ -97,6 +100,7 @@ export function CatalogRoute() {
 			{docker?.state === "connecting" && <Alert>Connecting to Docker…</Alert>}
 			{error && <Alert variant="destructive">{error}</Alert>}
 			{assistant && <GenerateCard onGenerated={loadCatalog} />}
+			{!loaded && catalog.length === 0 && <Loading fill label="Loading exams…" />}
 			{certs.map(cert => (
 				<section key={cert}>
 					<h2 className="mb-3 font-semibold text-lg">{cert.toUpperCase()}</h2>

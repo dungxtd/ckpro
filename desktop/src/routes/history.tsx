@@ -1,4 +1,5 @@
 import { Badge } from "@ckdry/ui/components/badge";
+import { Loading } from "@ckdry/ui/components/loading";
 import {
 	Table,
 	TableBody,
@@ -15,11 +16,12 @@ import { examApi, type HistoryEntry } from "@/tauri/api";
 /** Past attempts, newest first. */
 export function HistoryRoute() {
 	const assistant = useAssistantEnabled();
-	const [history, setHistory] = useState<HistoryEntry[]>([]);
+	const [history, setHistory] = useState<HistoryEntry[] | null>(null);
 	useEffect(() => {
 		examApi.history().then(setHistory);
 	}, []);
 
+	if (history === null) return <Loading fill label="Loading history…" />;
 	if (history.length === 0)
 		return <div className="p-6 text-muted-foreground text-sm">No attempts yet.</div>;
 	return (

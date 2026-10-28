@@ -1,3 +1,4 @@
+import { Loading } from "@ckdry/ui/components/loading";
 import { useDismissSurface } from "@ckdry/ui/components/popover";
 import RFB from "@novnc/novnc";
 import { useEffect, useRef, useState } from "react";
@@ -143,8 +144,8 @@ export function DesktopView({
 		<div ref={surface} className="relative h-full w-full bg-[#1e1e1e]">
 			<div ref={screen} className="h-full w-full" />
 			{!connected && (
-				<div className="absolute inset-0 grid place-items-center text-muted-foreground text-sm">
-					Connecting to the exam desktop…
+				<div className="absolute inset-0">
+					<Loading fill label="Connecting to the exam desktop…" />
 				</div>
 			)}
 		</div>

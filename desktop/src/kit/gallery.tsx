@@ -21,6 +21,7 @@ import { CodeBlock } from "@ckdry/ui/components/code-block";
 import { Disclosure } from "@ckdry/ui/components/disclosure";
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Input } from "@ckdry/ui/components/input";
+import { Loading } from "@ckdry/ui/components/loading";
 import { menu, menuRow } from "@ckdry/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
 import { Progress } from "@ckdry/ui/components/progress";
@@ -399,7 +400,10 @@ function Gallery() {
 					</Card>
 				</Section>
 
-				<Section title="Feedback" note="Spinner, Skeleton, toasts, Separator.">
+				<Section
+					title="Feedback"
+					note="Spinner, Loading (a line, or fill for a page or panel), Skeleton, toasts, Separator."
+				>
 					<Row>
 						<Spinner size="inline" />
 						<Spinner size="small" />
@@ -410,6 +414,12 @@ function Gallery() {
 						<Button size="push" variant="push" onClick={() => toast.error("Could not save")}>
 							Error toast
 						</Button>
+					</Row>
+					<Row>
+						<Loading label="Loading exams…" />
+						<div className="h-32 w-64 rounded-lg border border-border">
+							<Loading fill label="Opening ckdry…" />
+						</div>
 					</Row>
 					<Separator />
 				</Section>
