@@ -345,6 +345,15 @@ impl Store {
         self.save_setting("exam_desk", settings)
     }
 
+    /// How far the assistant's agent may go (Settings > Assistant)
+    pub fn agent_settings(&self) -> AppResult<crate::ai::policy::AgentSettings> {
+        self.setting("agent")
+    }
+
+    pub fn save_agent_settings(&self, settings: &crate::ai::policy::AgentSettings) -> AppResult<()> {
+        self.save_setting("agent", settings)
+    }
+
     /// Where the assistant's runtime is, as set in Settings
     pub fn assistant_runtime(&self) -> AppResult<crate::ai::agent::RuntimePaths> {
         self.setting("assistant_runtime")

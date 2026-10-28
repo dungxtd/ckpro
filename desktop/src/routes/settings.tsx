@@ -1,7 +1,9 @@
 import { Alert } from "@ckdry/ui/components/alert";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
+import { Chip } from "@ckdry/ui/components/chip";
 import { Input } from "@ckdry/ui/components/input";
+import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import {
 	Select,
 	SelectContent,
@@ -10,7 +12,8 @@ import {
 	SelectValue,
 } from "@ckdry/ui/components/select";
 import { Stepper } from "@ckdry/ui/components/stepper";
-import { Copy } from "lucide-react";
+import { Switch } from "@ckdry/ui/components/switch";
+import { Copy, X } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SignInDialog } from "@/components/account/sign-in-dialog";
@@ -18,7 +21,15 @@ import { ClaudeIcon } from "@/components/claude-icon";
 import { RESOLUTIONS, useDesktopSettings } from "@/components/exam/desktop-menu";
 import { TextSize } from "@/components/exam/question-panel";
 import { useCoach } from "@/stores/coach";
-import { type AppInfo, appApi, coachApi, type RuntimeInfo } from "@/tauri/api";
+import {
+	type AgentPermission,
+	type AgentSettings,
+	type AppInfo,
+	agentApi,
+	appApi,
+	coachApi,
+	type RuntimeInfo,
+} from "@/tauri/api";
 
 /**
  * The app's settings, grouped like macOS System Settings: Claude (account,
@@ -29,6 +40,7 @@ export function SettingsRoute() {
 	return (
 		<div className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
 			<ClaudeSettings />
+			<AssistantSettings />
 			<RuntimeSettings />
 			<DeskSettings />
 			<AboutSettings />
@@ -125,6 +137,140 @@ const accountDetail = (account: {
 	]
 		.filter(Boolean)
 		.join(" · ");
+
+const PERMISSIONS: { value: AgentPermission; label: string }[] = [
+	{ value: "confirm", label: "Ask before every command" },
+	{ value: "read_only", label: "Run read-only commands unasked" },
+	{ value: "all", label: "Run every command unasked" },
+];
+const TIMEOUTS = [15, 30, 60, 120, 180, 300];
+
+/**
+ * How the assistant works: the profile it starts in, what its agent may run
+ * without asking, how long a command may take, what it never runs, and
+ * whether sessions name themselves. Saved as they change
+ */
+function AssistantSettings() {
+	const [settings, setSettings] = useState<AgentSettings | null>(null);
+	const [entry, setEntry] = useState("");
+	useEffect(() => {
+		agentApi.settings().then(setSettings, e => toast.error(String(e)));
+	}, []);
+	if (!settings) return null;
+	const save = (patch: Partial<AgentSettings>) => {
+		const next = { ...settings, ...patch };
+		setSettings(next);
+		agentApi.save(next).then(setSettings, e => toast.error(String(e)));
+	};
+	const at = TIMEOUTS.indexOf(settings.command_timeout);
+	const step = (by: number) =>
+		save({
+			command_timeout: TIMEOUTS[Math.min(TIMEOUTS.length - 1, Math.max(0, (at < 0 ? 2 : at) + by))],
+		});
+	const add = () => {
+		if (!entry.trim()) return;
+		save({ never_run: [...settings.never_run, entry.trim()] });
+		setEntry("");
+	};
+
+	return (
+		<Group
+			title="Assistant"
+			description="Agent mode lets Claude run commands on the task's host while you practise. Never in an exam."
+		>
+			<Row label="Start in" detail="The profile each new run of the app starts in">
+				<SegmentedControl
+					label="Start in"
+					value={settings.default_profile}
+					onChange={default_profile => save({ default_profile })}
+					options={[
+						{ value: "ask", label: "Ask" },
+						{ value: "agent", label: "Agent" },
+					]}
+				/>
+			</Row>
+			<Row label="Agent commands" detail="Read-only: get, describe, logs, top, helm list…">
+				<Select
+					value={settings.permission}
+					onValueChange={permission => save({ permission: permission as AgentPermission })}
+				>
+					<SelectTrigger aria-label="Agent commands" className="w-64">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{PERMISSIONS.map(p => (
+							<SelectItem key={p.value} value={p.value}>
+								{p.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</Row>
+			<Row label="Command time limit">
+				<Stepper
+					label="Command time limit"
+					value={`${settings.command_timeout} s`}
+					onDecrement={() => step(-1)}
+					onIncrement={() => step(1)}
+					decrementDisabled={settings.command_timeout <= TIMEOUTS[0]}
+					incrementDisabled={settings.command_timeout >= TIMEOUTS[TIMEOUTS.length - 1]}
+				/>
+			</Row>
+			<div className="flex flex-col gap-2 px-4 py-3">
+				<div>
+					<div className="text-sm">Never run</div>
+					<div className="text-muted-foreground text-xs">
+						Commands containing these are refused, whatever you allow. Always refused: kind, docker,
+						reboot and shutdown, rm -r /.
+					</div>
+				</div>
+				{settings.never_run.length > 0 && (
+					<div className="flex flex-wrap gap-1.5">
+						{settings.never_run.map(p => (
+							<Chip key={p} size="xs" className="gap-1 font-mono">
+								{p}
+								<button
+									type="button"
+									aria-label={`Remove ${p}`}
+									className="text-muted-foreground hover:text-foreground"
+									onClick={() => save({ never_run: settings.never_run.filter(x => x !== p) })}
+								>
+									<X className="size-3" />
+								</button>
+							</Chip>
+						))}
+					</div>
+				)}
+				<form
+					className="flex gap-2"
+					onSubmit={e => {
+						e.preventDefault();
+						add();
+					}}
+				>
+					<Input
+						value={entry}
+						onChange={e => setEntry(e.target.value)}
+						placeholder="kubectl delete namespace"
+						aria-label="Command to never run"
+						spellCheck={false}
+						className="h-8 font-mono text-xs md:text-xs"
+					/>
+					<Button type="submit" size="push" variant="push" disabled={!entry.trim()}>
+						Add
+					</Button>
+				</form>
+			</div>
+			<Row label="Name sessions" detail="From their first question, with a quick model">
+				<Switch
+					aria-label="Name sessions"
+					checked={settings.auto_titles}
+					onCheckedChange={auto_titles => save({ auto_titles })}
+				/>
+			</Row>
+		</Group>
+	);
+}
 
 /** Where npx (which runs the ACP adapter) and Claude Code are */
 function RuntimeSettings() {

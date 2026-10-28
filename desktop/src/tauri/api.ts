@@ -4,6 +4,7 @@ import { Channel } from "@tauri-apps/api/core";
 import {
 	type Account_Serialize,
 	type Activity_Serialize,
+	type AgentSettings_Serialize,
 	type AppError,
 	type CheckResult,
 	type CoachContext,
@@ -33,6 +34,8 @@ export type { Progress };
 /** The Claude login the assistant answers as */
 export type Account = Account_Serialize;
 export type { SignInMethod };
+/** The assistant's agent settings */
+export type AgentSettings = AgentSettings_Serialize;
 export type RuntimePaths = RuntimePaths_Deserialize;
 
 /** A long operation as the app sends it */
@@ -45,6 +48,7 @@ export type ExamResult = Extract<ExamState, { phase: "finished" }>["result"];
 export type QuestionView = Attempt["questions"][number];
 
 export type {
+	AgentPermission,
 	AppError,
 	AppInfo,
 	Check,
@@ -246,6 +250,13 @@ export const generatorApi = {
 	/** Write a question, prove it on a cluster, keep it in "My questions"
 	 * (progress as an activity) */
 	generate: (request: GenerateRequest) => unwrap(commands.generateQuestion(request)),
+};
+
+export const agentApi = {
+	/** How far the assistant's agent may go on its own (Settings > Assistant) */
+	settings: () => unwrap(commands.agentSettings()) as Promise<AgentSettings>,
+	save: (settings: AgentSettings) =>
+		unwrap(commands.saveAgentSettings(settings)) as Promise<AgentSettings>,
 };
 
 export const appApi = {

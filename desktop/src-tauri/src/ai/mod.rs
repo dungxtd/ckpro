@@ -9,6 +9,7 @@ mod acp;
 pub mod agent;
 pub mod generate;
 pub mod mcp;
+pub mod policy;
 
 use crate::error::{AppError, AppResult};
 use crate::lab::checks::{self, CheckResult};
@@ -383,7 +384,9 @@ impl Coach {
         self.open.lock().await.insert(key.clone(), (session.clone(), model.to_string(), effort.to_string(), profile));
         // The first question names the session, while
         // the answer is written: a quick model, nothing waits longer for it
-        let first = store.coach_messages(&subject.attempt_id, question_id)?.is_empty()
+        let settings = store.agent_settings().unwrap_or_default();
+        let first = settings.auto_titles
+            && store.coach_messages(&subject.attempt_id, question_id)?.is_empty()
             && store.coach_session_title(&subject.attempt_id, question_id)?.is_none();
         let naming = async {
             if !first {
@@ -412,12 +415,18 @@ impl Coach {
                 }
             }
             agent::AgentEvent::Permission(params, reply) => {
-                let id = self.next_permission(reply);
                 let command = params["toolCall"]["rawInput"]["command"]
                     .as_str()
                     .or(params["toolCall"]["title"].as_str())
                     .unwrap_or("a tool")
                     .to_string();
+                // What the candidate lets run unasked (Settings > Assistant)
+                let once = params["options"].as_array().into_iter().flatten().find(|o| o["kind"] == "allow_once");
+                if let Some(once) = once.filter(|_| settings.runs_unasked(&command)) {
+                    let _ = reply.send(serde_json::json!({ "outcome": { "outcome": "selected", "optionId": once["optionId"] } }));
+                    return;
+                }
+                let id = self.next_permission(reply);
                 let options = params["options"]
                     .as_array()
                     .into_iter()

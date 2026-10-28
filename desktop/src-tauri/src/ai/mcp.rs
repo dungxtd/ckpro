@@ -15,6 +15,7 @@ use crate::lab::load::LoadedPack;
 use crate::lab::model::Question;
 use crate::lab::render;
 use crate::store::Store;
+use super::policy::COMMAND_MAX_SECS;
 use serde_json::{Value, json};
 use std::fmt::Write as _;
 use std::io::{BufRead, Write};
@@ -32,9 +33,6 @@ pub struct Server {
     agent: Option<String>,
 }
 
-/// Longest a command may run, and the default
-const COMMAND_MAX_SECS: u64 = 300;
-const COMMAND_DEFAULT_SECS: u64 = 60;
 /// Output a command returns to the model (its end, where errors are)
 const OUTPUT_MAX_BYTES: usize = 16 * 1024;
 
@@ -213,8 +211,12 @@ Coach: explain and point to kubernetes.io docs; do not solve the task for them u
         if let Some(reason) = refused(command) {
             return Err(AppError::invalid(format!("Not run: {reason}. Do it another way, or ask the candidate to.")));
         }
+        let settings = self.store.agent_settings().unwrap_or_default().normalized();
+        if let Some(entry) = settings.never_runs(command) {
+            return Err(AppError::invalid(format!("Not run: the candidate never lets the assistant run commands with \"{entry}\". Ask them to run it.")));
+        }
         let (docker, host) = task_host().await?;
-        let secs = timeout.unwrap_or(COMMAND_DEFAULT_SECS).clamp(1, COMMAND_MAX_SECS) as u32;
+        let secs = timeout.map_or(settings.command_timeout, |t| t.clamp(1, u64::from(COMMAND_MAX_SECS)) as u32);
         let (exit, output) = checks::run_script(&docker, host, &question.cluster, command, secs).await?;
         Ok(format!("{}\n[exit code {exit}]", tail(&output, OUTPUT_MAX_BYTES)))
     }

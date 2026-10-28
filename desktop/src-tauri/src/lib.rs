@@ -65,6 +65,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::coach_runtime,
         commands::set_coach_runtime,
         commands::app_info,
+        commands::agent_settings,
+        commands::save_agent_settings,
         commands::coach_history,
         commands::coach_ask,
         commands::coach_cancel,

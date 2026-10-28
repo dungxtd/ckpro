@@ -3,6 +3,7 @@ import { immer } from "zustand/middleware/immer";
 import {
 	type Account,
 	ApiError,
+	agentApi,
 	type CheckResult,
 	type CoachContext,
 	type CoachEvent,
@@ -33,7 +34,7 @@ interface CoachStore {
 	models: ModelOption[];
 	model: string;
 	/** Ask (it reads and answers) or Agent (it may also run commands on the
-	 * task's host, each approved); practice only, Ask on every start */
+	 * task's host, each approved); practice only. Starts as Settings say */
 	profile: Profile;
 	setProfile: (profile: Profile) => void;
 	/** The command the agent runs now, while it runs */
@@ -134,7 +135,13 @@ export const useCoach = create<CoachStore>()(
 		usage: {},
 		account: null,
 		ensureModels: () => {
-			if (get().models.length === 0) loadModels(set, get);
+			if (get().models.length > 0) return;
+			loadModels(set, get);
+			// A new run starts in the profile Settings name
+			agentApi
+				.settings()
+				.then(s => set({ profile: s.default_profile }))
+				.catch(() => {});
 		},
 		loadAccount: async () => {
 			try {

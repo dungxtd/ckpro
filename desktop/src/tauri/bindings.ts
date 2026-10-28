@@ -57,6 +57,9 @@ export const commands = {
 	setCoachRuntime: (paths: RuntimePaths_Deserialize) => typedError<RuntimeInfo_Serialize, AppError>(__TAURI_INVOKE("set_coach_runtime", { paths })),
 	/**  Where the app keeps its data, and its version. */
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
+	/**  How far the assistant's agent may go on its own. */
+	agentSettings: () => typedError<AgentSettings_Serialize, AppError>(__TAURI_INVOKE("agent_settings")),
+	saveAgentSettings: (settings: AgentSettings_Deserialize) => typedError<AgentSettings_Serialize, AppError>(__TAURI_INVOKE("save_agent_settings", { settings })),
 	/**  The question's coach session in the current attempt: its name and messages. */
 	coachHistory: (questionId: string) => typedError<CoachHistory_Serialize, AppError>(__TAURI_INVOKE("coach_history", { questionId })),
 	/**
@@ -226,6 +229,50 @@ export type Activity_Serialize = {
 	finished_at: number | null,
 	/**  Last lines (empty in `ActivityChanged`) */
 	log: string[],
+};
+
+/**  Which of the agent's commands run without asking the candidate first */
+export type AgentPermission = 
+/**  Every command waits for Run */
+"confirm" | 
+/**  Commands that only read (get, describe, logs…) run; others wait */
+"read_only" | 
+/**  Every command runs (the never-run list still applies) */
+"all";
+
+/**  The assistant's settings, kept in the database */
+export type AgentSettings = AgentSettings_Serialize | AgentSettings_Deserialize;
+
+/**  The assistant's settings, kept in the database */
+export type AgentSettings_Deserialize = {
+	/**  The profile a new app run starts in */
+	default_profile?: Profile,
+	permission?: AgentPermission,
+	/**  How long one command may run, in seconds */
+	command_timeout?: number,
+	/**
+	 *  Text that, found in a command, keeps it from running (the candidate's
+	 *  own, besides the built-in list)
+	 */
+	never_run?: string[],
+	/**  Name sessions from their first question */
+	auto_titles?: boolean,
+};
+
+/**  The assistant's settings, kept in the database */
+export type AgentSettings_Serialize = {
+	/**  The profile a new app run starts in */
+	default_profile: Profile,
+	permission: AgentPermission,
+	/**  How long one command may run, in seconds */
+	command_timeout: number,
+	/**
+	 *  Text that, found in a command, keeps it from running (the candidate's
+	 *  own, besides the built-in list)
+	 */
+	never_run: string[],
+	/**  Name sessions from their first question */
+	auto_titles: boolean,
 };
 
 export type AppError = 

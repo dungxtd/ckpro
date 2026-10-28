@@ -233,6 +233,7 @@ pub async fn desktop_open_url(exams: State<'_, Arc<Exams>>, url: String) -> AppR
 
 use crate::ai::account::{Account, SignInEvent, SignInMethod};
 use crate::ai::agent::{ModelOption, RuntimePaths};
+use crate::ai::policy::AgentSettings;
 use crate::ai::{Coach, CoachContext, CoachModels, ModelChoice, RuntimeInfo, CoachEvent, CoachReply, CoachHistory, CoachSession, CoachStatus};
 use crate::ai::generate::{self, GenerateRequest, Generated, GeneratorTarget};
 use crate::lab::exam::StudyStats;
@@ -286,6 +287,21 @@ fn runtime_path(path: Option<String>, what: &str) -> AppResult<Option<String>> {
 fn is_executable(path: &std::path::Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+}
+
+/// How far the assistant's agent may go on its own.
+#[tauri::command]
+#[specta::specta]
+pub fn agent_settings(store: State<'_, Arc<Store>>) -> AppResult<AgentSettings> {
+    Ok(store.agent_settings()?.normalized())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn save_agent_settings(store: State<'_, Arc<Store>>, settings: AgentSettings) -> AppResult<AgentSettings> {
+    let settings = settings.normalized();
+    store.save_agent_settings(&settings)?;
+    Ok(settings)
 }
 
 /// Where the app keeps its data, and its version.
