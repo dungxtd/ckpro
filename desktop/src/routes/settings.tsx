@@ -37,7 +37,6 @@ import {
 	type AppInfo,
 	agentApi,
 	appApi,
-	coachApi,
 	type Provider,
 	type RuntimeInfo,
 } from "@/tauri/api";
@@ -102,21 +101,22 @@ function AiSettings() {
 	const update = useSettings(s => s.update);
 	const coach = useCoach();
 	const [settings, setSettings] = useState<AgentSettings | null>(null);
-	const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
+	// What was read as the app opened (no checking here); Recheck reads again
+	const runtime = coach.runtime;
+	const [checking, setChecking] = useState(false);
 	const [open, setOpen] = useState<Provider | null>(null);
-	const recheck = useCallback(() => {
-		setRuntime(null);
-		coachApi.runtime().then(setRuntime, e => toast.error(String(e)));
+	const recheck = useCallback(async () => {
+		setChecking(true);
+		const { loadRuntime, loadAccount } = useCoach.getState();
+		await Promise.all([loadRuntime(), loadAccount()]);
+		setChecking(false);
 	}, []);
 	useEffect(() => {
 		agentApi.settings().then(setSettings, e => toast.error(String(e)));
 	}, []);
 	useEffect(() => {
-		if (!enabled) return;
-		recheck();
-		coach.loadAccount();
-		coach.ensureModels();
-	}, [enabled, recheck, coach.loadAccount, coach.ensureModels]);
+		if (enabled) coach.warm();
+	}, [enabled, coach.warm]);
 	const save = (patch: Partial<AgentSettings>) => {
 		if (!settings) return;
 		const next = { ...settings, ...patch };
@@ -129,10 +129,7 @@ function AiSettings() {
 					shared: { checks: saved.share_checks, cluster: saved.share_cluster },
 				});
 				// Another CLI: what runs now, and as whom
-				if ("claude_path" in patch) {
-					recheck();
-					useCoach.getState().loadAccount();
-				}
+				if ("claude_path" in patch) recheck();
 			},
 			e => toast.error(String(e))
 		);
@@ -209,6 +206,7 @@ function AiSettings() {
 											settings={settings}
 											save={save}
 											runtime={runtime}
+											checking={checking}
 											onRecheck={recheck}
 										/>
 									</div>
@@ -262,8 +260,9 @@ function ClaudeCodePanel({
 	settings,
 	save,
 	runtime,
+	checking,
 	onRecheck,
-}: Section & { runtime: RuntimeInfo | null; onRecheck: () => void }) {
+}: Section & { runtime: RuntimeInfo | null; checking: boolean; onRecheck: () => void }) {
 	const coach = useCoach();
 	const [path, setPath] = useState(settings.claude_path ?? "");
 	const [signingIn, setSigningIn] = useState(false);
@@ -287,8 +286,8 @@ function ClaudeCodePanel({
 			<div className="flex flex-col gap-2 px-4 py-3">
 				<div className="flex items-center justify-between gap-3">
 					<div className="text-sm">Claude CLI</div>
-					<Button size="push" variant="push" disabled={runtime === null} onClick={onRecheck}>
-						<RotateCw /> Recheck
+					<Button size="push" variant="push" disabled={checking} onClick={onRecheck}>
+						<RotateCw className={cn(checking && "animate-spin")} /> Recheck
 					</Button>
 				</div>
 				<div className="break-all text-muted-foreground text-xs">

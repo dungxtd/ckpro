@@ -21,6 +21,7 @@ import { ExamRoute } from "@/routes/exam";
 import { HistoryRoute } from "@/routes/history";
 import { SettingsRoute } from "@/routes/settings";
 import { useActivities } from "@/stores/activity";
+import { useCoach } from "@/stores/coach";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
@@ -102,6 +103,11 @@ function App() {
 	// Opened straight on the right screen: the settings and where the exam is
 	// are known before anything shows (no catalog flashing before a resume)
 	const settingsLoaded = useSettings(s => s.loaded);
+	// The assistant's state, read once in the background as the app opens
+	const assistantOn = useSettings(s => s.loaded && s.settings.assistant_enabled);
+	useEffect(() => {
+		if (assistantOn) useCoach.getState().warm();
+	}, [assistantOn]);
 	const examKnown = useExam(s => s.state !== null);
 	if (!settingsLoaded || !examKnown) return <Loading fill label="Opening ckdry…" />;
 

@@ -15,6 +15,7 @@ import {
 	type PermissionOption,
 	type Profile,
 	type Provider,
+	type RuntimeInfo,
 } from "@/tauri/api";
 import { useExam } from "./exam";
 import { useSettings } from "./settings";
@@ -65,6 +66,13 @@ interface CoachStore {
 	account: Account | null;
 	/** Read the login again (after signing in or out) */
 	loadAccount: () => Promise<void>;
+	/** What this Mac offers (the Claude CLI, Node.js), once read; null until then */
+	runtime: RuntimeInfo | null;
+	/** Read it again (Recheck, another CLI path); the last value stays meanwhile */
+	loadRuntime: () => Promise<void>;
+	/** Read the runtime, login and models once, in the background, as the app
+	 * opens: Settings and the pane show them at once instead of checking */
+	warm: () => void;
 	/** Read the models the agent offers, once (Settings, the pane) */
 	ensureModels: () => void;
 	/** Show or hide the assistant pane (kept in the settings) */
@@ -125,6 +133,9 @@ const loadEfforts = (set: (patch: Partial<CoachStore>) => void, get: () => Coach
 		.catch(() => set({ efforts: [] }));
 };
 
+/** Warmed once per app run */
+let warmed = false;
+
 const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
 
 export const useCoach = create<CoachStore>()(
@@ -141,6 +152,21 @@ export const useCoach = create<CoachStore>()(
 		enabledAgents: ["claude"],
 		usage: {},
 		account: null,
+		runtime: null,
+		loadRuntime: async () => {
+			try {
+				set({ runtime: await coachApi.runtime() });
+			} catch {
+				// The last value stays
+			}
+		},
+		warm: () => {
+			if (warmed) return;
+			warmed = true;
+			get().loadRuntime();
+			get().loadAccount();
+			get().ensureModels();
+		},
 		ensureModels: () => {
 			if (get().models.length > 0) return;
 			loadModels(set, get);
@@ -158,9 +184,12 @@ export const useCoach = create<CoachStore>()(
 		},
 		loadAccount: async () => {
 			try {
-				set({ account: await coachApi.account() });
+				const before = get().account;
+				const account = await coachApi.account();
+				set({ account });
 				// Another login, maybe another plan: its own models
-				if (get().account?.signed_in) loadModels(set, get, true);
+				if (account.signed_in && before !== null && before.email !== account.email)
+					loadModels(set, get, true);
 			} catch (e) {
 				set({ error: message(e) });
 			}
