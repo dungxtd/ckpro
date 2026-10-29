@@ -1,22 +1,22 @@
 import { Button } from "@ckdry/ui/components/button";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/tooltip";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Check, Copy } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { copyToDesktop } from "./desktop-view";
 
-/** How long "Copied" shows */
+/** How long a code block's "Copied" shows, and a value's flash */
 const COPIED_MS = 1200;
+const FLASH_MS = 300;
 
-/** Copy to the exam desktop's clipboard; `copied` is true for a moment after */
-function useCopy(text: string) {
+/** Copy to the exam desktop's clipboard; `copied` is true for `ms` after */
+function useCopy(text: string, ms = COPIED_MS) {
 	const [copied, setCopied] = useState(false);
 	useEffect(() => {
 		if (!copied) return;
-		const timer = setTimeout(() => setCopied(false), COPIED_MS);
+		const timer = setTimeout(() => setCopied(false), ms);
 		return () => clearTimeout(timer);
-	}, [copied]);
+	}, [copied, ms]);
 	return {
 		copied,
 		copy: () => {
@@ -28,8 +28,8 @@ function useCopy(text: string) {
 
 /**
  * A value from the question (a host, a name, a command) that copies to the
- * desktop's clipboard on click, as on the exam; it cannot be selected.
- * "Copied" shows over it (a tooltip: the panel's edges do not clip it).
+ * desktop's clipboard on click, as on the exam; it cannot be selected. Its
+ * background flashes green, then fades back.
  */
 export function CopyText({
 	text,
@@ -40,39 +40,32 @@ export function CopyText({
 	className?: string;
 	children?: ReactNode;
 }) {
-	const { copied, copy } = useCopy(text);
+	const { copied, copy } = useCopy(text, FLASH_MS);
 	return (
-		<Tooltip open={copied}>
-			<TooltipTrigger asChild>
-				{/* biome-ignore lint/a11y/useSemanticElements: inline code that wraps with the text, as a button cannot */}
-				<code
-					// biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: same: it takes the button's role and keys
-					role="button"
-					tabIndex={0}
-					aria-label={copied ? `Copied ${text}` : `Copy ${text}`}
-					onClick={copy}
-					onKeyDown={e => {
-						if (e.key === "Enter" || e.key === " ") {
-							e.preventDefault();
-							copy();
-						}
-					}}
-					// Background tints, not a ring: a ring is drawn outside the value
-					// and the panel's edges clip it. Long paths wrap anywhere
-					className={cn(
-						"cursor-pointer select-none outline-none transition-colors [box-decoration-break:clone] [overflow-wrap:anywhere] hover:bg-highlight/25 focus-visible:outline-2 focus-visible:outline-highlight focus-visible:-outline-offset-2",
-						className,
-						// Over the Markdown's own code background
-						copied && "bg-success/25!"
-					)}
-				>
-					{children ?? text}
-				</code>
-			</TooltipTrigger>
-			<TooltipContent className="flex items-center gap-1">
-				<Check className="size-3 text-success" /> Copied
-			</TooltipContent>
-		</Tooltip>
+		// biome-ignore lint/a11y/useSemanticElements: inline code that wraps with the text, as a button cannot
+		<code
+			// biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: same: it takes the button's role and keys
+			role="button"
+			tabIndex={0}
+			aria-label={copied ? `Copied ${text}` : `Copy ${text}`}
+			onClick={copy}
+			onKeyDown={e => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					copy();
+				}
+			}}
+			// Background tints, not a ring: a ring is drawn outside the value
+			// and the panel's edges clip it. Long paths wrap anywhere
+			className={cn(
+				"cursor-pointer select-none outline-none transition-colors duration-300 [box-decoration-break:clone] [overflow-wrap:anywhere] hover:bg-highlight/25 focus-visible:outline-2 focus-visible:outline-highlight focus-visible:-outline-offset-2",
+				className,
+				// Over the Markdown's own code background
+				copied && "bg-success/35! duration-0"
+			)}
+		>
+			{children ?? text}
+		</code>
 	);
 }
 
