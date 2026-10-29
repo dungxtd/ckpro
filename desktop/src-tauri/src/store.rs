@@ -94,6 +94,11 @@ const MIGRATIONS: &[&str] = &["
         session INTEGER NOT NULL,
         PRIMARY KEY (attempt_id, question_id)
     );
+", "
+    -- Study plans written by the coach are no longer kept
+    DELETE FROM coach_message WHERE attempt_id = 'study-plan';
+    DELETE FROM coach_session WHERE attempt_id = 'study-plan';
+    DELETE FROM coach_current WHERE attempt_id = 'study-plan';
 "];
 
 /// A coach session read back: question, session, title, messages

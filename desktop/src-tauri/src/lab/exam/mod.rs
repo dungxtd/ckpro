@@ -27,7 +27,7 @@ pub mod draw;
 mod grade;
 pub mod insights;
 
-pub use insights::{CoachSubject, StudyStats, StudySubject};
+pub use insights::{CoachSubject, StudyStats};
 use draw::topology;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]

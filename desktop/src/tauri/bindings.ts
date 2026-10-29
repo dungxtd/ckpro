@@ -103,13 +103,6 @@ export const commands = {
 	coachEfforts: (model: string) => typedError<ModelOption_Serialize[], AppError>(__TAURI_INVOKE("coach_efforts", { model })),
 	/**  How the candidate did per curriculum domain, per certification attempted. */
 	studyStats: () => __TAURI_INVOKE<StudyStats[]>("study_stats"),
-	/**
-	 *  Ask the coach for a study plan from the history (not during an exam); it
-	 *  streams on `events` and resolves to the whole plan.
-	 */
-	coachStudyPlan: (certification: string, events: Channel<CoachEvent>) => typedError<string, AppError>(__TAURI_INVOKE("coach_study_plan", { certification, events })),
-	/**  The latest study plan for a certification, if any. */
-	studyPlanLast: (certification: string) => typedError<string | null, AppError>(__TAURI_INVOKE("study_plan_last", { certification })),
 	/**  Open a web page in the system browser (https only): links outside the exam desktop. */
 	openInBrowser: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_in_browser", { url })),
 	/**  What the question generator can write for. */

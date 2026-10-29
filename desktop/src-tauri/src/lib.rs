@@ -85,8 +85,6 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::coach_models,
         commands::coach_efforts,
         commands::study_stats,
-        commands::coach_study_plan,
-        commands::study_plan_last,
         commands::open_in_browser,
         commands::generator_targets,
         commands::generate_question,

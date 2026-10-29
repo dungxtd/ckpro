@@ -230,20 +230,8 @@ export const coachApi = {
 	signInInput: (line: string) => unwrap(commands.coachSignInInput(line)),
 	signInCancel: () => unwrap(commands.coachSignInCancel()),
 	signOut: () => unwrap(commands.coachSignOut()),
-	/** What runs the assistant (this Mac's Claude CLI or Docker), and what this Mac has */
+	/** The Claude CLI and Node.js this Mac has */
 	runtime: () => unwrap(commands.coachRuntime()),
-	/** Results per curriculum domain, per certification attempted */
-	studyStats: () => commands.studyStats(),
-	/** A study plan from the history; `onText` gets it as it is written */
-	studyPlan: (certification: string, onText: (text: string) => void) =>
-		unwrap(
-			commands.coachStudyPlan(
-				certification,
-				channel<CoachEvent>(e => e.kind === "text" && onText(e.text))
-			)
-		),
-	/** The latest study plan for a certification */
-	lastStudyPlan: (certification: string) => unwrap(commands.studyPlanLast(certification)),
 };
 
 export const generatorApi = {
@@ -291,4 +279,6 @@ export const examApi = {
 	check: (questionId: string) => unwrap(commands.checkQuestion(questionId)),
 	solution: (questionId: string) => unwrap(commands.questionSolution(questionId)),
 	history: () => commands.examHistory(),
+	/** Results per curriculum domain, per certification attempted */
+	studyStats: () => commands.studyStats(),
 };

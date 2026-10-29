@@ -415,31 +415,6 @@ pub fn study_stats(exams: State<'_, Arc<Exams>>) -> Vec<StudyStats> {
     exams.study_stats()
 }
 
-/// Ask the coach for a study plan from the history (not during an exam); it
-/// streams on `events` and resolves to the whole plan.
-#[tauri::command]
-#[specta::specta]
-pub async fn coach_study_plan(
-    coach: State<'_, Coach>,
-    exams: State<'_, Arc<Exams>>,
-    store: State<'_, Arc<Store>>,
-    certification: String,
-    events: Channel<CoachEvent>,
-) -> AppResult<String> {
-    coach
-        .study_plan(&exams, &store, &certification, |e| {
-            let _ = events.send(e);
-        })
-        .await
-}
-
-/// The latest study plan for a certification, if any.
-#[tauri::command]
-#[specta::specta]
-pub fn study_plan_last(store: State<'_, Arc<Store>>, certification: String) -> AppResult<Option<String>> {
-    Coach::last_study_plan(&store, &certification)
-}
-
 /// Open a web page in the system browser (https only): links outside the exam desktop.
 #[tauri::command]
 #[specta::specta]

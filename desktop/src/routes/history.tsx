@@ -12,13 +12,11 @@ import {
 import { History } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AttemptChats } from "@/components/history/attempt-chats";
-import { StudyPlan } from "@/components/history/study-plan";
-import { useAssistantEnabled } from "@/stores/settings";
+import { DomainScores } from "@/components/history/domain-scores";
 import { coachApi, examApi, type HistoryEntry } from "@/tauri/api";
 
 /** Past attempts, newest first. */
 export function HistoryRoute() {
-	const assistant = useAssistantEnabled();
 	const [history, setHistory] = useState<HistoryEntry[] | null>(null);
 	// Attempts with assistant sessions, and the one being read back
 	const [chatted, setChatted] = useState<Set<string>>(new Set());
@@ -33,7 +31,7 @@ export function HistoryRoute() {
 		return <div className="p-6 text-muted-foreground text-sm">No attempts yet.</div>;
 	return (
 		<div className="flex flex-col gap-6 p-6">
-			{assistant && <StudyPlan />}
+			<DomainScores />
 			<h2 className="-mb-3 font-semibold">Attempts</h2>
 			<Table>
 				<TableHeader>

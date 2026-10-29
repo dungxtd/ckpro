@@ -21,7 +21,7 @@ the cluster.
 - **Environment guard**: during an attempt the clusters refuse the host's
   `kubectl`, and changes made outside the exam desktop are undone and listed
   on the result.
-- **History and study plans** per certification and curriculum domain.
+- **History**: scores per certification and curriculum domain, the domains to practise next, and the assistant sessions of each attempt.
 
 ## Requirements
 

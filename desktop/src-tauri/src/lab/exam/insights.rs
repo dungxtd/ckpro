@@ -25,17 +25,6 @@ pub struct StudyStats {
     pub domains: Vec<DomainStat>,
 }
 
-/// A study plan's inputs (see `Exams::study_subject`)
-pub struct StudySubject {
-    pub stats: StudyStats,
-    pub kubernetes: String,
-    pub docs: Vec<String>,
-    /// Practice questions per domain (titles)
-    pub practice: BTreeMap<String, Vec<String>>,
-    /// Practice exams for the certification
-    pub exams: Vec<String>,
-}
-
 /// A question as the practice coach sees it (see `Exams::coach_subject`)
 pub struct CoachSubject {
     pub attempt_id: String,
@@ -99,29 +88,6 @@ impl Exams {
     /// have attempted, from the history (newest scores last)
     pub fn study_stats(&self) -> Vec<StudyStats> {
         study_stats(&self.pack(), &self.history())
-    }
-
-    /// What the coach needs for a study plan: the stats, the curriculum and
-    /// what there is to practise. Not while an exam-mode attempt runs.
-    pub fn study_subject(&self, certification: &str) -> AppResult<StudySubject> {
-        let pack = self.pack();
-        if self.exam_in_progress() {
-            return Err(AppError::invalid("the coach is not available during an exam"));
-        }
-        let cert = pack.pack.certifications.get(certification).ok_or_else(|| AppError::not_found(format!("certification {certification}")))?;
-        let stats = self
-            .study_stats()
-            .into_iter()
-            .find(|s| s.certification == certification)
-            .ok_or_else(|| AppError::invalid("no finished attempt of this certification yet"))?;
-        let mut practice: BTreeMap<String, Vec<String>> = BTreeMap::new();
-        for q in pack.questions.values().filter(|q| q.value.runnable()) {
-            if let Some(domain) = q.value.certifications.get(certification) {
-                practice.entry(domain.clone()).or_default().push(q.value.title.clone());
-            }
-        }
-        let exams = self.catalog().into_iter().filter(|e| e.certification == certification).map(|e| e.title).collect();
-        Ok(StudySubject { stats, kubernetes: cert.kubernetes.clone(), docs: cert.resources.clone(), practice, exams })
     }
 
     /// The attempt the coach works in (practice mode, or with its result)

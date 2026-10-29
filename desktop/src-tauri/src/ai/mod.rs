@@ -14,7 +14,7 @@ pub mod policy;
 
 use crate::error::{AppError, AppResult};
 use crate::lab::checks::{self, CheckResult};
-use crate::lab::exam::{CoachSubject, Exams, StudySubject};
+use crate::lab::exam::{CoachSubject, Exams};
 use crate::runtime::docker;
 use crate::store::{CoachMessage, Role, Store};
 use agent::{Agent, ContextUsage};
@@ -40,8 +40,6 @@ says little (\"hint?\"), name it after the task (\"Hint: Dynamic PVC\").";
 const SNAPSHOT_CHARS: usize = 6_000;
 /// Earlier turns a new session is given (the oldest are left out)
 const HISTORY_CHARS: usize = 12_000;
-/// Study plans are kept like conversations, under this "attempt"
-const STUDY_PLANS: &str = "study-plan";
 
 /// The coach's answer as it is written
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
@@ -388,9 +386,9 @@ impl Coach {
         }
     }
 
-    /// The attempts that have sessions (not the study plans kept alongside)
+    /// The attempts that have sessions
     pub fn coached_attempts(store: &Store) -> AppResult<Vec<String>> {
-        Ok(store.coached_attempts()?.into_iter().filter(|a| a != STUDY_PLANS).collect())
+        store.coached_attempts()
     }
 
     /// Every session of a past attempt, to read back (History)
@@ -595,33 +593,6 @@ impl Coach {
         store.clear_coach_messages(&subject.attempt_id, question_id)
     }
 
-    /// A study plan for a certification from the history; it streams to
-    /// `on_event` and is kept as the latest plan
-    pub async fn study_plan(
-        &self,
-        exams: &Exams,
-        store: &Store,
-        certification: &str,
-        on_event: impl Fn(CoachEvent) + Sync,
-    ) -> AppResult<String> {
-        self.require_enabled()?;
-        let subject = exams.study_subject(certification)?;
-        let cancel = self.start();
-        let answer = self
-            .agent
-            .ask_once(&study_system(&subject), &study_prompt(&subject), DEFAULT_MODEL, &cancel, &|t| {
-                on_event(CoachEvent::Text { text: t.to_string() })
-            })
-            .await?;
-        store.add_coach_messages(STUDY_PLANS, certification, &[CoachMessage { role: Role::Assistant, text: answer.clone() }])?;
-        Ok(answer)
-    }
-
-    /// The latest study plan written for a certification
-    pub fn last_study_plan(store: &Store, certification: &str) -> AppResult<Option<String>> {
-        Ok(store.coach_messages(STUDY_PLANS, certification)?.1.pop().map(|m| m.text))
-    }
-
     /// Generate a question and prove it; stopped by `cancel` while the model writes
     pub async fn generate(
         &self,
@@ -776,44 +747,6 @@ as `Search: <keywords>`.\n\
 - Be brief: short paragraphs and lists, Markdown. No preamble.\n";
 
 /// A study plan from the candidate's results, against the curriculum
-const STUDY: &str = "You are a Kubernetes certification coach inside ckdry, an exam simulator. \
-From the candidate's results per curriculum domain, write a short study plan.\n\n\
-- Rank the domains to work on by weight in the exam times how much they are missing; say why \
-in one line each.\n\
-- For each, name 2-3 concrete skills to drill (kubectl commands, objects, troubleshooting \
-steps), the documentation pages (links only under the sites listed below, pages you are sure \
-exist) and the keywords to type in the kubernetes.io search box, as `Search: <keywords>`.\n\
-- Point to practice questions and exams from the lists given, by title.\n\
-- End with a plan for the next sessions (what to do, in order) and when to take a full exam \
-again. Markdown, brief, no preamble.\n";
-
-fn study_system(subject: &StudySubject) -> String {
-    let mut s = String::from(STUDY);
-    let _ = write!(s, "\nExam: {} (Kubernetes {}).\nAllowed documentation:\n", subject.stats.title, subject.kubernetes);
-    for url in &subject.docs {
-        let _ = writeln!(s, "- {url}");
-    }
-    s
-}
-
-fn study_prompt(subject: &StudySubject) -> String {
-    let st = &subject.stats;
-    let mut p = String::new();
-    let scores: Vec<String> = st.scores.iter().map(|s| format!("{s:.0}%")).collect();
-    let _ = writeln!(p, "# Results\n{} attempt(s), scores oldest to newest: {}\n", st.scores.len(), scores.join(", "));
-    let _ = writeln!(p, "| Domain | Exam weight | Score | Questions answered |\n|---|---|---|---|");
-    for d in &st.domains {
-        let score = if d.max_points == 0 { "not tested yet".to_string() } else { format!("{:.0}%", f64::from(d.points) * 100.0 / f64::from(d.max_points)) };
-        let _ = writeln!(p, "| {} | {}% | {score} | {} |", d.domain, d.weight, d.questions);
-    }
-    let _ = writeln!(p, "\n# Practice questions in ckdry, by domain");
-    for (domain, titles) in &subject.practice {
-        let _ = writeln!(p, "- {domain}: {}", titles.join("; "));
-    }
-    let _ = writeln!(p, "\n# Practice exams in ckdry\n{}", subject.exams.join("; "));
-    p
-}
-
 fn prompt(
     subject: &CoachSubject,
     checks: &[CheckResult],
@@ -1024,54 +957,7 @@ mod tests {
         assert!(answer.to_lowercase().contains("standrad") || answer.to_lowercase().contains("storageclass"));
     }
 
-    #[test]
-    fn the_study_plan_prompt_has_the_scores_per_domain_and_what_to_practise() {
-        use crate::lab::exam::{StudyStats, insights::DomainStat};
-        let subject = StudySubject {
-            stats: StudyStats {
-                certification: "cka".into(),
-                title: "Certified Kubernetes Administrator".into(),
-                scores: vec![48.0, 61.0],
-                domains: vec![
-                    DomainStat { domain: "troubleshooting".into(), weight: 30, points: 3, max_points: 10, questions: 2 },
-                    DomainStat { domain: "storage".into(), weight: 10, points: 0, max_points: 0, questions: 0 },
-                ],
-            },
-            kubernetes: "1.35".into(),
-            docs: vec!["https://kubernetes.io/docs/".into()],
-            practice: [("storage".to_string(), vec!["PVC and Pod".to_string()])].into(),
-            exams: vec!["CKA Practice Exam 1".into()],
-        };
-        let p = study_prompt(&subject);
-        for part in ["48%, 61%", "| troubleshooting | 30% | 30% | 2 |", "| storage | 10% | not tested yet | 0 |", "- storage: PVC and Pod", "CKA Practice Exam 1"] {
-            assert!(p.contains(part), "missing {part}:\n{p}");
-        }
-        assert!(study_system(&subject).contains("- https://kubernetes.io/docs/"));
-    }
 
-    /// The real model writes a study plan from canned results (needs `claude`)
-    #[tokio::test]
-    #[ignore]
-    async fn claude_writes_a_study_plan() {
-        use crate::lab::exam::{StudyStats, insights::DomainStat};
-        let d = |domain: &str, weight, points, max_points, questions| DomainStat { domain: domain.into(), weight, points, max_points, questions };
-        let subject = StudySubject {
-            stats: StudyStats {
-                certification: "cka".into(),
-                title: "Certified Kubernetes Administrator".into(),
-                scores: vec![48.0, 61.0],
-                domains: vec![d("troubleshooting", 30, 3, 10, 2), d("cluster-architecture", 25, 9, 12, 3), d("services-networking", 20, 5, 10, 2), d("storage", 10, 0, 0, 0)],
-            },
-            kubernetes: "1.35".into(),
-            docs: vec!["https://kubernetes.io/docs/".into(), "https://helm.sh/docs/".into()],
-            practice: [("troubleshooting".to_string(), vec!["Fix a crashing Deployment".to_string()]), ("storage".to_string(), vec!["PVC and Pod".to_string()])].into(),
-            exams: vec!["CKA Practice Exam 1".into()],
-        };
-        let agent = Agent::new();
-        let plan = agent.ask_once(&study_system(&subject), &study_prompt(&subject), DEFAULT_MODEL, &CancellationToken::new(), &|_| {}).await.unwrap();
-        println!("{plan}");
-        assert!(plan.to_lowercase().contains("troubleshooting"));
-    }
 
     #[test]
     fn a_later_turn_sends_only_what_changed() {
