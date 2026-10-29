@@ -11,17 +11,17 @@ pub mod generate;
 pub mod mcp;
 pub mod mcp_http;
 pub mod policy;
+mod prompt;
 
 use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};
-use crate::lab::checks::{self, CheckResult};
+use crate::lab::checks::CheckResult;
 use crate::lab::exam::{CoachSubject, Exams};
-use crate::runtime::docker;
 use crate::store::{CoachMessage, Role, Store};
 use agent::{Agent, ContextUsage};
+use prompt::{followup, prompt, session_title, snapshot, system, AGENT, TITLE_SYSTEM};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt::Write as _;
 use std::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -32,15 +32,7 @@ pub const DEFAULT_MODEL: &str = "sonnet";
 const GENERATOR_MODEL: &str = "opus";
 /// Names a session from its first question: the quick model, and how
 const TITLE_MODEL: &str = "haiku";
-const TITLE_SYSTEM: &str = "You name a conversation about an exam task from its first message, like \
-a chat app's sidebar. Reply with the title only: 2 to 6 words, plain text, no quotes, no trailing \
-period, in the language of the message. Name the topic (\"PVC stuck in Pending\"); when the message \
-says little (\"hint?\"), name it after the task (\"Hint: Dynamic PVC\").";
 
-/// What a cluster snapshot may add to the prompt
-const SNAPSHOT_CHARS: usize = 6_000;
-/// Earlier turns a new session is given (the oldest are left out)
-const HISTORY_CHARS: usize = 12_000;
 
 /// The coach's answer as it is written
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
@@ -141,22 +133,6 @@ pub struct CoachTranscript {
     pub session: u32,
     pub title: String,
     pub messages: Vec<CoachMessage>,
-}
-
-/// A model's title made fit for the session list: one line, no quotes or
-/// markup, at most 60 characters; none if nothing is left
-fn session_title(raw: &str) -> Option<String> {
-    let line = raw.lines().map(str::trim).find(|l| !l.is_empty())?;
-    let line = line.trim_start_matches(['#', '*', '-', ' ']).trim_start_matches("Title:").trim();
-    let line = line.trim_matches(|c: char| matches!(c, '"' | '\'' | '`' | '*' | '“' | '”')).trim_end_matches('.').trim();
-    if line.is_empty() {
-        return None;
-    }
-    let mut title: String = line.chars().take(60).collect();
-    if line.chars().count() > 60 {
-        title = format!("{}…", title.trim_end());
-    }
-    Some(title)
 }
 
 /// The practice coach: one ACP session per question's conversation, one
@@ -449,40 +425,8 @@ impl Coach {
         let checks = if context.checks && shared.share_checks { checks } else { &[] };
         let snapshot = if context.cluster && shared.share_cluster { snapshot(&subject).await } else { None };
         let key = (subject.attempt_id.clone(), question_id.to_string());
-        let opened = match self.open.lock().await.get(&key).cloned() {
-            // Another profile is another session (other tools); the history goes along
-            Some((session, .., open_profile)) if open_profile != profile => {
-                self.agent.close(&session).await;
-                None
-            }
-            opened => opened,
-        };
-        let (session, prompt) = match opened {
-            Some((session, current, current_effort, _)) => {
-                if current != model {
-                    self.agent.set_model(&session, model).await?;
-                }
-                if current != model || current_effort != effort {
-                    self.agent.set_effort(&session, model, effort).await?;
-                }
-                (session, followup(checks, snapshot.as_deref(), text))
-            }
-            // A new session (or the app restarted): the task, and what was said before
-            None => {
-                let session = match profile {
-                    Profile::Ask => self.agent.new_session(&system(&subject), model).await?,
-                    Profile::Agent => {
-                        let system = format!("{}\n{AGENT}", system(&subject));
-                        let tools = self.tools.get().ok_or_else(|| AppError::assistant("the agent's tools are not ready yet; try again"))?;
-                        self.agent.new_session_with(&system, model, serde_json::json!([tools.server_for(question_id)])).await?
-                    }
-                };
-                self.agent.set_effort(&session, model, effort).await?;
-                let (_, history) = store.coach_messages(&subject.attempt_id, question_id)?;
-                (session, prompt(&subject, checks, snapshot.as_deref(), &history, text))
-            }
-        };
-        self.open.lock().await.insert(key.clone(), (session.clone(), model.to_string(), effort.to_string(), profile));
+        let (session, prompt) =
+            self.session_for(store, &subject, question_id, profile, model, effort, checks, snapshot.as_deref(), text).await?;
         // The first question names the session, while
         // the answer is written: a quick model, nothing waits longer for it
         let settings = store.agent_settings().unwrap_or_default();
@@ -517,33 +461,9 @@ impl Coach {
                 }
             }
             agent::AgentEvent::Permission(params, reply) => {
-                let command = params["toolCall"]["rawInput"]["command"]
-                    .as_str()
-                    .or(params["toolCall"]["title"].as_str())
-                    .unwrap_or("a tool")
-                    .to_string();
-                // What the candidate lets run unasked (Settings > Assistant)
-                let once = params["options"].as_array().into_iter().flatten().find(|o| o["kind"] == "allow_once");
-                if let Some(once) = once.filter(|_| settings.runs_unasked(&command)) {
-                    let _ = reply.send(serde_json::json!({ "outcome": { "outcome": "selected", "optionId": once["optionId"] } }));
-                    return;
+                if let Some(id) = self.ask_permission(&settings, &params, reply, &on_event) {
+                    asked.locked().push(id);
                 }
-                // Not "always": Tool access in Settings decides what runs
-                // unasked, and a later change there must still hold
-                let options: Vec<PermissionOption> = params["options"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter(|o| o["kind"] != "allow_always")
-                    .map(|o| PermissionOption {
-                        id: o["optionId"].as_str().unwrap_or_default().to_string(),
-                        name: o["name"].as_str().unwrap_or_default().to_string(),
-                        kind: o["kind"].as_str().unwrap_or_default().to_string(),
-                    })
-                    .collect();
-                let id = self.next_permission(options.iter().map(|o| o.id.clone()).collect(), reply);
-                asked.locked().push(id);
-                on_event(CoachEvent::Permission { id, command, options });
             }
         };
         let (answer, title) = tokio::join!(self.agent.prompt_with(&session, &prompt, &cancel, &stream), naming);
@@ -587,7 +507,96 @@ impl Coach {
         Ok(CoachReply { text: kept, usage: answer.usage, title })
     }
 
-    /// Start the question's session over (the panel's New Session)
+    /// The agent's session for the question, and what to send it: the one
+    /// open (only what changed since), or a new one (the task and what was
+    /// said before). Another profile is another session (other tools)
+    #[allow(clippy::too_many_arguments)]
+    async fn session_for(
+        &self,
+        store: &Store,
+        subject: &CoachSubject,
+        question_id: &str,
+        profile: Profile,
+        model: &str,
+        effort: &str,
+        checks: &[CheckResult],
+        snapshot: Option<&str>,
+        text: &str,
+    ) -> AppResult<(String, String)> {
+        let key = (subject.attempt_id.clone(), question_id.to_string());
+        let opened = match self.open.lock().await.get(&key).cloned() {
+            Some((session, .., open_profile)) if open_profile != profile => {
+                self.agent.close(&session).await;
+                None
+            }
+            opened => opened,
+        };
+        let (session, prompt) = match opened {
+            Some((session, current, current_effort, _)) => {
+                if current != model {
+                    self.agent.set_model(&session, model).await?;
+                }
+                if current != model || current_effort != effort {
+                    self.agent.set_effort(&session, model, effort).await?;
+                }
+                (session, followup(checks, snapshot, text))
+            }
+            None => {
+                let session = match profile {
+                    Profile::Ask => self.agent.new_session(&system(subject), model).await?,
+                    Profile::Agent => {
+                        let system = format!("{}\n{AGENT}", system(subject));
+                        let tools = self.tools.get().ok_or_else(|| AppError::assistant("the agent's tools are not ready yet; try again"))?;
+                        self.agent.new_session_with(&system, model, serde_json::json!([tools.server_for(question_id)])).await?
+                    }
+                };
+                self.agent.set_effort(&session, model, effort).await?;
+                let (_, history) = store.coach_messages(&subject.attempt_id, question_id)?;
+                (session, prompt(subject, checks, snapshot, &history, text))
+            }
+        };
+        self.open.lock().await.insert(key, (session.clone(), model.to_string(), effort.to_string(), profile));
+        Ok((session, prompt))
+    }
+
+    /// The agent asks to run a command: allowed at once when Tool access says
+    /// so, else shown to the candidate (its id, to answer with `permit`)
+    fn ask_permission(
+        &self,
+        settings: &policy::AgentSettings,
+        params: &serde_json::Value,
+        reply: tokio::sync::oneshot::Sender<serde_json::Value>,
+        on_event: &impl Fn(CoachEvent),
+    ) -> Option<u32> {
+        let command = params["toolCall"]["rawInput"]["command"]
+            .as_str()
+            .or(params["toolCall"]["title"].as_str())
+            .unwrap_or("a tool")
+            .to_string();
+        let once = params["options"].as_array().into_iter().flatten().find(|o| o["kind"] == "allow_once");
+        if let Some(once) = once.filter(|_| settings.runs_unasked(&command)) {
+            let _ = reply.send(serde_json::json!({ "outcome": { "outcome": "selected", "optionId": once["optionId"] } }));
+            return None;
+        }
+        // Not "always": Tool access in Settings decides what runs unasked,
+        // and a later change there must still hold
+        let options: Vec<PermissionOption> = params["options"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|o| o["kind"] != "allow_always")
+            .map(|o| PermissionOption {
+                id: o["optionId"].as_str().unwrap_or_default().to_string(),
+                name: o["name"].as_str().unwrap_or_default().to_string(),
+                kind: o["kind"].as_str().unwrap_or_default().to_string(),
+            })
+            .collect();
+        let id = self.next_permission(options.iter().map(|o| o.id.clone()).collect(), reply);
+        on_event(CoachEvent::Permission { id, command, options });
+        Some(id)
+    }
+
+    /// Delete the question's session shown (the panel's Delete Session)
     pub async fn clear(&self, exams: &Exams, store: &Store, question_id: &str) -> AppResult<()> {
         let subject = exams.coach_subject(question_id, false)?;
         self.forget_session(&subject.attempt_id, question_id).await;
@@ -667,199 +676,10 @@ impl Coach {
     }
 }
 
-/// A later turn: what changed (the last check, the cluster now) and the question
-fn followup(checks: &[CheckResult], snapshot: Option<&str>, text: &str) -> String {
-    let mut p = String::new();
-    if !checks.is_empty() {
-        let _ = writeln!(p, "# Their last \"Check my work\"");
-        for c in checks {
-            let mark = if c.passed { "PASS" } else { "FAIL" };
-            let detail = if c.detail.is_empty() { String::new() } else { format!(" ({})", c.detail) };
-            let _ = writeln!(p, "- {mark} {}{detail}", c.name);
-        }
-        p.push('\n');
-    }
-    if let Some(snapshot) = snapshot {
-        let _ = writeln!(p, "# Cluster snapshot (read-only, just taken)\n```\n{snapshot}\n```\n");
-    }
-    if p.is_empty() {
-        text.to_string()
-    } else {
-        format!("{p}# The candidate asks\n{text}")
-    }
-}
-
-fn system(subject: &CoachSubject) -> String {
-    let mut s = String::from(if subject.review { REVIEW } else { PRACTICE });
-    let _ = write!(
-        s,
-        "\nExam: {} (Kubernetes {}).\nAllowed documentation:\n",
-        subject.certification, subject.kubernetes
-    );
-    for url in &subject.docs {
-        let _ = writeln!(s, "- {url}");
-    }
-    s
-}
-
-/// How the coach helps while the candidate practises
-const PRACTICE: &str = concat!(
-        "You are a Kubernetes certification coach inside ckdry, an exam simulator. \
-The candidate is practising one exam task on a real cluster and asks you for help.\n\n\
-How to help:\n\
-- Teach, do not solve. Give the smallest help that unblocks them: a nudge, the concept, \
-or where to look. Give the full commands only if they ask for the solution, or if the \
-reference answer is included below (they already opened it).\n\
-- They work in a terminal on the exam desktop: `ssh <host>` first, then kubectl. Commands go \
-in ```bash blocks, manifests in ```yaml blocks; they copy them with one click.\n\
-- Documentation: the exam only allows the sites listed below. Link only pages under them \
-(kubernetes.io/docs/... paths you are sure exist). When pointing to docs, also give the \
-keywords to type in the kubernetes.io search box, as `Search: <keywords>`: finding the \
-page fast is the skill the exam tests.\n\
-- When checks fail, explain what the failing check means and what in the cluster snapshot \
-shows the cause.\n\
-- Be brief: short paragraphs and lists, Markdown. No preamble.\n",
-);
-
-/// What the Agent profile adds: it may run commands, with the candidate's say
-const AGENT: &str = "Agent mode: you can run commands on the task's host with the `run_command` \
-tool (kubectl already points at the task's cluster; nodes are reached with `ssh <node>`), and run \
-the task's checks with `check_my_work`. The candidate approves each command and watches it run, so:\n\
-- Say in one line what you will run and why, then run it. One step at a time.\n\
-- Look before you change: get, describe, logs, events. Change the cluster only when the candidate \
-asked you to fix or solve it.\n\
-- After changing anything, verify (`check_my_work`, or a get). Explain what each step did, so they \
-can do it themselves next time.\n\
-- Never touch ckdry itself (docker, kind) or other tasks' namespaces.\n";
-
-/// How the coach helps once the attempt has its result
-const REVIEW: &str = "You are a Kubernetes certification coach inside ckdry, an exam simulator. \
-The candidate finished an exam and reviews one task with you; the exam is over, so explain fully.\n\n\
-How to help:\n\
-- Start with what went wrong: each failing check, and what it means. If the cluster snapshot \
-is included, point at what in it shows the cause.\n\
-- Then the fastest way to solve it on the exam: the steps and the commands (```bash blocks, \
-manifests in ```yaml blocks), using the reference answer below.\n\
-- Then where it is in the documentation the exam allows (links only under the sites listed \
-below, pages you are sure exist) and the keywords to type in the kubernetes.io search box, \
-as `Search: <keywords>`.\n\
-- End with one takeaway to remember for the exam.\n\
-- Be brief: short paragraphs and lists, Markdown. No preamble.\n";
-
-/// A study plan from the candidate's results, against the curriculum
-fn prompt(
-    subject: &CoachSubject,
-    checks: &[CheckResult],
-    snapshot: Option<&str>,
-    history: &[CoachMessage],
-    text: &str,
-) -> String {
-    let q = &subject.view;
-    let mut p = String::new();
-    let _ = writeln!(p, "# The task\n\n## {}", q.title);
-    let _ = writeln!(p, "Solve on: `ssh {}`", q.host);
-    if let Some(ns) = &q.namespace {
-        let _ = writeln!(p, "Namespace: `{ns}`");
-    }
-    if let Some(domain) = &subject.domain {
-        let _ = writeln!(p, "Curriculum domain: {domain}");
-    }
-    let _ = writeln!(p, "Weight: {}%\n\n{}\n", q.weight, q.statement.trim());
-    if !q.references.is_empty() {
-        let _ = writeln!(p, "Task references: {}\n", q.references.join(", "));
-    }
-    if !q.hints.is_empty() {
-        let _ = writeln!(p, "The task's own hints (the candidate may not have opened them):");
-        for hint in &q.hints {
-            let _ = writeln!(p, "- {hint}");
-        }
-        p.push('\n');
-    }
-    if !checks.is_empty() {
-        let _ = writeln!(p, "# Their last \"Check my work\"");
-        for c in checks {
-            let mark = if c.passed { "PASS" } else { "FAIL" };
-            let detail = if c.detail.is_empty() { String::new() } else { format!(" ({})", c.detail) };
-            let _ = writeln!(p, "- {mark} {}{detail}", c.name);
-        }
-        p.push('\n');
-    }
-    if let Some(snapshot) = snapshot {
-        let _ = writeln!(p, "# Cluster snapshot (read-only, just taken)\n```\n{snapshot}\n```\n");
-    }
-    if let Some(solution) = &subject.solution {
-        let _ = writeln!(
-            p,
-            "# Reference answer (the candidate opened it)\n{}\n```bash\n{}\n```\n",
-            solution.explain.trim(),
-            solution.run.trim()
-        );
-    }
-    let earlier = recent(history, HISTORY_CHARS);
-    if !earlier.is_empty() {
-        let _ = writeln!(p, "# The conversation so far");
-        if earlier.len() < history.len() {
-            let _ = writeln!(p, "(earlier messages left out)");
-        }
-        for m in earlier {
-            let who = match m.role {
-                Role::User => "Candidate",
-                Role::Assistant => "Coach",
-            };
-            let _ = writeln!(p, "**{who}:** {}\n", m.text.trim());
-        }
-    }
-    let _ = write!(p, "# The candidate asks\n{text}");
-    p
-}
-
-/// The latest messages that fit in `budget` characters
-fn recent(history: &[CoachMessage], budget: usize) -> &[CoachMessage] {
-    let mut used = 0;
-    let mut start = history.len();
-    while start > 0 && used + history[start - 1].text.len() <= budget {
-        used += history[start - 1].text.len();
-        start -= 1;
-    }
-    &history[start..]
-}
-
-/// What is in the task's namespace (or the cluster) and its recent events,
-/// from the jumphost with the task's cluster. Read-only commands only.
-async fn snapshot(subject: &CoachSubject) -> Option<String> {
-    let script = match &subject.view.namespace {
-        Some(ns) => format!(
-            "ns={ns}\n\
-kubectl get all,pvc,configmap,secret,ingress,networkpolicy,serviceaccount,role,rolebinding -n \"$ns\" -o wide 2>&1 | head -80\n\
-echo; echo '# events'; kubectl get events -n \"$ns\" --sort-by=.lastTimestamp 2>&1 | tail -15",
-            ns = shell_word(ns)
-        ),
-        None => "kubectl get nodes -o wide 2>&1\necho; kubectl get pods -A 2>&1 | head -60".to_string(),
-    };
-    let docker = docker::connect().await.ok()?;
-    let (_, output) = checks::run_script(&docker, &subject.jumphost, &subject.cluster, &script, 20).await.ok()?;
-    Some(truncate(&output, SNAPSHOT_CHARS))
-}
-
-/// A namespace name as one shell word (they are DNS labels; anything else is dropped)
-fn shell_word(s: &str) -> String {
-    s.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '.').collect()
-}
-
-fn truncate(text: &str, max: usize) -> String {
-    if text.len() <= max {
-        return text.to_string();
-    }
-    let mut end = max;
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    format!("{}\n... (truncated: {} more characters not shown)", &text[..end], text.len() - end)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::prompt::*;
 
     /// The real quick model names sessions (needs Node and a Claude login)
     #[tokio::test]
