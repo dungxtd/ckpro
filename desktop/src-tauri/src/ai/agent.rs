@@ -4,6 +4,7 @@
 //! Code's; sessions have no built-in tools, no settings from the machine and
 //! nothing kept on disk.
 
+use crate::sync::{MutexExt, RwLockExt};
 use super::acp::{Connection, Update};
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
@@ -207,7 +208,7 @@ impl Agent {
     /// Take the settings' runtime; whether it changed (the adapter restarts)
     pub fn configure(&self, settings: &super::policy::AgentSettings) -> bool {
         let next = RunConfig { claude_path: settings.claude_path.clone(), telemetry: settings.telemetry };
-        let mut config = self.config.write().unwrap_or_else(|p| p.into_inner());
+        let mut config = self.config.write_ok();
         let changed = *config != next;
         *config = next;
         changed
@@ -215,7 +216,7 @@ impl Agent {
 
     /// The Claude CLI to use on the Mac: the one set, else the one found
     fn mac_claude(&self) -> Option<PathBuf> {
-        let set = self.config.read().unwrap_or_else(|p| p.into_inner()).claude_path.clone();
+        let set = self.config.read_ok().claude_path.clone();
         match set {
             Some(path) => Some(PathBuf::from(path)).filter(|p| p.is_file()),
             None => detect_claude(),
@@ -270,7 +271,7 @@ impl Agent {
     /// attached, on the Mac's Claude CLI and its login; in a pseudo-terminal
     /// when `in_terminal` (an interactive login)
     pub(super) async fn adapter(&self, args: &[&str], in_terminal: bool) -> AppResult<Command> {
-        let telemetry = self.config.read().unwrap_or_else(|p| p.into_inner()).telemetry;
+        let telemetry = self.config.read_ok().telemetry;
         let quiet: &[(&str, &str)] = if telemetry { &[] } else { &[("DISABLE_TELEMETRY", "1"), ("DISABLE_ERROR_REPORTING", "1")] };
         let (npx, claude) = self.tools()?;
         let mut argv: Vec<std::ffi::OsString> = vec![npx.clone().into(), "-y".into(), ADAPTER.into()];
@@ -300,8 +301,8 @@ impl Agent {
     /// whose plan may offer other models)
     pub(super) async fn restart(&self) {
         self.connection.lock().await.take();
-        self.models.lock().unwrap_or_else(|p| p.into_inner()).clear();
-        self.efforts.lock().unwrap_or_else(|p| p.into_inner()).clear();
+        self.models.locked().clear();
+        self.efforts.locked().clear();
     }
 
     /// A new conversation with `system` as its instructions, on `model`
@@ -336,7 +337,7 @@ impl Agent {
         // agent's default
         let offered = models.is_empty() || models.iter().any(|m| m.value == model);
         if !models.is_empty() {
-            *self.models.lock().unwrap_or_else(|p| p.into_inner()) = models;
+            *self.models.locked() = models;
         }
         if offered && model != DEFAULT {
             self.set_model(&session, model).await?;
@@ -349,17 +350,17 @@ impl Agent {
     /// The models the agent offers on this login, asking it once if no
     /// session has said yet
     pub async fn models(&self) -> AppResult<Vec<ModelOption>> {
-        let known = self.models.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let known = self.models.locked().clone();
         if !known.is_empty() {
             return Ok(known);
         }
         let session = self.new_session("", DEFAULT).await?;
         self.close(&session).await;
-        Ok(self.models.lock().unwrap_or_else(|p| p.into_inner()).clone())
+        Ok(self.models.locked().clone())
     }
 
     pub async fn set_model(&self, session: &str, model: &str) -> AppResult<()> {
-        let known = self.models.lock().unwrap_or_else(|p| p.into_inner()).iter().any(|m| m.value == model);
+        let known = self.models.locked().iter().any(|m| m.value == model);
         if !known && model != DEFAULT {
             return Err(AppError::invalid(format!("unknown model {model}")));
         }
@@ -374,18 +375,18 @@ impl Agent {
     /// The effort levels `model` takes (none if it has no effort setting),
     /// asking the agent once
     pub async fn efforts(&self, model: &str) -> AppResult<Vec<ModelOption>> {
-        if let Some(known) = self.efforts.lock().unwrap_or_else(|p| p.into_inner()).get(model) {
+        if let Some(known) = self.efforts.locked().get(model) {
             return Ok(known.clone());
         }
         let session = self.new_session("", model).await?;
         self.close(&session).await;
-        Ok(self.efforts.lock().unwrap_or_else(|p| p.into_inner()).get(model).cloned().unwrap_or_default())
+        Ok(self.efforts.locked().get(model).cloned().unwrap_or_default())
     }
 
     /// Set the session's effort; a level its model does not take is left at
     /// the model's default
     pub async fn set_effort(&self, session: &str, model: &str, effort: &str) -> AppResult<()> {
-        let offered = self.efforts.lock().unwrap_or_else(|p| p.into_inner()).get(model).is_some_and(|e| e.iter().any(|o| o.value == effort));
+        let offered = self.efforts.locked().get(model).is_some_and(|e| e.iter().any(|o| o.value == effort));
         if !offered {
             return Ok(());
         }
@@ -396,7 +397,7 @@ impl Agent {
 
     fn note_efforts(&self, model: &str, result: &serde_json::Value) {
         if result["configOptions"].is_array() {
-            self.efforts.lock().unwrap_or_else(|p| p.into_inner()).insert(model.to_string(), config_options(result, "effort"));
+            self.efforts.locked().insert(model.to_string(), config_options(result, "effort"));
         }
     }
 

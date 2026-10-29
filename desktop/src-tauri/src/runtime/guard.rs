@@ -11,6 +11,7 @@
 //!   ckdry volume removed is noted.
 //! It follows the events the monitor already receives: nothing polls.
 
+use crate::sync::MutexExt;
 use super::exec;
 use super::infra::NETWORK;
 use bollard::Docker;
@@ -36,7 +37,7 @@ const OWN_EXEC_TTL: Duration = Duration::from_secs(600);
 
 /// Note an exec ckdry starts, before it starts
 pub fn own_exec(id: &str) {
-    let mut own = own_execs().lock().unwrap_or_else(|p| p.into_inner());
+    let mut own = own_execs().locked();
     if own.len() > 1_000 {
         own.retain(|_, at| at.elapsed() < OWN_EXEC_TTL);
     }
@@ -45,7 +46,7 @@ pub fn own_exec(id: &str) {
 
 /// Whether ckdry started the exec (judged once)
 fn is_own_exec(id: &str) -> bool {
-    own_execs().lock().unwrap_or_else(|p| p.into_inner()).remove(id).is_some()
+    own_execs().locked().remove(id).is_some()
 }
 
 /// ckdry's own operations that exec through a CLI (kind reads the
@@ -68,13 +69,13 @@ pub fn own_operation() -> OwnOperation {
 impl Drop for OwnOperation {
     fn drop(&mut self) {
         OWN_OPERATIONS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-        *own_until().lock().unwrap_or_else(|p| p.into_inner()) = Some(Instant::now() + Duration::from_secs(2));
+        *own_until().locked() = Some(Instant::now() + Duration::from_secs(2));
     }
 }
 
 fn in_own_operation() -> bool {
     OWN_OPERATIONS.load(std::sync::atomic::Ordering::SeqCst) > 0
-        || own_until().lock().unwrap_or_else(|p| p.into_inner()).is_some_and(|until| until > Instant::now())
+        || own_until().locked().is_some_and(|until| until > Instant::now())
 }
 
 /// What the attempt runs on
@@ -124,14 +125,14 @@ impl Guard {
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Option<Active>> {
-        self.active.lock().unwrap_or_else(|p| p.into_inner())
+        self.active.locked()
     }
 
     /// Guard `watch` (an attempt is running) or nothing; the guard follows
     /// in the background, a repeat does nothing
     pub fn follow(self: &Arc<Self>, watch: Option<Watch>) {
         {
-            let mut wanted = self.wanted.lock().unwrap_or_else(|p| p.into_inner());
+            let mut wanted = self.wanted.locked();
             if *wanted == watch {
                 return;
             }
@@ -148,8 +149,8 @@ impl Guard {
     /// waits: `recheck` makes it when Docker is back
     async fn converge(&self, docker: Option<&Docker>) {
         let _changing = self.changing.lock().await;
-        let wanted = self.wanted.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        let applied = self.applied.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let wanted = self.wanted.locked().clone();
+        let applied = self.applied.locked().clone();
         if wanted == applied {
             return;
         }
@@ -158,7 +159,7 @@ impl Guard {
         }
         if let (Some(watch), Some(docker)) = (wanted.clone(), docker) {
             self.activate(docker, watch).await;
-            *self.applied.lock().unwrap_or_else(|p| p.into_inner()) = wanted;
+            *self.applied.locked() = wanted;
         }
     }
 
@@ -184,7 +185,7 @@ impl Guard {
 
     /// Stop guarding (the attempt ends): the host may reach the clusters again
     async fn deactivate(&self, docker: Option<&Docker>) {
-        self.applied.lock().unwrap_or_else(|p| p.into_inner()).take();
+        self.applied.locked().take();
         let Some(active) = self.lock().take() else { return };
         if let (Some(docker), Some(gateway)) = (docker, &active.gateway) {
             for cluster in &active.clusters {
@@ -228,8 +229,8 @@ impl Guard {
     /// Stop reacting at once, without undoing anything (the app is quitting
     /// and stops the containers itself; a resume guards them again)
     pub fn suspend(&self) {
-        self.wanted.lock().unwrap_or_else(|p| p.into_inner()).take();
-        self.applied.lock().unwrap_or_else(|p| p.into_inner()).take();
+        self.wanted.locked().take();
+        self.applied.locked().take();
         self.lock().take();
     }
 
@@ -248,18 +249,18 @@ impl Guard {
     /// What happened outside ckdry so far
     #[cfg(test)]
     pub fn outside(&self) -> Vec<String> {
-        self.outside.lock().unwrap_or_else(|p| p.into_inner()).clone()
+        self.outside.locked().clone()
     }
 
     /// What happened outside ckdry, for the result; cleared
     pub fn take_outside(&self) -> Vec<String> {
-        std::mem::take(&mut *self.outside.lock().unwrap_or_else(|p| p.into_inner()))
+        std::mem::take(&mut *self.outside.locked())
     }
 
     fn record(&self, what: String) {
         tracing::warn!(target: "guard", "{what}");
         (self.notify)(&what);
-        let mut outside = self.outside.lock().unwrap_or_else(|p| p.into_inner());
+        let mut outside = self.outside.locked();
         if !outside.contains(&what) {
             outside.push(what);
         }

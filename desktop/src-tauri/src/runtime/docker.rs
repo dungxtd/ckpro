@@ -1,5 +1,6 @@
 //! Connection to the host Docker engine (OrbStack, Docker Desktop, ...).
 
+use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};
 use bollard::{API_DEFAULT_VERSION, Docker};
 use std::path::PathBuf;
@@ -35,18 +36,18 @@ pub async fn answers(docker: &Docker) -> bool {
 /// The Docker engine: the one found last while it still answers, otherwise
 /// the first reachable one.
 pub async fn connect() -> AppResult<Docker> {
-    let cached = CLIENT.lock().unwrap_or_else(|p| p.into_inner()).clone();
+    let cached = CLIENT.locked().clone();
     if let Some((docker, answered)) = cached {
         if answered.elapsed() < FRESH {
             return Ok(docker);
         }
         if answers(&docker).await {
-            *CLIENT.lock().unwrap_or_else(|p| p.into_inner()) = Some((docker.clone(), std::time::Instant::now()));
+            *CLIENT.locked() = Some((docker.clone(), std::time::Instant::now()));
             return Ok(docker);
         }
     }
     let docker = find().await;
-    *CLIENT.lock().unwrap_or_else(|p| p.into_inner()) =
+    *CLIENT.locked() =
         docker.as_ref().ok().map(|d| (d.clone(), std::time::Instant::now()));
     docker
 }

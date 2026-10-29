@@ -6,6 +6,7 @@
 //! Changes go to the UI as `ActivityChanged` (without the log, which grows)
 //! and each log line as `ActivityLog`; `list` has the full activities.
 
+use crate::sync::MutexExt;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -105,7 +106,7 @@ impl Activities {
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, (u32, VecDeque<Activity>)> {
-        self.state.lock().unwrap_or_else(|p| p.into_inner())
+        self.state.locked()
     }
 
     fn update(&self, id: u32, change: impl FnOnce(&mut Activity)) {

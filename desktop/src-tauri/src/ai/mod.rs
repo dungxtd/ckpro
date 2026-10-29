@@ -12,6 +12,7 @@ pub mod mcp;
 pub mod mcp_http;
 pub mod policy;
 
+use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};
 use crate::lab::checks::{self, CheckResult};
 use crate::lab::exam::{CoachSubject, Exams};
@@ -235,14 +236,14 @@ impl Coach {
     fn next_permission(&self, offered: Vec<String>, reply: tokio::sync::oneshot::Sender<serde_json::Value>) -> u32 {
         static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
         let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        self.permissions.lock().unwrap_or_else(|p| p.into_inner()).insert(id, (offered, reply));
+        self.permissions.locked().insert(id, (offered, reply));
         id
     }
 
     /// The candidate's answer to a permission request: one of its options,
     /// or none to cancel
     pub fn permit(&self, id: u32, option: Option<String>) -> AppResult<()> {
-        let mut waiting = self.permissions.lock().unwrap_or_else(|p| p.into_inner());
+        let mut waiting = self.permissions.locked();
         let (offered, reply) =
             waiting.remove(&id).ok_or_else(|| AppError::not_found("that request was already answered or stopped"))?;
         if option.as_ref().is_some_and(|o| !offered.contains(o)) {
@@ -260,19 +261,19 @@ impl Coach {
 
     /// Who the assistant answers as
     pub async fn account(&self) -> AppResult<account::Account> {
-        if let Some((account, read)) = self.account.lock().unwrap_or_else(|p| p.into_inner()).clone()
+        if let Some((account, read)) = self.account.locked().clone()
             && read.elapsed() < ACCOUNT_FRESH
         {
             return Ok(account);
         }
         let account = account::account(&self.agent).await?;
-        *self.account.lock().unwrap_or_else(|p| p.into_inner()) = Some((account.clone(), std::time::Instant::now()));
+        *self.account.locked() = Some((account.clone(), std::time::Instant::now()));
         Ok(account)
     }
 
     /// The login may have changed: read it again next time
     fn forget_account(&self) {
-        self.account.lock().unwrap_or_else(|p| p.into_inner()).take();
+        self.account.locked().take();
     }
 
     /// Sign in to Claude; the login's output streams to `on_event`. A new
@@ -500,7 +501,7 @@ impl Coach {
         let transcript = Mutex::new(String::new());
         let ran = std::sync::atomic::AtomicBool::new(false);
         let text_out = |t: &str| {
-            transcript.lock().unwrap_or_else(|p| p.into_inner()).push_str(t);
+            transcript.locked().push_str(t);
             on_event(CoachEvent::Text { text: t.to_string() });
         };
         let asked = Mutex::new(Vec::new());
@@ -541,7 +542,7 @@ impl Coach {
                     })
                     .collect();
                 let id = self.next_permission(options.iter().map(|o| o.id.clone()).collect(), reply);
-                asked.lock().unwrap_or_else(|p| p.into_inner()).push(id);
+                asked.locked().push(id);
                 on_event(CoachEvent::Permission { id, command, options });
             }
         };
@@ -549,7 +550,7 @@ impl Coach {
         // Its requests left unanswered (stopped, failed) are cancelled with
         // it; a newer answer's stay
         let asked = asked.into_inner().unwrap_or_else(|p| p.into_inner());
-        self.permissions.lock().unwrap_or_else(|p| p.into_inner()).retain(|id, _| !asked.contains(id));
+        self.permissions.locked().retain(|id, _| !asked.contains(id));
         if ran.load(std::sync::atomic::Ordering::SeqCst) {
             store.mark_assisted(&subject.attempt_id, question_id)?;
         }
@@ -612,13 +613,13 @@ impl Coach {
         // Each draft waits for the candidate's answer (`review`)
         let review = |draft: generate::Draft| {
             let (answer, answered) = tokio::sync::oneshot::channel();
-            *self.reviewing.lock().unwrap_or_else(|p| p.into_inner()) = Some(answer);
+            *self.reviewing.locked() = Some(answer);
             on_draft(draft);
             answered
         };
         let generated =
             generate::generate(&self.agent, GENERATOR_MODEL, &bank, infra, activities, data_dir, request, &cancel, review).await;
-        self.reviewing.lock().unwrap_or_else(|p| p.into_inner()).take();
+        self.reviewing.locked().take();
         let generated = generated?;
         // The catalog shows it from now on
         match crate::lab::load::load(&bank.root).0 {
@@ -632,8 +633,7 @@ impl Coach {
     pub fn review(&self, approve: bool) -> AppResult<()> {
         let answer = self
             .reviewing
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .locked()
             .take()
             .ok_or_else(|| AppError::not_found("no generated question is waiting for review"))?;
         let _ = answer.send(approve);
@@ -643,14 +643,14 @@ impl Coach {
     /// A new answer stops the one being written
     fn start(&self) -> CancellationToken {
         let cancel = CancellationToken::new();
-        if let Some(previous) = self.running.lock().unwrap_or_else(|p| p.into_inner()).replace(cancel.clone()) {
+        if let Some(previous) = self.running.locked().replace(cancel.clone()) {
             previous.cancel();
         }
         cancel
     }
 
     pub fn cancel(&self) {
-        if let Some(token) = self.running.lock().unwrap_or_else(|p| p.into_inner()).take() {
+        if let Some(token) = self.running.locked().take() {
             token.cancel();
         }
     }

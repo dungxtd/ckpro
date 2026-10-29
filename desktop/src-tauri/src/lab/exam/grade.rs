@@ -1,5 +1,6 @@
 //! Submitting and grading an attempt, and checking a question on demand.
 
+use crate::sync::MutexExt;
 use super::*;
 use crate::runtime::preflight::Footprint;
 
@@ -70,7 +71,7 @@ impl Exams {
 
     pub(super) async fn grade(&self, attempt: &Attempt, started_at: f64, note: Option<String>, activity: u32) -> AppResult<ExamResult> {
         let op = self.activities.handle(activity);
-        let questions = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let questions = self.session.locked().clone();
         let docker = docker::connect().await?;
         let grading = |scores: Vec<Option<QuestionScore>>| ExamState::Grading {
             attempt: attempt.clone(),
@@ -101,7 +102,7 @@ impl Exams {
         let all: Vec<_> = questions.iter().flat_map(|(_, q)| q.checks.iter().map(|c| (q.cluster.as_str(), c))).collect();
         let mut graded = checks::run_checks(&docker, &self.jumphost.name, all, |index, result| {
             let question = owner[index];
-            let mut state = progress.lock().unwrap_or_else(|p| p.into_inner());
+            let mut state = progress.locked();
             state.0[question][index - starts[question]] = Some((result.passed, result.weight));
             if state.0[question].iter().all(Option::is_some) {
                 let (points, max_points) = state.0[question]

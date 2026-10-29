@@ -1,5 +1,6 @@
 //! What the coach and the study plan may know about attempts.
 
+use crate::sync::MutexExt;
 use super::*;
 
 /// How the candidate did in one curriculum domain, over all attempts
@@ -64,7 +65,7 @@ impl Exams {
             .cloned()
             .ok_or_else(|| AppError::not_found(format!("question {question_id}")))?;
         let certification = pack.pack.certifications.get(&attempt.certification);
-        let session = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let session = self.session.locked().clone();
         Ok(CoachSubject {
             attempt_id: attempt.id.clone(),
             certification: certification.map(|c| c.title.clone()).unwrap_or_else(|| attempt.certification.clone()),
@@ -112,7 +113,7 @@ impl Exams {
             ExamState::Running { attempt, .. } | ExamState::Finished { attempt, .. } => attempt.certification,
             _ => return Vec::new(),
         };
-        let session = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let session = self.session.locked().clone();
         self.allowed_docs(&certification, &session)
     }
 }

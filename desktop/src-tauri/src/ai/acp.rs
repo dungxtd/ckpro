@@ -5,6 +5,7 @@
 //! found". Session updates and permission requests go to whoever follows that
 //! session; a permission nobody is asked about is cancelled.
 
+use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -66,7 +67,7 @@ struct PendingEntry<'a>(&'a Pending, u64);
 
 impl Drop for PendingEntry<'_> {
     fn drop(&mut self) {
-        self.0.lock().unwrap_or_else(|p| p.into_inner()).remove(&self.1);
+        self.0.locked().remove(&self.1);
     }
 }
 
@@ -102,7 +103,7 @@ impl Connection {
                     match (message.get("id"), message.get("method").and_then(Value::as_str)) {
                         // A reply to one of ours
                         (Some(id), None) => {
-                            if let Some(tx) = id.as_u64().and_then(|id| pending.lock().unwrap_or_else(|p| p.into_inner()).remove(&id)) {
+                            if let Some(tx) = id.as_u64().and_then(|id| pending.locked().remove(&id)) {
                                 let _ = tx.send(match message.get("error") {
                                     Some(error) => Err(error.clone()),
                                     None => Ok(message.get("result").cloned().unwrap_or(Value::Null)),
@@ -119,8 +120,7 @@ impl Connection {
                                 let session = params.get("sessionId").and_then(Value::as_str).unwrap_or_default().to_string();
                                 let (tx, rx) = oneshot::channel();
                                 let asked = subscribers
-                                    .lock()
-                                    .unwrap_or_else(|p| p.into_inner())
+                                    .locked()
                                     .get(&session)
                                     .is_some_and(|s| s.send(Update::Permission(params, tx)).is_ok());
                                 let (id, replies_tx) = (id.clone(), replies_tx.clone());
@@ -138,7 +138,7 @@ impl Connection {
                         (None, Some("session/update")) => {
                             let params = message.get("params").cloned().unwrap_or(Value::Null);
                             if let Some(session) = params.get("sessionId").and_then(Value::as_str) {
-                                if let Some(tx) = subscribers.lock().unwrap_or_else(|p| p.into_inner()).get(session) {
+                                if let Some(tx) = subscribers.locked().get(session) {
                                     let _ = tx.send(Update::Session(params.get("update").cloned().unwrap_or(Value::Null)));
                                 }
                             }
@@ -148,10 +148,10 @@ impl Connection {
                 }
                 // The agent is gone: nothing more will be answered
                 alive.store(false, Ordering::SeqCst);
-                for (_, tx) in pending.lock().unwrap_or_else(|p| p.into_inner()).drain() {
+                for (_, tx) in pending.locked().drain() {
                     let _ = tx.send(Err(json!({ "code": -32000, "message": "the agent stopped" })));
                 }
-                subscribers.lock().unwrap_or_else(|p| p.into_inner()).clear();
+                subscribers.locked().clear();
             });
         }
         // Its log, for diagnosis
@@ -220,7 +220,7 @@ impl Connection {
         }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let (tx, rx) = oneshot::channel();
-        self.pending.lock().unwrap_or_else(|p| p.into_inner()).insert(id, tx);
+        self.pending.locked().insert(id, tx);
         let _entry = PendingEntry(&self.pending, id);
         self.write(&json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params })).await?;
         let reply = tokio::time::timeout(timeout, rx)
@@ -247,11 +247,11 @@ impl Connection {
     /// The updates of a session and its permission requests, until `unsubscribe`
     pub fn subscribe(&self, session: &str) -> mpsc::UnboundedReceiver<Update> {
         let (tx, rx) = mpsc::unbounded_channel();
-        self.subscribers.lock().unwrap_or_else(|p| p.into_inner()).insert(session.to_string(), tx);
+        self.subscribers.locked().insert(session.to_string(), tx);
         rx
     }
 
     pub fn unsubscribe(&self, session: &str) {
-        self.subscribers.lock().unwrap_or_else(|p| p.into_inner()).remove(session);
+        self.subscribers.locked().remove(session);
     }
 }

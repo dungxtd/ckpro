@@ -3,6 +3,7 @@
 //! progress through it, exam history and UI settings. Rust owns it; the UI
 //! reads and writes through commands.
 
+use crate::sync::MutexExt;
 use crate::runtime::preflight::Footprint;
 use crate::error::{AppError, AppResult};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -197,7 +198,7 @@ impl Store {
     }
 
     fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
-        self.conn.lock().unwrap_or_else(|p| p.into_inner())
+        self.conn.locked()
     }
 
     pub fn attempt<T: DeserializeOwned>(&self) -> AppResult<Option<T>> {

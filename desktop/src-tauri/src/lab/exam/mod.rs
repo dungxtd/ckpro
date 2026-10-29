@@ -5,6 +5,7 @@
 //! result. Practice mode adds hints, per-question checks and solutions, and
 //! has no time limit. Hidden material never leaves Rust in exam mode.
 
+use crate::sync::{MutexExt, RwLockExt};
 use super::checks::{self, CheckResult};
 use super::load::LoadedPack;
 use super::model::{Exam, Question, Solution};
@@ -250,13 +251,13 @@ impl Exams {
     }
 
     fn pack(&self) -> Arc<LoadedPack> {
-        self.pack.read().unwrap_or_else(|p| p.into_inner()).clone()
+        self.pack.read_ok().clone()
     }
 
     /// Swap in a new question bank (a question was added); a running attempt
     /// keeps its rendered questions
     pub fn replace_pack(&self, pack: LoadedPack) {
-        *self.pack.write().unwrap_or_else(|p| p.into_inner()) = Arc::new(pack);
+        *self.pack.write_ok() = Arc::new(pack);
     }
 
     /// The question bank as it is now
@@ -265,11 +266,11 @@ impl Exams {
     }
 
     pub fn state(&self) -> ExamState {
-        self.state.lock().unwrap_or_else(|p| p.into_inner()).clone()
+        self.state.locked().clone()
     }
 
     fn set(&self, state: ExamState) {
-        *self.state.lock().unwrap_or_else(|p| p.into_inner()) = state.clone();
+        *self.state.locked() = state.clone();
         self.save_attempt(&state);
         (self.publish)(&state);
         // The guard watches a running attempt only
@@ -290,7 +291,7 @@ impl Exams {
             return Err(AppError::invalid("no exam is running"));
         };
         let allowed = {
-            let session = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            let session = self.session.locked().clone();
             self.allowed_docs(&attempt.certification, &session)
         };
         // ckdry's own: the guard does not report the old one going away
@@ -305,7 +306,7 @@ impl Exams {
         let result = match state {
             ExamState::Running { .. } => self.store.save_attempt(Some(&SavedAttempt {
                 state: state.clone(),
-                questions: self.session.lock().unwrap_or_else(|p| p.into_inner()).clone(),
+                questions: self.session.locked().clone(),
             })),
             // Resumed (and graded) at the next start, or on Try Again
             ExamState::Grading { .. } | ExamState::Resuming { .. } | ExamState::Failed { resumable: true, .. } => Ok(()),
@@ -323,7 +324,7 @@ impl Exams {
         let Some(saved) = self.store.attempt::<SavedAttempt>().ok().flatten() else { return };
         let ExamState::Running { attempt, started_at, ends_at } = saved.state else { return };
         tracing::info!(attempt = %attempt.id, "resuming the running attempt");
-        *self.session.lock().unwrap_or_else(|p| p.into_inner()) = saved.questions;
+        *self.session.locked() = saved.questions;
 
         let mut steps: Vec<String> = attempt.clusters.iter().map(|c| format!("Starting cluster {c}")).collect();
         steps.extend(["Starting the task host", "Starting the exam desktop", "Waiting for the clusters"].map(String::from));
@@ -402,7 +403,7 @@ impl Exams {
         op.step(step, None);
         if !crate::runtime::infra::start_existing(&docker, &self.desktop).await? {
             op.log("the desktop was removed: making a new one".to_string());
-            let questions = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            let questions = self.session.locked().clone();
             let allowed = self.allowed_docs(&attempt.certification, &questions);
             desktop::start(&docker, &self.desktop, &allowed, &attempt.clusters, &self.jumphost.name).await?;
         }
@@ -492,13 +493,13 @@ impl Exams {
             clusters: clusters.keys().cloned().collect(),
         };
         let allowed = self.allowed_docs(&exam.certification, &questions);
-        *self.session.lock().unwrap_or_else(|p| p.into_inner()) = questions;
+        *self.session.locked() = questions;
         let token = CancellationToken::new();
-        *self.cancel.lock().unwrap_or_else(|p| p.into_inner()) = token.clone();
+        *self.cancel.locked() = token.clone();
         let duration = exam.duration.as_ref().unwrap_or(&cert.duration).seconds().unwrap_or(7200);
 
         // The whole plan up front, so the candidate sees what is coming
-        let setups = self.session.lock().unwrap_or_else(|p| p.into_inner()).iter().filter(|(_, q)| q.setup.is_some()).count();
+        let setups = self.session.locked().iter().filter(|(_, q)| q.setup.is_some()).count();
         let replacing: Vec<String> = clusters.keys().filter(|c| existing.contains(*c)).cloned().collect();
         let mut steps = vec!["Preparing images and the registry cache".to_string()];
         for (name, workers) in &clusters {
@@ -560,7 +561,7 @@ impl Exams {
     ) -> AppResult<()> {
         let op = self.activities.handle(activity);
         let log = |line: String| op.log(line);
-        let questions = self.session.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let questions = self.session.locked().clone();
         let setups: Vec<&(String, Question)> = questions.iter().filter(|(_, q)| q.setup.is_some()).collect();
         let mut step = 0;
         let mut next = |detail: Option<String>| {
@@ -613,8 +614,7 @@ impl Exams {
 
     fn question(&self, id: &str) -> AppResult<Question> {
         self.session
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .locked()
             .iter()
             .find(|(qid, _)| qid == id)
             .map(|(_, q)| q.clone())
@@ -630,7 +630,7 @@ impl Exams {
         match &state {
             // Its task cleans up once cancelled
             ExamState::Preparing { .. } => {
-                self.cancel.lock().unwrap_or_else(|p| p.into_inner()).cancel();
+                self.cancel.locked().cancel();
                 return Ok(());
             }
             ExamState::Grading { .. } | ExamState::Resuming { .. } | ExamState::Ending { .. } => {
@@ -641,7 +641,7 @@ impl Exams {
         if let Some(attempt) = state.attempt() {
             self.cleanup(attempt).await;
         }
-        self.session.lock().unwrap_or_else(|p| p.into_inner()).clear();
+        self.session.locked().clear();
         self.set(ExamState::Idle);
         Ok(())
     }

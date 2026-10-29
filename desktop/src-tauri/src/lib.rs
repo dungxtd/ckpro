@@ -7,6 +7,7 @@ mod lab;
 mod observability;
 mod runtime;
 mod store;
+mod sync;
 
 use runtime::model::{Env, EnvState};
 use serde::{Deserialize, Serialize};
