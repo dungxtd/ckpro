@@ -24,10 +24,12 @@ export function Stepper({
 	const btn =
 		"grid h-6 w-7 cursor-pointer place-items-center rounded-tight outline-none transition-colors hover:bg-foreground/10 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-35 [&_svg]:size-3.5";
 	return (
-		<div
-			role="group"
+		<fieldset
 			aria-label={label}
-			className={cn("inline-flex items-center rounded-segment bg-[var(--seg-bg)] p-0.5", className)}
+			className={cn(
+				"m-0 inline-flex min-w-0 items-center rounded-segment border-0 bg-[var(--seg-bg)] p-0.5",
+				className
+			)}
 		>
 			<button
 				type="button"
@@ -48,6 +50,6 @@ export function Stepper({
 			>
 				<Plus />
 			</button>
-		</div>
+		</fieldset>
 	);
 }

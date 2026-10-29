@@ -33,6 +33,7 @@ export function SegmentedControl<T extends string>({
 			{options.map(option => {
 				const selected = option.value === value;
 				return (
+					// biome-ignore lint/a11y/useSemanticElements: a segment looks and clicks like a button; it reads as one of a radio group
 					<button
 						key={option.value}
 						type="button"
