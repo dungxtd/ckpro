@@ -165,7 +165,12 @@ pub struct Coach {
     permissions: Mutex<HashMap<u32, (Vec<String>, tokio::sync::oneshot::Sender<serde_json::Value>)>>,
     /// The Claude login being run, if any
     signing_in: tokio::sync::Mutex<Option<account::SigningIn>>,
+    /// The login as last read, and when: reading it starts the adapter
+    account: Mutex<Option<(account::Account, std::time::Instant)>>,
 }
+
+/// How long a login read stays good (a sign-out in a terminal shows after it)
+const ACCOUNT_FRESH: std::time::Duration = std::time::Duration::from_secs(60);
 
 impl Coach {
     pub fn new() -> Self {
@@ -177,6 +182,7 @@ impl Coach {
             tools: Default::default(),
             enabled: std::sync::atomic::AtomicBool::new(true),
             signing_in: Default::default(),
+            account: Default::default(),
         }
     }
 
@@ -236,7 +242,19 @@ impl Coach {
 
     /// Who the assistant answers as
     pub async fn account(&self) -> AppResult<account::Account> {
-        account::account(&self.agent).await
+        if let Some((account, read)) = self.account.lock().unwrap_or_else(|p| p.into_inner()).clone() {
+            if read.elapsed() < ACCOUNT_FRESH {
+                return Ok(account);
+            }
+        }
+        let account = account::account(&self.agent).await?;
+        *self.account.lock().unwrap_or_else(|p| p.into_inner()) = Some((account.clone(), std::time::Instant::now()));
+        Ok(account)
+    }
+
+    /// The login may have changed: read it again next time
+    fn forget_account(&self) {
+        self.account.lock().unwrap_or_else(|p| p.into_inner()).take();
     }
 
     /// Sign in to Claude; the login's output streams to `on_event`. A new
@@ -258,6 +276,7 @@ impl Coach {
         )
         .await;
         self.signing_in.lock().await.take();
+        self.forget_account();
         // The conversations were opened on the earlier login's adapter
         self.open.lock().await.clear();
         result
@@ -280,6 +299,7 @@ impl Coach {
     pub async fn sign_out(&self) -> AppResult<()> {
         self.cancel();
         let result = account::sign_out(&self.agent).await;
+        self.forget_account();
         self.open.lock().await.clear();
         result
     }
@@ -299,6 +319,7 @@ impl Coach {
         let on = settings.enabled.contains(&policy::Provider::Claude);
         self.enabled.store(on, std::sync::atomic::Ordering::SeqCst);
         if self.agent.configure(settings) {
+            self.forget_account();
             self.agent.restart().await;
             self.open.lock().await.clear();
         }
@@ -477,6 +498,9 @@ impl Coach {
                 // A session the agent lost is started again next time
                 if !matches!(e, AppError::Cancelled { .. }) {
                     self.open.lock().await.remove(&key);
+                }
+                if matches!(e, AppError::SignInRequired { .. }) {
+                    self.forget_account();
                 }
                 return Err(e);
             }
