@@ -16,13 +16,14 @@ desktop/
     components/           exam desk, assistant, activity, history, account
   src-tauri/src/
     runtime/              the environment: Docker connection, live state, guard
-    cluster/              kind clusters: create, delete, node access
+    cluster/              kind clusters: create (for exams and verify), delete
     lab/                  question packs, checks, exam engine
     ai/                   the assistant: ACP client, agent, MCP server, policy
     store.rs              SQLite (migrations, settings, history, sessions)
+    e2e.rs                end-to-end tests on Docker (opt-in)
     commands.rs           the commands the interface calls
     cli.rs                `ckdry lab …`, `ckdry images`
-  src-tauri/resources/    images: agent, desktop, task host (jumphost), nodes
+  src-tauri/resources/    images: desktop, task host (jumphost), nodes
 packages/ckdry-ui/        the UI kit (Radix, cva); live at desktop/kit.html
 packs/core/               the question bank (YAML) and its JSON Schemas
 ```
@@ -73,9 +74,11 @@ packs/core/               the question bank (YAML) and its JSON Schemas
   in with the CLI when there is none. Agents are turned on one by one
   (`policy::AgentSettings::enabled`); the assistant offers those turned on
   and signed in, and the core refuses the others.
-- Sessions are per question (renamable, kept in SQLite), named by a quick
-  model from their first question, with the models and effort levels the
-  agent offers for the signed-in plan.
+- Sessions are per question, several each (New Session keeps the earlier
+  ones; History reads a finished attempt's back), renamable and kept in
+  SQLite, named by a quick model from their first question, with the models
+  and effort levels the agent offers for the signed-in plan. `prompt.rs`
+  holds what the coach is told.
 - Ask profile: no tools. Agent profile (practice only): Claude's built-in
   tools stay off; the session gets the app's own MCP server (`mcp_http.rs`:
   Streamable HTTP on the loopback, one token per run) with `run_command` (bash on the task host with the task
