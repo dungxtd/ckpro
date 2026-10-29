@@ -27,6 +27,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SignInDialog } from "@/components/account/sign-in-dialog";
 import { AGENTS, agentOf } from "@/components/ai/agents";
+import { effortLabel, shortName } from "@/components/ai/models";
 import { StatusDot } from "@/components/environment/status-dot";
 import { RESOLUTIONS, useDesktopSettings } from "@/components/exam/desktop-menu";
 import { TextSize } from "@/components/exam/question-panel";
@@ -354,7 +355,7 @@ function ClaudeCodePanel({
 					<SelectContent>
 						{coach.models.map(m => (
 							<SelectItem key={m.value} value={m.value}>
-								{m.name}
+								{shortName(m, m.name)}
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -369,7 +370,7 @@ function ClaudeCodePanel({
 						<SelectContent>
 							{coach.efforts.map(e => (
 								<SelectItem key={e.value} value={e.value}>
-									{e.name}
+									{effortLabel(e.value, e.name)}
 								</SelectItem>
 							))}
 						</SelectContent>

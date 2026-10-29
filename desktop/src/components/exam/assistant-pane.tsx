@@ -1,7 +1,20 @@
 import { Alert } from "@ckdry/ui/components/alert";
+import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { Chip } from "@ckdry/ui/components/chip";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuLabel,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
+	DropdownMenuTrigger,
+} from "@ckdry/ui/components/dropdown-menu";
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Input } from "@ckdry/ui/components/input";
 import { menu, menuRow } from "@ckdry/ui/components/menu";
@@ -22,12 +35,14 @@ import {
 	Plus,
 	RotateCw,
 	Square,
+	TriangleAlert,
 	X,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SignInDialog } from "@/components/account/sign-in-dialog";
-import { AGENTS, agentOf } from "@/components/ai/agents";
+import { AGENTS } from "@/components/ai/agents";
+import { blurb, effortLabel, shortName } from "@/components/ai/models";
 import { ClaudeIcon } from "@/components/claude-icon";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
@@ -36,7 +51,6 @@ import {
 	type CoachSession,
 	type CoachStatus,
 	coachApi,
-	type ModelOption,
 	type PermissionOption,
 	type Profile,
 	type QuestionView,
@@ -73,6 +87,9 @@ export function AssistantPane({
 	const usage = coach.usage[question.id];
 	const model = coach.models.find(m => m.value === coach.model);
 	const modelName = model?.name ?? coach.model;
+	// Beside the model, muted, once one is picked (Auto says nothing)
+	const effortName =
+		coach.efforts.length > 0 && coach.effort !== "default" ? effortLabel(coach.effort) : null;
 	const [status, setStatus] = useState<CoachStatus | null>(null);
 	const [draft, setDraft] = useState("");
 	const [expanded, setExpanded] = useState(false);
@@ -80,9 +97,7 @@ export function AssistantPane({
 	const [signingIn, setSigningIn] = useState(false);
 	const [renaming, setRenaming] = useState(false);
 	// The menu open, if any: a choice closes it
-	const [open, setOpen] = useState<
-		"new" | "history" | "more" | "profile" | "model" | "effort" | null
-	>(null);
+	const [open, setOpen] = useState<"new" | "history" | "more" | null>(null);
 	const menuOf = (name: NonNullable<typeof open>) => ({
 		open: open === name,
 		onOpenChange: (next: boolean) => setOpen(next ? name : null),
@@ -445,118 +460,81 @@ export function AssistantPane({
 						{review ? (
 							<span className="text-2xs text-muted-foreground">Ask</span>
 						) : (
-							<Popover {...menuOf("profile")}>
-								<PopoverTrigger asChild>
-									<PickerButton
-										aria-label="Profile"
-										full={PROFILES.find(p => p.value === coach.profile)?.detail}
-									>
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<PickerButton aria-label="Profile">
 										{coach.profile === "agent" ? "Agent" : "Ask"}
 									</PickerButton>
-								</PopoverTrigger>
-								<PopoverContent side="top" align="end" className={cn(menu.surface, "w-64")}>
-									{PROFILES.map(p => (
-										<button
-											key={p.value}
-											type="button"
-											className={menuRow(menu.twoLine)}
-											onClick={() => {
-												setOpen(null);
-												coach.setProfile(p.value);
-											}}
-										>
-											{coach.profile === p.value && <Checked />}
-											<span className="flex min-w-0 flex-1 flex-col">
-												<span className="flex">
-													<span className={menu.label}>{p.name}</span>
-													{coach.defaults.profile === p.value && (
-														<span className={menu.hint}>Default</span>
-													)}
-												</span>
-												<span className={menu.detail}>{p.detail}</span>
-											</span>
-										</button>
-									))}
-								</PopoverContent>
-							</Popover>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent side="top" align="end" className="w-56">
+									<DropdownMenuRadioGroup
+										value={coach.profile}
+										onValueChange={v => coach.setProfile(v as Profile)}
+									>
+										{PROFILES.map(p => (
+											<DropdownMenuRadioItem key={p.value} value={p.value} detail={p.detail}>
+												{p.name}
+											</DropdownMenuRadioItem>
+										))}
+									</DropdownMenuRadioGroup>
+								</DropdownMenuContent>
+							</DropdownMenu>
 						)}
-						<Popover {...menuOf("model")}>
-							<PopoverTrigger asChild>
-								<PickerButton
-									aria-label="Model"
-									full={modelLabel(model)}
-									className="min-w-0 shrink"
-								>
-									{modelName}
+						{/* The model, and its effort in a submenu: one picker, as Claude's own apps */}
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<PickerButton aria-label="Model and effort" className="min-w-0 shrink">
+									{shortName(model, modelName)}
+									{effortName && <span className="ml-1 opacity-60">{effortName}</span>}
 								</PickerButton>
-							</PopoverTrigger>
-							<PopoverContent side="top" align="end" className={cn(menu.surface, "max-h-96 w-72")}>
-								<div className={menu.header}>{agentOf("claude").name}</div>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent side="top" align="end" className="w-72">
 								{coach.models.length === 0 && (
 									<div className={cn(menu.content, "py-1 text-muted-foreground text-xs")}>
 										Loading models…
 									</div>
 								)}
-								{coach.models.map(m => (
-									<button
-										key={m.value}
-										type="button"
-										className={menuRow(menu.twoLine)}
-										onClick={() => {
-											setOpen(null);
-											coach.setModel(m.value);
-										}}
-									>
-										{coach.model === m.value && <Checked />}
-										<span className="flex min-w-0 flex-1 flex-col">
-											<span className="flex">
-												<span className={menu.label}>{m.name}</span>
-												{m.value === coach.defaults.model && !/default/i.test(m.name) && (
-													<span className={menu.hint}>Default</span>
-												)}
-											</span>
-											{about(m) && <span className={menu.detail}>{about(m)}</span>}
-										</span>
-									</button>
-								))}
-							</PopoverContent>
-						</Popover>
-						{coach.efforts.length > 0 && (
-							<Popover {...menuOf("effort")}>
-								<PopoverTrigger asChild>
-									<PickerButton
-										aria-label="Effort"
-										full={
-											coach.effort === "default"
-												? "Effort: the model's own default"
-												: `Effort: ${coach.efforts.find(e => e.value === coach.effort)?.name ?? coach.effort}`
-										}
-									>
-										{coach.effort === "default"
-											? "Effort"
-											: (coach.efforts.find(e => e.value === coach.effort)?.name ?? coach.effort)}
-									</PickerButton>
-								</PopoverTrigger>
-								<PopoverContent side="top" align="end" className={cn(menu.surface, "w-48")}>
-									<div className={menu.header}>Effort</div>
-									{coach.efforts.map(e => (
-										<button
-											key={e.value}
-											type="button"
-											className={menuRow()}
-											onClick={() => {
-												setOpen(null);
-												coach.setEffort(e.value);
-											}}
-										>
-											{coach.effort === e.value && <Checked />}
-											<span className={menu.label}>{e.name}</span>
-											{e.value === "default" && <span className={menu.hint}>model's own</span>}
-										</button>
+								<DropdownMenuRadioGroup value={coach.model} onValueChange={coach.setModel}>
+									{coach.models.map(m => (
+										<DropdownMenuRadioItem key={m.value} value={m.value} detail={blurb(m)}>
+											{shortName(m, m.name)}
+										</DropdownMenuRadioItem>
 									))}
-								</PopoverContent>
-							</Popover>
-						)}
+								</DropdownMenuRadioGroup>
+								{coach.efforts.length > 0 && (
+									<>
+										<DropdownMenuSeparator />
+										<DropdownMenuSub>
+											<DropdownMenuSubTrigger value={effortLabel(coach.effort)}>
+												Effort
+											</DropdownMenuSubTrigger>
+											<DropdownMenuSubContent className="w-64">
+												<DropdownMenuLabel className="font-normal text-caption">
+													Higher effort means more thorough answers, but takes longer and uses your
+													limits faster.
+												</DropdownMenuLabel>
+												<DropdownMenuRadioGroup
+													value={coach.effort}
+													onValueChange={coach.setEffort}
+												>
+													{coach.efforts.map(e => (
+														<DropdownMenuRadioItem key={e.value} value={e.value}>
+															{effortLabel(e.value, e.name)}
+															{e.value === "default" && <Badge variant="tag">Recommended</Badge>}
+															{e.value === "max" && (
+																<Badge variant="warningTag">
+																	<TriangleAlert className="size-3" /> More usage
+																</Badge>
+															)}
+														</DropdownMenuRadioItem>
+													))}
+												</DropdownMenuRadioGroup>
+											</DropdownMenuSubContent>
+										</DropdownMenuSub>
+									</>
+								)}
+							</DropdownMenuContent>
+						</DropdownMenu>
 						{usage && (
 							<span className="px-1 text-2xs text-muted-foreground tabular-nums">
 								{tokens(usage.used)} / {tokens(usage.size)}
@@ -602,12 +580,8 @@ const Checked = () => (
 );
 
 const PROFILES: { value: Profile; name: string; detail: string }[] = [
-	{ value: "ask", name: "Ask", detail: "Reads the task and answers. Runs nothing." },
-	{
-		value: "agent",
-		name: "Agent",
-		detail: "May also run commands on the task's host, each one after you allow it.",
-	},
+	{ value: "ask", name: "Ask", detail: "Reads the task and answers" },
+	{ value: "agent", name: "Agent", detail: "Runs commands you allow" },
 ];
 
 /**
@@ -723,16 +697,6 @@ function PickerButton({
 		</Button>
 	);
 }
-
-/** A model's description without its name again ("Opus 5.5 · Best for…") */
-const about = (m: ModelOption) =>
-	(m.description?.startsWith(m.name)
-		? m.description.slice(m.name.length).replace(/^\s*·\s*/, "")
-		: m.description) || null;
-
-/** The model in use, for the picker's tooltip: its name and what it is */
-const modelLabel = (m: ModelOption | undefined) =>
-	m && (about(m) ? `${m.name} · ${about(m)}` : m.name);
 
 function ContextRow({
 	on,

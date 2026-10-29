@@ -35,8 +35,6 @@ interface CoachStore {
 	/** Models the agent offers on this login, and the one in use */
 	models: ModelOption[];
 	model: string;
-	/** What the agent picks when nothing is picked, and the profile Settings name */
-	defaults: { model: string; profile: Profile };
 	/** Ask (it reads and answers) or Agent (it may also run commands on the
 	 * task's host, each approved); practice only. Starts as Settings say */
 	profile: Profile;
@@ -119,7 +117,6 @@ const loadModels = (
 			set({
 				models: options,
 				model: keep && picked ? picked : fallback,
-				defaults: { ...get().defaults, model: fallback },
 			});
 			loadEfforts(set, get);
 		})
@@ -153,7 +150,6 @@ export const useCoach = create<CoachStore>()(
 		error: null,
 		models: [],
 		model: "sonnet",
-		defaults: { model: "default", profile: "ask" },
 		context: { checks: true, cluster: true },
 		shared: { checks: true, cluster: true },
 		enabledAgents: ["claude"],
@@ -184,7 +180,6 @@ export const useCoach = create<CoachStore>()(
 					set({
 						enabledAgents: s.enabled,
 						profile: s.default_profile,
-						defaults: { ...get().defaults, profile: s.default_profile },
 						shared: { checks: s.share_checks, cluster: s.share_cluster },
 					})
 				)

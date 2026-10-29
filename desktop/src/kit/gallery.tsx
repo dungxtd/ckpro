@@ -19,6 +19,17 @@ import { Card } from "@ckdry/ui/components/card";
 import { Chip } from "@ckdry/ui/components/chip";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
 import { Disclosure } from "@ckdry/ui/components/disclosure";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
+	DropdownMenuTrigger,
+} from "@ckdry/ui/components/dropdown-menu";
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Input } from "@ckdry/ui/components/input";
 import { Loading } from "@ckdry/ui/components/loading";
@@ -236,6 +247,45 @@ function Gallery() {
 						<IconButton variant="plain" size="sm" active aria-label="Active">
 							<Sparkles />
 						</IconButton>
+					</Row>
+				</Section>
+
+				<Section
+					title="DropdownMenu"
+					note="A menu from a button: choices with a short second line, a submenu for a setting of the choice."
+				>
+					<Row>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button size="push" variant="push">
+									Opus 5.5 <span className="opacity-60">Medium</span>
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent className="w-72">
+								<DropdownMenuRadioGroup value="opus">
+									<DropdownMenuRadioItem value="opus" detail="For complex work and everyday tasks">
+										Opus 5.5
+									</DropdownMenuRadioItem>
+									<DropdownMenuRadioItem value="haiku" detail="Fastest for quick answers">
+										Haiku 5.5
+									</DropdownMenuRadioItem>
+								</DropdownMenuRadioGroup>
+								<DropdownMenuSeparator />
+								<DropdownMenuSub>
+									<DropdownMenuSubTrigger value="Medium">Effort</DropdownMenuSubTrigger>
+									<DropdownMenuSubContent>
+										<DropdownMenuRadioGroup value="medium">
+											<DropdownMenuRadioItem value="medium">
+												Medium <Badge variant="tag">Recommended</Badge>
+											</DropdownMenuRadioItem>
+											<DropdownMenuRadioItem value="max">
+												Max <Badge variant="warningTag">More usage</Badge>
+											</DropdownMenuRadioItem>
+										</DropdownMenuRadioGroup>
+									</DropdownMenuSubContent>
+								</DropdownMenuSub>
+							</DropdownMenuContent>
+						</DropdownMenu>
 					</Row>
 				</Section>
 
