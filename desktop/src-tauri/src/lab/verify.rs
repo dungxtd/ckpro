@@ -108,31 +108,44 @@ pub async fn sweep_stale(data_dir: &Path, log: Log<'_>) {
                 .is_some_and(process_alive)
     };
 
-    let kind = Kind::new(data_dir.to_path_buf());
-    let app_clusters = kind.owned_clusters();
-    for cluster in kind.all_clusters().await.unwrap_or_default() {
-        let Some(run) = run_of_cluster(&cluster) else { continue };
-        if !app_clusters.contains(&cluster) && !in_use(run) {
-            log(format!("removing cluster {cluster} left by an interrupted verify run"));
-            if let Err(e) = lifecycle::delete(&kind, &cluster, log).await {
-                log(format!("could not remove {cluster}: {e}"));
-            }
-        }
-    }
-    if let Ok(docker) = docker::connect().await {
-        let jumphosts = docker
+    // The runs ckdry left a trace of (their directory, their task host): a
+    // kind cluster only looks like a run's by its name, and may be the user's
+    let docker = docker::connect().await.ok();
+    let mut jumphosts = Vec::new();
+    if let Some(docker) = &docker {
+        jumphosts = docker
             .list_containers(Some(bollard::query_parameters::ListContainersOptions {
                 all: true,
                 filters: Some(std::collections::HashMap::from([("name".to_string(), vec![jumphost::RUN_PREFIX.to_string()])])),
                 ..Default::default()
             }))
             .await
-            .unwrap_or_default();
-        for name in jumphosts.into_iter().flat_map(|c| c.names.unwrap_or_default()) {
-            let name = name.trim_start_matches('/');
+            .unwrap_or_default()
+            .into_iter()
+            .flat_map(|c| c.names.unwrap_or_default())
+            .map(|name| name.trim_start_matches('/').to_string())
+            .collect();
+    }
+    let ours = |run: &str| {
+        runs.join(run).is_dir() || jumphosts.iter().any(|name| name.strip_prefix(jumphost::RUN_PREFIX) == Some(run))
+    };
+
+    let kind = Kind::new(data_dir.to_path_buf());
+    let app_clusters = kind.owned_clusters();
+    for cluster in kind.all_clusters().await.unwrap_or_default() {
+        let Some(run) = run_of_cluster(&cluster) else { continue };
+        if !app_clusters.contains(&cluster) && ours(run) && !in_use(run) {
+            log(format!("removing cluster {cluster} left by an interrupted verify run"));
+            if let Err(e) = lifecycle::delete(&kind, &cluster, log).await {
+                log(format!("could not remove {cluster}: {e}"));
+            }
+        }
+    }
+    if let Some(docker) = &docker {
+        for name in &jumphosts {
             if let Some(run) = name.strip_prefix(jumphost::RUN_PREFIX).filter(|run| !in_use(run)) {
                 log(format!("removing {name} left by an interrupted verify run"));
-                let _ = Jumphost::for_run(data_dir, run).remove(&docker).await;
+                let _ = Jumphost::for_run(data_dir, run).remove(docker).await;
             }
         }
     }
