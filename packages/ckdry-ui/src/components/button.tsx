@@ -22,13 +22,16 @@ const buttonVariants = cva(
 				pushDefault:
 					"bg-highlight text-highlight-foreground shadow-[0_0_0_0.5px_rgb(0_0_0/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-[color-mix(in_oklab,var(--highlight),white_10%)] active:bg-[color-mix(in_oklab,var(--highlight),black_12%)]",
 				push: "bg-[var(--seg-on)] text-foreground shadow-[0_0_0_0.5px_rgb(0_0_0/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-[color-mix(in_oklab,var(--seg-on),var(--foreground)_6%)] active:bg-[color-mix(in_oklab,var(--seg-on),var(--foreground)_12%)]",
-				// Hero actions (Apple TV style): solid white primary, glass secondary.
+				// Over a picture: solid white primary, glass secondary.
 				// Both grow slightly on hover and shrink on press, like IconButton.
 				solid:
 					"hover-glow bg-white text-black shadow-sm [text-shadow:none] transition-[transform,scale,background-color,filter] hover:bg-white [@media(hover:hover)]:hover:scale-[1.04] active:scale-95 [&_svg]:fill-current",
 				glass:
 					"hover-glow glass-surface glass-blur text-foreground transition-[transform,scale,background-color,filter] hover:bg-foreground/15 [@media(hover:hover)]:hover:scale-[1.04] active:scale-95",
 				link: "text-primary underline-offset-4 hover:underline",
+				// A small action that stays out of the way (Copy, Regenerate, a
+				// picker's value): muted text, the foreground on hover
+				quiet: "font-normal text-muted-foreground hover:text-foreground",
 			},
 			size: {
 				default: "h-9 px-4 py-2",
@@ -41,6 +44,11 @@ const buttonVariants = cva(
 				iconXl: "size-12 px-4 py-2 [&_svg]:size-6",
 				icon3Xl: "size-20 px-4 py-2 [&_svg]:size-12",
 				icon: "size-10 [&_svg]:size-6",
+				/** Text-sized, no box: an action inside a line of small text */
+				inline: "h-auto gap-1 p-0 text-2xs [&_svg]:size-3",
+				/** A compact picker in a toolbar row: its value and a chevron */
+				picker:
+					"h-auto gap-0.5 rounded px-1.5 py-0.5 text-2xs hover:bg-foreground/5 [&_svg]:size-3",
 			},
 		},
 		defaultVariants: {

@@ -163,7 +163,7 @@ export function ActivityProgress({
 							const el = e.currentTarget;
 							following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
 						}}
-						className={cn("mt-2 p-3 text-[11px] leading-relaxed", compact ? "h-40" : "h-56")}
+						className={cn("mt-2 p-3 text-2xs leading-relaxed", compact ? "h-40" : "h-56")}
 					>
 						{activity.log.length === 0 ? "Waiting for output…" : activity.log.join("\n")}
 					</CodeBlock>

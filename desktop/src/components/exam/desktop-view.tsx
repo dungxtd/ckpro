@@ -131,7 +131,9 @@ export function DesktopView({
 			rfb.resizeSession = true;
 			rfb.scaleViewport = true;
 			rfb.focusOnClick = true;
-			rfb.background = "#1e1e1e";
+			rfb.background = getComputedStyle(document.documentElement).getPropertyValue(
+				"--color-desktop"
+			);
 			// Local only (127.0.0.1): bandwidth is free, CPU is not. No zlib
 			// work on either side, and sharp text and images
 			rfb.compressionLevel = 0;
@@ -171,7 +173,7 @@ export function DesktopView({
 	}, [zoom, resolution]);
 
 	return (
-		<div ref={surface} className="relative h-full w-full bg-[#1e1e1e]">
+		<div ref={surface} className="relative h-full w-full bg-desktop">
 			<div ref={screen} className="h-full w-full" />
 			{!connected && (
 				<div className="absolute inset-0">

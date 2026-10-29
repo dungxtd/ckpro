@@ -12,7 +12,7 @@ export const badgeVariants = cva(
 				subtle: "bg-accent text-accent-foreground",
 				success: "bg-success/15 text-success",
 				destructive: "bg-destructive/15 text-destructive",
-				// Over posters / stills: stays dark in both themes.
+				// Over a picture: stays dark in both themes.
 				overlay: "bg-black/60 text-white backdrop-blur-sm",
 			},
 		},

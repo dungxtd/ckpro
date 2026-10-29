@@ -63,8 +63,7 @@ function Layout() {
 					<ActivityChip />
 					<IconButton
 						variant="plain"
-						size="sm"
-						className="size-7"
+						size="bar"
 						active={pathname === "/settings"}
 						aria-label="Settings (⌘,)"
 						onClick={() => navigate("/settings")}

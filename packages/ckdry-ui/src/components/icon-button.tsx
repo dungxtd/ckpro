@@ -3,17 +3,16 @@ import { cn } from "@ckdry/ui/lib/utils";
 import type * as React from "react";
 
 export type IconButtonVariant = "glass" | "plain" | "toolbar";
-export type IconButtonSize = "xs" | "sm" | "md" | "lg" | "auto";
+export type IconButtonSize = "xs" | "bar" | "sm" | "md" | "lg" | "auto";
 
 export interface IconButtonOptions {
 	/**
-	 * glass: round dark-glass circle with a lit rim (actions over imagery:
-	 * My List, remove, close, PiP). plain: no wrap, just the icon (toolbars,
-	 * nav icons, slider arrows, player controls). toolbar: a dense panel's
-	 * buttons: square, a tint on hover, no growing.
+	 * glass: round dark-glass circle with a lit rim (actions over a picture:
+	 * close, remove). plain: no wrap, just the icon (the top bar, navigation).
+	 * toolbar: a dense panel's buttons: square, a tint on hover, no growing.
 	 */
 	variant?: IconButtonVariant;
-	/** xs 24px · sm 32px · md 40px · lg 48px · auto: caller sizes the box and icon. */
+	/** xs 24px · bar 28px (the top bars) · sm 32px · md 40px · lg 48px · auto: caller sizes the box and icon. */
 	size?: IconButtonSize;
 	/** Selected / toggled on: opaque glass fill, like the active header tab. */
 	active?: boolean;
@@ -37,6 +36,7 @@ export function iconButtonVariants({
 		variant === "toolbar" &&
 			"rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground active:scale-100 [@media(hover:hover)]:hover:scale-100 disabled:opacity-40",
 		size === "xs" && "size-6 [&_svg]:size-3.5",
+		size === "bar" && "size-7 [&_svg]:size-4",
 		size === "sm" && "size-8 [&_svg]:size-4",
 		size === "md" && "size-10 [&_svg]:size-5",
 		size === "lg" && "size-12 [&_svg]:size-6",

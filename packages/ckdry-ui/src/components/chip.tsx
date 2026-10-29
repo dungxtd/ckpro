@@ -32,11 +32,7 @@ export function Chip({
 }: ChipProps) {
 	const base = cn(
 		"hover-glow inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring",
-		size === "xs"
-			? "h-[22px] gap-1 text-[11px]"
-			: size === "sm"
-				? "h-7 text-callout"
-				: "h-8 text-xs",
+		size === "xs" ? "h-[22px] gap-1 text-2xs" : size === "sm" ? "h-7 text-callout" : "h-8 text-xs",
 		onRemove ? (size === "xs" ? "pr-0.5 pl-2" : "pr-1 pl-3") : size === "xs" ? "px-2" : "px-3",
 		// Filled tint (not a surface + edge), so a chip reads the same on the page,
 		// in sheets and in menus; selected gets the solid segmented-thumb fill.

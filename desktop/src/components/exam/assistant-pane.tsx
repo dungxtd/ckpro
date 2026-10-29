@@ -278,10 +278,8 @@ export function AssistantPane({
 										i > 0 && "mt-5"
 									)}
 								>
-									<span className="self-end font-medium text-[10px] text-muted-foreground">
-										You
-									</span>
-									<span className="whitespace-pre-wrap text-[13px]">{m.text}</span>
+									<span className="self-end font-medium text-3xs text-muted-foreground">You</span>
+									<span className="whitespace-pre-wrap text-callout">{m.text}</span>
 								</div>
 							) : (
 								// biome-ignore lint/suspicious/noArrayIndexKey: append-only list
@@ -293,14 +291,10 @@ export function AssistantPane({
 										<Spinner size="inline" className="size-3.5 text-muted-foreground" />
 									)}
 									{m.text && !writing && i === messages.length - 1 && lastUser && (
-										<div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-											<button
-												type="button"
-												className="flex items-center gap-1 hover:text-foreground"
-												onClick={() => send(lastUser)}
-											>
-												<RotateCw className="size-3" /> Regenerate
-											</button>
+										<div className="flex items-center gap-2 text-3xs text-muted-foreground">
+											<Button variant="quiet" size="inline" onClick={() => send(lastUser)}>
+												<RotateCw /> Regenerate
+											</Button>
 											<span className="opacity-60">{modelName}</span>
 										</div>
 									)}
@@ -380,7 +374,7 @@ export function AssistantPane({
 							rows={expanded ? 12 : 2}
 							placeholder={review ? "Ask Claude about your answer…" : "Ask Claude about this task…"}
 							aria-label="Ask the assistant"
-							className={cn("select-text pr-7 text-[13px]", expanded ? "min-h-64" : "max-h-32")}
+							className={cn("select-text pr-7 text-callout", expanded ? "min-h-64" : "max-h-32")}
 						/>
 						<IconButton
 							variant="toolbar"
@@ -421,7 +415,7 @@ export function AssistantPane({
 						</Popover>
 						<span className="ml-auto" />
 						{review ? (
-							<span className="text-[11px] text-muted-foreground">Ask</span>
+							<span className="text-2xs text-muted-foreground">Ask</span>
 						) : (
 							<Popover>
 								<PopoverTrigger asChild>
@@ -527,7 +521,7 @@ export function AssistantPane({
 							</Popover>
 						)}
 						{usage && (
-							<span className="px-1 text-[11px] text-muted-foreground tabular-nums">
+							<span className="px-1 text-2xs text-muted-foreground tabular-nums">
 								{tokens(usage.used)} / {tokens(usage.size)}
 							</span>
 						)}
@@ -669,7 +663,7 @@ function SessionTitleInput({
 				if (e.key === "Escape") finish(null);
 			}}
 			onBlur={e => finish(e.currentTarget.value)}
-			className="mr-1 h-6 min-w-0 flex-1 select-text rounded-md px-1.5 text-[13px] md:text-[13px]"
+			className="mr-1 h-6 min-w-0 flex-1 select-text rounded-md px-1.5 text-callout md:text-callout"
 		/>
 	);
 }
@@ -684,19 +678,12 @@ function PickerButton({
 	...props
 }: React.ComponentProps<"button"> & { full?: ReactNode }) {
 	return (
-		<button
-			type="button"
-			className={cn(
-				"flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
-				className
-			)}
-			{...props}
-		>
+		<Button variant="quiet" size="picker" className={cn("shrink-0", className)} {...props}>
 			<Truncated full={full} className="max-w-36">
 				{children}
 			</Truncated>
-			<ChevronDown className="size-3 shrink-0" />
-		</button>
+			<ChevronDown />
+		</Button>
 	);
 }
 

@@ -220,7 +220,7 @@ function Gallery() {
 						<IconButton variant="plain" size="sm" aria-label="Settings">
 							<Settings />
 						</IconButton>
-						<IconButton variant="plain" size="sm" className="size-7" aria-label="New">
+						<IconButton variant="plain" size="bar" aria-label="New">
 							<Plus />
 						</IconButton>
 						<IconButton variant="glass" size="md" aria-label="Close">

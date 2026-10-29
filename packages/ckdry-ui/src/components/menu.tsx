@@ -2,8 +2,9 @@ import { cn } from "@ckdry/ui/lib/utils";
 
 /**
  * macOS system menu (NSMenu) base, shared by every menu in the app: the
- * dropdown (Select) and the player's menus. Class strings, so components that
- * render their own elements (Radix Select parts, player rows) reuse one look.
+ * dropdown (Select) and the app's popover menus. Class strings, so components
+ * that render their own elements (Radix Select parts, popover rows) reuse one
+ * look.
  *
  * Metrics measured from macOS System Settings: 12px surface radius, 5px
  * padding, 24px rows, 13px text, checkmark column 25px, 7px row radius,

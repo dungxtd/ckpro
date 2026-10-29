@@ -63,7 +63,7 @@ export function TopBar({
 		<header className="@container flex h-12 shrink-0 select-none items-center gap-3 border-border border-b px-3">
 			<Timer startedAt={startedAt} endsAt={endsAt} />
 			<div className="flex min-w-0 flex-1 items-center gap-2">
-				<strong className="min-w-0 truncate text-[15px]">{attempt.title}</strong>
+				<strong className="min-w-0 truncate text-lead">{attempt.title}</strong>
 				<Badge variant={practice ? "subtle" : "destructive"} className="shrink-0">
 					{practice ? "Practice" : "Exam"}
 				</Badge>
@@ -125,8 +125,7 @@ export function TopBar({
 					{/* Outermost, like a browser's side panel button: the assistant opens at this edge */}
 					<IconButton
 						variant="plain"
-						size="sm"
-						className="size-7"
+						size="bar"
 						active={assistantOpen}
 						aria-pressed={assistantOpen}
 						aria-label={assistantOpen ? "Hide assistant" : "Show assistant"}

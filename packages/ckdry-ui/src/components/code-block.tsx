@@ -39,7 +39,7 @@ export function CodeBlock({
 		<div className="overflow-hidden rounded-lg border border-border bg-card">
 			<div className="flex items-center gap-2 border-border border-b px-2.5 py-1">
 				{typeof title === "string" ? (
-					<span className="rounded bg-border px-1.5 py-0.5 font-medium text-[10px] uppercase">
+					<span className="rounded bg-border px-1.5 py-0.5 font-medium text-3xs uppercase">
 						{title}
 					</span>
 				) : (

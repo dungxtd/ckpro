@@ -8,6 +8,9 @@
 	--color-exam-concept: #38bdf8;
 	/* Claude's own colour, where its mark stands for the assistant */
 	--color-claude: #d97757;
+	/* Around the exam desktop's picture while it connects or letterboxes
+	   (desktop-view.tsx gives noVNC the same) */
+	--color-desktop: #1e1e1e;
 }
 
 /* An app window: only the areas meant to scroll do. clip, not hidden:

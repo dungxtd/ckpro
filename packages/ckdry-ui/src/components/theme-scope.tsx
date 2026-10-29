@@ -4,7 +4,7 @@ type Theme = "light" | "dark";
 
 const ThemeScopeContext = React.createContext<Theme | undefined>(undefined);
 
-/** Forces a theme on a subtree (e.g. the always-dark player). Portaled kit
+/** Forces a theme on a subtree (an always-dark area). Portaled kit
  * content (menus, popovers, sheets, dialogs) reads it via `useThemeScope`, so
  * a menu opened inside the subtree matches it instead of the page theme. */
 export function ThemeScope({ theme, children }: { theme: Theme; children: React.ReactNode }) {
