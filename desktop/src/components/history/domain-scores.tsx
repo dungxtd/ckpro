@@ -17,11 +17,11 @@ const PASS = 66;
 const tone = (percent: number): ProgressTone =>
 	percent >= PASS ? "success" : percent >= 40 ? "warning" : "destructive";
 
-const percentOf = (d: DomainStat) => (d.max_points ? (d.points * 100) / d.max_points : null);
+export const percentOf = (d: DomainStat) => (d.max_points ? (d.points * 100) / d.max_points : null);
 
 /** The domains to practise next: below passing or not tested yet, the
  * heaviest in the exam first, two at most */
-const focus = (domains: DomainStat[]) =>
+export const focus = (domains: DomainStat[]) =>
 	new Set(
 		domains
 			.filter(d => (percentOf(d) ?? 0) < PASS)

@@ -58,7 +58,7 @@ only until asked to push.
 ## Checks
 
 ```bash
-cd desktop && pnpm typecheck
+cd desktop && pnpm typecheck && pnpm test   # unit tests (vitest) beside the code
 pnpm exec biome check <files you touched> --write
 cd src-tauri && cargo test            # unit tests; e2e: cargo test -- --ignored
 cargo run -- lab lint ../../packs/core
