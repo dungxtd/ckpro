@@ -208,18 +208,17 @@ pub fn run() {
                 let _ = GuardNotice(what.to_string()).emit(&notices);
             });
             app.manage(guard.clone());
-            runtime::monitor::start(env.clone(), kind.clone(), infra.clone(), activities.clone(), guard.clone());
             let jumphost = app.state::<Arc<runtime::jumphost::Jumphost>>().inner().clone();
             // Everything kept between runs; what earlier versions wrote to
             // files moves in once
             let store = Arc::new(store::Store::open(&data_dir.join("ckdry.db"))?);
             store.import_files(&data_dir);
             // The assistant runs where its settings say
-            {
-                let settings = store.agent_settings().unwrap_or_default().normalized();
-                let handle = app.handle().clone();
-                tauri::async_runtime::block_on(async move { handle.state::<ai::Coach>().configure(&settings).await });
-            }
+            app.state::<ai::Coach>().apply(&store.agent_settings().unwrap_or_default().normalized());
+            // Docker, the clusters and the guard; the attempt being resumed
+            // starts its own clusters, task host and desktop
+            let resuming = lab::exam::saved_running(&store).map(|(attempt, _)| attempt.clusters).unwrap_or_default();
+            runtime::monitor::start(env.clone(), kind.clone(), infra.clone(), activities.clone(), guard.clone(), resuming);
             app.manage(store.clone());
             let exams_handle = app.handle().clone();
             let exams = Arc::new(lab::exam::Exams::new(
@@ -413,7 +412,7 @@ mod tests {
             true
         })
         .await;
-        runtime::reconcile::on_startup(&docker, &f.kind, &runtime::activity::Activities::silent()).await;
+        runtime::reconcile::on_startup(&docker, &f.kind, &runtime::activity::Activities::silent(), &[]).await;
         eventually("starting again brings back the nodes and the pod", 90, async || {
             let out = f.on_jumphost("kubectl get nodes --no-headers | grep -cw Ready; kubectl get pod web -o jsonpath='{.status.phase}'").await;
             out.text.split_whitespace().collect::<Vec<_>>() == ["2", "Running"]
@@ -439,7 +438,7 @@ mod tests {
         // Readiness is followed while it is shown (the Environment page)
         env.set_watch_nodes(true);
         f.create(name, 1).await;
-        runtime::monitor::start(env.clone(), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), runtime::guard::Guard::new(|_| {}));
+        runtime::monitor::start(env.clone(), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), runtime::guard::Guard::new(|_| {}), vec![]);
         let worker = format!("{name}-worker");
 
         eventually("all nodes Ready", 120, async || {
@@ -504,7 +503,7 @@ mod tests {
         let desktop = "ckdry-desktop-test-exam";
         // The monitor feeds the guard Docker's events, as in the app
         let guard = runtime::guard::Guard::new(|what| println!("  guard: {what}"));
-        runtime::monitor::start(Arc::new(Env::new(|_| {})), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), guard.clone());
+        runtime::monitor::start(Arc::new(Env::new(|_| {})), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), guard.clone(), vec![]);
         let exams = Arc::new(Exams::new(pack, f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, store.clone(), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}")), guard.clone()));
         let question = "core/cka/rbac-ci-token";
         let wait_running = async || {

@@ -316,13 +316,22 @@ impl Coach {
 
     /// Take the assistant settings; another CLI restarts the adapter
     pub async fn configure(&self, settings: &policy::AgentSettings) {
-        let on = settings.enabled.contains(&policy::Provider::Claude);
-        self.enabled.store(on, std::sync::atomic::Ordering::SeqCst);
-        if self.agent.configure(settings) {
-            self.forget_account();
+        if self.apply(settings) {
             self.agent.restart().await;
             self.open.lock().await.clear();
         }
+    }
+
+    /// Take the settings without restarting anything (the app starts, no
+    /// adapter runs yet); whether the CLI changed
+    pub fn apply(&self, settings: &policy::AgentSettings) -> bool {
+        let on = settings.enabled.contains(&policy::Provider::Claude);
+        self.enabled.store(on, std::sync::atomic::Ordering::SeqCst);
+        let changed = self.agent.configure(settings);
+        if changed {
+            self.forget_account();
+        }
+        changed
     }
 
     /// What this Mac offers the assistant (Settings)

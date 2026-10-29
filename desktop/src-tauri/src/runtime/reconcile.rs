@@ -10,10 +10,17 @@ use std::sync::Arc;
 
 /// Forget clusters whose nodes are gone, start the ones that are stopped,
 /// and the cache, task host and desktop they work with. Shown as an activity
-/// when there is something to start (the app reopened after quitting).
-pub async fn on_startup(docker: &Docker, kind: &Kind, activities: &Arc<Activities>) {
+/// when there is something to start (the app reopened after quitting). The
+/// clusters of an attempt being resumed, and its task host and desktop, are
+/// left to the resume: started once, in its own activity.
+pub async fn on_startup(docker: &Docker, kind: &Kind, activities: &Arc<Activities>, resuming: &[String]) {
     let mut stopped_services = Vec::new();
-    for name in [super::infra::MIRROR, super::jumphost::APP_NAME, super::desktop::NAME] {
+    let services: &[&str] = if resuming.is_empty() {
+        &[super::infra::MIRROR, super::jumphost::APP_NAME, super::desktop::NAME]
+    } else {
+        &[super::infra::MIRROR]
+    };
+    for &name in services {
         if let Ok(info) = docker.inspect_container(name, None).await
             && !info.state.and_then(|s| s.running).unwrap_or(false)
         {
@@ -21,7 +28,7 @@ pub async fn on_startup(docker: &Docker, kind: &Kind, activities: &Arc<Activitie
         }
     }
     let mut stopped_clusters = Vec::new();
-    for name in kind.owned_clusters() {
+    for name in kind.owned_clusters().into_iter().filter(|c| !resuming.contains(c)) {
         match node_containers(docker, Some(&name)).await {
             Ok(nodes) if nodes.is_empty() => {
                 tracing::info!(cluster = %name, "forgetting cluster without nodes");

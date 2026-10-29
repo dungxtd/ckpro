@@ -31,11 +31,13 @@ const PING_EVERY: Duration = Duration::from_secs(30);
 /// A safety net under the events: one container list now and then
 const RESYNC_EVERY: Duration = Duration::from_secs(300);
 
-pub fn start(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>, guard: Arc<Guard>) {
-    tauri::async_runtime::spawn(run(env, kind, infra, activities, guard));
+/// `resuming`: the clusters of the attempt the app resumes, which it starts
+/// itself (with its task host and desktop)
+pub fn start(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>, guard: Arc<Guard>, resuming: Vec<String>) {
+    tauri::async_runtime::spawn(run(env, kind, infra, activities, guard, resuming));
 }
 
-async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>, guard: Arc<Guard>) {
+async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>, guard: Arc<Guard>, resuming: Vec<String>) {
     let mut watchers: HashMap<String, JoinHandle<()>> = HashMap::new();
     let mut reconciled = false;
     let mut backoff = RETRY_FIRST;
@@ -70,7 +72,7 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
         tracing::info!("connected to docker");
 
         if !reconciled {
-            reconcile::on_startup(&docker, &kind, &activities).await;
+            reconcile::on_startup(&docker, &kind, &activities, &resuming).await;
             // Exams start without building anything
             tauri::async_runtime::spawn(prepare_images(docker.clone(), infra.clone(), activities.clone()));
             reconciled = true;
