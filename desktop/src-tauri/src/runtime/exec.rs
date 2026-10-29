@@ -19,6 +19,19 @@ pub async fn run(
     env: &[&str],
     stdin: Option<&[u8]>,
 ) -> AppResult<Output> {
+    run_tail(docker, container, cmd, env, stdin, None).await
+}
+
+/// `run`, keeping at most the last `max` bytes of output when set: a long
+/// command's output is read as it comes, never held whole
+pub async fn run_tail(
+    docker: &Docker,
+    container: &str,
+    cmd: &[&str],
+    env: &[&str],
+    stdin: Option<&[u8]>,
+    max: Option<usize>,
+) -> AppResult<Output> {
     let exec = docker
         .create_exec(
             container,
@@ -48,10 +61,15 @@ pub async fn run(
         input.write_all(stdin).await.map_err(|e| AppError::io("writing stdin", e))?;
         input.shutdown().await.map_err(|e| AppError::io("writing stdin", e))?;
     }
-    let mut text = String::new();
+    let mut bytes = std::collections::VecDeque::new();
     while let Some(chunk) = output.next().await {
-        text.push_str(&String::from_utf8_lossy(&chunk?.into_bytes()));
+        bytes.extend(chunk?.into_bytes());
+        if let Some(max) = max {
+            let over = bytes.len().saturating_sub(max);
+            bytes.drain(..over);
+        }
     }
+    let text = String::from_utf8_lossy(bytes.make_contiguous()).into_owned();
     let exit_code = docker.inspect_exec(&exec.id).await?.exit_code.unwrap_or(-1);
     Ok(Output { exit_code, text })
 }

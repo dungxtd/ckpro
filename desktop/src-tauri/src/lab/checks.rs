@@ -35,14 +35,27 @@ pub async fn run_script(
     script: &str,
     timeout_secs: u32,
 ) -> AppResult<(i64, String)> {
+    run_script_tail(docker, jumphost, cluster, script, timeout_secs, None).await
+}
+
+/// `run_script`, keeping only the last `max` bytes of output when set
+pub async fn run_script_tail(
+    docker: &Docker,
+    jumphost: &str,
+    cluster: &str,
+    script: &str,
+    timeout_secs: u32,
+    max: Option<usize>,
+) -> AppResult<(i64, String)> {
     let wrapped = format!("{}\n{script}", scoped_kubeconfig(cluster));
     let timeout = timeout_secs.to_string();
-    let out = exec::run(
+    let out = exec::run_tail(
         docker,
         jumphost,
         &["timeout", "--kill-after=10", &timeout, "bash", "-c", &wrapped],
         &["EDITOR=false", "KUBE_EDITOR=false", "VISUAL=false"],
         None,
+        max,
     )
     .await?;
     let text = if out.exit_code == 124 {

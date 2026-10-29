@@ -10,7 +10,7 @@
 
 use crate::error::{AppError, AppResult};
 use crate::lab::checks;
-use crate::lab::exam::{self, Mode};
+use crate::lab::exam;
 use crate::lab::load::LoadedPack;
 use crate::lab::model::Question;
 use crate::lab::render;
@@ -117,12 +117,12 @@ Coach: explain and point to kubernetes.io docs; do not solve the task for them u
 
     /// The running attempt, if any; an error while it is in exam mode
     fn attempt(&self) -> AppResult<Option<(exam::Attempt, Vec<(String, Question)>)>> {
-        match exam::saved_running(&self.store) {
-            Some((attempt, _)) if attempt.mode == Mode::Exam => Err(AppError::invalid(
+        if exam::exam_mode_active(&self.store) {
+            return Err(AppError::invalid(
                 "An exam-mode attempt is running in ckdry: the assistant is off until it ends, as in the real exam.",
-            )),
-            running => Ok(running),
+            ));
         }
+        Ok(exam::saved_running(&self.store))
     }
 
     fn list_exams(&self) -> AppResult<String> {
@@ -222,7 +222,7 @@ Coach: explain and point to kubernetes.io docs; do not solve the task for them u
         }
         let (docker, host) = task_host().await?;
         let secs = timeout.map_or(settings.command_timeout, |t| t.clamp(1, u64::from(COMMAND_MAX_SECS)) as u32);
-        let (exit, output) = checks::run_script(&docker, host, &question.cluster, command, secs).await?;
+        let (exit, output) = checks::run_script_tail(&docker, host, &question.cluster, command, secs, Some(OUTPUT_MAX_BYTES)).await?;
         Ok(format!("{}\n[exit code {exit}]", tail(&output, OUTPUT_MAX_BYTES)))
     }
 
