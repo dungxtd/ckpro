@@ -30,6 +30,7 @@ import {
 	TriangleAlert,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { blurb, effortLabel, shortName } from "@/components/assistant/models";
 import { useCoach } from "@/stores/coach";
 import type { CheckResult, Profile } from "@/tauri/api";
@@ -62,7 +63,25 @@ export function AssistantComposer({
 	ready: boolean;
 	onSend: (text: string) => boolean;
 }) {
-	const coach = useCoach();
+	// Not the conversation: the composer stays still while an answer streams
+	const coach = useCoach(
+		useShallow(s => ({
+			context: s.context,
+			setContext: s.setContext,
+			shared: s.shared,
+			profile: s.profile,
+			setProfile: s.setProfile,
+			models: s.models,
+			model: s.model,
+			setModel: s.setModel,
+			efforts: s.efforts,
+			effort: s.effort,
+			setEffort: s.setEffort,
+			usage: s.usage,
+			writing: s.writing,
+			stop: s.stop,
+		}))
+	);
 	const [draft, setDraft] = useState("");
 	const [expanded, setExpanded] = useState(false);
 	const writing = coach.writing === questionId;
