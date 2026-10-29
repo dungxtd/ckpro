@@ -12,7 +12,7 @@ const format = (ms: number) => {
 /** Time left in exam mode (amber under 30 minutes, red under 10, as the
  * alerts go), time spent in practice mode. A toolbar pill, 28px like the
  * other controls. */
-export function Timer({ startedAt, endsAt }: { startedAt: number; endsAt: number | null }) {
+export function Timer({ startedAt, endsAt }: { startedAt: number | null; endsAt: number | null }) {
 	const [now, setNow] = useState(Date.now());
 	useEffect(() => {
 		const id = setInterval(() => setNow(Date.now()), 1000);
@@ -36,7 +36,8 @@ export function Timer({ startedAt, endsAt }: { startedAt: number; endsAt: number
 					)}
 				>
 					<Clock className={cn("size-3.5", tone === "normal" && "text-muted-foreground")} />
-					{format(left ?? now - startedAt)}
+					{/* A start not known: no time made up */}
+					{left !== null ? format(left) : startedAt !== null ? format(now - startedAt) : "--:--"}
 				</span>
 			</TooltipTrigger>
 			<TooltipContent>{label}</TooltipContent>

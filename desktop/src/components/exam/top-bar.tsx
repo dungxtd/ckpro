@@ -43,7 +43,7 @@ export function TopBar({
 	onQuit,
 }: {
 	attempt: Attempt;
-	startedAt: number;
+	startedAt: number | null;
 	endsAt: number | null;
 	view: DeskView;
 	onView: (view: DeskView) => void;
@@ -140,16 +140,18 @@ export function TopBar({
 }
 
 /** Ends the attempt only once confirmed: nothing comes back after it */
-function Confirm({
+export function Confirm({
 	title,
 	description,
 	action,
+	cancel = "Keep working",
 	onConfirm,
 	children,
 }: {
 	title: string;
 	description: string;
 	action: string;
+	cancel?: string;
 	onConfirm: () => void;
 	children: ReactNode;
 }) {
@@ -162,7 +164,7 @@ function Confirm({
 					<AlertDialogDescription>{description}</AlertDialogDescription>
 				</AlertDialogHeader>
 				<AlertDialogFooter>
-					<AlertDialogCancel>Keep working</AlertDialogCancel>
+					<AlertDialogCancel>{cancel}</AlertDialogCancel>
 					<AlertDialogAction
 						className={buttonVariants({ variant: "destructive" })}
 						onClick={onConfirm}

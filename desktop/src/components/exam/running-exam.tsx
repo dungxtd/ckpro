@@ -57,7 +57,7 @@ export function RunningExam({
 	endsAt,
 }: {
 	attempt: Attempt;
-	startedAt: number;
+	startedAt: number | null;
 	endsAt: number | null;
 }) {
 	const { current, flagged, select, toggleFlag, submit, end } = useExam(
@@ -102,7 +102,8 @@ export function RunningExam({
 			task => {
 				update({ task_width: task });
 				setDragged({});
-			}
+			},
+			() => setDragged({})
 		);
 	};
 	// The assistant pane's left border: its width
@@ -116,7 +117,8 @@ export function RunningExam({
 			assistant => {
 				update({ assistant_width: assistant });
 				setDragged({});
-			}
+			},
+			() => setDragged({})
 		);
 	};
 
@@ -138,7 +140,8 @@ export function RunningExam({
 			<div ref={desk} className="flex min-h-0 flex-1">
 				{/* Nothing to select: the question's values copy on click, as on the exam */}
 				<section
-					className="@container flex min-w-[300px] max-w-[70%] shrink-0 select-none flex-col"
+					// Narrow windows shrink the panels first: the desktop keeps a third
+					className="@container flex min-w-[300px] max-w-[70%] shrink select-none flex-col"
 					style={{ width: `${width}%` }}
 				>
 					{/* Question navigation together at the start, the text size at the end:
@@ -229,13 +232,18 @@ export function RunningExam({
 						</div>
 					)}
 				</section>
-				<div
-					// A mouse drag handle (the panel keeps its size otherwise)
-					aria-hidden="true"
+				<ResizeHandle
+					label="Task panel width"
+					value={Math.round(width ?? 33)}
+					min={20}
+					max={70}
 					onPointerDown={dragTask}
-					className={RESIZE_HANDLE}
+					// Arrows: the border moves with them
+					onStep={dir =>
+						update({ task_width: Math.min(70, Math.max(20, (width ?? 33) + dir * 2)) })
+					}
 				/>
-				<section className="relative min-w-0 flex-1">
+				<section className="relative min-w-[30%] flex-1">
 					{/* Stays connected behind the Readme; a new attempt is a new desktop */}
 					<div className={cn("absolute inset-0", tab !== "desktop" && "invisible")}>
 						<DesktopView key={attempt.id} zoom={desktop.zoom} resolution={desktop.resolution} />
@@ -247,10 +255,20 @@ export function RunningExam({
 					)}
 				</section>
 				{assistantOpen && question && (
-					<div aria-hidden="true" onPointerDown={dragAssistant} className={RESIZE_HANDLE} />
+					<ResizeHandle
+						label="Assistant width"
+						value={assistantWidth}
+						min={300}
+						max={720}
+						onPointerDown={dragAssistant}
+						// Its border is on its left: moving it left widens it
+						onStep={dir =>
+							update({ assistant_width: Math.min(720, Math.max(300, assistantWidth - dir * 20)) })
+						}
+					/>
 				)}
 				{assistantOpen && question && (
-					<div className="max-w-[40%] shrink-0" style={{ width: assistantWidth }}>
+					<div className="min-w-[260px] max-w-[40%] shrink" style={{ width: assistantWidth }}>
 						<AssistantPane
 							question={question}
 							onClose={() => setAssistantOpen(false)}
@@ -278,7 +296,8 @@ function dragBorder(
 	event: React.PointerEvent,
 	size: (x: number) => number,
 	move: (size: number) => void,
-	done: (size: number) => void
+	done: (size: number) => void,
+	cancel: () => void
 ) {
 	event.currentTarget.setPointerCapture(event.pointerId);
 	let last: number | null = null;
@@ -286,11 +305,59 @@ function dragBorder(
 		last = size(e.clientX);
 		move(last);
 	};
-	const onUp = () => {
+	const stop = () => {
 		window.removeEventListener("pointermove", onMove);
 		window.removeEventListener("pointerup", onUp);
+		window.removeEventListener("pointercancel", onCancel);
+	};
+	const onUp = () => {
+		stop();
 		if (last !== null) done(last);
+	};
+	// Taken away (the system's own gesture): the border goes back
+	const onCancel = () => {
+		stop();
+		cancel();
 	};
 	window.addEventListener("pointermove", onMove);
 	window.addEventListener("pointerup", onUp);
+	window.addEventListener("pointercancel", onCancel);
+}
+
+/** A panel border: dragged, or moved with the arrow keys once focused */
+function ResizeHandle({
+	label,
+	value,
+	min,
+	max,
+	onPointerDown,
+	onStep,
+}: {
+	label: string;
+	value: number;
+	min: number;
+	max: number;
+	onPointerDown: (event: React.PointerEvent) => void;
+	onStep: (dir: -1 | 1) => void;
+}) {
+	return (
+		// biome-ignore lint/a11y/useSemanticElements: a focusable splitter, which <hr> is not
+		<div
+			role="separator"
+			aria-orientation="vertical"
+			aria-label={label}
+			aria-valuenow={value}
+			aria-valuemin={min}
+			aria-valuemax={max}
+			tabIndex={0}
+			onPointerDown={onPointerDown}
+			onKeyDown={e => {
+				if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+					e.preventDefault();
+					onStep(e.key === "ArrowLeft" ? -1 : 1);
+				}
+			}}
+			className={cn(RESIZE_HANDLE, "outline-none focus-visible:bg-highlight")}
+		/>
+	);
 }

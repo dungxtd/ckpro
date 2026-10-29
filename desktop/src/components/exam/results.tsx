@@ -21,6 +21,7 @@ import { useAssistantEnabled } from "@/stores/settings";
 import type { Attempt, ExamResult } from "@/tauri/api";
 import { AssistantPane } from "./assistant-pane";
 import { CheckList } from "./check-list";
+import { Confirm } from "./top-bar";
 import { useSolution } from "./use-solution";
 
 /** The result like the exam gives it (score, pass/fail), then the review. */
@@ -65,9 +66,15 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 				)}
 				<div className="mt-4 flex justify-center gap-2">
 					{!review && <Button onClick={() => setReview(true)}>Review answers</Button>}
-					<Button variant="outline" onClick={end}>
-						Close exam (deletes its clusters)
-					</Button>
+					<Confirm
+						title="Close this exam?"
+						description="Its clusters, task host files and desktop are deleted. The result stays in History."
+						action="Close Exam"
+						cancel="Keep Reviewing"
+						onConfirm={end}
+					>
+						<Button variant="outline">Close exam (deletes its clusters)</Button>
+					</Confirm>
 				</div>
 			</Card>
 

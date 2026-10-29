@@ -44,7 +44,7 @@ export function ExamRoute() {
 			return (
 				<RunningExam
 					attempt={state.attempt}
-					startedAt={state.started_at ?? Date.now()}
+					startedAt={state.started_at}
 					endsAt={state.ends_at ?? null}
 				/>
 			);
