@@ -1,6 +1,6 @@
 import { Button } from "@ckdry/ui/components/button";
 import { CircleCheck, CircleX } from "lucide-react";
-import { ClaudeIcon } from "@/components/claude-icon";
+import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import type { CheckResult } from "@/tauri/api";
 
 /** Check results; `onWhy` adds a "Why?" to failing ones (the practice coach) */

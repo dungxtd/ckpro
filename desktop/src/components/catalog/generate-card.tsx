@@ -13,7 +13,7 @@ import {
 } from "@ckdry/ui/components/select";
 import { useEffect, useState } from "react";
 import { ActivityProgress } from "@/components/activity/activity-progress";
-import { ClaudeIcon } from "@/components/claude-icon";
+import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { useActivityList } from "@/stores/activity";
 import { useExam } from "@/stores/exam";
 import {

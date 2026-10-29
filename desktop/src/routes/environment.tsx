@@ -2,12 +2,12 @@ import { Alert } from "@ckdry/ui/components/alert";
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { Loading } from "@ckdry/ui/components/loading";
+import { StatusDot } from "@ckdry/ui/components/status-dot";
 import { useEffect } from "react";
 import { useLocation } from "react-router";
 import { ActivityList } from "@/components/activity/activity-list";
 import { ClusterCard } from "@/components/environment/cluster-card";
 import { IssuesPanel } from "@/components/environment/issues-panel";
-import { StatusDot } from "@/components/environment/status-dot";
 import { useEnvironment } from "@/stores/environment";
 import { type EnvState, envApi } from "@/tauri/api";
 

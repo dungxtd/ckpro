@@ -7,8 +7,8 @@ import {
 	SheetTitle,
 } from "@ckdry/ui/components/sheet";
 import { useEffect, useState } from "react";
-import { ClaudeIcon } from "@/components/claude-icon";
-import { Answer, UserMessage } from "@/components/exam/answer";
+import { Answer, UserMessage } from "@/components/assistant/answer";
+import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { type CoachTranscript, coachApi, errorText, type HistoryEntry } from "@/tauri/api";
 
 /**

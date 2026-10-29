@@ -2,8 +2,8 @@ import { cn } from "@ckdry/ui/lib/utils";
 import { memo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { MarkdownCode, noImage, PROSE } from "@/components/markdown";
-import { DocLink } from "./doc-link";
+import { DocLink } from "@/components/text/doc-link";
+import { MarkdownCode, noImage, PROSE } from "@/components/text/markdown";
 
 const COMPONENTS: Components = {
 	pre: ({ node }) => <MarkdownCode node={node as never} />,

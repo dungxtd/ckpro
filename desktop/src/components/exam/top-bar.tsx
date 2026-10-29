@@ -1,24 +1,13 @@
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from "@ckdry/ui/components/alert-dialog";
 import { Badge } from "@ckdry/ui/components/badge";
-import { Button, buttonVariants } from "@ckdry/ui/components/button";
+import { Button } from "@ckdry/ui/components/button";
+import { ConfirmDialog } from "@ckdry/ui/components/confirm-dialog";
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import { Separator } from "@ckdry/ui/components/separator";
 import { BookOpen, Flag, LogOut, Monitor, PanelRight, X } from "lucide-react";
-import type { ReactNode } from "react";
+import { DesktopMenu, type DesktopMenuProps } from "@/components/exam/desktop-menu";
+import { Timer } from "@/components/exam/timer";
 import type { Attempt } from "@/tauri/api";
-import { DesktopMenu, type DesktopMenuProps } from "./desktop-menu";
-import { Timer } from "./timer";
 
 export type DeskView = "desktop" | "readme";
 
@@ -86,7 +75,8 @@ export function TopBar({
 
 			<div className="flex shrink-0 items-center gap-1.5">
 				{practice && (
-					<Confirm
+					<ConfirmDialog
+						cancel="Keep Working"
 						title="Quit the practice?"
 						description="Your work is not graded and its clusters are removed. You cannot come back to it."
 						action="Quit"
@@ -95,9 +85,10 @@ export function TopBar({
 						<Button size="push" variant="push">
 							<LogOut /> <span className="sr-only @2xl:not-sr-only">Quit</span>
 						</Button>
-					</Confirm>
+					</ConfirmDialog>
 				)}
-				<Confirm
+				<ConfirmDialog
+					cancel="Keep Working"
 					title={practice ? "Finish the practice?" : "End the exam?"}
 					description="Your work is graded now and the environment is removed. You cannot come back to it."
 					action={practice ? "Finish" : "End exam"}
@@ -112,7 +103,7 @@ export function TopBar({
 							<X /> <span className="sr-only @2xl:not-sr-only">End Exam</span>
 						</Button>
 					)}
-				</Confirm>
+				</ConfirmDialog>
 			</div>
 
 			{assistantAvailable && (
@@ -132,44 +123,6 @@ export function TopBar({
 				</>
 			)}
 		</header>
-	);
-}
-
-/** Ends the attempt only once confirmed: nothing comes back after it */
-export function Confirm({
-	title,
-	description,
-	action,
-	cancel = "Keep working",
-	onConfirm,
-	children,
-}: {
-	title: string;
-	description: string;
-	action: string;
-	cancel?: string;
-	onConfirm: () => void;
-	children: ReactNode;
-}) {
-	return (
-		<AlertDialog>
-			<AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
-			<AlertDialogContent>
-				<AlertDialogHeader>
-					<AlertDialogTitle>{title}</AlertDialogTitle>
-					<AlertDialogDescription>{description}</AlertDialogDescription>
-				</AlertDialogHeader>
-				<AlertDialogFooter>
-					<AlertDialogCancel>{cancel}</AlertDialogCancel>
-					<AlertDialogAction
-						className={buttonVariants({ variant: "destructive" })}
-						onClick={onConfirm}
-					>
-						{action}
-					</AlertDialogAction>
-				</AlertDialogFooter>
-			</AlertDialogContent>
-		</AlertDialog>
 	);
 }
 

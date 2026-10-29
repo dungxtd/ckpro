@@ -2,22 +2,12 @@
 // in both themes. Development only (`pnpm vite` → /kit.html); the app build
 // does not include it. When a component or variant is added, add it here.
 import { Alert } from "@ckdry/ui/components/alert";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from "@ckdry/ui/components/alert-dialog";
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { Chip } from "@ckdry/ui/components/chip";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
+import { ConfirmDialog } from "@ckdry/ui/components/confirm-dialog";
 import { Disclosure } from "@ckdry/ui/components/disclosure";
 import {
 	DropdownMenu,
@@ -57,6 +47,7 @@ import {
 import { Skeleton } from "@ckdry/ui/components/skeleton";
 import { Toaster } from "@ckdry/ui/components/sonner";
 import { Spinner } from "@ckdry/ui/components/spinner";
+import { StatusDot } from "@ckdry/ui/components/status-dot";
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { Switch } from "@ckdry/ui/components/switch";
 import {
@@ -88,11 +79,10 @@ import { type ReactNode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { toast } from "sonner";
 import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";
-import { StatusDot } from "@/components/environment/status-dot";
-import { Answer } from "@/components/exam/answer";
+import { Answer } from "@/components/assistant/answer";
 import { CheckList } from "@/components/exam/check-list";
-import { CopyBlock, CopyText } from "@/components/exam/copy-text";
 import { Timer } from "@/components/exam/timer";
+import { CopyBlock, CopyText } from "@/components/text/copy-text";
 import "../index.css";
 
 // The app's commands answer nothing here
@@ -564,27 +554,16 @@ function Gallery() {
 								</button>
 							</PopoverContent>
 						</Popover>
-						<AlertDialog>
-							<AlertDialogTrigger asChild>
-								<Button
-									size="push"
-									variant="outline"
-									className="border-destructive/60 text-destructive"
-								>
-									Confirm
-								</Button>
-							</AlertDialogTrigger>
-							<AlertDialogContent>
-								<AlertDialogHeader>
-									<AlertDialogTitle>End the exam?</AlertDialogTitle>
-									<AlertDialogDescription>Your work is graded now.</AlertDialogDescription>
-								</AlertDialogHeader>
-								<AlertDialogFooter>
-									<AlertDialogCancel>Keep working</AlertDialogCancel>
-									<AlertDialogAction>End exam</AlertDialogAction>
-								</AlertDialogFooter>
-							</AlertDialogContent>
-						</AlertDialog>
+						<ConfirmDialog
+							title="End the exam?"
+							description="Your work is graded now."
+							action="End Exam"
+							onConfirm={() => {}}
+						>
+							<Button size="push" variant="outlineDestructive">
+								Confirm
+							</Button>
+						</ConfirmDialog>
 						<Sheet>
 							<SheetTrigger asChild>
 								<Button size="push" variant="push">

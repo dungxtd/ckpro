@@ -5,14 +5,14 @@ import { Stepper } from "@ckdry/ui/components/stepper";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Eye, Lightbulb, ListChecks } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
-import { Markdown } from "@/components/markdown";
+import { CheckList } from "@/components/exam/check-list";
+import { CopyBlock, CopyText } from "@/components/text/copy-text";
+import { DocList } from "@/components/text/doc-link";
+import { Markdown } from "@/components/text/markdown";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
 import { useAssistantEnabled, useSettings } from "@/stores/settings";
 import type { Attempt, QuestionView } from "@/tauri/api";
-import { CheckList } from "./check-list";
-import { CopyBlock, CopyText } from "./copy-text";
-import { DocList } from "./doc-link";
 
 /** Question text sizes, in px (the text size stepper) */
 const SIZES = [

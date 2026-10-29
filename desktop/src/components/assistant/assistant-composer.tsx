@@ -30,7 +30,7 @@ import {
 	TriangleAlert,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { blurb, effortLabel, shortName } from "@/components/ai/models";
+import { blurb, effortLabel, shortName } from "@/components/assistant/models";
 import { useCoach } from "@/stores/coach";
 import type { CheckResult, Profile } from "@/tauri/api";
 

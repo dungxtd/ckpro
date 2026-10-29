@@ -3,7 +3,7 @@ import { CodeBlock } from "@ckdry/ui/components/code-block";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Check, Copy } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
-import { copyToDesktop } from "./desktop-view";
+import { copyToDesktop } from "@/components/exam/desktop-clipboard";
 
 /** How long a code block's "Copied" shows, and a value's flash */
 const COPIED_MS = 1200;

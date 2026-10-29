@@ -3,9 +3,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/po
 import { cn } from "@ckdry/ui/lib/utils";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
+import { ActivityProgress } from "@/components/activity/activity-progress";
+import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";
 import { useActivityList } from "@/stores/activity";
-import { ActivityProgress } from "./activity-progress";
-import { ActivityStatusIcon } from "./activity-status-icon";
 
 /** How long a failure stays in the top bar */
 const FAILED_SHOWN_MS = 5 * 60_000;

@@ -2,6 +2,7 @@ import { Alert } from "@ckdry/ui/components/alert";
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
+import { ConfirmDialog } from "@ckdry/ui/components/confirm-dialog";
 import { Separator } from "@ckdry/ui/components/separator";
 import {
 	Sheet,
@@ -13,16 +14,15 @@ import {
 import { cn } from "@ckdry/ui/lib/utils";
 import { ShieldAlert } from "lucide-react";
 import { useState } from "react";
-import { ClaudeIcon } from "@/components/claude-icon";
-import { Markdown } from "@/components/markdown";
+import { AssistantPane } from "@/components/assistant/assistant-pane";
+import { ClaudeIcon } from "@/components/assistant/claude-icon";
+import { CheckList } from "@/components/exam/check-list";
+import { useSolution } from "@/components/exam/use-solution";
+import { CopyBlock } from "@/components/text/copy-text";
+import { Markdown } from "@/components/text/markdown";
 import { useExam } from "@/stores/exam";
 import { useAssistantEnabled } from "@/stores/settings";
 import type { Attempt, ExamResult } from "@/tauri/api";
-import { AssistantPane } from "./assistant-pane";
-import { CheckList } from "./check-list";
-import { CopyBlock } from "./copy-text";
-import { Confirm } from "./top-bar";
-import { useSolution } from "./use-solution";
 
 /** The result like the exam gives it (score, pass/fail), then the review. */
 export function Results({ attempt, result }: { attempt: Attempt; result: ExamResult }) {
@@ -66,7 +66,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 				)}
 				<div className="mt-4 flex justify-center gap-2">
 					{!review && <Button onClick={() => setReview(true)}>Review answers</Button>}
-					<Confirm
+					<ConfirmDialog
 						title="Close this exam?"
 						description="Its clusters, task host files and desktop are deleted. The result stays in History."
 						action="Close Exam"
@@ -74,7 +74,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 						onConfirm={end}
 					>
 						<Button variant="outline">Close exam (deletes its clusters)</Button>
-					</Confirm>
+					</ConfirmDialog>
 				</div>
 			</Card>
 

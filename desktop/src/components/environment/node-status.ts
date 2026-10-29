@@ -1,23 +1,8 @@
-import { cn } from "@ckdry/ui/lib/utils";
+import type { StatusTone } from "@ckdry/ui/components/status-dot";
 import type { NodeState } from "@/tauri/api";
 
-type Tone = "ok" | "warn" | "error" | "idle";
-
-const TONE: Record<Tone, string> = {
-	ok: "bg-success",
-	warn: "bg-warning",
-	error: "bg-destructive",
-	idle: "bg-muted-foreground/40",
-};
-
-export function StatusDot({ tone, className }: { tone: Tone; className?: string }) {
-	return (
-		<span className={cn("inline-block size-2 shrink-0 rounded-full", TONE[tone], className)} />
-	);
-}
-
 /** Container state and Kubernetes readiness folded into one tone + label. */
-export function nodeStatus(node: NodeState): { tone: Tone; label: string } {
+export function nodeStatus(node: NodeState): { tone: StatusTone; label: string } {
 	if (node.container.state === "stopped") return { tone: "error", label: "stopped" };
 	if (node.container.state === "other") return { tone: "warn", label: node.container.status };
 	if (node.ready.state === "ready") return { tone: "ok", label: "Ready" };

@@ -1,9 +1,10 @@
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
-import { Confirm } from "@/components/exam/top-bar";
+import { ConfirmDialog } from "@ckdry/ui/components/confirm-dialog";
+import { StatusDot } from "@ckdry/ui/components/status-dot";
+import { nodeStatus } from "@/components/environment/node-status";
 import { useEnvironment } from "@/stores/environment";
 import type { ClusterState } from "@/tauri/api";
-import { nodeStatus, StatusDot } from "./status-dot";
 
 export function ClusterCard({ cluster }: { cluster: ClusterState }) {
 	const job = useEnvironment(s => s.job);
@@ -24,17 +25,16 @@ export function ClusterCard({ cluster }: { cluster: ClusterState }) {
 							Repair
 						</Button>
 					)}
-					<Confirm
+					<ConfirmDialog
 						title={`Delete ${cluster.name}?`}
 						description="Its nodes and everything on them are removed."
 						action="Delete"
-						cancel="Cancel"
 						onConfirm={() => runJob("delete", cluster.name)}
 					>
 						<Button size="sm" variant="outline" disabled={busy}>
 							{job?.cluster === cluster.name && job.action === "delete" ? "Deleting…" : "Delete"}
 						</Button>
-					</Confirm>
+					</ConfirmDialog>
 				</div>
 			</header>
 			<ul className="flex flex-col">

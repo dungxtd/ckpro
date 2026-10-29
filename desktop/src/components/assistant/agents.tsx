@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { ClaudeIcon } from "@/components/claude-icon";
+import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import type { Provider } from "@/tauri/api";
 
 /**

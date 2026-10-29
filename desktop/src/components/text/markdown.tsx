@@ -2,8 +2,8 @@ import { cn } from "@ckdry/ui/lib/utils";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
-import { CopyBlock, CopyText } from "@/components/exam/copy-text";
-import { DocLink } from "@/components/exam/doc-link";
+import { CopyBlock, CopyText } from "@/components/text/copy-text";
+import { DocLink } from "@/components/text/doc-link";
 import { browserApi, errorText } from "@/tauri/api";
 
 type Node = {

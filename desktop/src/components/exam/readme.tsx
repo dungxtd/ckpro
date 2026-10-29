@@ -1,4 +1,4 @@
-import { Markdown } from "@/components/markdown";
+import { Markdown } from "@/components/text/markdown";
 import type { Attempt } from "@/tauri/api";
 
 /** The Remote Desktop's ReadMe tab: how the exam environment works. */

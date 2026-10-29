@@ -13,17 +13,22 @@ import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
+import { AssistantPane } from "@/components/assistant/assistant-pane";
+import { useDesktopSettings } from "@/components/exam/desktop-menu";
+import { DesktopView } from "@/components/exam/desktop-view";
+import { ResizeHandle, usePanelSize } from "@/components/exam/panel-border";
+import {
+	type PanelView,
+	PracticeActions,
+	QuestionPanel,
+	TextSize,
+} from "@/components/exam/question-panel";
+import { ReadMe } from "@/components/exam/readme";
+import { type DeskView, TopBar } from "@/components/exam/top-bar";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
 import type { Attempt } from "@/tauri/api";
-import { AssistantPane } from "./assistant-pane";
-import { useDesktopSettings } from "./desktop-menu";
-import { DesktopView } from "./desktop-view";
-import { ResizeHandle, usePanelSize } from "./panel-border";
-import { type PanelView, PracticeActions, QuestionPanel, TextSize } from "./question-panel";
-import { ReadMe } from "./readme";
-import { type DeskView, TopBar } from "./top-bar";
 
 /** Like the exam's timer bar: alerts at 30, 15 and 5 minutes left */
 const ALERTS_MIN = [30, 15, 5];

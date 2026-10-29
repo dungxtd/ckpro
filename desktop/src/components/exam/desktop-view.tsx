@@ -2,6 +2,7 @@ import { Loading } from "@ckdry/ui/components/loading";
 import { useDismissSurface } from "@ckdry/ui/components/popover";
 import RFB from "@novnc/novnc";
 import { useEffect, useRef, useState } from "react";
+import { connectClipboard } from "@/components/exam/desktop-clipboard";
 import { desktopApi } from "@/tauri/api";
 
 /** noVNC internals the HiDPI resize hooks into (no public API for it) */
@@ -18,19 +19,6 @@ const RIGHT_BUTTON = 4;
 
 /** How long resizing must have stopped before the desktop takes the new size */
 const RESIZE_SETTLE_MS = 400;
-
-/** The last text clicked to copy, and the connected desktop it goes to */
-let clipboard = "";
-let deliver: ((text: string) => void) | null = null;
-
-/**
- * Put text on the desktop's clipboard. As on the exam, the only way in: the
- * host's clipboard and text selected in the app never reach the desktop
- */
-export function copyToDesktop(text: string) {
-	clipboard = text;
-	deliver?.(text);
-}
 
 /**
  * The exam's remote desktop (the `base` machine), over VNC. The desktop
@@ -144,13 +132,12 @@ export function DesktopView({
 				// shifting the whole exam desk out of the window
 				rfb.focus({ preventScroll: true });
 				// Copied while it was (re)connecting
-				deliver = text => rfb.clipboardPasteFrom(text);
-				if (clipboard) deliver(clipboard);
+				connectClipboard(text => rfb.clipboardPasteFrom(text));
 			});
 			rfb.addEventListener("disconnect", () => {
 				setConnected(false);
 				rfbRef.current = null;
-				deliver = null;
+				connectClipboard(null);
 				if (!stopped) retry = setTimeout(connect, 1000);
 			});
 		};
@@ -159,7 +146,7 @@ export function DesktopView({
 		return () => {
 			stopped = true;
 			clearTimeout(retry);
-			deliver = null;
+			connectClipboard(null);
 			rfbRef.current?.disconnect();
 		};
 	}, []);

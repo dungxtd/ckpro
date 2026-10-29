@@ -17,16 +17,16 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@ckdry/ui/components/sheet";
+import { StatusDot } from "@ckdry/ui/components/status-dot";
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { Switch } from "@ckdry/ui/components/switch";
 import { cn } from "@ckdry/ui/lib/utils";
 import { ChevronRight, RotateCw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { SignInDialog } from "@/components/account/sign-in-dialog";
-import { AGENTS, agentOf } from "@/components/ai/agents";
-import { effortLabel, shortName } from "@/components/ai/models";
-import { StatusDot } from "@/components/environment/status-dot";
+import { AGENTS, agentOf } from "@/components/assistant/agents";
+import { effortLabel, shortName } from "@/components/assistant/models";
+import { SignInDialog } from "@/components/assistant/sign-in-dialog";
 import { Group, Row } from "@/components/settings/layout";
 import { useCoach } from "@/stores/coach";
 import { useAssistantEnabled, useSettings } from "@/stores/settings";

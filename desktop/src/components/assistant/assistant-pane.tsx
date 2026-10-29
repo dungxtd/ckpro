@@ -10,9 +10,12 @@ import { cn } from "@ckdry/ui/lib/utils";
 import { Check, Ellipsis, History, Plus, RotateCw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { SignInDialog } from "@/components/account/sign-in-dialog";
-import { AGENTS } from "@/components/ai/agents";
-import { ClaudeIcon } from "@/components/claude-icon";
+import { AGENTS } from "@/components/assistant/agents";
+import { Answer, UserMessage } from "@/components/assistant/answer";
+import { AssistantComposer } from "@/components/assistant/assistant-composer";
+import { ClaudeIcon } from "@/components/assistant/claude-icon";
+import { PermissionCard } from "@/components/assistant/permission-card";
+import { SignInDialog } from "@/components/assistant/sign-in-dialog";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
 import {
@@ -22,9 +25,6 @@ import {
 	coachApi,
 	type QuestionView,
 } from "@/tauri/api";
-import { Answer, UserMessage } from "./answer";
-import { AssistantComposer } from "./assistant-composer";
-import { PermissionCard } from "./permission-card";
 
 /**
  * The assistant, laid out as an agent panel: one agent (ACP,

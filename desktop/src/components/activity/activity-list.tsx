@@ -2,9 +2,9 @@ import { Card } from "@ckdry/ui/components/card";
 import { Disclosure } from "@ckdry/ui/components/disclosure";
 import { cn } from "@ckdry/ui/lib/utils";
 import { useState } from "react";
+import { ActivityProgress, clock } from "@/components/activity/activity-progress";
+import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";
 import { useActivityList } from "@/stores/activity";
-import { ActivityProgress, clock } from "./activity-progress";
-import { ActivityStatusIcon } from "./activity-status-icon";
 
 const time = (ms: number) =>
 	new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
