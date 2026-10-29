@@ -5,6 +5,7 @@
 //! result. Practice mode adds hints, per-question checks and solutions, and
 //! has no time limit. Hidden material never leaves Rust in exam mode.
 
+use crate::runtime::activity::now_ms;
 use crate::sync::{MutexExt, RwLockExt};
 use super::checks::{self, CheckResult};
 use super::load::LoadedPack;
@@ -707,6 +708,3 @@ impl Exams {
     }
 }
 
-fn now_ms() -> f64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as f64).unwrap_or(0.0)
-}

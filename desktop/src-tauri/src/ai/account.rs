@@ -59,7 +59,7 @@ pub fn in_terminal(argv: &[OsString]) -> Command {
         command.arg("-q").arg("/dev/null").args(argv);
         command
     } else if cfg!(target_os = "linux") {
-        let line = argv.iter().map(|a| format!("'{}'", a.to_string_lossy().replace('\'', r"'\''"))).collect::<Vec<_>>().join(" ");
+        let line = argv.iter().map(|a| crate::runtime::exec::quote(&a.to_string_lossy())).collect::<Vec<_>>().join(" ");
         let mut command = Command::new("script");
         command.args(["-q", "-e", "-c", &line, "/dev/null"]);
         command

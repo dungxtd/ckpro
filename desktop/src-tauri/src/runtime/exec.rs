@@ -12,6 +12,11 @@ pub struct Output {
     pub text: String,
 }
 
+/// `s` as one word for the shell, whatever it holds
+pub fn quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
 pub async fn run(
     docker: &Docker,
     container: &str,

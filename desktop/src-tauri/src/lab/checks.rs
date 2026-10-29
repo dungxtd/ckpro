@@ -2,6 +2,7 @@
 //! question's cluster, so grading never changes the candidate's current
 //! context. Declarative checks explain their failure ("expected X, got Y").
 
+use crate::runtime::exec::quote;
 use super::model::{CanICheck, Check, CheckKind, Expectation, JsonpathCheck, ResourceRef};
 use crate::error::AppResult;
 use crate::runtime::exec;
@@ -217,10 +218,6 @@ fn can_i(c: &CanICheck) -> String {
     )
 }
 
-/// Single-quote for the shell
-fn quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
-}
 
 #[cfg(test)]
 mod tests {

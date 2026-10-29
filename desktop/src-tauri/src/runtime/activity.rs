@@ -227,6 +227,7 @@ impl Drop for Op {
     }
 }
 
-fn now_ms() -> f64 {
+/// Unix milliseconds, as the interface shows times
+pub fn now_ms() -> f64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as f64).unwrap_or(0.0)
 }
