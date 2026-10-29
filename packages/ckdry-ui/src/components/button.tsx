@@ -12,8 +12,6 @@ const buttonVariants = cva(
 				destructive: "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90",
 				outline:
 					"border border-input bg-glass shadow-xs hover:bg-accent hover:text-accent-foreground",
-				secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
-				accent: "bg-accent text-accent-foreground shadow-xs hover:bg-accent/80",
 				ghost: "hover:bg-accent hover:text-accent-foreground",
 				// macOS push button (System Settings "Change…"): raised, hairline shadow.
 				// macOS default button (the action Return triggers): accent fill.
@@ -28,7 +26,6 @@ const buttonVariants = cva(
 					"hover-glow bg-white text-black shadow-sm [text-shadow:none] transition-[transform,scale,background-color,filter] hover:bg-white [@media(hover:hover)]:hover:scale-[1.04] active:scale-95 [&_svg]:fill-current",
 				glass:
 					"hover-glow glass-surface glass-blur text-foreground transition-[transform,scale,background-color,filter] hover:bg-foreground/15 [@media(hover:hover)]:hover:scale-[1.04] active:scale-95",
-				link: "text-primary underline-offset-4 hover:underline",
 				// A small action that stays out of the way (Copy, Regenerate, a
 				// picker's value): muted text, the foreground on hover
 				quiet: "font-normal text-muted-foreground hover:text-foreground",
@@ -36,14 +33,8 @@ const buttonVariants = cva(
 			size: {
 				default: "h-9 px-4 py-2",
 				sm: "h-8 rounded-md px-3 text-xs",
-				lg: "h-10 rounded-md px-8",
 				pill: "h-11 rounded-full px-7 font-semibold text-lead [&_svg]:size-[18px]",
 				push: "h-7 rounded-control px-3 text-callout font-normal",
-				xl: "h-12 rounded-md px-10 text-md",
-				xxl: "h-14 rounded-md px-12 text-lg",
-				iconXl: "size-12 px-4 py-2 [&_svg]:size-6",
-				icon3Xl: "size-20 px-4 py-2 [&_svg]:size-12",
-				icon: "size-10 [&_svg]:size-6",
 				/** Text-sized, no box: an action inside a line of small text */
 				inline: "h-auto gap-1 p-0 text-2xs [&_svg]:size-3",
 				/** A compact picker in a toolbar row: its value and a chevron */

@@ -123,10 +123,6 @@ export const clusterApi = {
 	adopt: (name: string) => unwrap(commands.adoptCluster(name)),
 };
 
-export const labApi = {
-	/** Run a lab script on the jumphost. */
-};
-
 export const terminalApi = {
 	/** Shell on the jumphost (`null`) or directly on a node container. */
 	open: (container: string | null, onEvent: (event: TerminalEvent) => void) =>

@@ -62,6 +62,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/to
 import { Truncated } from "@ckdry/ui/components/truncated";
 import {
 	Check,
+	ChevronDown,
 	CircleAlert,
 	Info,
 	Lightbulb,
@@ -188,10 +189,9 @@ function Gallery() {
 								"pushDefault",
 								"push",
 								"outline",
-								"secondary",
 								"ghost",
 								"destructive",
-								"link",
+								"quiet",
 							] as const
 						).map(v => (
 							<Button key={v} variant={v} size={v.startsWith("push") ? "push" : "sm"}>
@@ -211,6 +211,12 @@ function Gallery() {
 						</Button>
 						<Button size="push" variant="push">
 							<Spinner size="inline" /> Working…
+						</Button>
+						<Button variant="quiet" size="inline">
+							inline
+						</Button>
+						<Button variant="quiet" size="picker">
+							picker <ChevronDown />
 						</Button>
 					</Row>
 				</Section>

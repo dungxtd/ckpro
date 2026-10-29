@@ -6,7 +6,6 @@ import type * as React from "react";
 
 const Popover = PopoverPrimitive.Root;
 const PopoverTrigger = PopoverPrimitive.Trigger;
-const PopoverAnchor = PopoverPrimitive.Anchor;
 
 /** Floating panel on the same macOS menu material as menus and dropdowns. */
 function PopoverContent({
@@ -37,7 +36,7 @@ function PopoverContent({
 	);
 }
 
-export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger };
+export { Popover, PopoverContent, PopoverTrigger };
 
 /**
  * A ref for an area that handles its own pointer events and stops them (a
