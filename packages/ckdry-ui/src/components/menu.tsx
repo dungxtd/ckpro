@@ -13,16 +13,19 @@ export const menu = {
 	/** Floating menu surface (material + double edge, see `menu-surface`). */
 	surface: "menu-surface rounded-menu p-[5px] text-popover-foreground",
 	/** Selectable row; put the checkmark in `check` and a trailing value in `hint`. */
-	row: "relative flex h-6 w-full cursor-default select-none items-center gap-2 rounded-control pr-3 pl-[25px] text-left text-callout outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-highlight hover:text-highlight-foreground focus-visible:bg-highlight focus-visible:text-highlight-foreground data-[highlighted]:bg-highlight data-[highlighted]:text-highlight-foreground",
+	row: "relative flex h-6 w-full min-w-0 cursor-default whitespace-nowrap select-none items-center gap-2 rounded-control pr-3 pl-[25px] text-left text-callout outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-highlight hover:text-highlight-foreground focus-visible:bg-highlight focus-visible:text-highlight-foreground data-[highlighted]:bg-highlight data-[highlighted]:text-highlight-foreground",
 	/** Checkmark slot at the left of a row. */
-	check: "absolute left-2 flex size-3 items-center justify-center",
+	check: "absolute top-1.5 left-2 flex size-3 items-center justify-center",
 	/** Trailing secondary text (shortcut, value, source). */
 	hint: "ml-auto shrink-0 truncate pl-3 text-caption opacity-60 [:hover>&]:opacity-100",
-	/** A second line under the row's text (a description); the row takes
-	 * `menuRow(menu.twoLine)` and wraps both lines in one element. */
-	detail: "block truncate text-caption opacity-60 [:hover>*>&]:opacity-100",
-	/** Row height for a row with `detail`. */
-	twoLine: "h-auto py-1",
+	/** The row's own text, cut short when the menu is narrow (the hint stays). */
+	label: "min-w-0 truncate",
+	/** A second line under the row's text (a description), wrapped rather
+	 * than cut; the row takes `menuRow(menu.twoLine)` and wraps both lines in
+	 * one element. */
+	detail: "line-clamp-2 block whitespace-normal text-caption opacity-60 [:hover>*>&]:opacity-100",
+	/** Row height for a row with `detail`: the checkmark stays on the first line. */
+	twoLine: "h-auto py-0.5",
 	/** Grey section header. */
 	header: "px-2.5 pt-1.5 pb-0.5 font-semibold text-2xs opacity-55",
 	/** Hairline divider between groups. */

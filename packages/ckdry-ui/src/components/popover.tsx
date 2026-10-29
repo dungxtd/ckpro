@@ -13,6 +13,7 @@ function PopoverContent({
 	className,
 	align = "start",
 	sideOffset = 8,
+	collisionPadding = 8,
 	...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
 	const theme = useThemeScope();
@@ -23,8 +24,11 @@ function PopoverContent({
 				data-theme={theme}
 				align={align}
 				sideOffset={sideOffset}
+				collisionPadding={collisionPadding}
 				className={cn(
-					"menu-surface z-floating w-80 origin-(--radix-popover-content-transform-origin) rounded-[16px] p-3.5 text-popover-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+					// Never larger than the room the window leaves: long lists scroll
+					"menu-surface z-floating max-h-(--radix-popover-content-available-height) w-80 max-w-(--radix-popover-content-available-width) overflow-y-auto",
+					"origin-(--radix-popover-content-transform-origin) rounded-[16px] p-3.5 text-popover-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
 					className
 				)}
 				{...props}

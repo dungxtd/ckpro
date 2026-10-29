@@ -7,6 +7,7 @@ import { menu, menuRow } from "@ckdry/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
 import { Spinner } from "@ckdry/ui/components/spinner";
 import { Textarea } from "@ckdry/ui/components/textarea";
+import { Truncated } from "@ckdry/ui/components/truncated";
 import { cn } from "@ckdry/ui/lib/utils";
 import {
 	ArrowUp,
@@ -34,6 +35,7 @@ import {
 	type CoachSession,
 	type CoachStatus,
 	coachApi,
+	type ModelOption,
 	type PermissionOption,
 	type Profile,
 	type QuestionView,
@@ -68,7 +70,8 @@ export function AssistantPane({
 	const messages = coach.sessions[question.id] ?? [];
 	const writing = coach.writing === question.id;
 	const usage = coach.usage[question.id];
-	const modelName = coach.models.find(m => m.value === coach.model)?.name ?? coach.model;
+	const model = coach.models.find(m => m.value === coach.model);
+	const modelName = model?.name ?? coach.model;
 	const [status, setStatus] = useState<CoachStatus | null>(null);
 	const [draft, setDraft] = useState("");
 	const [expanded, setExpanded] = useState(false);
@@ -120,13 +123,13 @@ export function AssistantPane({
 						}}
 					/>
 				) : (
-					// biome-ignore lint/a11y/noStaticElementInteractions: a mouse shortcut; More > Rename Session… is the keyboard way
-					<span
-						className="min-w-0 flex-1 truncate text-[13px]"
+					// Double-click: a mouse shortcut; More > Rename Session… is the keyboard way
+					<Truncated
+						className="flex-1 text-callout"
 						onDoubleClick={() => messages.length > 0 && setRenaming(true)}
 					>
 						{title}
-					</span>
+					</Truncated>
 				)}
 				{/* A new session, with one of the agents offered */}
 				<Popover>
@@ -149,8 +152,8 @@ export function AssistantPane({
 								className={menuRow()}
 								onClick={() => coach.clear(question.id)}
 							>
-								<a.Icon className={cn("size-3.5", a.tint)} />
-								{a.name}
+								<a.Icon className={cn("size-3.5 shrink-0", a.tint)} />
+								<span className={menu.label}>{a.name}</span>
 							</button>
 						))}
 					</PopoverContent>
@@ -176,7 +179,7 @@ export function AssistantPane({
 								onClick={() => onOpenQuestion?.(t.question_id)}
 							>
 								{t.question_id === question.id && <Checked />}
-								<span className="truncate">{t.title}</span>
+								<Truncated>{t.title}</Truncated>
 								<span className={menu.hint}>{t.messages / 2}</span>
 							</button>
 						))}
@@ -396,18 +399,14 @@ export function AssistantPane({
 									<AtSign />
 								</IconButton>
 							</PopoverTrigger>
-							<PopoverContent side="top" className={cn(menu.surface, "w-60")}>
+							<PopoverContent side="top" className={cn(menu.surface, "w-64")}>
 								<div className={menu.header}>Add context</div>
 								<ContextRow
 									on={coach.context.checks && coach.shared.checks}
 									disabled={!checks || !coach.shared.checks}
 									label="Last check"
 									hint={
-										!coach.shared.checks
-											? "off in Settings"
-											: checks
-												? undefined
-												: "run Check my work"
+										!coach.shared.checks ? "off in Settings" : checks ? undefined : "check first"
 									}
 									toggle={() => coach.setContext({ checks: !coach.context.checks })}
 								/>
@@ -426,7 +425,10 @@ export function AssistantPane({
 						) : (
 							<Popover>
 								<PopoverTrigger asChild>
-									<PickerButton aria-label="Profile">
+									<PickerButton
+										aria-label="Profile"
+										full={PROFILES.find(p => p.value === coach.profile)?.detail}
+									>
 										{coach.profile === "agent" ? "Agent" : "Ask"}
 									</PickerButton>
 								</PopoverTrigger>
@@ -439,9 +441,14 @@ export function AssistantPane({
 											onClick={() => coach.setProfile(p.value)}
 										>
 											{coach.profile === p.value && <Checked />}
-											<span className="flex min-w-0 flex-col">
-												<span>{p.name}</span>
-												<span className={cn(menu.detail, "whitespace-normal")}>{p.detail}</span>
+											<span className="flex min-w-0 flex-1 flex-col">
+												<span className="flex">
+													<span className={menu.label}>{p.name}</span>
+													{coach.defaults.profile === p.value && (
+														<span className={menu.hint}>Default</span>
+													)}
+												</span>
+												<span className={menu.detail}>{p.detail}</span>
 											</span>
 										</button>
 									))}
@@ -450,13 +457,15 @@ export function AssistantPane({
 						)}
 						<Popover>
 							<PopoverTrigger asChild>
-								<PickerButton aria-label="Model">{modelName}</PickerButton>
+								<PickerButton
+									aria-label="Model"
+									full={modelLabel(model)}
+									className="min-w-0 shrink"
+								>
+									{modelName}
+								</PickerButton>
 							</PopoverTrigger>
-							<PopoverContent
-								side="top"
-								align="end"
-								className={cn(menu.surface, "max-h-96 w-64 overflow-y-auto")}
-							>
+							<PopoverContent side="top" align="end" className={cn(menu.surface, "max-h-96 w-72")}>
 								<div className={menu.header}>{agentOf("claude").name}</div>
 								{coach.models.length === 0 && (
 									<div className={cn(menu.content, "py-1 text-muted-foreground text-xs")}>
@@ -471,9 +480,14 @@ export function AssistantPane({
 										onClick={() => coach.setModel(m.value)}
 									>
 										{coach.model === m.value && <Checked />}
-										<span className="flex min-w-0 flex-col">
-											<span className="truncate">{m.name}</span>
-											{m.description && <span className={menu.detail}>{m.description}</span>}
+										<span className="flex min-w-0 flex-1 flex-col">
+											<span className="flex">
+												<span className={menu.label}>{m.name}</span>
+												{m.value === coach.defaults.model && !/default/i.test(m.name) && (
+													<span className={menu.hint}>Default</span>
+												)}
+											</span>
+											{about(m) && <span className={menu.detail}>{about(m)}</span>}
 										</span>
 									</button>
 								))}
@@ -482,13 +496,20 @@ export function AssistantPane({
 						{coach.efforts.length > 0 && (
 							<Popover>
 								<PopoverTrigger asChild>
-									<PickerButton aria-label="Effort">
+									<PickerButton
+										aria-label="Effort"
+										full={
+											coach.effort === "default"
+												? "Effort: the model's own default"
+												: `Effort: ${coach.efforts.find(e => e.value === coach.effort)?.name ?? coach.effort}`
+										}
+									>
 										{coach.effort === "default"
 											? "Effort"
 											: (coach.efforts.find(e => e.value === coach.effort)?.name ?? coach.effort)}
 									</PickerButton>
 								</PopoverTrigger>
-								<PopoverContent side="top" align="end" className={cn(menu.surface, "w-36")}>
+								<PopoverContent side="top" align="end" className={cn(menu.surface, "w-48")}>
 									<div className={menu.header}>Effort</div>
 									{coach.efforts.map(e => (
 										<button
@@ -498,7 +519,8 @@ export function AssistantPane({
 											onClick={() => coach.setEffort(e.value)}
 										>
 											{coach.effort === e.value && <Checked />}
-											{e.name}
+											<span className={menu.label}>{e.name}</span>
+											{e.value === "default" && <span className={menu.hint}>model's own</span>}
 										</button>
 									))}
 								</PopoverContent>
@@ -659,17 +681,40 @@ function SessionTitleInput({
 }
 
 /** The composer's pickers (model, effort): their value and a chevron */
-function PickerButton({ children, ...props }: React.ComponentProps<"button">) {
+/** A picker in the editor's row: its value, cut short when the pane is
+ * narrow; hovering shows `full` (what the value means) */
+function PickerButton({
+	children,
+	full,
+	className,
+	...props
+}: React.ComponentProps<"button"> & { full?: ReactNode }) {
 	return (
 		<button
 			type="button"
-			className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+			className={cn(
+				"flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-2xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+				className
+			)}
 			{...props}
 		>
-			{children} <ChevronDown className="size-3" />
+			<Truncated full={full} className="max-w-36">
+				{children}
+			</Truncated>
+			<ChevronDown className="size-3 shrink-0" />
 		</button>
 	);
 }
+
+/** A model's description without its name again ("Opus 5.5 · Best for…") */
+const about = (m: ModelOption) =>
+	(m.description?.startsWith(m.name)
+		? m.description.slice(m.name.length).replace(/^\s*·\s*/, "")
+		: m.description) || null;
+
+/** The model in use, for the picker's tooltip: its name and what it is */
+const modelLabel = (m: ModelOption | undefined) =>
+	m && (about(m) ? `${m.name} · ${about(m)}` : m.name);
 
 function ContextRow({
 	on,
@@ -693,7 +738,7 @@ function ContextRow({
 			onClick={toggle}
 		>
 			{on && !disabled && <Checked />}
-			{label}
+			<span className={menu.label}>{label}</span>
 			{hint && <span className={menu.hint}>{hint}</span>}
 		</button>
 	);

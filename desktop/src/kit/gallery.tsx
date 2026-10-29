@@ -59,6 +59,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ckdry/ui/components/tabs";
 import { Textarea } from "@ckdry/ui/components/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/tooltip";
+import { Truncated } from "@ckdry/ui/components/truncated";
 import {
 	Check,
 	CircleAlert,
@@ -228,6 +229,23 @@ function Gallery() {
 						<IconButton variant="plain" size="sm" active aria-label="Active">
 							<Sparkles />
 						</IconButton>
+					</Row>
+				</Section>
+
+				<Section
+					title="Truncated"
+					note="One line cut short; hovering shows the whole text, or what a short label stands for."
+				>
+					<Row>
+						<Truncated className="block w-48 text-callout">
+							Allow only the frontend pods to reach the backend on port 8080
+						</Truncated>
+						<Truncated
+							full="Default (recommended) · Opus"
+							className="text-2xs text-muted-foreground"
+						>
+							Default (recommended)
+						</Truncated>
 					</Row>
 				</Section>
 
