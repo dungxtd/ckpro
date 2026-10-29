@@ -28,7 +28,7 @@ import { useCoach } from "@/stores/coach";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
-import { ApiError } from "@/tauri/api";
+import { errorText } from "@/tauri/api";
 import "./index.css";
 
 const NAV = [
@@ -168,7 +168,7 @@ function OpenFailed({ message, onRetry }: { message: string; onRetry: () => void
 // A failure nothing handled still says what went wrong, instead of an
 // action that silently did nothing
 window.addEventListener("unhandledrejection", e => {
-	toast.error(e.reason instanceof ApiError ? e.reason.message : String(e.reason));
+	toast.error(errorText(e.reason));
 });
 
 createRoot(document.getElementById("root") as HTMLElement).render(

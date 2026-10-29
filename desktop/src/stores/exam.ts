@@ -7,6 +7,7 @@ import {
 	type CheckResult,
 	type ExamState,
 	type ExamSummary,
+	errorText,
 	examApi,
 	type Mode,
 	progressApi,
@@ -77,7 +78,6 @@ const save = (s: AttemptUi) => {
 };
 
 const attemptId = (state: ExamState) => ("attempt" in state ? (state.attempt?.id ?? null) : null);
-const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
 
 export const useExam = create<ExamStore>()(
 	devtools(
@@ -129,7 +129,7 @@ export const useExam = create<ExamStore>()(
 					// Without the state the app cannot open: it says so and offers a retry
 					stop();
 					set(s => {
-						s.connectError = message(e);
+						s.connectError = errorText(e);
 					});
 					return () => {};
 				}
@@ -144,7 +144,7 @@ export const useExam = create<ExamStore>()(
 					});
 				} catch (e) {
 					set(s => {
-						s.error = message(e);
+						s.error = errorText(e);
 					});
 				}
 			},
@@ -170,7 +170,7 @@ export const useExam = create<ExamStore>()(
 						// Docker being down is shown live from its state (the
 						// catalog's banner), not kept as an error that outlives it
 						set(s => {
-							s.error = message(e);
+							s.error = errorText(e);
 						});
 					}
 				}
@@ -186,7 +186,7 @@ export const useExam = create<ExamStore>()(
 					await examApi.submit();
 				} catch (e) {
 					set(s => {
-						s.error = message(e);
+						s.error = errorText(e);
 					});
 				}
 			},
@@ -196,7 +196,7 @@ export const useExam = create<ExamStore>()(
 					await examApi.retry();
 				} catch (e) {
 					set(s => {
-						s.error = message(e);
+						s.error = errorText(e);
 					});
 				}
 			},
@@ -206,7 +206,7 @@ export const useExam = create<ExamStore>()(
 					await examApi.end();
 				} catch (e) {
 					set(s => {
-						s.error = message(e);
+						s.error = errorText(e);
 					});
 				}
 			},
@@ -243,7 +243,7 @@ export const useExam = create<ExamStore>()(
 				} catch (e) {
 					set(s => {
 						delete s.checks[questionId];
-						s.error = message(e);
+						s.error = errorText(e);
 					});
 				}
 			},
@@ -267,7 +267,7 @@ export const useExam = create<ExamStore>()(
 					});
 				} catch (e) {
 					set(s => {
-						s.error = message(e);
+						s.error = errorText(e);
 					});
 				}
 			},

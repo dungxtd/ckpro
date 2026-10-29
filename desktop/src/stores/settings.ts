@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import { ApiError, type Settings, settingsApi } from "@/tauri/api";
+import { errorText, type Settings, settingsApi } from "@/tauri/api";
 
 interface SettingsStore {
 	/** Mirror of what the app database keeps */
@@ -42,7 +42,7 @@ export const useSettings = create<SettingsStore>()(
 				});
 			} catch (e) {
 				set(s => {
-					s.error = e instanceof ApiError ? e.message : String(e);
+					s.error = errorText(e);
 				});
 			}
 		},

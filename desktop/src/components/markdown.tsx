@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { CopyBlock, CopyText } from "@/components/exam/copy-text";
 import { DocLink } from "@/components/exam/doc-link";
-import { ApiError, browserApi } from "@/tauri/api";
+import { browserApi, errorText } from "@/tauri/api";
 
 type Node = {
 	type: string;
@@ -48,10 +48,7 @@ const BROWSER: Components = {
 			className="text-highlight underline-offset-2 hover:underline"
 			onClick={e => {
 				e.preventDefault();
-				if (href)
-					browserApi
-						.open(href)
-						.catch(err => toast.error(err instanceof ApiError ? err.message : String(err)));
+				if (href) browserApi.open(href).catch(err => toast.error(errorText(err)));
 			}}
 		>
 			{children}

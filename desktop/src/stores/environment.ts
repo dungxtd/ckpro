@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import { ApiError, clusterApi, type EnvState, envApi } from "@/tauri/api";
+import { clusterApi, type EnvState, envApi, errorText } from "@/tauri/api";
 
 type ClusterAction = "delete" | "repair";
 
@@ -49,7 +49,7 @@ export const useEnvironment = create<EnvironmentState & EnvironmentActions>()(
 					else await clusterApi.repair(cluster);
 				} catch (e) {
 					set(s => {
-						s.error = e instanceof ApiError ? e.message : String(e);
+						s.error = errorText(e);
 					});
 				} finally {
 					set(s => {

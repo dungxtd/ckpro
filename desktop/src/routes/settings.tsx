@@ -36,10 +36,10 @@ import { useAssistantEnabled, useSettings } from "@/stores/settings";
 import {
 	type AgentPermission,
 	type AgentSettings,
-	ApiError,
 	type AppInfo,
 	agentApi,
 	appApi,
+	errorText,
 	type Provider,
 	type RuntimeInfo,
 } from "@/tauri/api";
@@ -115,9 +115,7 @@ function AiSettings() {
 		setChecking(false);
 	}, []);
 	useEffect(() => {
-		agentApi
-			.settings()
-			.then(setSettings, e => toast.error(e instanceof ApiError ? e.message : String(e)));
+		agentApi.settings().then(setSettings, e => toast.error(errorText(e)));
 	}, []);
 	useEffect(() => {
 		if (enabled) coach.warm();
@@ -140,7 +138,7 @@ function AiSettings() {
 			e => {
 				// Not kept: the switch or field shows what is kept
 				setSettings(before);
-				toast.error(e instanceof ApiError ? e.message : String(e));
+				toast.error(errorText(e));
 			}
 		);
 	};

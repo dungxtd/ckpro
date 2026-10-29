@@ -3,7 +3,7 @@ import { cn } from "@ckdry/ui/lib/utils";
 import { BookOpen } from "lucide-react";
 import type * as React from "react";
 import { toast } from "sonner";
-import { ApiError, desktopApi } from "@/tauri/api";
+import { desktopApi, errorText } from "@/tauri/api";
 
 /** Documentation opens where the candidate reads it, as on the exam: the
  * desktop's Firefox (allowed documentation only) */
@@ -13,7 +13,7 @@ export function openOnDesktop(url: string) {
 		.then(() =>
 			toast.success("Opened in the desktop's Firefox", { id: "open-doc", duration: 1500 })
 		)
-		.catch(e => toast.error(e instanceof ApiError ? e.message : String(e), { id: "open-doc" }));
+		.catch(e => toast.error(errorText(e), { id: "open-doc" }));
 }
 
 /** A link on the exam desk: it opens in the desktop's Firefox */

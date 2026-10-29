@@ -22,6 +22,7 @@ import {
 	coachApi,
 	type Difficulty,
 	type Draft,
+	errorText,
 	type Generated,
 	type GeneratorTarget,
 	generatorApi,
@@ -70,8 +71,7 @@ export function GenerateCard({ onGenerated }: { onGenerated: () => void }) {
 			onGenerated();
 		} catch (e) {
 			// Discarded: nothing went wrong
-			if (!(e instanceof ApiError && e.code === "cancelled"))
-				setError(e instanceof ApiError ? e.message : String(e));
+			if (!(e instanceof ApiError && e.code === "cancelled")) setError(errorText(e));
 		} finally {
 			setDraft(null);
 			setRunning(false);
@@ -81,9 +81,7 @@ export function GenerateCard({ onGenerated }: { onGenerated: () => void }) {
 	// The draft's answer: it runs, or the generation ends
 	const review = (approve: boolean) => {
 		setDraft(null);
-		generatorApi
-			.review(approve)
-			.catch(e => setError(e instanceof ApiError ? e.message : String(e)));
+		generatorApi.review(approve).catch(e => setError(errorText(e)));
 	};
 
 	if (targets.length === 0) return null;

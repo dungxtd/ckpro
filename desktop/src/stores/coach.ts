@@ -11,6 +11,7 @@ import {
 	type CoachSession,
 	type ContextUsage,
 	coachApi,
+	errorText,
 	type ModelOption,
 	type PermissionOption,
 	type Profile,
@@ -146,8 +147,6 @@ const loadEfforts = (set: (patch: Partial<CoachStore>) => void, get: () => Coach
 /** Warmed once per app run */
 let warmed = false;
 
-const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
-
 export const useCoach = create<CoachStore>()(
 	immer((set, get) => {
 		/** Show another of the question's sessions: what Rust now shows is read again */
@@ -162,7 +161,7 @@ export const useCoach = create<CoachStore>()(
 				});
 				await get().load(questionId);
 			} catch (e) {
-				set({ error: message(e) });
+				set({ error: errorText(e) });
 			}
 		};
 		return {
@@ -218,7 +217,7 @@ export const useCoach = create<CoachStore>()(
 					if (account.signed_in && before !== null && before.email !== account.email)
 						loadModels(set, get, true);
 				} catch (e) {
-					set({ error: message(e) });
+					set({ error: errorText(e) });
 				}
 			},
 			setOpen: open => useSettings.getState().update({ assistant_open: open }),
@@ -259,7 +258,7 @@ export const useCoach = create<CoachStore>()(
 						s.shown[questionId] = session;
 					});
 				} catch (e) {
-					set({ error: message(e) });
+					set({ error: errorText(e) });
 				}
 			},
 			ask: async (questionId, text, given) => {
@@ -315,7 +314,7 @@ export const useCoach = create<CoachStore>()(
 						// A stopped or failed answer is not kept (Rust keeps only complete ones)
 						const session = s.sessions[questionId];
 						if (session?.at(-1)?.role === "assistant") session.splice(-2, 2);
-						if (!stopped) s.error = message(e);
+						if (!stopped) s.error = errorText(e);
 						// The login is gone or expired: offer to sign in
 						if (e instanceof ApiError && e.code === "sign_in_required")
 							s.account = { signed_in: false, method: null, email: null, plan: null };
@@ -343,7 +342,7 @@ export const useCoach = create<CoachStore>()(
 						s.titles[questionId] = title.trim() || null;
 					});
 				} catch (e) {
-					set({ error: message(e) });
+					set({ error: errorText(e) });
 				}
 			},
 		};

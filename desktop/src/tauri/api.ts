@@ -88,6 +88,9 @@ export class ApiError extends Error {
 	}
 }
 
+/** What went wrong, for the candidate: an app error's message, else the error */
+export const errorText = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
+
 async function unwrap<T>(call: Promise<Result<T, AppError>>): Promise<T> {
 	const result = await call;
 	if (result.status === "error") throw new ApiError(result.error);

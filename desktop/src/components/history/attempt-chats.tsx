@@ -9,7 +9,7 @@ import {
 import { useEffect, useState } from "react";
 import { ClaudeIcon } from "@/components/claude-icon";
 import { Answer, UserMessage } from "@/components/exam/answer";
-import { ApiError, type CoachTranscript, coachApi, type HistoryEntry } from "@/tauri/api";
+import { type CoachTranscript, coachApi, errorText, type HistoryEntry } from "@/tauri/api";
 
 /**
  * A past attempt's assistant sessions, read back: each under its question,
@@ -28,9 +28,7 @@ export function AttemptChats({
 		if (!entry) return;
 		setChats(null);
 		setError(null);
-		coachApi
-			.transcripts(entry.attempt_id)
-			.then(setChats, e => setError(e instanceof ApiError ? e.message : String(e)));
+		coachApi.transcripts(entry.attempt_id).then(setChats, e => setError(errorText(e)));
 	}, [entry]);
 	// The question's number and name, as the attempt listed them
 	const questionOf = (id: string) => {
