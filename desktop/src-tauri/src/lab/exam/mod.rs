@@ -154,6 +154,12 @@ impl ExamState {
             ExamState::Failed { attempt, .. } => attempt.as_ref(),
         }
     }
+
+    /// An exam-mode attempt is under way, in any phase up to its result (a
+    /// failed one may be retried): no assistant then, as on the real exam
+    pub fn exam_in_progress(&self) -> bool {
+        !matches!(self, ExamState::Finished { .. }) && self.attempt().is_some_and(|a| a.mode == Mode::Exam)
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -169,6 +175,14 @@ pub fn saved_running(store: &Store) -> Option<(Attempt, Vec<(String, Question)>)
         SavedAttempt { state: ExamState::Running { attempt, .. }, questions } => Some((attempt, questions)),
         _ => None,
     }
+}
+
+/// An exam-mode attempt is under way in the app, in any phase (preparing to
+/// a failed grade it may retry): no assistant then. Read from the database,
+/// so another process (`ckdry mcp`) sees it too
+pub fn exam_mode_active(store: &Store) -> bool {
+    // Unreadable: off, as in an exam
+    store.exam_mode().unwrap_or(true)
 }
 
 /// History entry, one JSON file per finished attempt.
@@ -253,6 +267,9 @@ impl Exams {
     fn set(&self, state: ExamState) {
         *self.state.lock().unwrap_or_else(|p| p.into_inner()) = state.clone();
         self.save_attempt(&state);
+        if let Err(e) = self.store.save_exam_mode(state.exam_in_progress()) {
+            tracing::warn!(error = %e, "saving the exam mode");
+        }
         (self.publish)(&state);
         // The guard watches a running attempt only
         self.guard.follow(match &state {

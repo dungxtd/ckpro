@@ -117,12 +117,14 @@ Coach: explain and point to kubernetes.io docs; do not solve the task for them u
 
     /// The running attempt, if any; an error while it is in exam mode
     fn attempt(&self) -> AppResult<Option<(exam::Attempt, Vec<(String, Question)>)>> {
-        if exam::exam_mode_active(&self.store) {
+        let running = exam::saved_running(&self.store);
+        // The saved attempt too: one saved before the flag was kept
+        if exam::exam_mode_active(&self.store) || running.as_ref().is_some_and(|(a, _)| a.mode == exam::Mode::Exam) {
             return Err(AppError::invalid(
                 "An exam-mode attempt is running in ckdry: the assistant is off until it ends, as in the real exam.",
             ));
         }
-        Ok(exam::saved_running(&self.store))
+        Ok(running)
     }
 
     fn list_exams(&self) -> AppResult<String> {

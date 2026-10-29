@@ -565,6 +565,17 @@ impl Coach {
             token.cancel();
         }
     }
+
+    /// Another attempt starts or this one ends: the answer being written
+    /// stops and the agent forgets the attempt's conversations (the app keeps
+    /// them); an exam-mode attempt then starts with nothing from before
+    pub async fn end_attempt(&self) {
+        self.cancel();
+        let open: Vec<String> = self.open.lock().await.drain().map(|(_, (session, ..))| session).collect();
+        for session in open {
+            self.agent.close(&session).await;
+        }
+    }
 }
 
 /// A later turn: what changed (the last check, the cluster now) and the question

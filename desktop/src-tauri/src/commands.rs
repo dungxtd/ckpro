@@ -343,14 +343,16 @@ pub fn coach_rename(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>, 
 /// The effort levels a model takes (none when it has no effort setting).
 #[tauri::command]
 #[specta::specta]
-pub async fn coach_efforts(coach: State<'_, Coach>, model: String) -> AppResult<Vec<ModelOption>> {
+pub async fn coach_efforts(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>, model: String) -> AppResult<Vec<ModelOption>> {
+    no_exam(&exams)?;
     coach.efforts(&model).await
 }
 
 /// The models the coach can use, as the agent lists them for this login.
 #[tauri::command]
 #[specta::specta]
-pub async fn coach_models(coach: State<'_, Coach>) -> AppResult<CoachModels> {
+pub async fn coach_models(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>) -> AppResult<CoachModels> {
+    no_exam(&exams)?;
     coach.models().await
 }
 
@@ -425,7 +427,8 @@ pub async fn generate_question(
 /// The Claude login the assistant answers as.
 #[tauri::command]
 #[specta::specta]
-pub async fn coach_account(coach: State<'_, Coach>) -> AppResult<Account> {
+pub async fn coach_account(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>) -> AppResult<Account> {
+    no_exam(&exams)?;
     coach.account().await
 }
 
@@ -433,7 +436,8 @@ pub async fn coach_account(coach: State<'_, Coach>) -> AppResult<Account> {
 /// `events` (the sign-in link, a prompt for the browser's code).
 #[tauri::command]
 #[specta::specta]
-pub async fn coach_sign_in(coach: State<'_, Coach>, method: SignInMethod, events: Channel<SignInEvent>) -> AppResult<()> {
+pub async fn coach_sign_in(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>, method: SignInMethod, events: Channel<SignInEvent>) -> AppResult<()> {
+    no_exam(&exams)?;
     coach
         .sign_in(method, |e| {
             let _ = events.send(e);
@@ -532,6 +536,7 @@ pub fn exam_state(exams: State<'_, Arc<Exams>>) -> ExamState {
 pub async fn start_exam(
     exams: State<'_, Arc<Exams>>,
     env: State<'_, Arc<Env>>,
+    coach: State<'_, Coach>,
     id: String,
     mode: Mode,
     replace: bool,
@@ -540,6 +545,7 @@ pub async fn start_exam(
     if let Some(summary) = exams.catalog().into_iter().find(|e| e.id == id) {
         preflight::exam_fits(&env.snapshot(), summary.minimum_mb, &summary.clusters).map_err(AppError::invalid)?;
     }
+    coach.end_attempt().await;
     exams.inner().start(&id, mode, replace).await
 }
 
@@ -552,7 +558,8 @@ pub fn submit_exam(exams: State<'_, Arc<Exams>>) -> AppResult<()> {
 /// Cancel preparation, or close the attempt and delete its clusters.
 #[tauri::command]
 #[specta::specta]
-pub async fn end_exam(exams: State<'_, Arc<Exams>>) -> AppResult<()> {
+pub async fn end_exam(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>) -> AppResult<()> {
+    coach.end_attempt().await;
     exams.end().await
 }
 
@@ -576,3 +583,11 @@ pub fn exam_history(exams: State<'_, Arc<Exams>>) -> Vec<HistoryEntry> {
     exams.history()
 }
 
+/// The assistant is off while an exam-mode attempt is under way: not even its
+/// login or models are read then
+fn no_exam(exams: &Exams) -> AppResult<()> {
+    if exams.exam_in_progress() {
+        return Err(AppError::invalid("the assistant is off during an exam"));
+    }
+    Ok(())
+}

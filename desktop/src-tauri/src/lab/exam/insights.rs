@@ -92,14 +92,7 @@ impl Exams {
 
     /// An exam-mode attempt is under way (no assistant then, as on the real exam)
     pub fn exam_in_progress(&self) -> bool {
-        match self.state() {
-            ExamState::Preparing { attempt, .. }
-            | ExamState::Resuming { attempt, .. }
-            | ExamState::Running { attempt, .. }
-            | ExamState::Grading { attempt, .. }
-            | ExamState::Ending { attempt, .. } => attempt.mode == Mode::Exam,
-            _ => false,
-        }
+        self.state().exam_in_progress()
     }
 
     /// How the candidate did per curriculum domain, per certification they
