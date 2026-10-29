@@ -108,11 +108,7 @@ export function TopBar({
 							<Flag /> <span className="sr-only @2xl:not-sr-only">Finish</span>
 						</Button>
 					) : (
-						<Button
-							size="push"
-							variant="outline"
-							className="border-destructive/60 text-destructive hover:bg-destructive/10 hover:text-destructive"
-						>
+						<Button size="push" variant="outlineDestructive">
 							<X /> <span className="sr-only @2xl:not-sr-only">End Exam</span>
 						</Button>
 					)}

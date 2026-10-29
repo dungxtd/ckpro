@@ -27,6 +27,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SignInDialog } from "@/components/account/sign-in-dialog";
 import { AGENTS, agentOf } from "@/components/ai/agents";
+import { StatusDot } from "@/components/environment/status-dot";
 import { RESOLUTIONS, useDesktopSettings } from "@/components/exam/desktop-menu";
 import { TextSize } from "@/components/exam/question-panel";
 import { useCoach } from "@/stores/coach";
@@ -273,7 +274,7 @@ function AgentState({
 	const ready = !runtime.problem && signedIn;
 	return (
 		<span className="flex items-center gap-1.5 text-muted-foreground text-xs">
-			<span className={cn("size-1.5 rounded-full", ready ? "bg-success" : "bg-warning")} />
+			<StatusDot tone={ready ? "ok" : "warn"} className="size-1.5" />
 			{ready ? "Ready" : runtime.problem ? "Not found" : "Sign in"}
 		</span>
 	);

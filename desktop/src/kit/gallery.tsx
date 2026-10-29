@@ -191,6 +191,7 @@ function Gallery() {
 								"outline",
 								"ghost",
 								"destructive",
+								"outlineDestructive",
 								"quiet",
 							] as const
 						).map(v => (

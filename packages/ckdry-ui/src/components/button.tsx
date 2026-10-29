@@ -13,6 +13,9 @@ const buttonVariants = cva(
 				outline:
 					"border border-input bg-glass shadow-xs hover:bg-accent hover:text-accent-foreground",
 				ghost: "hover:bg-accent hover:text-accent-foreground",
+				// A destructive action that should not shout (End Exam)
+				outlineDestructive:
+					"border border-destructive/60 bg-transparent text-destructive hover:bg-destructive/10",
 				// macOS push button (System Settings "Change…"): raised, hairline shadow.
 				// macOS default button (the action Return triggers): accent fill.
 				// Hover and press tint the fill: a `filter` (brightness) puts the

@@ -59,7 +59,8 @@ export function Chip({
 				{badge}
 				<button
 					type="button"
-					aria-label="Remove"
+					// Which chip: "Remove" alone does not say
+					aria-label={typeof children === "string" ? `Remove ${children}` : "Remove"}
 					onClick={onRemove}
 					className="grid size-5 cursor-pointer place-items-center rounded-full bg-[var(--seg-bg)] hover:bg-foreground/15"
 				>
