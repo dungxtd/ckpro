@@ -152,6 +152,8 @@ pub struct Coach {
     permissions: Mutex<HashMap<u32, Waiting>>,
     /// The Claude login being run, if any
     signing_in: tokio::sync::Mutex<Option<account::SigningIn>>,
+    /// Answers and generations under way: the adapter is not stopped meanwhile
+    active: std::sync::atomic::AtomicUsize,
     /// A generated question waiting for the candidate's review: where the
     /// answer goes
     reviewing: Mutex<Option<tokio::sync::oneshot::Sender<bool>>>,
@@ -162,6 +164,17 @@ pub struct Coach {
 /// A permission request waiting for the candidate: the option ids offered,
 /// and where the answer goes
 type Waiting = (Vec<String>, tokio::sync::oneshot::Sender<serde_json::Value>);
+
+/// How long the agent's adapter runs unused before it is stopped
+const ADAPTER_IDLE: std::time::Duration = std::time::Duration::from_secs(600);
+
+struct Busy<'a>(&'a std::sync::atomic::AtomicUsize);
+
+impl Drop for Busy<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
 
 /// How long a login read stays good (a sign-out in a terminal shows after it)
 const ACCOUNT_FRESH: std::time::Duration = std::time::Duration::from_secs(60);
@@ -178,6 +191,7 @@ impl Coach {
             signing_in: Default::default(),
             account: Default::default(),
             reviewing: Default::default(),
+            active: Default::default(),
         }
     }
 
@@ -415,6 +429,7 @@ impl Coach {
             return Err(AppError::invalid("ask the coach something"));
         }
         self.require_enabled()?;
+        let _busy = self.busy();
         let subject = exams.coach_subject(question_id, solution_opened)?;
         // Commands only while practising: never in review (the environment
         // is graded) and never in an exam (coach_subject refuses it anyway)
@@ -617,6 +632,7 @@ impl Coach {
             return Err(AppError::invalid("the coach is not available during an exam"));
         }
         self.require_enabled()?;
+        let _busy = self.busy();
         let bank = exams.bank();
         let cancel = self.start();
         // Each draft waits for the candidate's answer (`review`)
@@ -647,6 +663,25 @@ impl Coach {
             .ok_or_else(|| AppError::not_found("no generated question is waiting for review"))?;
         let _ = answer.send(approve);
         Ok(())
+    }
+
+    /// Stop the adapter once unused for a while (nothing being answered or
+    /// generated); the agent's sessions go with it, and the next question
+    /// opens one again from what was said
+    pub async fn stop_if_idle(&self) {
+        if self.active.load(std::sync::atomic::Ordering::SeqCst) > 0 {
+            return;
+        }
+        if self.agent.stop_if_idle(ADAPTER_IDLE).await {
+            self.open.lock().await.clear();
+            tracing::info!("stopped the unused agent adapter");
+        }
+    }
+
+    /// Counts an answer or generation under way while it lives
+    fn busy(&self) -> Busy<'_> {
+        self.active.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Busy(&self.active)
     }
 
     /// A new answer stops the one being written

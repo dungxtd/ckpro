@@ -242,6 +242,10 @@ function ClaudeCodePanel({
 	const [path, setPath] = useState(settings.claude_path ?? "");
 	const [signingIn, setSigningIn] = useState(false);
 	const account = coach.account;
+	// The models and efforts it offers: its adapter starts for them
+	useEffect(() => {
+		useCoach.getState().ensureModels();
+	}, []);
 	return (
 		<div className="divide-y divide-border">
 			<div className="flex flex-col gap-2 px-4 py-3">

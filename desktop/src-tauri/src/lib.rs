@@ -236,6 +236,11 @@ pub fn run() {
                         Ok(server) => handle.state::<ai::Coach>().serve_tools(server),
                         Err(e) => tracing::warn!(error = %e, "the agent's tools are unavailable"),
                     }
+                    // The adapter does not stay up unused
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                        handle.state::<ai::Coach>().stop_if_idle().await;
+                    }
                 });
             }
             app.manage(exams);

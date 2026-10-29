@@ -73,8 +73,9 @@ interface CoachStore {
 	runtime: RuntimeInfo | null;
 	/** Read it again (Recheck, another CLI path); the last value stays meanwhile */
 	loadRuntime: () => Promise<void>;
-	/** Read the runtime, login and models once, in the background, as the app
-	 * opens: Settings and the pane show them at once instead of checking */
+	/** Read the runtime, login and agent settings once, in the background, as
+	 * the app opens: Settings and the pane show them at once instead of
+	 * checking. Not the models: reading them starts the agent */
 	warm: () => void;
 	/** Read the models the agent offers, once (Settings, the pane) */
 	ensureModels: () => void;
@@ -191,11 +192,6 @@ export const useCoach = create<CoachStore>()(
 				warmed = true;
 				get().loadRuntime();
 				get().loadAccount();
-				get().ensureModels();
-			},
-			ensureModels: () => {
-				if (get().models.length > 0) return;
-				loadModels(set, get);
 				// A new run starts in the profile Settings name
 				agentApi
 					.settings()
@@ -208,13 +204,25 @@ export const useCoach = create<CoachStore>()(
 					)
 					.catch(() => {});
 			},
+			// The models come from the agent's adapter: read when the pane or the
+			// agent's settings first need them, not as the app opens
+			ensureModels: () => {
+				get().warm();
+				if (get().models.length > 0) return;
+				loadModels(set, get);
+			},
 			loadAccount: async () => {
 				try {
 					const before = get().account;
 					const account = await coachApi.account();
 					set({ account });
 					// Another login, maybe another plan: its own models
-					if (account.signed_in && before !== null && before.email !== account.email)
+					if (
+						account.signed_in &&
+						before !== null &&
+						before.email !== account.email &&
+						get().models.length > 0
+					)
 						loadModels(set, get, true);
 				} catch (e) {
 					set({ error: errorText(e) });

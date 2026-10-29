@@ -125,6 +125,8 @@ pub struct Agent {
     /// Effort levels per model, as sessions reported them (they differ by model)
     efforts: std::sync::Mutex<HashMap<String, Vec<ModelOption>>>,
     config: std::sync::RwLock<RunConfig>,
+    /// When the adapter was last asked for (it stops after a while unused)
+    used: std::sync::Mutex<std::time::Instant>,
 }
 
 /// What a session reports while it answers
@@ -189,7 +191,13 @@ pub struct Answer {
 
 impl Agent {
     pub fn new() -> Self {
-        Self { connection: tokio::sync::Mutex::new(None), models: Default::default(), efforts: Default::default(), config: Default::default() }
+        Self {
+            connection: tokio::sync::Mutex::new(None),
+            models: Default::default(),
+            efforts: Default::default(),
+            config: Default::default(),
+            used: std::sync::Mutex::new(std::time::Instant::now()),
+        }
     }
 
     /// The running adapter, started (and initialized) when needed. Starting
@@ -197,6 +205,7 @@ impl Agent {
     /// never for long
     async fn connection(&self) -> AppResult<Arc<Connection>> {
         let mut slot = self.connection.lock().await;
+        *self.used.locked() = std::time::Instant::now();
         if let Some(c) = slot.as_ref().filter(|c| c.alive()) {
             return Ok(c.clone());
         }
@@ -303,6 +312,18 @@ impl Agent {
         self.connection.lock().await.take();
         self.models.locked().clear();
         self.efforts.locked().clear();
+    }
+
+    /// Stop the adapter when nothing asked for it for `idle` (its node
+    /// processes hold memory); the next request starts it again. Whether it
+    /// stopped
+    pub(super) async fn stop_if_idle(&self, idle: std::time::Duration) -> bool {
+        let mut slot = self.connection.lock().await;
+        if slot.is_none() || self.used.locked().elapsed() < idle {
+            return false;
+        }
+        slot.take();
+        true
     }
 
     /// A new conversation with `system` as its instructions, on `model`
