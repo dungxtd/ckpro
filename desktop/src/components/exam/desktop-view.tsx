@@ -129,9 +129,12 @@ export function DesktopView({
 			rfb.background = getComputedStyle(document.documentElement).getPropertyValue(
 				"--color-desktop"
 			);
-			// Local only (127.0.0.1): bandwidth is free, CPU is not. No zlib
-			// work on either side, and sharp text and images
-			rfb.compressionLevel = 0;
+			// Light zlib: without it the web view takes about twelve times the
+			// data and decodes it on the thread that also draws (measured: a
+			// terminal printing for 8 s, 55 MB against 5 MB, about half the
+			// browser's CPU); the desktop's side costs the same. Sharp text
+			// and images
+			rfb.compressionLevel = 2;
 			rfb.qualityLevel = 8;
 			rfb.addEventListener("connect", () => {
 				setConnected(true);
