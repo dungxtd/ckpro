@@ -169,10 +169,23 @@ pub async fn repair_cluster(activities: State<'_, Arc<Activities>>, name: String
 pub async fn terminal_open(
     terminals: State<'_, Terminals>,
     jumphost: State<'_, Arc<Jumphost>>,
+    kind: State<'_, Arc<Kind>>,
     container: Option<String>,
     events: Channel<TerminalEvent>,
 ) -> AppResult<String> {
-    let container = container.unwrap_or_else(|| jumphost.name.clone());
+    // The task host or a node of a cluster ckdry made: no other container
+    let container = match container {
+        None => jumphost.name.clone(),
+        Some(name) => {
+            let owned = kind.owned_clusters();
+            let docker = crate::runtime::docker::connect().await?;
+            let nodes = crate::cluster::kind::node_containers(&docker, None).await?;
+            if !nodes.iter().any(|n| n.name == name && owned.contains(&n.cluster)) {
+                return Err(AppError::invalid(format!("{name} is not a node of a ckdry cluster")));
+            }
+            name
+        }
+    };
     terminals.open(&container, vec!["TERM=xterm-256color".into()], events).await
 }
 
