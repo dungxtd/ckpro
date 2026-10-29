@@ -102,7 +102,7 @@ pub async fn session(docker: &Docker, name: &str) -> AppResult<Option<DesktopSes
 /// the candidate would. Only documentation the exam allows: Firefox's policy
 /// would block anything else anyway.
 pub async fn open_url(docker: &Docker, name: &str, url: &str, allowed: &[String]) -> AppResult<()> {
-    if !url.starts_with("https://") || !allowed.iter().any(|prefix| url.starts_with(prefix.trim_end_matches('/'))) {
+    if !allowed.iter().any(|prefix| allows(prefix, url)) {
         return Err(AppError::invalid(format!("{url} is not documentation the exam allows")));
     }
     // The URL goes in the environment, never into the shell command
@@ -116,6 +116,22 @@ pub async fn open_url(docker: &Docker, name: &str, url: &str, allowed: &[String]
     )
     .await?;
     Ok(())
+}
+
+/// `url` is on the allowed page `prefix` or under it: the same host exactly
+/// (not one that merely starts the same) and a path that starts at a
+/// segment boundary
+fn allows(prefix: &str, url: &str) -> bool {
+    let split = |u: &str| -> Option<(String, String)> {
+        let rest = u.strip_prefix("https://")?;
+        let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+        Some((rest[..end].to_ascii_lowercase(), rest[end..].to_string()))
+    };
+    let (Some((host, path)), Some((url_host, url_path))) = (split(prefix.trim_end_matches('/')), split(url)) else {
+        return false;
+    };
+    host == url_host
+        && url_path.strip_prefix(&path).is_some_and(|rest| rest.is_empty() || path.is_empty() || rest.starts_with(['/', '?', '#']))
 }
 
 pub async fn remove(docker: &Docker, name: &str) -> AppResult<()> {
@@ -133,7 +149,10 @@ fn firefox_policies(allowed: &[String]) -> String {
     let mut exceptions: Vec<String> = Vec::new();
     for url in allowed {
         let url = url.trim_end_matches('/');
-        exceptions.push(format!("{url}*"));
+        // A whole site ends at its host: `https://example.io*` would also
+        // let `https://example.io.other.net` through
+        let site = url.strip_prefix("https://").is_some_and(|u| !u.contains('/'));
+        exceptions.push(if site { format!("{url}/*") } else { format!("{url}*") });
         // https://kubernetes.io/docs → https://kubernetes.io/*/docs (zh-cn, ...)
         if let Some((origin, path)) = url.strip_prefix("https://").and_then(|u| u.split_once('/')) {
             exceptions.push(format!("https://{origin}/*/{path}*"));
@@ -215,4 +234,21 @@ async fn upload(docker: &Docker, name: &str, files: &[(&str, String)]) -> AppRes
         )
         .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod url_tests {
+    use super::allows;
+
+    #[test]
+    fn only_the_allowed_hosts_and_paths_open() {
+        assert!(allows("https://kubernetes.io/docs/", "https://kubernetes.io/docs/concepts/"));
+        assert!(allows("https://kubernetes.io/docs", "https://kubernetes.io/docs"));
+        assert!(allows("https://gateway-api.sigs.k8s.io", "https://gateway-api.sigs.k8s.io/guides/"));
+        assert!(allows("https://kubernetes.io/search", "https://kubernetes.io/search?q=pod"));
+        assert!(!allows("https://kubernetes.io/docs", "https://kubernetes.io.evil.com/docs"));
+        assert!(!allows("https://gateway-api.sigs.k8s.io/", "https://gateway-api.sigs.k8s.io.evil.tld/"));
+        assert!(!allows("https://kubernetes.io/docs", "https://kubernetes.io/docsevil"));
+        assert!(!allows("https://kubernetes.io/docs", "http://kubernetes.io/docs"));
+    }
 }

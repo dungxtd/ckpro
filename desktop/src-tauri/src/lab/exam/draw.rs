@@ -13,7 +13,9 @@ impl Exams {
         let pack = self.pack();
         let mut allowed = pack.pack.certifications.get(certification).map(|c| c.resources.clone()).unwrap_or_default();
         allowed.extend(questions.iter().flat_map(|(_, q)| q.references.iter().cloned()));
-        allowed.dedup();
+        // In order, each once (the same reference can come from several tasks)
+        let mut seen = std::collections::HashSet::new();
+        allowed.retain(|url| seen.insert(url.clone()));
         allowed
     }
 
