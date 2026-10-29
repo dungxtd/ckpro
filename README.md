@@ -44,7 +44,4 @@ cargo run -- lab lint ../../packs/core     # check the question pack
 cargo run -- lab verify ../../packs/core   # prove it on real clusters
 ```
 
-The command line also serves the question bank to agents over MCP:
-`claude mcp add ckdry -- /Applications/ckdry.app/Contents/MacOS/ckdry mcp`.
-
 Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

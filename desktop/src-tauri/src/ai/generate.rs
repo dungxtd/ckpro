@@ -156,18 +156,6 @@ pub async fn generate(
     op.end(result)
 }
 
-/// What `ckdry lab lint` finds wrong with a question (YAML) on its own,
-/// against the bank's certifications and domains: nothing when it is valid
-pub fn lint_question(bank: &LoadedPack, data_dir: &Path, yaml: &str) -> Vec<String> {
-    let question: Question = match serde_saphyr::from_str(yaml) {
-        Ok(q) => q,
-        Err(e) => return vec![format!("not valid question YAML: {e}")],
-    };
-    let certification = question.certifications.keys().next().cloned().unwrap_or_default();
-    let (id, path) = mine::new_question(data_dir, &certification, &question.title);
-    lint_errors(&staging(bank, data_dir, &id, &path, question), &path)
-}
-
 fn lint_errors(staging: &LoadedPack, path: &Path) -> Vec<String> {
     lint::lint(staging)
         .into_iter()

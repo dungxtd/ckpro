@@ -5,12 +5,10 @@
 
 use super::mcp::Server;
 use crate::error::{AppError, AppResult};
-use crate::lab::load::LoadedPack;
 use crate::store::Store;
 use http_body_util::{BodyExt, Full, Limited};
 use hyper::body::{Bytes, Incoming};
 use hyper::{Method, Request, Response, StatusCode};
-use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Largest request body taken (a JSON-RPC message)
@@ -22,13 +20,12 @@ pub struct McpHttp {
 }
 
 impl McpHttp {
-    /// Listen on a free loopback port until the app quits; `bank` gives the
-    /// question bank as it is now (the candidate's questions change it)
-    pub async fn start(bank: impl Fn() -> Arc<LoadedPack> + Send + Sync + 'static, store: Arc<Store>, data_dir: PathBuf) -> AppResult<Self> {
+    /// Listen on a free loopback port until the app quits
+    pub async fn start(store: Arc<Store>) -> AppResult<Self> {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.map_err(|e| AppError::io("starting the MCP server", e))?;
         let port = listener.local_addr().map_err(|e| AppError::io("starting the MCP server", e))?.port();
         let token: String = (0..32).map(|_| format!("{:02x}", rand::random::<u8>())).collect();
-        let context: Context = Arc::new((Box::new(bank), store, data_dir, token.clone()));
+        let context: Context = Arc::new((store, token.clone()));
         tokio::spawn(async move {
             // A few sessions at a time; a client that never sends its request
             // does not hold a connection for long
@@ -76,10 +73,10 @@ impl McpHttp {
 /// Connections served at once
 const MAX_CONNECTIONS: usize = 16;
 
-type Context = Arc<(Box<dyn Fn() -> Arc<LoadedPack> + Send + Sync>, Arc<Store>, PathBuf, String)>;
+type Context = Arc<(Arc<Store>, String)>;
 
 async fn handle(context: Context, request: Request<Incoming>) -> Result<Response<Full<Bytes>>, std::convert::Infallible> {
-    let (bank, store, data_dir, token) = &*context;
+    let (store, token) = &*context;
     let reply = |status: StatusCode, body: &str| {
         let mut response = Response::new(Full::new(Bytes::from(body.to_string())));
         *response.status_mut() = status;
@@ -106,7 +103,7 @@ async fn handle(context: Context, request: Request<Incoming>) -> Result<Response
     let Ok(message) = serde_json::from_slice::<serde_json::Value>(&body.to_bytes()) else {
         return Ok(reply(StatusCode::BAD_REQUEST, ""));
     };
-    let server = Server::new(bank(), store.clone(), data_dir.clone(), Some(question));
+    let server = Server::new(store.clone(), question);
     Ok(match server.handle(&message).await {
         Some(answer) => {
             let mut response = reply(StatusCode::OK, &answer.to_string());
@@ -142,9 +139,7 @@ mod tests {
     /// Over real HTTP (curl): the tools answer with this run's token only
     #[tokio::test]
     async fn the_tools_answer_this_runs_token_only() {
-        let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../packs/core"));
-        let bank = Arc::new(crate::lab::load::load(&root).0.unwrap());
-        let server = McpHttp::start(move || bank.clone(), Arc::new(Store::in_memory().unwrap()), std::env::temp_dir()).await.unwrap();
+        let server = McpHttp::start(Arc::new(Store::in_memory().unwrap())).await.unwrap();
         let entry = server.server_for("core/cka-001/q01-namespace-and-pod-creation");
         let url = entry["url"].as_str().unwrap().to_string();
         let token = entry["headers"][0]["value"].as_str().unwrap().to_string();

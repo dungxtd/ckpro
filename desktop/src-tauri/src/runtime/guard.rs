@@ -36,13 +36,6 @@ const OWN_EXEC_TTL: Duration = Duration::from_secs(600);
 
 /// Note an exec ckdry starts, before it starts
 pub fn own_exec(id: &str) {
-    if SHARED.get().is_some() {
-        // Another ckdry process (`ckdry mcp`): tell the app's guard
-        if id.chars().all(|c| c.is_ascii_alphanumeric()) {
-            let _ = std::fs::create_dir_all(shared_execs()).and_then(|()| std::fs::write(shared_execs().join(id), ""));
-        }
-        return;
-    }
     let mut own = own_execs().lock().unwrap_or_else(|p| p.into_inner());
     if own.len() > 1_000 {
         own.retain(|_, at| at.elapsed() < OWN_EXEC_TTL);
@@ -50,30 +43,9 @@ pub fn own_exec(id: &str) {
     own.insert(id.to_string(), Instant::now());
 }
 
-/// Set in a ckdry process other than the app: its execs are noted in
-/// `shared_execs` for the app's guard
-static SHARED: OnceLock<()> = OnceLock::new();
-
-pub fn share_own_execs() {
-    let _ = SHARED.set(());
-}
-
-/// The app starts: ids left by processes that ran before it are not judged
-/// any more (their execs are long over)
-pub fn forget_shared_execs() {
-    let _ = std::fs::remove_dir_all(shared_execs());
-}
-
-/// Execs other ckdry processes started, one empty file per id (in the app's
-/// private data directory)
-fn shared_execs() -> std::path::PathBuf {
-    crate::data_dir().join("own-execs")
-}
-
-/// Whether ckdry started the exec, here or in another of its processes
+/// Whether ckdry started the exec (judged once)
 fn is_own_exec(id: &str) -> bool {
     own_execs().lock().unwrap_or_else(|p| p.into_inner()).remove(id).is_some()
-        || (id.chars().all(|c| c.is_ascii_alphanumeric()) && std::fs::remove_file(shared_execs().join(id)).is_ok())
 }
 
 /// ckdry's own operations that exec through a CLI (kind reads the
@@ -415,19 +387,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn execs_of_another_ckdry_process_are_ckdry_s() {
-        let id = format!("{:x}", u64::from(std::process::id()) * 7919 + 42);
-        assert!(!is_own_exec(&id));
-        // What `own_exec` writes in `ckdry mcp`
-        std::fs::create_dir_all(shared_execs()).unwrap();
-        std::fs::write(shared_execs().join(&id), "").unwrap();
-        assert!(is_own_exec(&id));
-        // Noted once: the file is gone
-        assert!(!is_own_exec(&id));
-        // Never a path outside the directory
-        assert!(!is_own_exec("../ckdry.db"));
-        // The app's own, judged once too
+    fn the_app_s_own_execs_are_judged_once() {
         own_exec("abc123own");
         assert!(is_own_exec("abc123own") && !is_own_exec("abc123own"));
+        assert!(!is_own_exec("someone-else"));
     }
 }

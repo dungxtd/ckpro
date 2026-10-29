@@ -509,16 +509,6 @@ impl Store {
         self.save_setting("footprint", footprint)
     }
 
-    /// An exam-mode attempt is under way, in any phase (for `ckdry mcp`, which
-    /// sees only the database: the assistant is off then)
-    pub fn exam_mode(&self) -> AppResult<bool> {
-        self.setting("exam_mode")
-    }
-
-    pub fn save_exam_mode(&self, on: bool) -> AppResult<()> {
-        self.save_setting("exam_mode", &on)
-    }
-
     /// A value kept as JSON under `key`; its default when unset or unreadable
     fn setting<T: DeserializeOwned + Default>(&self, key: &str) -> AppResult<T> {
         let json: Option<String> = self

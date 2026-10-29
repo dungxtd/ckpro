@@ -207,7 +207,6 @@ pub fn run() {
                 let _ = EnvChanged(state.clone()).emit(&handle);
             }));
             let notices = app.handle().clone();
-            runtime::guard::forget_shared_execs();
             let guard = runtime::guard::Guard::new(move |what| {
                 let _ = GuardNotice(what.to_string()).emit(&notices);
             });
@@ -239,11 +238,11 @@ pub fn run() {
                 guard,
             ));
             exams.restore();
-            // The agent sessions' tools, served to their container
+            // The agent sessions' tools, served to the agent on the loopback
             {
-                let (handle, exams, store, dir) = (app.handle().clone(), exams.clone(), store.clone(), data_dir.clone());
+                let (handle, store) = (app.handle().clone(), store.clone());
                 tauri::async_runtime::spawn(async move {
-                    match ai::mcp_http::McpHttp::start(move || exams.bank(), store, dir).await {
+                    match ai::mcp_http::McpHttp::start(store).await {
                         Ok(server) => handle.state::<ai::Coach>().serve_tools(server),
                         Err(e) => tracing::warn!(error = %e, "the agent's tools are unavailable"),
                     }

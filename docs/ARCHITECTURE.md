@@ -22,7 +22,7 @@ desktop/
     terminal/             interactive shells over a Tauri channel
     store.rs              SQLite (migrations, settings, history, sessions)
     commands.rs           the commands the interface calls
-    cli.rs                `ckdry lab …`, `ckdry mcp`, `ckdry images`
+    cli.rs                `ckdry lab …`, `ckdry images`
   src-tauri/resources/    images: agent, desktop, task host (jumphost), nodes
 packages/ckdry-ui/        the UI kit (Radix, cva); live at desktop/kit.html
 packs/core/               the question bank (YAML) and its JSON Schemas
@@ -87,8 +87,9 @@ packs/core/               the question bank (YAML) and its JSON Schemas
   with a question, and whether Claude Code reports telemetry.
   Commands run go into the answer; a question they touched shows "Claude
   helped" on the result.
-- `mcp.rs` holds the tools, shared by the HTTP server and `ckdry mcp` (stdio,
-  read-only, for agents outside the app).
+- `mcp.rs` holds the agent's two tools (`run_command`, `check_my_work`),
+  served by `mcp_http.rs` to the agent on the loopback, one server path per
+  question.
 - `generate.rs` writes a question with the assistant, lints it and proves it
   on a cluster before it joins the candidate's own pack.
 - Exam mode has no assistant: every assistant command and every MCP tool

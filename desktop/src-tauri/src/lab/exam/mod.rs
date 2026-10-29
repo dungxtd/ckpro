@@ -175,21 +175,13 @@ struct SavedAttempt {
     questions: Vec<(String, Question)>,
 }
 
-/// The attempt the app runs, as it keeps it (for another process: `ckdry
-/// mcp`): the attempt and its questions as rendered for it
+/// The running attempt as the app keeps it: the attempt and its questions as
+/// rendered for it (the agent's tools read it)
 pub fn saved_running(store: &Store) -> Option<(Attempt, Vec<(String, Question)>)> {
     match store.attempt::<SavedAttempt>().ok().flatten()? {
         SavedAttempt { state: ExamState::Running { attempt, .. }, questions } => Some((attempt, questions)),
         _ => None,
     }
-}
-
-/// An exam-mode attempt is under way in the app, in any phase (preparing to
-/// a failed grade it may retry): no assistant then. Read from the database,
-/// so another process (`ckdry mcp`) sees it too
-pub fn exam_mode_active(store: &Store) -> bool {
-    // Unreadable: off, as in an exam
-    store.exam_mode().unwrap_or(true)
 }
 
 /// History entry, one JSON file per finished attempt.
@@ -279,9 +271,6 @@ impl Exams {
     fn set(&self, state: ExamState) {
         *self.state.lock().unwrap_or_else(|p| p.into_inner()) = state.clone();
         self.save_attempt(&state);
-        if let Err(e) = self.store.save_exam_mode(state.exam_in_progress()) {
-            tracing::warn!(error = %e, "saving the exam mode");
-        }
         (self.publish)(&state);
         // The guard watches a running attempt only
         self.guard.follow(match &state {
