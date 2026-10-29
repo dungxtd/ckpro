@@ -154,6 +154,8 @@ pub struct Coach {
     signing_in: tokio::sync::Mutex<Option<account::SigningIn>>,
     /// Answers and generations under way: the adapter is not stopped meanwhile
     active: std::sync::atomic::AtomicUsize,
+    /// Something was asked since the adapter started: it stays up longer
+    asked: std::sync::atomic::AtomicBool,
     /// A generated question waiting for the candidate's review: where the
     /// answer goes
     reviewing: Mutex<Option<tokio::sync::oneshot::Sender<bool>>>,
@@ -165,8 +167,10 @@ pub struct Coach {
 /// and where the answer goes
 type Waiting = (Vec<String>, tokio::sync::oneshot::Sender<serde_json::Value>);
 
-/// How long the agent's adapter runs unused before it is stopped
-const ADAPTER_IDLE: std::time::Duration = std::time::Duration::from_secs(600);
+/// How long the agent's adapter runs unused before it is stopped: started
+/// only for the models or the login, and once something was asked
+const ADAPTER_IDLE: std::time::Duration = std::time::Duration::from_secs(60);
+const ADAPTER_IDLE_ASKED: std::time::Duration = std::time::Duration::from_secs(600);
 
 struct Busy<'a>(&'a std::sync::atomic::AtomicUsize);
 
@@ -192,6 +196,7 @@ impl Coach {
             account: Default::default(),
             reviewing: Default::default(),
             active: Default::default(),
+            asked: Default::default(),
         }
     }
 
@@ -666,20 +671,25 @@ impl Coach {
     }
 
     /// Stop the adapter once unused for a while (nothing being answered or
-    /// generated); the agent's sessions go with it, and the next question
-    /// opens one again from what was said
+    /// generated): soon when it only listed models or the login, later once
+    /// a question was asked. The agent's sessions go with it; the next
+    /// question opens one again from what was said
     pub async fn stop_if_idle(&self) {
-        if self.active.load(std::sync::atomic::Ordering::SeqCst) > 0 {
+        use std::sync::atomic::Ordering::SeqCst;
+        if self.active.load(SeqCst) > 0 {
             return;
         }
-        if self.agent.stop_if_idle(ADAPTER_IDLE).await {
+        let idle = if self.asked.load(SeqCst) { ADAPTER_IDLE_ASKED } else { ADAPTER_IDLE };
+        if self.agent.stop_if_idle(idle).await {
+            self.asked.store(false, SeqCst);
             self.open.lock().await.clear();
-            tracing::info!("stopped the unused agent adapter");
+            tracing::info!(?idle, "stopped the unused agent adapter");
         }
     }
 
     /// Counts an answer or generation under way while it lives
     fn busy(&self) -> Busy<'_> {
+        self.asked.store(true, std::sync::atomic::Ordering::SeqCst);
         self.active.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Busy(&self.active)
     }

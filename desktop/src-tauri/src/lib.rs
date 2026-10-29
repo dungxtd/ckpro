@@ -238,7 +238,7 @@ pub fn run() {
                     }
                     // The adapter does not stay up unused
                     loop {
-                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                        tokio::time::sleep(std::time::Duration::from_secs(15)).await;
                         handle.state::<ai::Coach>().stop_if_idle().await;
                     }
                 });
