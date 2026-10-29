@@ -1,16 +1,13 @@
+import { Alert } from "@ckdry/ui/components/alert";
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
-import { Card } from "@ckdry/ui/components/card";
 import { Loading } from "@ckdry/ui/components/loading";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useLocation } from "react-router";
 import { ActivityList } from "@/components/activity/activity-list";
 import { ClusterCard } from "@/components/environment/cluster-card";
-import { CreateClusterForm } from "@/components/environment/create-cluster-form";
-import { ForeignClusters } from "@/components/environment/foreign-clusters";
 import { IssuesPanel } from "@/components/environment/issues-panel";
 import { StatusDot } from "@/components/environment/status-dot";
-import { TerminalView } from "@/components/terminal/terminal-view";
 import { useEnvironment } from "@/stores/environment";
 import { type EnvState, envApi } from "@/tauri/api";
 
@@ -43,13 +40,10 @@ function DockerStatus({ docker }: { docker: EnvState["docker"] }) {
 	}
 }
 
-/** Live view of everything ckdry runs, with the actions to fix it. */
+/** Live view of what ckdry runs: Docker, the clusters, what it is doing. */
 export function EnvironmentRoute() {
 	const env = useEnvironment(s => s.env);
-	// null node: the jumphost, where the candidate works
-	const [shell, setShell] = useState<{ node: string | null; session: number } | null>(null);
-	const openShell = (node: string | null) =>
-		setShell(s => ({ node, session: (s?.session ?? 0) + 1 }));
+	const error = useEnvironment(s => s.error);
 	// Node readiness is shown here only: its watches stay open while the page does
 	useEffect(() => {
 		envApi.watchNodes(true);
@@ -66,34 +60,25 @@ export function EnvironmentRoute() {
 	if (!env) return <Loading fill label="Reading the environment…" />;
 
 	return (
-		<div className="flex h-full gap-3 p-3">
-			<div className="flex w-[460px] shrink-0 flex-col gap-3 overflow-auto">
-				<header className="flex items-center justify-between">
-					<strong>ckdry</strong>
-					<DockerStatus docker={env.docker} />
-				</header>
-				<IssuesPanel issues={env.issues} />
-				{env.clusters.map(cluster => (
-					<ClusterCard key={cluster.name} cluster={cluster} onShell={openShell} />
-				))}
-				<ForeignClusters names={env.foreign_clusters} />
-				<CreateClusterForm />
-				<section id="activity" className="flex flex-col gap-2">
-					<h2 className="font-semibold text-sm">Activity</h2>
-					<ActivityList />
-				</section>
-			</div>
-			<Card padding="none" className="flex min-w-0 flex-1 flex-col p-2">
-				<h2 className="mb-1 flex items-center gap-2 px-1 font-semibold text-sm">
-					{shell ? `Shell on ${shell.node ?? "jumphost"}` : "Terminal"}
-					<Button size="sm" variant="outline" className="ml-auto" onClick={() => openShell(null)}>
-						Open jumphost
-					</Button>
-				</h2>
-				<div className="min-h-0 flex-1">
-					{shell && <TerminalView container={shell.node} session={shell.session} />}
-				</div>
-			</Card>
+		<div className="mx-auto flex h-full max-w-2xl flex-col gap-3 overflow-auto p-3">
+			<header className="flex items-center justify-between">
+				<strong>ckdry</strong>
+				<DockerStatus docker={env.docker} />
+			</header>
+			<IssuesPanel issues={env.issues} />
+			{error && <Alert variant="destructive">{error}</Alert>}
+			{env.clusters.length === 0 && (
+				<p className="text-muted-foreground text-sm">
+					No clusters: an exam makes the ones it needs when it starts.
+				</p>
+			)}
+			{env.clusters.map(cluster => (
+				<ClusterCard key={cluster.name} cluster={cluster} />
+			))}
+			<section id="activity" className="flex flex-col gap-2">
+				<h2 className="font-semibold text-sm">Activity</h2>
+				<ActivityList />
+			</section>
 		</div>
 	);
 }

@@ -38,7 +38,3 @@ pub async fn delete(kind: &Kind, name: &str, log: Log<'_>) -> AppResult<()> {
     kind.delete(name, log).await
 }
 
-pub async fn adopt(kind: &Kind, infra: &Infra, name: &str, log: Log<'_>) -> AppResult<()> {
-    infra.ensure(&docker::connect().await?, log).await?;
-    kind.adopt(name).await
-}

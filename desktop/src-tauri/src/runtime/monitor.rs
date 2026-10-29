@@ -160,13 +160,10 @@ async fn sync(
     let previous = env.snapshot();
 
     let mut clusters: Vec<ClusterState> = Vec::new();
-    let mut foreign: Vec<String> = Vec::new();
     for c in containers {
         let cluster = &c.cluster;
+        // Other kind clusters on the machine are not ckdry's to show
         if !owned.contains(cluster) {
-            if !foreign.contains(cluster) {
-                foreign.push(cluster.clone());
-            }
             continue;
         }
         let name = c.name;
@@ -228,11 +225,7 @@ async fn sync(
         });
     }
 
-    foreign.sort();
-    env.update(|s| {
-        s.clusters = clusters;
-        s.foreign_clusters = foreign;
-    });
+    env.update(|s| s.clusters = clusters);
 }
 
 fn stop_watchers(watchers: &mut HashMap<String, JoinHandle<()>>) {

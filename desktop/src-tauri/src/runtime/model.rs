@@ -11,9 +11,6 @@ pub struct EnvState {
     /// Clusters created by this app (kind clusters with a kubeconfig in the
     /// app data dir); other kind clusters on the machine are left alone
     pub clusters: Vec<ClusterState>,
-    /// kind clusters on this machine that ckdry does not manage (created with
-    /// the kind CLI, or by an older install); their names are taken
-    pub foreign_clusters: Vec<String>,
     pub issues: Vec<Issue>,
 }
 

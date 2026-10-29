@@ -1,5 +1,5 @@
-//! Tauri commands: thin wrappers over the runtime, cluster, lab and terminal
-//! modules. Every command is listed in `specta_builder()` in lib.rs.
+//! Tauri commands: thin wrappers over the runtime, cluster, lab and
+//! assistant modules. Every command is listed in `specta_builder()` in lib.rs.
 
 use crate::cluster::jobs::Jobs;
 use crate::cluster::{kind::Kind, lifecycle};
@@ -8,9 +8,8 @@ use crate::runtime::jumphost::{Jumphost, app_placement};
 use crate::error::{AppError, AppResult};
 use crate::runtime::activity::Activities;
 use crate::store::{Progress, Settings, Store};
-use crate::runtime::model::{DockerState, Env, EnvState};
-use crate::runtime::preflight::{self, Check};
-use crate::terminal::{TerminalEvent, Terminals};
+use crate::runtime::model::{Env, EnvState};
+use crate::runtime::preflight;
 use std::sync::Arc;
 use tauri::State;
 use tauri::ipc::Channel;
@@ -37,78 +36,25 @@ pub fn env_watch_nodes(env: State<'_, Arc<Env>>, on: bool) {
     env.set_watch_nodes(on);
 }
 
-/// What creating a cluster with `workers` workers needs, and whether it is there.
-#[tauri::command]
-#[specta::specta]
-pub fn preflight(env: State<'_, Arc<Env>>, name: String, workers: u8) -> Vec<Check> {
-    preflight::check(&env.snapshot(), &name, workers)
-}
-
-/// Create a cluster, streaming kind's output lines to `log`. Cancelling
-/// (`cancel_cluster`) stops kind and removes whatever it had created.
-#[tauri::command]
-#[specta::specta]
-pub async fn create_cluster(
-    kind: State<'_, Arc<Kind>>,
-    infra: State<'_, Arc<Infra>>,
-    jumphost: State<'_, Arc<Jumphost>>,
-    jobs: State<'_, Jobs>,
-    env: State<'_, Arc<Env>>,
-    activities: State<'_, Arc<Activities>>,
-    name: String,
-    workers: u8,
-    log: Channel<String>,
-) -> AppResult<()> {
-    let state = env.snapshot();
-    if !matches!(state.docker, DockerState::Up { .. }) {
-        return Err(AppError::DockerUnavailable { message: "Docker is not running".into() });
-    }
-    // kind would fail late with "node(s) already exist"; say why up front
-    if let Some(check) = preflight::check(&state, &name, workers).into_iter().find(|c| c.name == "Name" && !c.ok) {
-        return Err(AppError::invalid(check.detail));
-    }
-    let token = jobs.begin(&name)?;
-    let plural = if workers == 1 { "" } else { "s" };
-    let op = activities.begin(
-        format!("Creating cluster {name}"),
-        vec![format!("Creating cluster {name}: 1 control plane, {workers} worker{plural}"), "Updating the task host".into()],
-    );
-    let send = |line: String| {
-        op.log(line.clone());
-        let _ = log.send(line);
-    };
-    let result = async {
-        lifecycle::create(&kind, &infra, &name, workers, &send, &token).await?;
-        op.step(1, None);
-        let docker = crate::runtime::docker::connect().await?;
-        jumphost.ensure(&docker, &send).await?;
-        jumphost.refresh_access(&docker, &kind, &app_placement(&kind)).await
-    }
-    .await;
-    jobs.end(&name);
-    env.request_resync();
-    op.end(result)
-}
-
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_cluster(
     kind: State<'_, Arc<Kind>>,
+    exams: State<'_, Arc<Exams>>,
     jumphost: State<'_, Arc<Jumphost>>,
     jobs: State<'_, Jobs>,
     activities: State<'_, Arc<Activities>>,
     name: String,
-    log: Channel<String>,
 ) -> AppResult<()> {
+    if exams.uses_cluster(&name) {
+        return Err(AppError::invalid(format!("an attempt runs on {name}: close it, and its clusters go with it")));
+    }
     jobs.begin(&name)?;
     let op = activities.begin(
         format!("Removing cluster {name}"),
         vec![format!("Removing cluster {name}"), "Updating the task host".into()],
     );
-    let send = |line: String| {
-        op.log(line.clone());
-        let _ = log.send(line);
-    };
+    let send = |line: String| op.log(line);
     let result = async {
         lifecycle::delete(&kind, &name, &send).await?;
         op.step(1, None);
@@ -119,41 +65,6 @@ pub async fn delete_cluster(
     op.end(result)
 }
 
-/// Cancel the operation running on a cluster; false when there is none.
-#[tauri::command]
-#[specta::specta]
-pub fn cancel_cluster(jobs: State<'_, Jobs>, name: String) -> bool {
-    jobs.cancel(&name)
-}
-
-/// Manage an existing kind cluster created outside ckdry.
-#[tauri::command]
-#[specta::specta]
-pub async fn adopt_cluster(
-    kind: State<'_, Arc<Kind>>,
-    infra: State<'_, Arc<Infra>>,
-    jumphost: State<'_, Arc<Jumphost>>,
-    env: State<'_, Arc<Env>>,
-    activities: State<'_, Arc<Activities>>,
-    name: String,
-) -> AppResult<()> {
-    let op = activities.begin(
-        format!("Taking over cluster {name}"),
-        vec![format!("Taking over cluster {name}"), "Updating the task host".into()],
-    );
-    let log = |line: String| op.log(line);
-    let result = async {
-        lifecycle::adopt(&kind, &infra, &name, &log).await?;
-        op.step(1, None);
-        let docker = crate::runtime::docker::connect().await?;
-        jumphost.ensure(&docker, &log).await?;
-        jumphost.refresh_access(&docker, &kind, &app_placement(&kind)).await
-    }
-    .await;
-    env.request_resync();
-    op.end(result)
-}
-
 /// Start a cluster's stopped nodes.
 #[tauri::command]
 #[specta::specta]
@@ -161,56 +72,6 @@ pub async fn repair_cluster(activities: State<'_, Arc<Activities>>, name: String
     let op = activities.begin(format!("Starting cluster {name}"), vec![format!("Starting the stopped nodes of {name}")]);
     let result = async { crate::runtime::reconcile::repair(&crate::runtime::docker::connect().await?, &name).await }.await;
     op.end(result)
-}
-
-/// Shell on the jumphost (no `container`) or directly on a cluster node.
-#[tauri::command]
-#[specta::specta]
-pub async fn terminal_open(
-    terminals: State<'_, Terminals>,
-    jumphost: State<'_, Arc<Jumphost>>,
-    kind: State<'_, Arc<Kind>>,
-    container: Option<String>,
-    events: Channel<TerminalEvent>,
-) -> AppResult<String> {
-    // The task host or a node of a cluster ckdry made: no other container
-    let container = match container {
-        None => jumphost.name.clone(),
-        Some(name) => {
-            let owned = kind.owned_clusters();
-            let docker = crate::runtime::docker::connect().await?;
-            let nodes = crate::cluster::kind::node_containers(&docker, None).await?;
-            if !nodes.iter().any(|n| n.name == name && owned.contains(&n.cluster)) {
-                return Err(AppError::invalid(format!("{name} is not a node of a ckdry cluster")));
-            }
-            name
-        }
-    };
-    terminals.open(&container, vec!["TERM=xterm-256color".into()], events).await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn terminal_write(terminals: State<'_, Terminals>, id: String, data: String) -> AppResult<()> {
-    terminals.write(&id, &data).await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn terminal_resize(
-    terminals: State<'_, Terminals>,
-    id: String,
-    cols: u16,
-    rows: u16,
-) -> AppResult<()> {
-    terminals.resize(&id, cols, rows).await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn terminal_close(terminals: State<'_, Terminals>, id: String) -> AppResult<()> {
-    terminals.close(&id).await;
-    Ok(())
 }
 
 // --- exams -----------------------------------------------------------------

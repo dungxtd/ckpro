@@ -1,17 +1,11 @@
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
-import { SquareTerminal } from "lucide-react";
+import { Confirm } from "@/components/exam/top-bar";
 import { useEnvironment } from "@/stores/environment";
 import type { ClusterState } from "@/tauri/api";
 import { nodeStatus, StatusDot } from "./status-dot";
 
-export function ClusterCard({
-	cluster,
-	onShell,
-}: {
-	cluster: ClusterState;
-	onShell: (node: string) => void;
-}) {
+export function ClusterCard({ cluster }: { cluster: ClusterState }) {
 	const job = useEnvironment(s => s.job);
 	const runJob = useEnvironment(s => s.runJob);
 	const busy = job !== null;
@@ -30,14 +24,17 @@ export function ClusterCard({
 							Repair
 						</Button>
 					)}
-					<Button
-						size="sm"
-						variant="outline"
-						disabled={busy}
-						onClick={() => runJob("delete", cluster.name)}
+					<Confirm
+						title={`Delete ${cluster.name}?`}
+						description="Its nodes and everything on them are removed."
+						action="Delete"
+						cancel="Cancel"
+						onConfirm={() => runJob("delete", cluster.name)}
 					>
-						{job?.cluster === cluster.name && job.action === "delete" ? "Deleting…" : "Delete"}
-					</Button>
+						<Button size="sm" variant="outline" disabled={busy}>
+							{job?.cluster === cluster.name && job.action === "delete" ? "Deleting…" : "Delete"}
+						</Button>
+					</Confirm>
 				</div>
 			</header>
 			<ul className="flex flex-col">
@@ -50,15 +47,6 @@ export function ClusterCard({
 							<span className="text-muted-foreground text-xs">
 								{node.role === "control_plane" ? "control plane" : "worker"} · {status.label}
 							</span>
-							<Button
-								size="sm"
-								variant="ghost"
-								className="ml-auto"
-								disabled={node.container.state !== "running"}
-								onClick={() => onShell(node.name)}
-							>
-								<SquareTerminal className="size-4" /> Shell
-							</Button>
 						</li>
 					);
 				})}

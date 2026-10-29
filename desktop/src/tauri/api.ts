@@ -21,7 +21,6 @@ import {
 	type Settings_Serialize,
 	type SignInEvent,
 	type SignInMethod,
-	type TerminalEvent,
 } from "./bindings";
 
 /** What the generated command functions resolve to. */
@@ -50,7 +49,6 @@ export type {
 	AgentPermission,
 	AppError,
 	AppInfo,
-	Check,
 	CheckResult,
 	ClusterState,
 	CoachContext,
@@ -80,7 +78,6 @@ export type {
 	RuntimeInfo,
 	Solution,
 	StudyStats,
-	TerminalEvent,
 } from "./bindings";
 
 export class ApiError extends Error {
@@ -109,7 +106,6 @@ export const envApi = {
 	/** Calls `onChange` with every new environment state; returns the unsubscribe. */
 	subscribe: async (onChange: (state: EnvState) => void) =>
 		events.envChanged.listen(event => onChange(event.payload)),
-	preflight: (name: string, workers: number) => commands.preflight(name, workers),
 	/** Try Docker again now, not at the next backoff */
 	retry: () => commands.envRetry(),
 	/** Follow node readiness while it is shown (opens the clusters' node watches) */
@@ -117,23 +113,10 @@ export const envApi = {
 };
 
 export const clusterApi = {
-	create: (name: string, workers: number, onLog: (line: string) => void) =>
-		unwrap(commands.createCluster(name, workers, channel(onLog))),
-	delete: (name: string, onLog: (line: string) => void) =>
-		unwrap(commands.deleteCluster(name, channel(onLog))),
-	cancel: (name: string) => commands.cancelCluster(name),
+	/** Delete a cluster; its progress is an activity */
+	delete: (name: string) => unwrap(commands.deleteCluster(name)),
+	/** Start a cluster's stopped nodes */
 	repair: (name: string) => unwrap(commands.repairCluster(name)),
-	adopt: (name: string) => unwrap(commands.adoptCluster(name)),
-};
-
-export const terminalApi = {
-	/** Shell on the jumphost (`null`) or directly on a node container. */
-	open: (container: string | null, onEvent: (event: TerminalEvent) => void) =>
-		unwrap(commands.terminalOpen(container, channel(onEvent))),
-	write: (id: string, data: string) => unwrap(commands.terminalWrite(id, data)),
-	resize: (id: string, cols: number, rows: number) =>
-		unwrap(commands.terminalResize(id, cols, rows)),
-	close: (id: string) => unwrap(commands.terminalClose(id)),
 };
 
 export const activityApi = {

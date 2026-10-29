@@ -79,6 +79,13 @@ impl Exams {
         })
     }
 
+    /// An attempt under way runs on the cluster (closing it removes it)
+    pub fn uses_cluster(&self, cluster: &str) -> bool {
+        let state = self.state();
+        !matches!(state, ExamState::Finished { .. } | ExamState::Idle)
+            && state.attempt().is_some_and(|a| a.clusters.iter().any(|c| c == cluster))
+    }
+
     /// An exam-mode attempt is under way (no assistant then, as on the real exam)
     pub fn exam_in_progress(&self) -> bool {
         self.state().exam_in_progress()

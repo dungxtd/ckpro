@@ -220,29 +220,6 @@ impl Kind {
         String::from_utf8(output.stdout).map_err(|e| AppError::cluster(e.to_string()))
     }
 
-    /// Take over an existing kind cluster: keep its kubeconfig, which is what
-    /// makes ckdry treat a cluster as its own.
-    pub async fn adopt(&self, name: &str) -> AppResult<()> {
-        validate_name(name)?;
-        std::fs::create_dir_all(&self.dir).map_err(|e| AppError::io("creating data dir", e))?;
-        // kind execs in the nodes (docker exec): ckdry's own, not outside access
-        let _own = crate::runtime::guard::own_operation();
-        let output = Command::new(self.binary().await?)
-            .args(["get", "kubeconfig", "--name", name])
-            .env("PATH", self.kind_path()?)
-            .output()
-            .await
-            .map_err(|e| AppError::cluster(format!("starting kind: {e}")))?;
-        if !output.status.success() {
-            return Err(AppError::cluster(format!(
-                "reading the kubeconfig of '{name}': {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            )));
-        }
-        std::fs::write(self.kubeconfig(name), output.stdout)
-            .map_err(|e| AppError::io("saving kubeconfig", e))
-    }
-
     pub async fn delete(&self, name: &str, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         validate_name(name)?;
         let kubeconfig = self.kubeconfig(name);

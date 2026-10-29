@@ -7,7 +7,6 @@ mod lab;
 mod observability;
 mod runtime;
 mod store;
-mod terminal;
 
 use runtime::model::{Env, EnvState};
 use serde::{Deserialize, Serialize};
@@ -46,16 +45,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::env_state,
         commands::env_retry,
         commands::env_watch_nodes,
-        commands::preflight,
-        commands::create_cluster,
         commands::delete_cluster,
-        commands::cancel_cluster,
         commands::repair_cluster,
-        commands::adopt_cluster,
-        commands::terminal_open,
-        commands::terminal_write,
-        commands::terminal_resize,
-        commands::terminal_close,
         commands::list_exams,
         commands::exam_state,
         commands::desktop_session,
@@ -177,7 +168,6 @@ pub fn run() {
     tauri::Builder::default()
         // The window opens where and as large as it was left
         .plugin(tauri_plugin_window_state::Builder::default().build())
-        .manage(terminal::Terminals::default())
         .manage(cluster::jobs::Jobs::default())
         .manage(ai::Coach::new())
         .invoke_handler(builder.invoke_handler())
@@ -259,9 +249,7 @@ pub fn run() {
             if let RunEvent::Exit = event {
                 // ckdry stops the containers itself now: not for the guard to restart
                 app.state::<Arc<runtime::guard::Guard>>().suspend();
-                // Shells die with the app; clusters stop until the next start
-                let terminals = app.state::<terminal::Terminals>();
-                tauri::async_runtime::block_on(terminals.close_all());
+                // Clusters stop until the next start
                 runtime::reconcile::on_exit(&app.state::<Arc<cluster::kind::Kind>>());
             }
         });

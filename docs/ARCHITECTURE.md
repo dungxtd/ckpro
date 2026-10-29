@@ -19,7 +19,6 @@ desktop/
     cluster/              kind clusters: create, delete, node access
     lab/                  question packs, checks, exam engine
     ai/                   the assistant: ACP client, agent, MCP server, policy
-    terminal/             interactive shells over a Tauri channel
     store.rs              SQLite (migrations, settings, history, sessions)
     commands.rs           the commands the interface calls
     cli.rs                `ckdry lab …`, `ckdry images`
@@ -51,7 +50,7 @@ packs/core/               the question bank (YAML) and its JSON Schemas
   control planes drop the host's API traffic, containers stopped or paused
   outside the app are started again, outside `docker exec`s and network
   changes are recorded and shown on the result. The app's own execs (checks,
-  terminals, the agent's commands) are registered so they are not counted.
+  the agent's commands) are registered so they are not counted.
 - `reconcile.rs` restarts what an app quit left stopped.
 
 ## Exam engine (`lab/`)

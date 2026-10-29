@@ -15,25 +15,9 @@ export const commands = {
 	 *  clusters' Kubernetes node watches are kept open only meanwhile.
 	 */
 	envWatchNodes: (on: boolean) => __TAURI_INVOKE<void>("env_watch_nodes", { on }),
-	/**  What creating a cluster with `workers` workers needs, and whether it is there. */
-	preflight: (name: string, workers: number) => __TAURI_INVOKE<Check[]>("preflight", { name, workers }),
-	/**
-	 *  Create a cluster, streaming kind's output lines to `log`. Cancelling
-	 *  (`cancel_cluster`) stops kind and removes whatever it had created.
-	 */
-	createCluster: (name: string, workers: number, log: Channel<string>) => typedError<null, AppError>(__TAURI_INVOKE("create_cluster", { name, workers, log })),
-	deleteCluster: (name: string, log: Channel<string>) => typedError<null, AppError>(__TAURI_INVOKE("delete_cluster", { name, log })),
-	/**  Cancel the operation running on a cluster; false when there is none. */
-	cancelCluster: (name: string) => __TAURI_INVOKE<boolean>("cancel_cluster", { name }),
+	deleteCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_cluster", { name })),
 	/**  Start a cluster's stopped nodes. */
 	repairCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("repair_cluster", { name })),
-	/**  Manage an existing kind cluster created outside ckdry. */
-	adoptCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("adopt_cluster", { name })),
-	/**  Shell on the jumphost (no `container`) or directly on a cluster node. */
-	terminalOpen: (container: string | null, events: Channel<TerminalEvent>) => typedError<string, AppError>(__TAURI_INVOKE("terminal_open", { container, events })),
-	terminalWrite: (id: string, data: string) => typedError<null, AppError>(__TAURI_INVOKE("terminal_write", { id, data })),
-	terminalResize: (id: string, cols: number, rows: number) => typedError<null, AppError>(__TAURI_INVOKE("terminal_resize", { id, cols, rows })),
-	terminalClose: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("terminal_close", { id })),
 	listExams: () => __TAURI_INVOKE<ExamSummary[]>("list_exams"),
 	/**  Current attempt; later changes arrive as `ExamChanged` events. */
 	examState: () => __TAURI_INVOKE<ExamState_Serialize>("exam_state"),
@@ -347,12 +331,6 @@ export type Attempt_Serialize = {
 	clusters: string[],
 };
 
-export type Check = {
-	name: string,
-	ok: boolean,
-	detail: string,
-};
-
 export type CheckResult = {
 	name: string,
 	weight: number,
@@ -532,11 +510,6 @@ export type EnvState = {
 	 *  app data dir); other kind clusters on the machine are left alone
 	 */
 	clusters: ClusterState[],
-	/**
-	 *  kind clusters on this machine that ckdry does not manage (created with
-	 *  the kind CLI, or by an older install); their names are taken
-	 */
-	foreign_clusters: string[],
 	issues: Issue[],
 };
 
@@ -925,10 +898,6 @@ export type StudyStats = {
 	/**  Heaviest domain first */
 	domains: DomainStat[],
 };
-
-export type TerminalEvent = 
-/**  base64, so multi-byte characters split across chunks survive */
-{ kind: "output"; data: string } | { kind: "exit" };
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

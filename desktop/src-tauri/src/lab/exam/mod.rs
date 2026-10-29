@@ -149,7 +149,7 @@ pub struct QuestionScore {
 }
 
 impl ExamState {
-    fn attempt(&self) -> Option<&Attempt> {
+    pub(super) fn attempt(&self) -> Option<&Attempt> {
         match self {
             ExamState::Idle => None,
             ExamState::Preparing { attempt, .. }
