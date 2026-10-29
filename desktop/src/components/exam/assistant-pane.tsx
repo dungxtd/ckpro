@@ -316,23 +316,29 @@ export function AssistantPane({
 									// Messages only grow at the end
 									// biome-ignore lint/suspicious/noArrayIndexKey: append-only list
 									key={i}
+									// The candidate's own: a bubble on the right, as wide as its text
 									className={cn(
-										"my-1 flex flex-col gap-1 rounded-lg bg-highlight/[0.08] p-2",
+										"my-1 ml-10 w-fit max-w-full self-end whitespace-pre-wrap rounded-xl rounded-br-sm bg-highlight/15 px-3 py-1.5 text-callout [overflow-wrap:anywhere]",
 										i > 0 && "mt-5"
 									)}
 								>
-									<span className="self-end font-medium text-3xs text-muted-foreground">You</span>
-									<span className="whitespace-pre-wrap text-callout">{m.text}</span>
+									{m.text}
 								</div>
 							) : (
 								// biome-ignore lint/suspicious/noArrayIndexKey: append-only list
 								<div key={i} className="my-1 flex min-w-0 flex-col gap-1.5 px-2">
-									<ClaudeIcon className="size-3.5 text-claude" />
-									{m.text ? (
-										<Answer>{m.text}</Answer>
-									) : (
-										<Spinner size="inline" className="size-3.5 text-muted-foreground" />
-									)}
+									{/* Claude's mark; while it answers, a spinner beside it (and what it
+									    does before its first words) */}
+									<div className="flex h-4 items-center gap-1.5 text-2xs text-muted-foreground">
+										<ClaudeIcon className="size-3.5 text-claude" />
+										{writing && i === messages.length - 1 && (
+											<>
+												<Spinner size="inline" className="size-3" />
+												{!m.text && <span>Thinking…</span>}
+											</>
+										)}
+									</div>
+									{m.text && <Answer>{m.text}</Answer>}
 									{m.text && !writing && i === messages.length - 1 && lastUser && (
 										<div className="flex items-center gap-2 text-3xs text-muted-foreground">
 											<Button variant="quiet" size="inline" onClick={() => send(lastUser)}>
