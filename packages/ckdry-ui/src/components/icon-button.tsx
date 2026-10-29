@@ -1,6 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/tooltip";
 import { cn } from "@ckdry/ui/lib/utils";
 import type * as React from "react";
+import { useRef, useState } from "react";
 
 export type IconButtonVariant = "glass" | "plain" | "toolbar";
 export type IconButtonSize = "xs" | "bar" | "sm" | "md" | "lg" | "auto";
@@ -61,16 +62,36 @@ export function IconButton({
 }: IconButtonProps) {
 	const ariaLabel = props["aria-label"];
 	const label = title ?? (typeof ariaLabel === "string" ? ariaLabel : undefined);
+	const ref = useRef<HTMLButtonElement>(null);
+	const [open, setOpen] = useState(false);
 	const button = (
 		<button
 			type={type}
 			className={cn(iconButtonVariants({ variant, size, active }), className)}
 			{...props}
+			// Its own, and a wrapping trigger's (a menu's, passed as a prop)
+			ref={el => {
+				ref.current = el;
+				const outer = props.ref;
+				if (typeof outer === "function") outer(el);
+				else if (outer) outer.current = el;
+			}}
 		/>
 	);
 	if (!label) return button;
 	return (
-		<Tooltip>
+		<Tooltip
+			open={open}
+			// Hovered, or focused from the keyboard: not when a menu it opened
+			// closes and hands the focus back
+			onOpenChange={next =>
+				setOpen(
+					next &&
+						!!ref.current &&
+						(ref.current.matches(":hover") || ref.current.matches(":focus-visible"))
+				)
+			}
+		>
 			<TooltipTrigger asChild>{button}</TooltipTrigger>
 			<TooltipContent>{label}</TooltipContent>
 		</Tooltip>
