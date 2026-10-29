@@ -17,27 +17,44 @@ fn candidate_sockets() -> Vec<PathBuf> {
     ]
 }
 
-/// The engine found last; `Docker` is a cheap handle over one connection pool.
-static CLIENT: std::sync::Mutex<Option<Docker>> = std::sync::Mutex::new(None);
+/// The engine found last, and when it last answered; `Docker` is a cheap
+/// handle over one connection pool.
+static CLIENT: std::sync::Mutex<Option<(Docker, std::time::Instant)>> = std::sync::Mutex::new(None);
+
+/// An engine that answered this recently is used without asking again
+const FRESH: std::time::Duration = std::time::Duration::from_secs(5);
+/// A ping that takes longer: the engine is asleep or gone (the client's own
+/// timeout is minutes)
+const PING_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// The engine answers a ping in time
+pub async fn answers(docker: &Docker) -> bool {
+    tokio::time::timeout(PING_TIMEOUT, docker.ping()).await.is_ok_and(|r| r.is_ok())
+}
 
 /// The Docker engine: the one found last while it still answers, otherwise
 /// the first reachable one.
 pub async fn connect() -> AppResult<Docker> {
     let cached = CLIENT.lock().unwrap_or_else(|p| p.into_inner()).clone();
-    if let Some(docker) = cached {
-        if docker.ping().await.is_ok() {
+    if let Some((docker, answered)) = cached {
+        if answered.elapsed() < FRESH {
+            return Ok(docker);
+        }
+        if answers(&docker).await {
+            *CLIENT.lock().unwrap_or_else(|p| p.into_inner()) = Some((docker.clone(), std::time::Instant::now()));
             return Ok(docker);
         }
     }
     let docker = find().await;
-    *CLIENT.lock().unwrap_or_else(|p| p.into_inner()) = docker.as_ref().ok().cloned();
+    *CLIENT.lock().unwrap_or_else(|p| p.into_inner()) =
+        docker.as_ref().ok().map(|d| (d.clone(), std::time::Instant::now()));
     docker
 }
 
 /// First reachable Docker engine.
 async fn find() -> AppResult<Docker> {
     if let Ok(docker) = Docker::connect_with_local_defaults() {
-        if docker.ping().await.is_ok() {
+        if answers(&docker).await {
             return Ok(docker);
         }
     }
@@ -48,7 +65,7 @@ async fn find() -> AppResult<Docker> {
         if let Ok(docker) =
             Docker::connect_with_unix(&socket.to_string_lossy(), 120, API_DEFAULT_VERSION)
         {
-            if docker.ping().await.is_ok() {
+            if answers(&docker).await {
                 return Ok(docker);
             }
         }

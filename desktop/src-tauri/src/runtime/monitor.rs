@@ -117,7 +117,7 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
                 // Events say what changed; this only notices an engine that
                 // stopped without closing the stream (a sleeping VM)
                 _ = alive.tick() => {
-                    if docker.ping().await.is_err() {
+                    if !docker::answers(&docker).await {
                         break;
                     }
                 }
