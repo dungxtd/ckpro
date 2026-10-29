@@ -131,7 +131,15 @@ fn generate_question(root: &PathBuf, certification: String, domain: String, diff
         infra.ensure(&docker, &|line| eprintln!("  | {line}")).await?;
         let cancel = tokio_util::sync::CancellationToken::new();
         let agent = crate::ai::agent::Agent::new();
-        crate::ai::generate::generate(&agent, "opus", &bank, &infra, &activities, &data_dir, &request, &cancel).await
+        // The draft is read here before its scripts run on a cluster
+        let review = |draft: crate::ai::generate::Draft| {
+            eprintln!("\n{}\n\nRun “{}” on a cluster to prove it? [y/N] ", draft.yaml.trim_end(), draft.title);
+            let mut line = String::new();
+            let (answer, answered) = tokio::sync::oneshot::channel();
+            let _ = answer.send(std::io::stdin().read_line(&mut line).is_ok() && line.trim().eq_ignore_ascii_case("y"));
+            answered
+        };
+        crate::ai::generate::generate(&agent, "opus", &bank, &infra, &activities, &data_dir, &request, &cancel, review).await
     });
     match result {
         Ok(g) => {

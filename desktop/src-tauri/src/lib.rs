@@ -90,6 +90,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::open_in_browser,
         commands::generator_targets,
         commands::generate_question,
+        commands::generate_review,
         commands::activities,
         commands::exam_progress,
         commands::save_exam_progress,

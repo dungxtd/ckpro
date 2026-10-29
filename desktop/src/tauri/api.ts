@@ -10,6 +10,7 @@ import {
 	type CoachContext,
 	type CoachEvent,
 	commands,
+	type Draft,
 	type EnvState,
 	type ExamState_Serialize,
 	events,
@@ -62,6 +63,7 @@ export type {
 	ContextUsage,
 	Difficulty,
 	DomainStat,
+	Draft,
 	EnvState,
 	ExamSummary,
 	Generated,
@@ -248,8 +250,11 @@ export const generatorApi = {
 	/** Certifications and domains the generator writes for */
 	targets: () => commands.generatorTargets(),
 	/** Write a question, prove it on a cluster, keep it in "My questions"
-	 * (progress as an activity) */
-	generate: (request: GenerateRequest) => unwrap(commands.generateQuestion(request)),
+	 * (progress as an activity). Each draft that lints comes to `onDraft`
+	 * and waits for `review` before its scripts run */
+	generate: (request: GenerateRequest, onDraft: (draft: Draft) => void) =>
+		unwrap(commands.generateQuestion(request, channel(onDraft))),
+	review: (approve: boolean) => unwrap(commands.generateReview(approve)),
 };
 
 export const agentApi = {

@@ -118,7 +118,9 @@ export const commands = {
 	 *  Generate a question, prove it on a cluster and keep it in "My questions"
 	 *  (progress as an activity). Not during an exam.
 	 */
-	generateQuestion: (request: GenerateRequest) => typedError<Generated, AppError>(__TAURI_INVOKE("generate_question", { request })),
+	generateQuestion: (request: GenerateRequest, drafts: Channel<Draft>) => typedError<Generated, AppError>(__TAURI_INVOKE("generate_question", { request, drafts })),
+	/**  The candidate's answer to the generated draft: run it on a cluster, or discard it. */
+	generateReview: (approve: boolean) => typedError<null, AppError>(__TAURI_INVOKE("generate_review", { approve })),
 	/**
 	 *  The last long operations, with their logs (later changes arrive as
 	 *  `ActivityChanged` and `ActivityLog`).
@@ -515,6 +517,16 @@ export type DomainStat = {
 	max_points: number,
 	/**  Questions answered in it */
 	questions: number,
+};
+
+/**
+ *  A question the model wrote that lints, for the candidate to read before
+ *  its scripts run on a cluster
+ */
+export type Draft = {
+	title: string,
+	/**  The whole question as the pack keeps it: task, setup, solution, checks */
+	yaml: string,
 };
 
 /**  Pushed to the UI on every environment change. */

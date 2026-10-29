@@ -1,6 +1,7 @@
 import { Alert } from "@ckdry/ui/components/alert";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
+import { CodeBlock } from "@ckdry/ui/components/code-block";
 import { Input } from "@ckdry/ui/components/input";
 import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import {
@@ -20,6 +21,7 @@ import {
 	type CoachStatus,
 	coachApi,
 	type Difficulty,
+	type Draft,
 	type Generated,
 	type GeneratorTarget,
 	generatorApi,
@@ -42,6 +44,8 @@ export function GenerateCard({ onGenerated }: { onGenerated: () => void }) {
 	const [running, setRunning] = useState(false);
 	const [done, setDone] = useState<Generated | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	// A draft that lints, waiting to be read before its scripts run on a cluster
+	const [draft, setDraft] = useState<Draft | null>(null);
 	const start = useExam(s => s.start);
 	// Its progress is the newest generator activity
 	const activity = useActivityList().find(a => a.title.startsWith("Generate a"));
@@ -60,13 +64,26 @@ export function GenerateCard({ onGenerated }: { onGenerated: () => void }) {
 		setError(null);
 		setDone(null);
 		try {
-			setDone(await generatorApi.generate({ certification: cert, domain, difficulty, topic }));
+			setDone(
+				await generatorApi.generate({ certification: cert, domain, difficulty, topic }, setDraft)
+			);
 			onGenerated();
 		} catch (e) {
-			setError(e instanceof ApiError ? e.message : String(e));
+			// Discarded: nothing went wrong
+			if (!(e instanceof ApiError && e.code === "cancelled"))
+				setError(e instanceof ApiError ? e.message : String(e));
 		} finally {
+			setDraft(null);
 			setRunning(false);
 		}
+	};
+
+	// The draft's answer: it runs, or the generation ends
+	const review = (approve: boolean) => {
+		setDraft(null);
+		generatorApi
+			.review(approve)
+			.catch(e => setError(e instanceof ApiError ? e.message : String(e)));
 	};
 
 	if (targets.length === 0) return null;
@@ -86,9 +103,9 @@ export function GenerateCard({ onGenerated }: { onGenerated: () => void }) {
 				/>
 			</header>
 			<p className="text-muted-foreground text-sm">
-				The coach writes a task for the domain you pick; ckdry proves it on a cluster of its own
-				(every check fails before the solution and passes after it) and adds it to My questions. A
-				few minutes.
+				The coach writes a task for the domain you pick. You read it; ckdry then proves it on a
+				cluster of its own (every check fails before the solution and passes after it) and adds it
+				to My questions. A few minutes.
 			</p>
 			<div className="flex flex-wrap items-center gap-2">
 				<Select value={domain} onValueChange={setDomain}>
@@ -133,7 +150,26 @@ export function GenerateCard({ onGenerated }: { onGenerated: () => void }) {
 					<span className="text-muted-foreground text-xs">{status.problem}</span>
 				)}
 			</div>
-			{running && activity && <ActivityProgress id={activity.id} compact />}
+			{draft && (
+				<div className="flex flex-col gap-2">
+					<p className="text-sm">
+						Read <strong>{draft.title}</strong> before its setup, solution and checks run on a
+						cluster of its own.
+					</p>
+					<CodeBlock title="yaml" className="max-h-96 text-2xs leading-relaxed">
+						{draft.yaml.trim()}
+					</CodeBlock>
+					<div className="flex justify-end gap-2">
+						<Button size="push" variant="push" onClick={() => review(false)}>
+							Discard
+						</Button>
+						<Button size="push" variant="pushDefault" onClick={() => review(true)}>
+							Run on a cluster
+						</Button>
+					</div>
+				</div>
+			)}
+			{running && !draft && activity && <ActivityProgress id={activity.id} compact />}
 			{error && <Alert variant="destructive">{error}</Alert>}
 			{done && (
 				<Alert variant="success" className="items-center">

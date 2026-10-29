@@ -90,8 +90,9 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 - `mcp.rs` holds the agent's two tools (`run_command`, `check_my_work`),
   served by `mcp_http.rs` to the agent on the loopback, one server path per
   question.
-- `generate.rs` writes a question with the assistant, lints it and proves it
-  on a cluster before it joins the candidate's own pack.
+- `generate.rs` writes a question with the assistant and lints it; the
+  candidate reads the draft and lets its scripts run, then it is proven on a
+  cluster of its own before it joins the candidate's own pack.
 - Exam mode has no assistant: every assistant command and every MCP tool
   refuses while an exam-mode attempt runs.
 

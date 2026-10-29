@@ -246,7 +246,7 @@ use crate::ai::account::{Account, SignInEvent, SignInMethod};
 use crate::ai::agent::{ModelOption, RuntimeInfo};
 use crate::ai::policy::AgentSettings;
 use crate::ai::{Coach, CoachContext, CoachModels, ModelChoice, CoachEvent, CoachReply, CoachHistory, CoachSession, CoachStatus, CoachTranscript};
-use crate::ai::generate::{self, GenerateRequest, Generated, GeneratorTarget};
+use crate::ai::generate::{self, Draft, GenerateRequest, Generated, GeneratorTarget};
 use crate::lab::exam::StudyStats;
 
 /// Whether the coach can run (Node.js for the adapter found).
@@ -472,8 +472,19 @@ pub async fn generate_question(
     infra: State<'_, Arc<Infra>>,
     activities: State<'_, Arc<Activities>>,
     request: GenerateRequest,
+    drafts: Channel<Draft>,
 ) -> AppResult<Generated> {
-    coach.generate(&exams, &infra, &activities, &crate::data_dir(), &request).await
+    coach.generate(&exams, &infra, &activities, &crate::data_dir(), &request, |draft| {
+        let _ = drafts.send(draft);
+    })
+    .await
+}
+
+/// The candidate's answer to the generated draft: run it on a cluster, or discard it.
+#[tauri::command]
+#[specta::specta]
+pub fn generate_review(coach: State<'_, Coach>, approve: bool) -> AppResult<()> {
+    coach.review(approve)
 }
 
 /// The Claude login the assistant answers as.

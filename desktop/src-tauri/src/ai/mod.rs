@@ -177,6 +177,9 @@ pub struct Coach {
     permissions: Mutex<HashMap<u32, Waiting>>,
     /// The Claude login being run, if any
     signing_in: tokio::sync::Mutex<Option<account::SigningIn>>,
+    /// A generated question waiting for the candidate's review: where the
+    /// answer goes
+    reviewing: Mutex<Option<tokio::sync::oneshot::Sender<bool>>>,
     /// The login as last read, and when: reading it starts the adapter
     account: Mutex<Option<(account::Account, std::time::Instant)>>,
 }
@@ -199,6 +202,7 @@ impl Coach {
             enabled: std::sync::atomic::AtomicBool::new(true),
             signing_in: Default::default(),
             account: Default::default(),
+            reviewing: Default::default(),
         }
     }
 
@@ -626,6 +630,7 @@ impl Coach {
         activities: &std::sync::Arc<crate::runtime::activity::Activities>,
         data_dir: &std::path::Path,
         request: &generate::GenerateRequest,
+        on_draft: impl Fn(generate::Draft),
     ) -> AppResult<generate::Generated> {
         if exams.exam_in_progress() {
             return Err(AppError::invalid("the coach is not available during an exam"));
@@ -633,13 +638,35 @@ impl Coach {
         self.require_enabled()?;
         let bank = exams.bank();
         let cancel = self.start();
-        let generated = generate::generate(&self.agent, GENERATOR_MODEL, &bank, infra, activities, data_dir, request, &cancel).await?;
+        // Each draft waits for the candidate's answer (`review`)
+        let review = |draft: generate::Draft| {
+            let (answer, answered) = tokio::sync::oneshot::channel();
+            *self.reviewing.lock().unwrap_or_else(|p| p.into_inner()) = Some(answer);
+            on_draft(draft);
+            answered
+        };
+        let generated =
+            generate::generate(&self.agent, GENERATOR_MODEL, &bank, infra, activities, data_dir, request, &cancel, review).await;
+        self.reviewing.lock().unwrap_or_else(|p| p.into_inner()).take();
+        let generated = generated?;
         // The catalog shows it from now on
         match crate::lab::load::load(&bank.root).0 {
             Some(core) => exams.replace_pack(crate::lab::mine::merged(core, data_dir)),
             None => tracing::warn!("could not reload the bundled pack: the new question shows after a restart"),
         }
         Ok(generated)
+    }
+
+    /// The candidate read the generated draft: let its scripts run, or not
+    pub fn review(&self, approve: bool) -> AppResult<()> {
+        let answer = self
+            .reviewing
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .take()
+            .ok_or_else(|| AppError::not_found("no generated question is waiting for review"))?;
+        let _ = answer.send(approve);
+        Ok(())
     }
 
     /// A new answer stops the one being written
