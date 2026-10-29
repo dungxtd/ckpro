@@ -554,7 +554,6 @@ dependencies = [
 name = "ckdry"
 version = "0.1.0"
 dependencies = [
- "base64 0.23.1",
  "bollard",
  "bytes",
  "clap",
