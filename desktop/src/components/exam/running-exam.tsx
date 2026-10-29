@@ -20,6 +20,7 @@ import type { Attempt } from "@/tauri/api";
 import { AssistantPane } from "./assistant-pane";
 import { useDesktopSettings } from "./desktop-menu";
 import { DesktopView } from "./desktop-view";
+import { ResizeHandle, usePanelSize } from "./panel-border";
 import { type PanelView, PracticeActions, QuestionPanel, TextSize } from "./question-panel";
 import { ReadMe } from "./readme";
 import { type DeskView, TopBar } from "./top-bar";
@@ -81,10 +82,6 @@ export function RunningExam({
 	// The assistant: practice only, and only if the app offers it
 	const assistantAvailable = attempt.mode === "practice" && settings.assistant_enabled;
 	const assistantOpen = settings.assistant_open && assistantAvailable;
-	// While a border is dragged; saved when it is let go
-	const [dragged, setDragged] = useState<{ task?: number; assistant?: number }>({});
-	const width = dragged.task ?? settings.task_width;
-	const assistantWidth = dragged.assistant ?? settings.assistant_width;
 	const desktop = useDesktopSettings();
 	const [tab, setTab] = useState<DeskView>("desktop");
 	useTimeAlerts(endsAt);
@@ -96,36 +93,26 @@ export function RunningExam({
 	// biome-ignore lint/correctness/useExhaustiveDependencies: reset when the question changes
 	useEffect(() => setView("task"), [question?.id]);
 
-	// The task panel's right border: its share of the desk
-	const dragTask = (event: React.PointerEvent) => {
-		const area = desk.current?.getBoundingClientRect();
-		if (!area) return;
-		dragBorder(
-			event,
-			x => Math.min(70, Math.max(20, ((x - area.left) / area.width) * 100)),
-			task => setDragged({ task }),
-			task => {
-				update({ task_width: task });
-				setDragged({});
-			},
-			() => setDragged({})
-		);
-	};
-	// The assistant pane's left border: its width
-	const dragAssistant = (event: React.PointerEvent) => {
-		const area = desk.current?.getBoundingClientRect();
-		if (!area) return;
-		dragBorder(
-			event,
-			x => Math.round(Math.min(720, Math.max(300, area.right - x))),
-			assistant => setDragged({ assistant }),
-			assistant => {
-				update({ assistant_width: assistant });
-				setDragged({});
-			},
-			() => setDragged({})
-		);
-	};
+	// The task panel's right border: its share of the desk, in percent
+	const task = usePanelSize({
+		desk,
+		saved: settings.task_width ?? 33,
+		save: task_width => update({ task_width }),
+		min: 20,
+		max: 70,
+		step: 2,
+		fromPointer: (x, area) => ((x - area.left) / area.width) * 100,
+	});
+	// The assistant pane's left border: its width in pixels
+	const assistant = usePanelSize({
+		desk,
+		saved: settings.assistant_width,
+		save: assistant_width => update({ assistant_width: Math.round(assistant_width) }),
+		min: 300,
+		max: 720,
+		step: -20,
+		fromPointer: (x, area) => area.right - x,
+	});
 
 	return (
 		<div className="flex h-full flex-col">
@@ -147,7 +134,7 @@ export function RunningExam({
 				<section
 					// Narrow windows shrink the panels first: the desktop keeps a third
 					className="@container flex min-w-[300px] max-w-[70%] shrink select-none flex-col"
-					style={{ width: `${width}%` }}
+					style={{ width: `${task.size}%` }}
 				>
 					{/* Question navigation together at the start, the text size at the end:
 					    nothing stretches when the panel is wide */}
@@ -248,17 +235,7 @@ export function RunningExam({
 						</div>
 					)}
 				</section>
-				<ResizeHandle
-					label="Task panel width"
-					value={Math.round(width ?? 33)}
-					min={20}
-					max={70}
-					onPointerDown={dragTask}
-					// Arrows: the border moves with them
-					onStep={dir =>
-						update({ task_width: Math.min(70, Math.max(20, (width ?? 33) + dir * 2)) })
-					}
-				/>
+				<ResizeHandle label="Task panel width" {...task.handle} />
 				<section className="relative min-w-[30%] flex-1">
 					{/* Stays connected behind the Readme; a new attempt is a new desktop */}
 					<div className={cn("absolute inset-0", tab !== "desktop" && "invisible")}>
@@ -271,20 +248,10 @@ export function RunningExam({
 					)}
 				</section>
 				{assistantOpen && question && (
-					<ResizeHandle
-						label="Assistant width"
-						value={assistantWidth}
-						min={300}
-						max={720}
-						onPointerDown={dragAssistant}
-						// Its border is on its left: moving it left widens it
-						onStep={dir =>
-							update({ assistant_width: Math.min(720, Math.max(300, assistantWidth - dir * 20)) })
-						}
-					/>
+					<ResizeHandle label="Assistant width" {...assistant.handle} />
 				)}
 				{assistantOpen && question && (
-					<div className="min-w-[260px] max-w-[40%] shrink" style={{ width: assistantWidth }}>
+					<div className="min-w-[260px] max-w-[40%] shrink" style={{ width: assistant.size }}>
 						<AssistantPane
 							question={question}
 							onClose={() => setAssistantOpen(false)}
@@ -304,81 +271,3 @@ const PANEL_VIEWS: { value: PanelView; label: string }[] = [
 	{ value: "task", label: "Task" },
 	{ value: "solution", label: "Solution" },
 ];
-
-/** A border dragged to resize the panels beside it */
-const RESIZE_HANDLE =
-	"relative z-10 w-px shrink-0 cursor-col-resize bg-border transition-colors before:absolute before:inset-y-0 before:-inset-x-1 before:content-[''] hover:bg-highlight active:bg-highlight";
-
-/**
- * Follow a border drag: `size` turns the pointer's x into the new size,
- * `move` shows it as it goes, `done` keeps the last one when it is let go
- */
-function dragBorder(
-	event: React.PointerEvent,
-	size: (x: number) => number,
-	move: (size: number) => void,
-	done: (size: number) => void,
-	cancel: () => void
-) {
-	event.currentTarget.setPointerCapture(event.pointerId);
-	let last: number | null = null;
-	const onMove = (e: PointerEvent) => {
-		last = size(e.clientX);
-		move(last);
-	};
-	const stop = () => {
-		window.removeEventListener("pointermove", onMove);
-		window.removeEventListener("pointerup", onUp);
-		window.removeEventListener("pointercancel", onCancel);
-	};
-	const onUp = () => {
-		stop();
-		if (last !== null) done(last);
-	};
-	// Taken away (the system's own gesture): the border goes back
-	const onCancel = () => {
-		stop();
-		cancel();
-	};
-	window.addEventListener("pointermove", onMove);
-	window.addEventListener("pointerup", onUp);
-	window.addEventListener("pointercancel", onCancel);
-}
-
-/** A panel border: dragged, or moved with the arrow keys once focused */
-function ResizeHandle({
-	label,
-	value,
-	min,
-	max,
-	onPointerDown,
-	onStep,
-}: {
-	label: string;
-	value: number;
-	min: number;
-	max: number;
-	onPointerDown: (event: React.PointerEvent) => void;
-	onStep: (dir: -1 | 1) => void;
-}) {
-	return (
-		// biome-ignore lint/a11y/useSemanticElements: a focusable splitter, which <hr> is not
-		<div
-			role="separator"
-			aria-orientation="vertical"
-			aria-label={label}
-			aria-valuenow={value}
-			aria-valuemin={min}
-			aria-valuemax={max}
-			tabIndex={0}
-			onPointerDown={onPointerDown}
-			onKeyDown={e => {
-				if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-					e.preventDefault();
-					onStep(e.key === "ArrowLeft" ? -1 : 1);
-				}
-			}}
-			className={cn(RESIZE_HANDLE, "outline-none focus-visible:bg-highlight")}
-		/>
-	);
-}
