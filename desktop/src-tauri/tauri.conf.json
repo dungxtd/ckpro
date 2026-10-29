@@ -25,9 +25,10 @@
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: blob:",
         "font-src": "'self' data:",
-        "connect-src": "'self' ipc: http://ipc.localhost ws://127.0.0.1:*",
+        "connect-src": "'self' ipc: http://ipc.localhost ws://127.0.0.1:* https://us.i.posthog.com https://us-assets.i.posthog.com",
         "object-src": "'none'",
-        "base-uri": "'self'"
+        "base-uri": "'self'",
+        "worker-src": "'self' blob:"
       },
       "devCsp": {
         "default-src": "'self'",
@@ -35,11 +36,14 @@
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: blob:",
         "font-src": "'self' data:",
-        "connect-src": "'self' ipc: http://ipc.localhost ws://127.0.0.1:* ws://localhost:1420",
+        "connect-src": "'self' ipc: http://ipc.localhost ws://127.0.0.1:* ws://localhost:1420 https://us.i.posthog.com https://us-assets.i.posthog.com",
         "object-src": "'none'",
-        "base-uri": "'self'"
+        "base-uri": "'self'",
+        "worker-src": "'self' blob:"
       },
-      "dangerousDisableAssetCspModification": ["style-src"]
+      "dangerousDisableAssetCspModification": [
+        "style-src"
+      ]
     }
   },
   "bundle": {

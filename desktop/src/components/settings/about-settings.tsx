@@ -1,13 +1,17 @@
 import { Button } from "@ckdry/ui/components/button";
 import { Loading } from "@ckdry/ui/components/loading";
+import { Switch } from "@ckdry/ui/components/switch";
 import { Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Group, Row } from "@/components/settings/layout";
+import { useSettings } from "@/stores/settings";
 import { type AppInfo, appApi } from "@/tauri/api";
 
 export function AboutSettings() {
 	const [info, setInfo] = useState<AppInfo | null>(null);
+	const analytics = useSettings(s => s.settings.analytics);
+	const update = useSettings(s => s.update);
 	useEffect(() => {
 		appApi.info().then(setInfo);
 	}, []);
@@ -30,6 +34,16 @@ export function AboutSettings() {
 				>
 					<Copy /> Copy path
 				</Button>
+			</Row>
+			<Row
+				label="Share usage analytics"
+				detail="Anonymous: which screens and features are used, errors, replays of the interface. Never your answers, messages to the assistant, or the remote desktop"
+			>
+				<Switch
+					checked={analytics}
+					onCheckedChange={on => update({ analytics: on })}
+					aria-label="Share usage analytics"
+				/>
 			</Row>
 		</Group>
 	);

@@ -134,6 +134,8 @@ pub struct Settings {
     pub assistant_effort: Option<String>,
     /// The assistant at all: off, the app has no AI anywhere
     pub assistant_enabled: bool,
+    /// Anonymous usage analytics (on unless turned off in Settings > About)
+    pub analytics: bool,
 }
 
 impl Default for Settings {
@@ -148,6 +150,7 @@ impl Default for Settings {
             assistant_model: None,
             assistant_effort: None,
             assistant_enabled: true,
+            analytics: true,
         }
     }
 }
@@ -592,6 +595,7 @@ mod tests {
             assistant_model: Some("opus".into()),
             assistant_effort: Some("high".into()),
             assistant_enabled: false,
+            analytics: false,
         };
         store.save_settings(&settings).unwrap();
         assert_eq!(store.settings().unwrap(), settings);

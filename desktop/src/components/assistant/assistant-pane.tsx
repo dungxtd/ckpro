@@ -10,6 +10,7 @@ import { cn } from "@ckdry/ui/lib/utils";
 import { Check, Ellipsis, History, Plus, RotateCw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { MASK } from "@/analytics";
 import { AGENTS } from "@/components/assistant/agents";
 import { Answer, UserMessage } from "@/components/assistant/answer";
 import { AssistantComposer } from "@/components/assistant/assistant-composer";
@@ -93,7 +94,11 @@ export function AssistantPane({
 	const lastUser = [...messages].reverse().find(m => m.role === "user")?.text;
 
 	return (
-		<aside className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-background">
+		// The candidate's messages, the answers, session names, the login:
+		// replays show none of their text
+		<aside
+			className={cn("flex h-full w-full min-w-0 flex-col overflow-hidden bg-background", MASK)}
+		>
 			{/* Toolbar: the session (double-click to rename), then new, history, more, close */}
 			<div className="flex h-9 shrink-0 select-none items-center gap-0.5 border-border border-b pr-1.5 pl-3">
 				{renaming ? (

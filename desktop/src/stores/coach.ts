@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
+import { track } from "@/analytics";
 import {
 	type Account,
 	ApiError,
@@ -300,6 +301,7 @@ export const useCoach = create<CoachStore>()(
 					});
 				try {
 					const { model, effort, profile, context } = get();
+					track("assistant_asked", { model, effort, profile, review: given !== undefined });
 					const reply = await coachApi.ask(
 						questionId,
 						text,

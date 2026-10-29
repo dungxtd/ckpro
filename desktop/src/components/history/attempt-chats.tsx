@@ -7,6 +7,7 @@ import {
 	SheetTitle,
 } from "@ckdry/ui/components/sheet";
 import { useEffect, useState } from "react";
+import { MASK } from "@/analytics";
 import { Answer, UserMessage } from "@/components/assistant/answer";
 import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { type CoachTranscript, coachApi, errorText, type HistoryEntry } from "@/tauri/api";
@@ -38,7 +39,7 @@ export function AttemptChats({
 
 	return (
 		<Sheet open={entry !== null} onOpenChange={onOpenChange}>
-			<SheetContent className="w-[520px] gap-0 sm:max-w-xl">
+			<SheetContent className={`w-[520px] gap-0 sm:max-w-xl ${MASK}`}>
 				<SheetHeader className="border-border border-b">
 					<SheetTitle>Assistant sessions</SheetTitle>
 					<SheetDescription>

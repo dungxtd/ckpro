@@ -24,6 +24,7 @@ import { cn } from "@ckdry/ui/lib/utils";
 import { ChevronRight, RotateCw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { MASK } from "@/analytics";
 import { AGENTS, agentOf } from "@/components/assistant/agents";
 import { effortLabel, shortName } from "@/components/assistant/models";
 import { SignInDialog } from "@/components/assistant/sign-in-dialog";
@@ -290,6 +291,8 @@ function ClaudeCodePanel({
 			</div>
 			<Row
 				label="Account"
+				// The email: not in replays
+				className={MASK}
 				detail={account?.signed_in ? `${accountDetail(account)} · the CLI's login` : undefined}
 			>
 				{account === null ? (

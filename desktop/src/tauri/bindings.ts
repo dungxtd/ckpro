@@ -847,6 +847,8 @@ export type Settings_Deserialize = {
 	assistant_effort?: string | null,
 	/**  The assistant at all: off, the app has no AI anywhere */
 	assistant_enabled?: boolean,
+	/**  Anonymous usage analytics (on unless turned off in Settings > About) */
+	analytics?: boolean,
 };
 
 /**  The exam desk's display settings */
@@ -867,6 +869,8 @@ export type Settings_Serialize = {
 	assistant_effort: string | null,
 	/**  The assistant at all: off, the app has no AI anywhere */
 	assistant_enabled: boolean,
+	/**  Anonymous usage analytics (on unless turned off in Settings > About) */
+	analytics: boolean,
 };
 
 export type Severity = "error" | "warning";

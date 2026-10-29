@@ -12,6 +12,7 @@ import {
 	SelectValue,
 } from "@ckdry/ui/components/select";
 import { useEffect, useState } from "react";
+import { track } from "@/analytics";
 import { ActivityProgress } from "@/components/activity/activity-progress";
 import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { useActivityList } from "@/stores/activity";
@@ -68,10 +69,14 @@ export function GenerateCard({ onGenerated }: { onGenerated: () => void }) {
 			setDone(
 				await generatorApi.generate({ certification: cert, domain, difficulty, topic }, setDraft)
 			);
+			track("question_generated", { certification: cert, domain, difficulty });
 			onGenerated();
 		} catch (e) {
 			// Discarded: nothing went wrong
-			if (!(e instanceof ApiError && e.code === "cancelled")) setError(errorText(e));
+			if (!(e instanceof ApiError && e.code === "cancelled")) {
+				setError(errorText(e));
+				track("question_generation_failed", { certification: cert, domain, difficulty });
+			}
 		} finally {
 			setDraft(null);
 			setRunning(false);

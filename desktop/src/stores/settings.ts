@@ -27,6 +27,7 @@ export const useSettings = create<SettingsStore>()(
 			assistant_model: null,
 			assistant_effort: null,
 			assistant_enabled: true,
+			analytics: true,
 		},
 		loaded: false,
 		error: null,

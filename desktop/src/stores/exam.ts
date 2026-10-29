@@ -2,6 +2,7 @@ import { toast } from "sonner";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
+import { track } from "@/analytics";
 import {
 	ApiError,
 	type CheckResult,
@@ -77,6 +78,20 @@ const save = (s: AttemptUi) => {
 		.catch(e => console.error("saving exam progress", e));
 };
 
+/** Where an attempt went, for analytics: graded, or failed */
+function followed(before: ExamState | null, now: ExamState) {
+	if (!before || before.phase === now.phase) return;
+	if (now.phase === "finished")
+		track("exam_finished", {
+			exam_id: now.attempt.exam_id,
+			mode: now.attempt.mode,
+			score: Math.round(now.result.score ?? 0),
+			passed: now.result.passed,
+		});
+	else if (now.phase === "failed")
+		track("exam_failed", { during: before.phase, resumable: now.resumable });
+}
+
 const attemptId = (state: ExamState) => ("attempt" in state ? (state.attempt?.id ?? null) : null);
 
 export const useExam = create<ExamStore>()(
@@ -90,7 +105,8 @@ export const useExam = create<ExamStore>()(
 			connectError: null,
 
 			connect: async () => {
-				const apply = (state: ExamState) =>
+				const apply = (state: ExamState) => {
+					followed(get().state, state);
 					set(s => {
 						s.state = state;
 						const id = attemptId(state);
@@ -111,6 +127,7 @@ export const useExam = create<ExamStore>()(
 								.catch(e => console.error("loading exam progress", e));
 						}
 					});
+				};
 				set(s => {
 					s.connectError = null;
 				});
@@ -156,6 +173,7 @@ export const useExam = create<ExamStore>()(
 				});
 				try {
 					await examApi.start(id, mode, replace);
+					track("exam_started", { exam_id: id, mode });
 				} catch (e) {
 					// The exam needs cluster names that are in use: ask first
 					if (
@@ -237,6 +255,10 @@ export const useExam = create<ExamStore>()(
 				});
 				try {
 					const results = await examApi.check(questionId);
+					track("work_checked", {
+						passed: results.filter(r => r.passed).length,
+						checks: results.length,
+					});
 					set(s => {
 						s.checks[questionId] = results;
 					});

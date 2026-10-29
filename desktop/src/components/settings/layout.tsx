@@ -1,4 +1,5 @@
 import { Card } from "@ckdry/ui/components/card";
+import { cn } from "@ckdry/ui/lib/utils";
 import type { ReactNode } from "react";
 
 export function Page({ children }: { children: ReactNode }) {
@@ -34,14 +35,16 @@ export function Group({
 export function Row({
 	label,
 	detail,
+	className,
 	children,
 }: {
 	label: string;
 	detail?: string;
+	className?: string;
 	children?: ReactNode;
 }) {
 	return (
-		<div className="flex min-h-12 items-center justify-between gap-4 px-4 py-2">
+		<div className={cn("flex min-h-12 items-center justify-between gap-4 px-4 py-2", className)}>
 			<div className="min-w-0">
 				<div className="text-sm">{label}</div>
 				{detail && <div className="text-muted-foreground text-xs">{detail}</div>}

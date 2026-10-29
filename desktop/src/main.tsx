@@ -17,6 +17,7 @@ import {
 	useNavigate,
 } from "react-router";
 import { toast } from "sonner";
+import { pageView, setAnalytics, track } from "@/analytics";
 import { ActivityChip } from "@/components/activity/activity-chip";
 import { CatalogRoute } from "@/routes/catalog";
 import { useActivities } from "@/stores/activity";
@@ -24,7 +25,7 @@ import { useCoach } from "@/stores/coach";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
-import { errorText } from "@/tauri/api";
+import { appApi, errorText } from "@/tauri/api";
 import "./index.css";
 
 const NAV = [
@@ -114,6 +115,15 @@ function App() {
 	useEffect(() => {
 		if (assistantOn) useCoach.getState().warm();
 	}, [assistantOn]);
+	// Usage analytics, as Settings > About say (on unless turned off)
+	const analyticsOn = useSettings(s => (s.loaded ? s.settings.analytics : null));
+	useEffect(() => {
+		if (analyticsOn === null) return;
+		appApi.info().then(info => {
+			setAnalytics(analyticsOn, { app_version: info.version });
+			if (analyticsOn) track("app_opened");
+		});
+	}, [analyticsOn]);
 	const examKnown = useExam(s => s.state !== null);
 	const settingsError = useSettings(s => s.error);
 	const examError = useExam(s => s.connectError);
@@ -124,6 +134,7 @@ function App() {
 	return (
 		<>
 			<HashRouter>
+				<PageViews />
 				<ExamGuard />
 				{/* The catalog comes with the app; the other screens load when first
 				    opened (the exam desk is the heaviest: the remote desktop, Markdown) */}
@@ -170,6 +181,13 @@ function OpenFailed({ message, onRetry }: { message: string; onRetry: () => void
 window.addEventListener("unhandledrejection", e => {
 	toast.error(errorText(e.reason));
 });
+
+/** Each screen shown, for analytics */
+function PageViews() {
+	const { pathname } = useLocation();
+	useEffect(() => pageView(pathname), [pathname]);
+	return null;
+}
 
 /** A route's screen, loaded when it is first shown */
 function screen<T extends string>(load: () => Promise<Record<T, () => ReactNode>>, name: T) {
