@@ -1,3 +1,4 @@
+import { cn } from "@ckdry/ui/lib/utils";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
@@ -42,14 +43,31 @@ const BROWSER: Components = {
 	),
 };
 
+/** What every Markdown text shares: headings, lists, inline code, tables */
+export const PROSE =
+	"leading-relaxed [&>:first-child]:mt-0 [&_strong]:font-semibold [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.85em] [&_code]:[overflow-wrap:anywhere] [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:[overflow-wrap:normal] [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 [&_table]:my-2 [&_td]:border [&_td]:border-border [&_td]:px-2 [&_th]:border [&_th]:border-border [&_th]:px-2";
+
+/** A page's text: roomier, its code blocks framed here */
+const MARKDOWN =
+	"text-sm [&_h1]:mt-4 [&_h1]:mb-1 [&_h1]:text-base [&_h2]:mt-4 [&_h2]:mb-1 [&_h3]:mt-3 [&_code]:py-0.5 [&_ol]:my-2 [&_p]:my-2 [&_pre]:my-2 [&_pre]:overflow-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-2 [&_ul]:my-2";
+
 /**
  * Question and solution text: GitHub-flavoured Markdown, styled for reading.
  * `copy`: its code copies to the exam desktop on click, its links open in the
- * desktop's Firefox. Otherwise links open in the system browser.
+ * desktop's Firefox. Otherwise links open in the system browser. Its size
+ * is `className`'s when given (the question's text size).
  */
-export function Markdown({ children, copy }: { children: string; copy?: boolean }) {
+export function Markdown({
+	children,
+	copy,
+	className,
+}: {
+	children: string;
+	copy?: boolean;
+	className?: string;
+}) {
 	return (
-		<div className="text-sm leading-relaxed [&_h1]:mt-4 [&_h1]:mb-1 [&_h1]:font-semibold [&_h1]:text-base [&_h2]:mt-4 [&_h2]:mb-1 [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:font-semibold [&_strong]:font-semibold [&>:first-child]:mt-0 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_code]:[overflow-wrap:anywhere] [&_pre_code]:[overflow-wrap:normal] [&_li]:my-0.5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_pre]:my-2 [&_pre]:overflow-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-2 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-2 [&_td]:border [&_td]:border-border [&_td]:px-2 [&_th]:border [&_th]:border-border [&_th]:px-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5">
+		<div className={cn(PROSE, MARKDOWN, className)}>
 			<ReactMarkdown remarkPlugins={[remarkGfm]} components={copy ? COPY : BROWSER}>
 				{children}
 			</ReactMarkdown>

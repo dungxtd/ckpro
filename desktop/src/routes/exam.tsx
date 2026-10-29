@@ -2,6 +2,7 @@ import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { Loading } from "@ckdry/ui/components/loading";
 import { Navigate } from "react-router";
+import { useShallow } from "zustand/react/shallow";
 import { ActivityPage } from "@/components/activity/activity-progress";
 import { Grading } from "@/components/exam/grading";
 import { Results } from "@/components/exam/results";
@@ -12,7 +13,12 @@ const modeLabel = (mode: string) => (mode === "exam" ? "Exam mode" : "Practice m
 
 /** The current attempt, whatever phase it is in. */
 export function ExamRoute() {
-	const { state, end, start, retry: tryAgain } = useExam();
+	const {
+		state,
+		end,
+		start,
+		retry: tryAgain,
+	} = useExam(useShallow(s => ({ state: s.state, end: s.end, start: s.start, retry: s.retry })));
 	if (!state) return <Loading fill />;
 
 	switch (state.phase) {

@@ -6,6 +6,7 @@ import { cn } from "@ckdry/ui/lib/utils";
 import { Check, RotateCcw, Settings } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 import { useSettings } from "@/stores/settings";
 import { desktopApi } from "@/tauri/api";
 
@@ -21,7 +22,9 @@ const ZOOMS = [1, 1.25, 1.5, 1.75, 2];
 
 /** The desktop's size and resolution, kept in the settings */
 export function useDesktopSettings(): DesktopMenuProps {
-	const { settings, update } = useSettings();
+	const { settings, update } = useSettings(
+		useShallow(s => ({ settings: s.settings, update: s.update }))
+	);
 	const zoom = ZOOMS.find(z => z === settings.desktop_zoom) ?? 1;
 	const at = ZOOMS.indexOf(zoom);
 	return {
@@ -94,7 +97,7 @@ export function DesktopMenu({
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<IconButton variant="plain" size="sm" className="size-7" aria-label="Desktop settings">
+				<IconButton variant="plain" size="bar" aria-label="Desktop settings">
 					<Settings />
 				</IconButton>
 			</PopoverTrigger>

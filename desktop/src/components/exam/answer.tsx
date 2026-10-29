@@ -1,10 +1,11 @@
+import { Button } from "@ckdry/ui/components/button";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Check, Copy } from "lucide-react";
-import { useState } from "react";
+import { memo, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { noImage } from "@/components/markdown";
+import { noImage, PROSE } from "@/components/markdown";
 import { copyToDesktop } from "./desktop-view";
 import { DocLink } from "./doc-link";
 
@@ -30,9 +31,9 @@ function AnswerCode({ node }: { node?: Node }) {
 			className="leading-relaxed"
 			title={lang}
 			actions={
-				<button
-					type="button"
-					className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+				<Button
+					variant="quiet"
+					size="inline"
 					onClick={() => {
 						copyToDesktop(text);
 						setCopied(true);
@@ -41,7 +42,7 @@ function AnswerCode({ node }: { node?: Node }) {
 				>
 					{copied ? <Check className="size-3" /> : <Copy className="size-3" />}{" "}
 					{copied ? "Copied" : "Copy"}
-				</button>
+				</Button>
 			}
 		>
 			{text}
@@ -61,12 +62,20 @@ const COMPONENTS: Components = {
 	img: noImage,
 };
 
-/** An assistant answer: Markdown, its code copyable to the desktop */
-export function Answer({ children, className }: { children: string; className?: string }) {
+/** An assistant answer: Markdown, its code copyable to the desktop. Only
+ * the answer being written renders again as it grows */
+export const Answer = memo(function Answer({
+	children,
+	className,
+}: {
+	children: string;
+	className?: string;
+}) {
 	return (
 		<div
 			className={cn(
-				"min-w-0 text-[13px] leading-relaxed [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.85em] [&_code]:[overflow-wrap:anywhere] [&_pre_code]:[overflow-wrap:normal] [&_h1]:mt-3 [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:font-semibold [&_h3]:mt-2 [&_h3]:font-semibold [&_li]:my-0.5 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1.5 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-semibold [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&>:first-child]:mt-0",
+				PROSE,
+				"min-w-0 text-callout [&_h1]:mt-3 [&_h2]:mt-3 [&_h3]:mt-2 [&_ol]:my-1.5 [&_p]:my-1.5 [&_ul]:my-1.5",
 				className
 			)}
 		>
@@ -75,4 +84,4 @@ export function Answer({ children, className }: { children: string; className?: 
 			</ReactMarkdown>
 		</div>
 	);
-}
+});

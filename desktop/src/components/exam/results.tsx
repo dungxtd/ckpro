@@ -25,7 +25,7 @@ import { useSolution } from "./use-solution";
 
 /** The result like the exam gives it (score, pass/fail), then the review. */
 export function Results({ attempt, result }: { attempt: Attempt; result: ExamResult }) {
-	const { end } = useExam();
+	const end = useExam(s => s.end);
 	const [review, setReview] = useState(false);
 	// The question reviewed with the coach, in a side sheet
 	const [coached, setCoached] = useState<string | null>(null);

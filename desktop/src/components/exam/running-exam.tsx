@@ -11,6 +11,7 @@ import { cn } from "@ckdry/ui/lib/utils";
 import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
@@ -59,12 +60,23 @@ export function RunningExam({
 	startedAt: number;
 	endsAt: number | null;
 }) {
-	const { current, flagged, select, toggleFlag, submit, end } = useExam();
+	const { current, flagged, select, toggleFlag, submit, end } = useExam(
+		useShallow(s => ({
+			current: s.current,
+			flagged: s.flagged,
+			select: s.select,
+			toggleFlag: s.toggleFlag,
+			submit: s.submit,
+			end: s.end,
+		}))
+	);
 	// Practice mode: the assistant pane beside the desktop (never in exam mode)
 	const setAssistantOpen = useCoach(s => s.setOpen);
 	// Desktop zoom and resolution, the panels' sizes and the assistant pane
 	// live in the app database: the desk reopens as it was left
-	const { settings, update } = useSettings();
+	const { settings, update } = useSettings(
+		useShallow(s => ({ settings: s.settings, update: s.update }))
+	);
 	// The assistant: practice only, and only if the app offers it
 	const assistantAvailable = attempt.mode === "practice" && settings.assistant_enabled;
 	const assistantOpen = settings.assistant_open && assistantAvailable;
@@ -135,8 +147,7 @@ export function RunningExam({
 						<div className="flex min-w-0 items-center gap-1">
 							<IconButton
 								variant="plain"
-								size="sm"
-								className="size-7"
+								size="bar"
 								disabled={current === 0}
 								onClick={() => select(current - 1)}
 								aria-label="Previous question"
@@ -168,8 +179,7 @@ export function RunningExam({
 							</Select>
 							<IconButton
 								variant="plain"
-								size="sm"
-								className="size-7"
+								size="bar"
 								disabled={current === count - 1}
 								onClick={() => select(current + 1)}
 								aria-label="Next question"

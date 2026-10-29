@@ -5,6 +5,7 @@ import { Separator } from "@ckdry/ui/components/separator";
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Lightbulb, ListChecks } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { Markdown } from "@/components/markdown";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
@@ -17,7 +18,7 @@ import { useSolution } from "./use-solution";
 
 /** Question text sizes, in px (the text size stepper) */
 const SIZES = [
-	{ px: 13, className: "text-[13px]" },
+	{ px: 13, className: "text-callout" },
 	{ px: 14, className: "text-sm" },
 	{ px: 16, className: "text-base" },
 	{ px: 18, className: "text-lg" },
@@ -25,14 +26,16 @@ const SIZES = [
 
 /** One task as the exam shows it, plus the practice-mode aids. */
 export function QuestionPanel({ attempt, question }: { attempt: Attempt; question: QuestionView }) {
-	const { hintsShown, checks } = useExam();
+	const { hintsShown, checks } = useExam(
+		useShallow(s => ({ hintsShown: s.hintsShown, checks: s.checks }))
+	);
 	const askCoach = useCoach(s => s.ask);
 	const assistant = useAssistantEnabled();
 	const practice = attempt.mode === "practice";
 	const hints = question.hints.slice(0, hintsShown[question.id] ?? 0);
 	const result = checks[question.id];
 	const { solution } = useSolution(question.id);
-	const { settings } = useSettings();
+	const settings = useSettings(s => s.settings);
 	const size = Math.min(SIZES.length - 1, settings.question_size);
 	const code = "rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-exam-value";
 
@@ -58,7 +61,9 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 			</div>
 			<Separator />
 
-			<Markdown copy>{question.statement}</Markdown>
+			<Markdown copy className={SIZES[size]?.className}>
+				{question.statement}
+			</Markdown>
 
 			{question.references.length > 0 && (
 				<div className="flex flex-col gap-1 text-xs">
@@ -94,7 +99,9 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 					)}
 					{solution && (
 						<Card padding="sm" className="flex flex-col gap-2">
-							<Markdown copy>{solution.explain}</Markdown>
+							<Markdown copy className={SIZES[size]?.className}>
+								{solution.explain}
+							</Markdown>
 							<CopyText block text={solution.run.replace(/\n$/, "")} />
 						</Card>
 					)}
@@ -110,7 +117,14 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
  * shows at the end of the task
  */
 export function PracticeActions({ question }: { question: QuestionView }) {
-	const { hintsShown, checks, showHint, check } = useExam();
+	const { hintsShown, checks, showHint, check } = useExam(
+		useShallow(s => ({
+			hintsShown: s.hintsShown,
+			checks: s.checks,
+			showHint: s.showHint,
+			check: s.check,
+		}))
+	);
 	const { shown, label, toggle } = useSolution(question.id);
 	const opened = hintsShown[question.id] ?? 0;
 	const running = checks[question.id] === "running";
@@ -140,7 +154,9 @@ export function PracticeActions({ question }: { question: QuestionView }) {
 
 /** The question's text size, kept in the app database */
 export function TextSize() {
-	const { settings, update } = useSettings();
+	const { settings, update } = useSettings(
+		useShallow(s => ({ settings: s.settings, update: s.update }))
+	);
 	const size = Math.min(SIZES.length - 1, settings.question_size);
 	return (
 		<Stepper
