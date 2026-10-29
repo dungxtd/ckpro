@@ -27,6 +27,8 @@ interface CoachStore {
 	sessions: Record<string, CoachMessage[]>;
 	/** Their own names, where the candidate renamed them */
 	titles: Record<string, string | null>;
+	/** Which of each question's sessions is shown */
+	shown: Record<string, number>;
 	attemptId: string | null;
 	/** The question whose answer is being written */
 	writing: string | null;
@@ -82,7 +84,11 @@ interface CoachStore {
 	load: (questionId: string) => Promise<void>;
 	/** `checks`: the ones to explain (the result's in review), else the last "Check my work" */
 	ask: (questionId: string, text: string, checks?: CheckResult[]) => Promise<void>;
-	/** New Session: the question's session starts over */
+	/** New Session: another session for the question (the earlier ones stay) */
+	newSession: (questionId: string) => Promise<void>;
+	/** Show one of the question's sessions (History) */
+	openSession: (questionId: string, session: number) => Promise<void>;
+	/** Delete Session: the one shown goes; the latest other shows */
 	clear: (questionId: string) => Promise<void>;
 	stop: () => void;
 	listSessions: () => Promise<CoachSession[]>;
@@ -97,6 +103,7 @@ const forAttempt = (s: CoachStore) => {
 		s.attemptId = attemptId;
 		s.sessions = {};
 		s.titles = {};
+		s.shown = {};
 		s.usage = {};
 		s.error = null;
 	}
@@ -142,193 +149,203 @@ let warmed = false;
 const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
 
 export const useCoach = create<CoachStore>()(
-	immer((set, get) => ({
-		sessions: {},
-		titles: {},
-		attemptId: null,
-		writing: null,
-		error: null,
-		models: [],
-		model: "sonnet",
-		context: { checks: true, cluster: true },
-		shared: { checks: true, cluster: true },
-		enabledAgents: ["claude"],
-		usage: {},
-		account: null,
-		runtime: null,
-		loadRuntime: async () => {
+	immer((set, get) => {
+		/** Show another of the question's sessions: what Rust now shows is read again */
+		const switchTo = async (questionId: string, change: () => Promise<unknown>) => {
 			try {
-				set({ runtime: await coachApi.runtime() });
-			} catch {
-				// The last value stays
-			}
-		},
-		warm: () => {
-			if (warmed) return;
-			warmed = true;
-			get().loadRuntime();
-			get().loadAccount();
-			get().ensureModels();
-		},
-		ensureModels: () => {
-			if (get().models.length > 0) return;
-			loadModels(set, get);
-			// A new run starts in the profile Settings name
-			agentApi
-				.settings()
-				.then(s =>
-					set({
-						enabledAgents: s.enabled,
-						profile: s.default_profile,
-						shared: { checks: s.share_checks, cluster: s.share_cluster },
-					})
-				)
-				.catch(() => {});
-		},
-		loadAccount: async () => {
-			try {
-				const before = get().account;
-				const account = await coachApi.account();
-				set({ account });
-				// Another login, maybe another plan: its own models
-				if (account.signed_in && before !== null && before.email !== account.email)
-					loadModels(set, get, true);
-			} catch (e) {
-				set({ error: message(e) });
-			}
-		},
-		setOpen: open => useSettings.getState().update({ assistant_open: open }),
-		efforts: [],
-		effort: "default",
-		profile: "ask",
-		setProfile: profile => set({ profile }),
-		running: null,
-		permission: null,
-		permit: async option => {
-			const asked = get().permission;
-			if (!asked) return;
-			set({ permission: null });
-			await coachApi.permit(asked.id, option).catch(() => {});
-		},
-		setModel: model => {
-			set({ model });
-			useSettings.getState().update({ assistant_model: model });
-			loadEfforts(set, get);
-		},
-		setEffort: effort => {
-			set({ effort });
-			useSettings.getState().update({ assistant_effort: effort });
-		},
-		setContext: patch =>
-			set(s => {
-				Object.assign(s.context, patch);
-			}),
-		load: async questionId => {
-			set(forAttempt);
-			get().ensureModels();
-			if (get().sessions[questionId]) return;
-			try {
-				const { title, messages } = await coachApi.history(questionId);
+				await change();
 				set(s => {
-					s.sessions[questionId] ??= messages;
-					s.titles[questionId] ??= title;
-				});
-			} catch (e) {
-				set({ error: message(e) });
-			}
-		},
-		ask: async (questionId, text, given) => {
-			set(forAttempt);
-			if (get().writing) coachApi.cancel();
-			if (!useSettings.getState().settings.assistant_open)
-				useSettings.getState().update({ assistant_open: true });
-			const { checks, solutions } = useExam.getState();
-			const checked = checks[questionId];
-			set(s => {
-				s.error = null;
-				s.writing = questionId;
-				s.sessions[questionId] = [
-					...(s.sessions[questionId] ?? []),
-					{ role: "user", text },
-					{ role: "assistant", text: "" },
-				];
-			});
-			// The answer as it is written, the command running, a request to run one
-			const onEvent = (e: CoachEvent) =>
-				set(s => {
-					if (e.kind === "text") {
-						const last = s.sessions[questionId]?.at(-1);
-						if (last?.role === "assistant") last.text += e.text;
-					} else if (e.kind === "tool") {
-						const done = e.status === "completed" || e.status === "failed";
-						s.running = done ? null : { questionId, command: e.command };
-					} else {
-						s.permission = { questionId, id: e.id, command: e.command, options: e.options };
-					}
-				});
-			try {
-				const { model, effort, profile, context } = get();
-				const reply = await coachApi.ask(
-					questionId,
-					text,
-					given ?? (Array.isArray(checked) ? checked : []),
-					questionId in solutions,
-					{ model, effort, profile },
-					context,
-					onEvent
-				);
-				set(s => {
-					const last = s.sessions[questionId]?.at(-1);
-					if (last?.role === "assistant") last.text = reply.text;
-					if (reply.usage) s.usage[questionId] = reply.usage;
-					// Named from the first question, unless the candidate named it
-					if (reply.title && !s.titles[questionId]) s.titles[questionId] = reply.title;
-				});
-			} catch (e) {
-				const stopped = e instanceof ApiError && e.code === "cancelled";
-				set(s => {
-					// A stopped or failed answer is not kept (Rust keeps only complete ones)
-					const session = s.sessions[questionId];
-					if (session?.at(-1)?.role === "assistant") session.splice(-2, 2);
-					if (!stopped) s.error = message(e);
-					// The login is gone or expired: offer to sign in
-					if (e instanceof ApiError && e.code === "sign_in_required")
-						s.account = { signed_in: false, method: null, email: null, plan: null };
-				});
-			} finally {
-				set(s => {
-					if (s.writing === questionId) s.writing = null;
-					s.running = null;
-					s.permission = null;
-				});
-			}
-		},
-		clear: async questionId => {
-			try {
-				await coachApi.clear(questionId);
-				set(s => {
-					s.sessions[questionId] = [];
-					s.titles[questionId] = null;
+					delete s.sessions[questionId];
+					delete s.titles[questionId];
 					delete s.usage[questionId];
 					s.error = null;
 				});
+				await get().load(questionId);
 			} catch (e) {
 				set({ error: message(e) });
 			}
-		},
-		stop: () => {
-			coachApi.cancel();
-		},
-		listSessions: () => coachApi.sessions().catch(() => []),
-		rename: async (questionId, title) => {
-			try {
-				await coachApi.rename(questionId, title);
+		};
+		return {
+			sessions: {},
+			titles: {},
+			shown: {},
+			attemptId: null,
+			writing: null,
+			error: null,
+			models: [],
+			model: "sonnet",
+			context: { checks: true, cluster: true },
+			shared: { checks: true, cluster: true },
+			enabledAgents: ["claude"],
+			usage: {},
+			account: null,
+			runtime: null,
+			loadRuntime: async () => {
+				try {
+					set({ runtime: await coachApi.runtime() });
+				} catch {
+					// The last value stays
+				}
+			},
+			warm: () => {
+				if (warmed) return;
+				warmed = true;
+				get().loadRuntime();
+				get().loadAccount();
+				get().ensureModels();
+			},
+			ensureModels: () => {
+				if (get().models.length > 0) return;
+				loadModels(set, get);
+				// A new run starts in the profile Settings name
+				agentApi
+					.settings()
+					.then(s =>
+						set({
+							enabledAgents: s.enabled,
+							profile: s.default_profile,
+							shared: { checks: s.share_checks, cluster: s.share_cluster },
+						})
+					)
+					.catch(() => {});
+			},
+			loadAccount: async () => {
+				try {
+					const before = get().account;
+					const account = await coachApi.account();
+					set({ account });
+					// Another login, maybe another plan: its own models
+					if (account.signed_in && before !== null && before.email !== account.email)
+						loadModels(set, get, true);
+				} catch (e) {
+					set({ error: message(e) });
+				}
+			},
+			setOpen: open => useSettings.getState().update({ assistant_open: open }),
+			efforts: [],
+			effort: "default",
+			profile: "ask",
+			setProfile: profile => set({ profile }),
+			running: null,
+			permission: null,
+			permit: async option => {
+				const asked = get().permission;
+				if (!asked) return;
+				set({ permission: null });
+				await coachApi.permit(asked.id, option).catch(() => {});
+			},
+			setModel: model => {
+				set({ model });
+				useSettings.getState().update({ assistant_model: model });
+				loadEfforts(set, get);
+			},
+			setEffort: effort => {
+				set({ effort });
+				useSettings.getState().update({ assistant_effort: effort });
+			},
+			setContext: patch =>
 				set(s => {
-					s.titles[questionId] = title.trim() || null;
+					Object.assign(s.context, patch);
+				}),
+			load: async questionId => {
+				set(forAttempt);
+				get().ensureModels();
+				if (get().sessions[questionId]) return;
+				try {
+					const { session, title, messages } = await coachApi.history(questionId);
+					set(s => {
+						s.sessions[questionId] ??= messages;
+						s.titles[questionId] ??= title;
+						s.shown[questionId] = session;
+					});
+				} catch (e) {
+					set({ error: message(e) });
+				}
+			},
+			ask: async (questionId, text, given) => {
+				set(forAttempt);
+				if (get().writing) coachApi.cancel();
+				if (!useSettings.getState().settings.assistant_open)
+					useSettings.getState().update({ assistant_open: true });
+				const { checks, solutions } = useExam.getState();
+				const checked = checks[questionId];
+				set(s => {
+					s.error = null;
+					s.writing = questionId;
+					s.sessions[questionId] = [
+						...(s.sessions[questionId] ?? []),
+						{ role: "user", text },
+						{ role: "assistant", text: "" },
+					];
 				});
-			} catch (e) {
-				set({ error: message(e) });
-			}
-		},
-	}))
+				// The answer as it is written, the command running, a request to run one
+				const onEvent = (e: CoachEvent) =>
+					set(s => {
+						if (e.kind === "text") {
+							const last = s.sessions[questionId]?.at(-1);
+							if (last?.role === "assistant") last.text += e.text;
+						} else if (e.kind === "tool") {
+							const done = e.status === "completed" || e.status === "failed";
+							s.running = done ? null : { questionId, command: e.command };
+						} else {
+							s.permission = { questionId, id: e.id, command: e.command, options: e.options };
+						}
+					});
+				try {
+					const { model, effort, profile, context } = get();
+					const reply = await coachApi.ask(
+						questionId,
+						text,
+						given ?? (Array.isArray(checked) ? checked : []),
+						questionId in solutions,
+						{ model, effort, profile },
+						context,
+						onEvent
+					);
+					set(s => {
+						const last = s.sessions[questionId]?.at(-1);
+						if (last?.role === "assistant") last.text = reply.text;
+						if (reply.usage) s.usage[questionId] = reply.usage;
+						// Named from the first question, unless the candidate named it
+						if (reply.title && !s.titles[questionId]) s.titles[questionId] = reply.title;
+					});
+				} catch (e) {
+					const stopped = e instanceof ApiError && e.code === "cancelled";
+					set(s => {
+						// A stopped or failed answer is not kept (Rust keeps only complete ones)
+						const session = s.sessions[questionId];
+						if (session?.at(-1)?.role === "assistant") session.splice(-2, 2);
+						if (!stopped) s.error = message(e);
+						// The login is gone or expired: offer to sign in
+						if (e instanceof ApiError && e.code === "sign_in_required")
+							s.account = { signed_in: false, method: null, email: null, plan: null };
+					});
+				} finally {
+					set(s => {
+						if (s.writing === questionId) s.writing = null;
+						s.running = null;
+						s.permission = null;
+					});
+				}
+			},
+			newSession: questionId => switchTo(questionId, () => coachApi.newSession(questionId)),
+			openSession: (questionId, session) =>
+				switchTo(questionId, () => coachApi.openSession(questionId, session)),
+			clear: questionId => switchTo(questionId, () => coachApi.clear(questionId)),
+			stop: () => {
+				coachApi.cancel();
+			},
+			listSessions: () => coachApi.sessions().catch(() => []),
+			rename: async (questionId, title) => {
+				try {
+					await coachApi.rename(questionId, title);
+					set(s => {
+						s.titles[questionId] = title.trim() || null;
+					});
+				} catch (e) {
+					set({ error: message(e) });
+				}
+			},
+		};
+	})
 );

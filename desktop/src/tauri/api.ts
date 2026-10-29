@@ -58,6 +58,7 @@ export type {
 	CoachModels,
 	CoachSession,
 	CoachStatus,
+	CoachTranscript,
 	ContextUsage,
 	Difficulty,
 	DomainStat,
@@ -178,6 +179,12 @@ export const coachApi = {
 	rename: (questionId: string, title: string) => unwrap(commands.coachRename(questionId, title)),
 	/** Start a question's session over (New Session) */
 	clear: (questionId: string) => unwrap(commands.coachClear(questionId)),
+	newSession: (questionId: string) => unwrap(commands.coachNewSession(questionId)),
+	openSession: (questionId: string, session: number) =>
+		unwrap(commands.coachOpenSession(questionId, session)),
+	/** A past attempt's sessions, to read back */
+	transcripts: (attemptId: string) => unwrap(commands.coachTranscripts(attemptId)),
+	coachedAttempts: () => unwrap(commands.coachedAttempts()),
 	/** The question's session in the current attempt: its name and messages */
 	history: (questionId: string) => unwrap(commands.coachHistory(questionId)),
 	/** Ask about a question; `onEvent` gets the answer as it is written, and

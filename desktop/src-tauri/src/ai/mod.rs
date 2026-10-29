@@ -120,6 +120,8 @@ pub struct CoachReply {
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 pub struct CoachSession {
     pub question_id: String,
+    /// Which of the question's sessions (0 is its first)
+    pub session: u32,
     /// Its own name, else its first question
     pub title: String,
     pub messages: u32,
@@ -128,7 +130,17 @@ pub struct CoachSession {
 /// A question's coach session: its own name (if renamed) and its messages
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 pub struct CoachHistory {
+    pub session: u32,
     pub title: Option<String>,
+    pub messages: Vec<CoachMessage>,
+}
+
+/// A finished attempt's session, read back in History
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
+pub struct CoachTranscript {
+    pub question_id: String,
+    pub session: u32,
+    pub title: String,
     pub messages: Vec<CoachMessage>,
 }
 
@@ -346,10 +358,44 @@ impl Coach {
 
     pub fn history(exams: &Exams, store: &Store, question_id: &str) -> AppResult<CoachHistory> {
         let subject = exams.coach_subject(question_id, false)?;
-        Ok(CoachHistory {
-            title: store.coach_session_title(&subject.attempt_id, question_id)?,
-            messages: store.coach_messages(&subject.attempt_id, question_id)?,
-        })
+        let (session, messages) = store.coach_messages(&subject.attempt_id, question_id)?;
+        Ok(CoachHistory { session: session as u32, title: store.coach_session_title(&subject.attempt_id, question_id)?, messages })
+    }
+
+    /// A new session for the question; the earlier ones stay in History
+    pub async fn new_session(&self, exams: &Exams, store: &Store, question_id: &str) -> AppResult<()> {
+        let subject = exams.coach_subject(question_id, false)?;
+        self.forget_session(&subject.attempt_id, question_id).await;
+        store.new_coach_session(&subject.attempt_id, question_id).map(|_| ())
+    }
+
+    /// Go back to an earlier session of the question
+    pub async fn open_session(&self, exams: &Exams, store: &Store, question_id: &str, session: u32) -> AppResult<()> {
+        let subject = exams.coach_subject(question_id, false)?;
+        self.forget_session(&subject.attempt_id, question_id).await;
+        store.open_coach_session(&subject.attempt_id, question_id, i64::from(session))
+    }
+
+    /// The agent's conversation for the question ends: the next question
+    /// starts one from the session the pane shows
+    async fn forget_session(&self, attempt_id: &str, question_id: &str) {
+        if let Some((session, ..)) = self.open.lock().await.remove(&(attempt_id.to_string(), question_id.to_string())) {
+            self.agent.close(&session).await;
+        }
+    }
+
+    /// The attempts that have sessions (not the study plans kept alongside)
+    pub fn coached_attempts(store: &Store) -> AppResult<Vec<String>> {
+        Ok(store.coached_attempts()?.into_iter().filter(|a| a != STUDY_PLANS).collect())
+    }
+
+    /// Every session of a past attempt, to read back (History)
+    pub fn transcripts(store: &Store, attempt_id: &str) -> AppResult<Vec<CoachTranscript>> {
+        Ok(store
+            .coach_transcripts(attempt_id)?
+            .into_iter()
+            .map(|(question_id, session, title, messages)| CoachTranscript { question_id, session: session as u32, title, messages })
+            .collect())
     }
 
     /// The attempt's coach sessions, one per question asked about
@@ -358,7 +404,7 @@ impl Coach {
         Ok(store
             .coach_sessions(&attempt)?
             .into_iter()
-            .map(|(question_id, title, messages)| CoachSession { question_id, title, messages })
+            .map(|(question_id, session, title, messages)| CoachSession { question_id, session: session as u32, title, messages })
             .collect())
     }
 
@@ -429,7 +475,7 @@ impl Coach {
                     }
                 };
                 self.agent.set_effort(&session, model, effort).await?;
-                let history = store.coach_messages(&subject.attempt_id, question_id)?;
+                let (_, history) = store.coach_messages(&subject.attempt_id, question_id)?;
                 (session, prompt(&subject, checks, snapshot.as_deref(), &history, text))
             }
         };
@@ -438,7 +484,7 @@ impl Coach {
         // the answer is written: a quick model, nothing waits longer for it
         let settings = store.agent_settings().unwrap_or_default();
         let first = settings.auto_titles
-            && store.coach_messages(&subject.attempt_id, question_id)?.is_empty()
+            && store.coach_messages(&subject.attempt_id, question_id)?.1.is_empty()
             && store.coach_session_title(&subject.attempt_id, question_id)?.is_none();
         let naming = async {
             if !first {
@@ -541,9 +587,7 @@ impl Coach {
     /// Start the question's session over (the panel's New Session)
     pub async fn clear(&self, exams: &Exams, store: &Store, question_id: &str) -> AppResult<()> {
         let subject = exams.coach_subject(question_id, false)?;
-        if let Some((session, ..)) = self.open.lock().await.remove(&(subject.attempt_id.clone(), question_id.to_string())) {
-            self.agent.close(&session).await;
-        }
+        self.forget_session(&subject.attempt_id, question_id).await;
         store.clear_coach_messages(&subject.attempt_id, question_id)
     }
 
@@ -571,7 +615,7 @@ impl Coach {
 
     /// The latest study plan written for a certification
     pub fn last_study_plan(store: &Store, certification: &str) -> AppResult<Option<String>> {
-        Ok(store.coach_messages(STUDY_PLANS, certification)?.pop().map(|m| m.text))
+        Ok(store.coach_messages(STUDY_PLANS, certification)?.1.pop().map(|m| m.text))
     }
 
     /// Generate a question and prove it; stopped by `cancel` while the model writes

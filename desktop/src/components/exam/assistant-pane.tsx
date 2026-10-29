@@ -55,7 +55,7 @@ import {
 	type Profile,
 	type QuestionView,
 } from "@/tauri/api";
-import { Answer } from "./answer";
+import { Answer, UserMessage } from "./answer";
 
 const tokens = (n: number) =>
 	n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n);
@@ -175,7 +175,7 @@ export function AssistantPane({
 								className={menuRow()}
 								onClick={() => {
 									setOpen(null);
-									coach.clear(question.id);
+									coach.newSession(question.id);
 								}}
 							>
 								<a.Icon className={cn("size-3.5 shrink-0", a.tint)} />
@@ -205,15 +205,18 @@ export function AssistantPane({
 						)}
 						{history.map(t => (
 							<button
-								key={t.question_id}
+								key={`${t.question_id}/${t.session}`}
 								type="button"
 								className={menuRow()}
 								onClick={() => {
 									setOpen(null);
 									onOpenQuestion?.(t.question_id);
+									coach.openSession(t.question_id, t.session);
 								}}
 							>
-								{t.question_id === question.id && <Checked />}
+								{t.question_id === question.id && t.session === coach.shown[question.id] && (
+									<Checked />
+								)}
 								<Truncated>{t.title}</Truncated>
 								<span className={menu.hint}>{t.messages / 2}</span>
 							</button>
@@ -284,7 +287,7 @@ export function AssistantPane({
 								coach.clear(question.id);
 							}}
 						>
-							Clear Session
+							Delete Session
 						</button>
 					</PopoverContent>
 				</Popover>
@@ -312,18 +315,14 @@ export function AssistantPane({
 					<div className="flex flex-col">
 						{messages.map((m, i) =>
 							m.role === "user" ? (
-								<div
+								<UserMessage
 									// Messages only grow at the end
 									// biome-ignore lint/suspicious/noArrayIndexKey: append-only list
 									key={i}
-									// The candidate's own: a bubble on the right, as wide as its text
-									className={cn(
-										"my-1 ml-10 w-fit max-w-full self-end whitespace-pre-wrap rounded-xl rounded-br-sm bg-highlight/15 px-3 py-1.5 text-callout [overflow-wrap:anywhere]",
-										i > 0 && "mt-5"
-									)}
+									className={i > 0 ? "mt-5" : undefined}
 								>
 									{m.text}
-								</div>
+								</UserMessage>
 							) : (
 								// biome-ignore lint/suspicious/noArrayIndexKey: append-only list
 								<div key={i} className="my-1 flex min-w-0 flex-col gap-1.5 px-2">

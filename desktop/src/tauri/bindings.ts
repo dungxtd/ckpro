@@ -83,8 +83,16 @@ export const commands = {
 	coachSignInInput: (line: string) => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_in_input", { line })),
 	coachSignInCancel: () => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_in_cancel")),
 	coachSignOut: () => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_out")),
-	/**  Start a question's coach session over (New Session). */
+	/**  Delete the question's current coach session (Delete Session). */
 	coachClear: (questionId: string) => typedError<null, AppError>(__TAURI_INVOKE("coach_clear", { questionId })),
+	/**  A new coach session for the question (New Session); the earlier ones stay. */
+	coachNewSession: (questionId: string) => typedError<null, AppError>(__TAURI_INVOKE("coach_new_session", { questionId })),
+	/**  Show an earlier coach session of the question (History). */
+	coachOpenSession: (questionId: string, session: number) => typedError<null, AppError>(__TAURI_INVOKE("coach_open_session", { questionId, session })),
+	/**  Every coach session of a past attempt, to read back. */
+	coachTranscripts: (attemptId: string) => typedError<CoachTranscript[], AppError>(__TAURI_INVOKE("coach_transcripts", { attemptId })),
+	/**  The past attempts that have coach sessions (History shows a way to them). */
+	coachedAttempts: () => typedError<string[], AppError>(__TAURI_INVOKE("coached_attempts")),
 	/**  The attempt's coach sessions (History). */
 	coachSessions: () => typedError<CoachSession[], AppError>(__TAURI_INVOKE("coach_sessions")),
 	/**  Name a question's coach session (empty: back to its first question). */
@@ -386,12 +394,14 @@ export type CoachHistory = CoachHistory_Serialize | CoachHistory_Deserialize;
 
 /**  A question's coach session: its own name (if renamed) and its messages */
 export type CoachHistory_Deserialize = {
+	session: number,
 	title?: string | null,
 	messages: CoachMessage[],
 };
 
 /**  A question's coach session: its own name (if renamed) and its messages */
 export type CoachHistory_Serialize = {
+	session: number,
 	title: string | null,
 	messages: CoachMessage[],
 };
@@ -443,6 +453,8 @@ export type CoachReply_Serialize = {
  */
 export type CoachSession = {
 	question_id: string,
+	/**  Which of the question's sessions (0 is its first) */
+	session: number,
 	/**  Its own name, else its first question */
 	title: string,
 	messages: number,
@@ -463,6 +475,14 @@ export type CoachStatus_Serialize = {
 	ready: boolean,
 	/**  What to install when it cannot */
 	problem: string | null,
+};
+
+/**  A finished attempt's session, read back in History */
+export type CoachTranscript = {
+	question_id: string,
+	session: number,
+	title: string,
+	messages: CoachMessage[],
 };
 
 export type ContainerStatus = { state: "running" } | { state: "stopped" } | 

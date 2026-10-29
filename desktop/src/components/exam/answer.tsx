@@ -36,3 +36,17 @@ export const Answer = memo(function Answer({
 		</div>
 	);
 });
+
+/** The candidate's own message: a bubble on the right, as wide as its text */
+export function UserMessage({ children, className }: { children: string; className?: string }) {
+	return (
+		<div
+			className={cn(
+				"my-1 ml-10 w-fit max-w-full self-end whitespace-pre-wrap rounded-xl rounded-br-sm bg-highlight/15 px-3 py-1.5 text-callout [overflow-wrap:anywhere]",
+				className
+			)}
+		>
+			{children}
+		</div>
+	);
+}

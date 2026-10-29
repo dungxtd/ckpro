@@ -245,7 +245,7 @@ pub async fn desktop_open_url(exams: State<'_, Arc<Exams>>, url: String) -> AppR
 use crate::ai::account::{Account, SignInEvent, SignInMethod};
 use crate::ai::agent::{ModelOption, RuntimeInfo};
 use crate::ai::policy::AgentSettings;
-use crate::ai::{Coach, CoachContext, CoachModels, ModelChoice, CoachEvent, CoachReply, CoachHistory, CoachSession, CoachStatus};
+use crate::ai::{Coach, CoachContext, CoachModels, ModelChoice, CoachEvent, CoachReply, CoachHistory, CoachSession, CoachStatus, CoachTranscript};
 use crate::ai::generate::{self, GenerateRequest, Generated, GeneratorTarget};
 use crate::lab::exam::StudyStats;
 
@@ -327,7 +327,7 @@ pub async fn coach_ask(
         .await
 }
 
-/// Start a question's coach session over (New Session).
+/// Delete the question's current coach session (Delete Session).
 #[tauri::command]
 #[specta::specta]
 pub async fn coach_clear(
@@ -337,6 +337,45 @@ pub async fn coach_clear(
     question_id: String,
 ) -> AppResult<()> {
     coach.clear(&exams, &store, &question_id).await
+}
+
+/// A new coach session for the question (New Session); the earlier ones stay.
+#[tauri::command]
+#[specta::specta]
+pub async fn coach_new_session(
+    coach: State<'_, Coach>,
+    exams: State<'_, Arc<Exams>>,
+    store: State<'_, Arc<Store>>,
+    question_id: String,
+) -> AppResult<()> {
+    coach.new_session(&exams, &store, &question_id).await
+}
+
+/// Show an earlier coach session of the question (History).
+#[tauri::command]
+#[specta::specta]
+pub async fn coach_open_session(
+    coach: State<'_, Coach>,
+    exams: State<'_, Arc<Exams>>,
+    store: State<'_, Arc<Store>>,
+    question_id: String,
+    session: u32,
+) -> AppResult<()> {
+    coach.open_session(&exams, &store, &question_id, session).await
+}
+
+/// Every coach session of a past attempt, to read back.
+#[tauri::command]
+#[specta::specta]
+pub fn coach_transcripts(store: State<'_, Arc<Store>>, attempt_id: String) -> AppResult<Vec<CoachTranscript>> {
+    Coach::transcripts(&store, &attempt_id)
+}
+
+/// The past attempts that have coach sessions (History shows a way to them).
+#[tauri::command]
+#[specta::specta]
+pub fn coached_attempts(store: State<'_, Arc<Store>>) -> AppResult<Vec<String>> {
+    Coach::coached_attempts(&store)
 }
 
 /// The attempt's coach sessions (History).
