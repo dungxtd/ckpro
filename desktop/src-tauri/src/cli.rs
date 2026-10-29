@@ -33,10 +33,6 @@ enum Command {
         /// A pack directory instead of the bundled one
         #[arg(long)]
         pack: Option<PathBuf>,
-        /// The assistant's agent session for this question (ckdry starts it):
-        /// its tools run approved commands on the task's host
-        #[arg(long, hide = true)]
-        agent: Option<String>,
     },
     /// Print the images to publish (name, image with its tag, build args):
     /// CI builds and pushes them, the app pulls them
@@ -115,7 +111,7 @@ pub fn main() -> ExitCode {
         Command::Lab { command: LabCommand::Generate { pack, certification, domain, difficulty, topic } } => {
             generate_question(&pack, certification, domain, &difficulty, topic)
         }
-        Command::Mcp { pack, agent } => serve_mcp(pack, agent),
+        Command::Mcp { pack } => serve_mcp(pack),
         Command::Schema { out } => write_schemas(&out),
         Command::Images => {
             println!("{}", serde_json::to_string_pretty(&crate::runtime::infra::manifest()).unwrap_or_default());
@@ -124,7 +120,7 @@ pub fn main() -> ExitCode {
     }
 }
 
-fn serve_mcp(pack: Option<PathBuf>, agent: Option<String>) -> ExitCode {
+fn serve_mcp(pack: Option<PathBuf>) -> ExitCode {
     let core = match pack {
         Some(root) => match load::load(&root).0 {
             Some(pack) => pack,
@@ -136,7 +132,7 @@ fn serve_mcp(pack: Option<PathBuf>, agent: Option<String>) -> ExitCode {
     let data_dir = crate::data_dir();
     let bank = crate::lab::mine::merged(core, &data_dir);
     let result = crate::store::Store::open(&data_dir.join("ckdry.db"))
-        .and_then(|store| crate::ai::mcp::serve(bank, store, data_dir, agent));
+        .and_then(|store| crate::ai::mcp::serve(bank, store, data_dir));
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {

@@ -1,7 +1,7 @@
-//! The MCP server the assistant's agent sessions reach: the tools of
-//! `ckdry mcp --agent`, served by the app itself over HTTP (Streamable HTTP,
-//! JSON replies). Only the app's loopback, and only with this run's token;
-//! the session's question is in the path.
+//! The MCP server the assistant's agent sessions reach: their tools, served
+//! by the app itself over HTTP (Streamable HTTP, JSON replies). Only the
+//! app's loopback, and only with this run's token; the session's question is
+//! in the path.
 
 use super::mcp::Server;
 use crate::error::{AppError, AppResult};
@@ -30,13 +30,30 @@ impl McpHttp {
         let token: String = (0..32).map(|_| format!("{:02x}", rand::random::<u8>())).collect();
         let context: Context = Arc::new((Box::new(bank), store, data_dir, token.clone()));
         tokio::spawn(async move {
+            // A few sessions at a time; a client that never sends its request
+            // does not hold a connection for long
+            let slots = Arc::new(tokio::sync::Semaphore::new(MAX_CONNECTIONS));
             loop {
-                let Ok((stream, _)) = listener.accept().await else { continue };
+                let (stream, _) = match listener.accept().await {
+                    Ok(accepted) => accepted,
+                    Err(e) => {
+                        // Out of file descriptors, say: wait instead of spinning
+                        tracing::warn!(error = %e, "accepting an MCP connection");
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        continue;
+                    }
+                };
+                let Ok(slot) = slots.clone().acquire_owned().await else { break };
                 let context = context.clone();
                 tokio::spawn(async move {
+                    let _slot = slot;
                     let service = hyper::service::service_fn(move |request| handle(context.clone(), request));
                     let io = hyper_util::rt::TokioIo::new(stream);
-                    let _ = hyper::server::conn::http1::Builder::new().serve_connection(io, service).await;
+                    let _ = hyper::server::conn::http1::Builder::new()
+                        .timer(hyper_util::rt::TokioTimer::new())
+                        .header_read_timeout(std::time::Duration::from_secs(10))
+                        .serve_connection(io, service)
+                        .await;
                 });
             }
         });
@@ -55,6 +72,9 @@ impl McpHttp {
         })
     }
 }
+
+/// Connections served at once
+const MAX_CONNECTIONS: usize = 16;
 
 type Context = Arc<(Box<dyn Fn() -> Arc<LoadedPack> + Send + Sync>, Arc<Store>, PathBuf, String)>;
 

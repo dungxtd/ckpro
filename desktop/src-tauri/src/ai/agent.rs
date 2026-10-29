@@ -520,15 +520,18 @@ impl Agent {
 mod tests {
     use super::*;
 
-    /// The real adapter with ckdry's agent tools (needs Node, a Claude login
-    /// and `cargo build`): it asks before running a command, runs it once
-    /// allowed, and reports the call
+    /// The real adapter with ckdry's agent tools, served as the app serves
+    /// them (needs Node and a Claude login): it asks before running a
+    /// command, runs it once allowed, and reports the call
     #[tokio::test]
     #[ignore]
     async fn agent_asks_then_runs_ckdry_tools() {
         let agent = Agent::new();
-        let ckdry = concat!(env!("CARGO_MANIFEST_DIR"), "/target/debug/ckdry");
-        let tools = json!([{ "name": "ckdry", "command": ckdry, "args": ["mcp", "--agent", "core/none"], "env": [] }]);
+        let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../packs/core"));
+        let bank = std::sync::Arc::new(crate::lab::load::load(&root).0.unwrap());
+        let store = std::sync::Arc::new(crate::store::Store::in_memory().unwrap());
+        let server = crate::ai::mcp_http::McpHttp::start(move || bank.clone(), store, std::env::temp_dir()).await.unwrap();
+        let tools = json!([server.server_for("core/none")]);
         let session = agent.new_session_with("You run what the user asks with your tools, then say what happened in one sentence.", "haiku", tools).await.unwrap();
         let asked = std::sync::Mutex::new(Vec::new());
         let calls = std::sync::Mutex::new(Vec::new());

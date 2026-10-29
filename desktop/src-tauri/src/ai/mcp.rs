@@ -28,20 +28,19 @@ pub struct Server {
     bank: std::sync::Arc<LoadedPack>,
     store: std::sync::Arc<Store>,
     data_dir: PathBuf,
-    /// The assistant's agent session for this question (`ckdry mcp --agent`):
-    /// its tools run commands for it, on the task's host
+    /// The assistant's agent session for this question (served by the app
+    /// over HTTP): its tools run commands for it, on the task's host
     agent: Option<String>,
 }
 
 /// Output a command returns to the model (its end, where errors are)
 const OUTPUT_MAX_BYTES: usize = 16 * 1024;
 
-/// Serve on stdin/stdout until stdin closes; `agent`: the question of the
-/// assistant's agent session
-pub fn serve(bank: LoadedPack, store: Store, data_dir: PathBuf, agent: Option<String>) -> AppResult<()> {
+/// Serve the read-only tools on stdin/stdout until stdin closes
+pub fn serve(bank: LoadedPack, store: Store, data_dir: PathBuf) -> AppResult<()> {
     // Its checks exec in the app's containers: tell the app's guard they are ckdry's
     crate::runtime::guard::share_own_execs();
-    let server = Server::new(std::sync::Arc::new(bank), std::sync::Arc::new(store), data_dir, agent);
+    let server = Server::new(std::sync::Arc::new(bank), std::sync::Arc::new(store), data_dir, None);
     let runtime = tokio::runtime::Runtime::new().map_err(|e| AppError::io("starting the MCP server", e))?;
     let stdout = std::io::stdout();
     for line in std::io::stdin().lock().lines() {
@@ -98,7 +97,12 @@ Coach: explain and point to kubernetes.io docs; do not solve the task for them u
     async fn call(&self, params: &Value) -> Value {
         let args = &params["arguments"];
         let text = |key: &str| args[key].as_str().map(str::to_string);
-        let result = match params["name"].as_str().unwrap_or_default() {
+        let name = params["name"].as_str().unwrap_or_default();
+        // An agent session has only the tools it is told of
+        if self.agent.is_some() && !agent_tools().as_array().into_iter().flatten().any(|t| t["name"] == name) {
+            return json!({ "content": [{ "type": "text", "text": format!("no tool named {name}") }], "isError": true });
+        }
+        let result = match name {
             "list_exams" => self.list_exams(),
             "list_questions" => self.list_questions(text("certification"), text("domain")),
             "get_question" => self.get_question(&text("id").unwrap_or_default(), args["solution"].as_bool().unwrap_or(false)),
