@@ -14,6 +14,9 @@ type Internals = {
 	_sendMouse(x: number, y: number, mask: number): void;
 };
 
+/** The element noVNC routes a press's events through while it lasts */
+const CAPTURE_ID = "noVNC_mouse_capture_elem";
+
 /** The right button in the desktop's pointer events */
 const RIGHT_BUTTON = 4;
 
@@ -43,7 +46,11 @@ export function DesktopView({
 	const [connected, setConnected] = useState(false);
 	// noVNC stops its canvas's mouse events: a press on it still closes menus
 	const surface = useDismissSurface();
+	// noVNC hands a press's later events (the release) to an element of its
+	// own over the whole page: the desktop too, for menus to close on a press
+	const captureSurface = useDismissSurface();
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: connects once; the surface setter is stable
 	useEffect(() => {
 		let retry: ReturnType<typeof setTimeout> | undefined;
 		let stopped = false;
@@ -133,6 +140,15 @@ export function DesktopView({
 				rfb.focus({ preventScroll: true });
 				// Copied while it was (re)connecting
 				connectClipboard(text => rfb.clipboardPasteFrom(text));
+				// That element is made on the first press; made now, view only
+				// meanwhile so the desktop gets nothing
+				if (!document.getElementById(CAPTURE_ID)) {
+					rfb.viewOnly = true;
+					internals._canvas.dispatchEvent(new MouseEvent("mousedown", { buttons: 1 }));
+					window.dispatchEvent(new MouseEvent("mouseup"));
+					rfb.viewOnly = false;
+				}
+				captureSurface(document.getElementById(CAPTURE_ID) as HTMLDivElement | null);
 			});
 			rfb.addEventListener("disconnect", () => {
 				setConnected(false);

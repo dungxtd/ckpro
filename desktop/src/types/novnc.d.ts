@@ -11,6 +11,7 @@ declare module "@novnc/novnc" {
 		scaleViewport: boolean;
 		clipViewport: boolean;
 		focusOnClick: boolean;
+		viewOnly: boolean;
 		background: string;
 		/** JPEG quality for photo-like areas, 0-9 */
 		qualityLevel: number;
