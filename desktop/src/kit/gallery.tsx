@@ -80,7 +80,7 @@ import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";
 import { StatusDot } from "@/components/environment/status-dot";
 import { Answer } from "@/components/exam/answer";
 import { CheckList } from "@/components/exam/check-list";
-import { CopyText } from "@/components/exam/copy-text";
+import { CopyBlock, CopyText } from "@/components/exam/copy-text";
 import { Timer } from "@/components/exam/timer";
 import "../index.css";
 
@@ -584,6 +584,10 @@ function Gallery() {
 							text="ssh k8s"
 						/>
 					</Row>
+					<CopyBlock
+						text={"kubectl -n team-a get pods\nkubectl -n team-a describe pod web"}
+						lang="shell"
+					/>
 					<CheckList
 						checks={[
 							{

@@ -2,7 +2,6 @@ import { Alert } from "@ckdry/ui/components/alert";
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
-import { CodeBlock } from "@ckdry/ui/components/code-block";
 import { Separator } from "@ckdry/ui/components/separator";
 import {
 	Sheet,
@@ -21,6 +20,7 @@ import { useAssistantEnabled } from "@/stores/settings";
 import type { Attempt, ExamResult } from "@/tauri/api";
 import { AssistantPane } from "./assistant-pane";
 import { CheckList } from "./check-list";
+import { CopyBlock } from "./copy-text";
 import { Confirm } from "./top-bar";
 import { useSolution } from "./use-solution";
 
@@ -150,7 +150,7 @@ function ReviewSolution({ questionId }: { questionId: string }) {
 				<div className="mt-1 flex flex-col gap-2">
 					<Separator />
 					<Markdown>{solution.explain}</Markdown>
-					<CodeBlock>{solution.run}</CodeBlock>
+					<CopyBlock text={solution.run.replace(/\n$/, "")} lang="shell" />
 				</div>
 			)}
 		</>

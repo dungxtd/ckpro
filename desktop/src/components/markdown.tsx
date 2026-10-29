@@ -2,11 +2,16 @@ import { cn } from "@ckdry/ui/lib/utils";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
-import { CopyText } from "@/components/exam/copy-text";
+import { CopyBlock, CopyText } from "@/components/exam/copy-text";
 import { DocLink } from "@/components/exam/doc-link";
 import { ApiError, browserApi } from "@/tauri/api";
 
-type Node = { type: string; value?: string; children?: Node[] };
+type Node = {
+	type: string;
+	value?: string;
+	properties?: { className?: string[] };
+	children?: Node[];
+};
 const textOf = (node?: Node): string =>
 	node?.type === "text" ? (node.value ?? "") : (node?.children ?? []).map(textOf).join("");
 
@@ -14,11 +19,22 @@ const textOf = (node?: Node): string =>
  * its own (it can carry what the page shows). Their alt text stands in */
 export const noImage: Components["img"] = ({ alt }) => (alt ? <span>{alt}</span> : null);
 
+/** A fenced block: its language (```yaml) as the title */
+export function MarkdownCode({ node }: { node?: Node }) {
+	const code = node?.children?.[0];
+	const lang = code?.properties?.className?.[0]?.replace("language-", "");
+	return (
+		<div className="my-2">
+			<CopyBlock text={textOf(code).replace(/\n$/, "")} lang={lang} />
+		</div>
+	);
+}
+
 /** Code and code blocks copy to the exam desktop on click; links open in its Firefox */
 const COPY: Components = {
 	img: noImage,
 	code: ({ node }) => <CopyText text={textOf(node as Node)} />,
-	pre: ({ node }) => <CopyText block text={textOf(node as Node).replace(/\n$/, "")} />,
+	pre: ({ node }) => <MarkdownCode node={node as Node} />,
 	a: ({ href, children }) => <DocLink href={href}>{children}</DocLink>,
 };
 
@@ -49,7 +65,7 @@ export const PROSE =
 
 /** A page's text: roomier, its code blocks framed here */
 const MARKDOWN =
-	"text-sm [&_h1]:mt-4 [&_h1]:mb-1 [&_h1]:text-base [&_h2]:mt-4 [&_h2]:mb-1 [&_h3]:mt-3 [&_code]:py-0.5 [&_ol]:my-2 [&_p]:my-2 [&_pre]:my-2 [&_pre]:overflow-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-2 [&_ul]:my-2";
+	"text-sm [&_h1]:mt-4 [&_h1]:mb-1 [&_h1]:text-base [&_h2]:mt-4 [&_h2]:mb-1 [&_h3]:mt-3 [&_code]:py-0.5 [&_ol]:my-2 [&_p]:my-2 [&>pre]:my-2 [&>pre]:overflow-auto [&>pre]:rounded-md [&>pre]:bg-muted [&>pre]:p-2 [&_ul]:my-2";
 
 /**
  * Question and solution text: GitHub-flavoured Markdown, styled for reading.
