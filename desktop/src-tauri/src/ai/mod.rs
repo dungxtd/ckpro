@@ -160,8 +160,9 @@ pub struct Coach {
     enabled: std::sync::atomic::AtomicBool,
     /// The tools agent sessions get, once their server listens
     tools: std::sync::OnceLock<mcp_http::McpHttp>,
-    /// Permission requests waiting for the candidate, by id
-    permissions: Mutex<HashMap<u32, tokio::sync::oneshot::Sender<serde_json::Value>>>,
+    /// Permission requests waiting for the candidate, by id: the options
+    /// offered, and where the answer goes
+    permissions: Mutex<HashMap<u32, (Vec<String>, tokio::sync::oneshot::Sender<serde_json::Value>)>>,
     /// The Claude login being run, if any
     signing_in: tokio::sync::Mutex<Option<account::SigningIn>>,
 }
@@ -207,22 +208,24 @@ impl Coach {
     }
 
     /// Keep a permission request for the candidate; its id
-    fn next_permission(&self, reply: tokio::sync::oneshot::Sender<serde_json::Value>) -> u32 {
+    fn next_permission(&self, offered: Vec<String>, reply: tokio::sync::oneshot::Sender<serde_json::Value>) -> u32 {
         static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
         let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        self.permissions.lock().unwrap_or_else(|p| p.into_inner()).insert(id, reply);
+        self.permissions.lock().unwrap_or_else(|p| p.into_inner()).insert(id, (offered, reply));
         id
     }
 
     /// The candidate's answer to a permission request: one of its options,
     /// or none to cancel
     pub fn permit(&self, id: u32, option: Option<String>) -> AppResult<()> {
-        let reply = self
-            .permissions
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .remove(&id)
-            .ok_or_else(|| AppError::not_found("that request was already answered or stopped"))?;
+        let mut waiting = self.permissions.lock().unwrap_or_else(|p| p.into_inner());
+        let (offered, reply) =
+            waiting.remove(&id).ok_or_else(|| AppError::not_found("that request was already answered or stopped"))?;
+        if option.as_ref().is_some_and(|o| !offered.contains(o)) {
+            waiting.insert(id, (offered, reply));
+            return Err(AppError::invalid("that answer was not offered"));
+        }
+        drop(waiting);
         let outcome = match option {
             Some(option) => serde_json::json!({ "outcome": { "outcome": "selected", "optionId": option } }),
             None => serde_json::json!({ "outcome": { "outcome": "cancelled" } }),
@@ -418,6 +421,7 @@ impl Coach {
             transcript.lock().unwrap_or_else(|p| p.into_inner()).push_str(t);
             on_event(CoachEvent::Text { text: t.to_string() });
         };
+        let asked = Mutex::new(Vec::new());
         let stream = |event: agent::AgentEvent| match event {
             agent::AgentEvent::Text(t) => text_out(t),
             agent::AgentEvent::Tool(call) => {
@@ -441,23 +445,29 @@ impl Coach {
                     let _ = reply.send(serde_json::json!({ "outcome": { "outcome": "selected", "optionId": once["optionId"] } }));
                     return;
                 }
-                let id = self.next_permission(reply);
-                let options = params["options"]
+                // Not "always": Tool access in Settings decides what runs
+                // unasked, and a later change there must still hold
+                let options: Vec<PermissionOption> = params["options"]
                     .as_array()
                     .into_iter()
                     .flatten()
+                    .filter(|o| o["kind"] != "allow_always")
                     .map(|o| PermissionOption {
                         id: o["optionId"].as_str().unwrap_or_default().to_string(),
                         name: o["name"].as_str().unwrap_or_default().to_string(),
                         kind: o["kind"].as_str().unwrap_or_default().to_string(),
                     })
                     .collect();
+                let id = self.next_permission(options.iter().map(|o| o.id.clone()).collect(), reply);
+                asked.lock().unwrap_or_else(|p| p.into_inner()).push(id);
                 on_event(CoachEvent::Permission { id, command, options });
             }
         };
         let (answer, title) = tokio::join!(self.agent.prompt_with(&session, &prompt, &cancel, &stream), naming);
-        // Requests left unanswered (stopped, failed) are cancelled with it
-        self.permissions.lock().unwrap_or_else(|p| p.into_inner()).clear();
+        // Its requests left unanswered (stopped, failed) are cancelled with
+        // it; a newer answer's stay
+        let asked = asked.into_inner().unwrap_or_else(|p| p.into_inner());
+        self.permissions.lock().unwrap_or_else(|p| p.into_inner()).retain(|id, _| !asked.contains(id));
         if ran.load(std::sync::atomic::Ordering::SeqCst) {
             store.mark_assisted(&subject.attempt_id, question_id)?;
         }

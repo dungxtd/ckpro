@@ -580,8 +580,8 @@ const PROFILES: { value: Profile; name: string; detail: string }[] = [
 ];
 
 /**
- * The agent asks to run a command: allow it (Enter), always for this session,
- * or skip it (Escape). Ask's answers come as the agent's own options
+ * The agent asks to run a command: run it (Enter) or skip it (Escape). What
+ * runs unasked is Settings' Tool access, never an "always" given here
  */
 function PermissionCard({
 	command,
@@ -593,7 +593,6 @@ function PermissionCard({
 	onAnswer: (option: string | null) => void;
 }) {
 	const once = options.find(o => o.kind === "allow_once");
-	const always = options.find(o => o.kind === "allow_always");
 	const reject =
 		options.find(o => o.kind === "reject_once") ?? options.find(o => o.kind === "reject_always");
 	useEffect(() => {
@@ -604,7 +603,7 @@ function PermissionCard({
 			if (e.defaultPrevented || e.repeat || performance.now() - shown < 400) return;
 			// Not while typing a message (focus stays in the editor after sending)
 			const typing = e.target instanceof HTMLTextAreaElement && e.target.value.trim() !== "";
-			// Enter on another control (Skip, Always allow, a field) is that control's
+			// Enter on another control (Skip, a field) is that control's
 			const control =
 				e.target instanceof HTMLElement &&
 				(e.target.isContentEditable ||
@@ -632,11 +631,6 @@ function PermissionCard({
 				<Button size="push" variant="push" onClick={() => onAnswer(reject?.id ?? null)}>
 					Skip <kbd className="text-muted-foreground text-xs">esc</kbd>
 				</Button>
-				{always && (
-					<Button size="push" variant="push" onClick={() => onAnswer(always.id)}>
-						Always allow
-					</Button>
-				)}
 				{once && (
 					<Button size="push" variant="pushDefault" onClick={() => onAnswer(once.id)}>
 						Run <kbd className="opacity-70 text-xs">↵</kbd>
