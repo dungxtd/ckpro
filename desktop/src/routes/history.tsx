@@ -1,4 +1,5 @@
 import { Badge } from "@ckdry/ui/components/badge";
+import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Loading } from "@ckdry/ui/components/loading";
 import {
 	Table,
@@ -8,17 +9,23 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ckdry/ui/components/table";
+import { History } from "lucide-react";
 import { useEffect, useState } from "react";
+import { AttemptChats } from "@/components/history/attempt-chats";
 import { StudyPlan } from "@/components/history/study-plan";
 import { useAssistantEnabled } from "@/stores/settings";
-import { examApi, type HistoryEntry } from "@/tauri/api";
+import { coachApi, examApi, type HistoryEntry } from "@/tauri/api";
 
 /** Past attempts, newest first. */
 export function HistoryRoute() {
 	const assistant = useAssistantEnabled();
 	const [history, setHistory] = useState<HistoryEntry[] | null>(null);
+	// Attempts with assistant sessions, and the one being read back
+	const [chatted, setChatted] = useState<Set<string>>(new Set());
+	const [reading, setReading] = useState<HistoryEntry | null>(null);
 	useEffect(() => {
 		examApi.history().then(setHistory);
+		coachApi.coachedAttempts().then(ids => setChatted(new Set(ids)));
 	}, []);
 
 	if (history === null) return <Loading fill label="Loading history…" />;
@@ -36,6 +43,9 @@ export function HistoryRoute() {
 						<TableHead>Mode</TableHead>
 						<TableHead>Score</TableHead>
 						<TableHead>Result</TableHead>
+						<TableHead>
+							<span className="sr-only">Assistant</span>
+						</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -52,10 +62,24 @@ export function HistoryRoute() {
 									{h.result.passed ? "Pass" : "Fail"}
 								</Badge>
 							</TableCell>
+							<TableCell className="w-10 text-right">
+								<IconButton
+									variant="toolbar"
+									size="xs"
+									aria-label={
+										chatted.has(h.attempt_id) ? "Assistant sessions" : "No assistant sessions"
+									}
+									disabled={!chatted.has(h.attempt_id)}
+									onClick={() => setReading(h)}
+								>
+									<History />
+								</IconButton>
+							</TableCell>
 						</TableRow>
 					))}
 				</TableBody>
 			</Table>
+			<AttemptChats entry={reading} onOpenChange={open => !open && setReading(null)} />
 		</div>
 	);
 }
