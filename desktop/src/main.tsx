@@ -5,7 +5,7 @@ import { Loading } from "@ckdry/ui/components/loading";
 import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import { Toaster } from "@ckdry/ui/components/sonner";
 import { CircleAlert, Settings } from "lucide-react";
-import { StrictMode, useEffect, useState } from "react";
+import { lazy, type ReactNode, StrictMode, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
 	HashRouter,
@@ -19,10 +19,6 @@ import {
 import { toast } from "sonner";
 import { ActivityChip } from "@/components/activity/activity-chip";
 import { CatalogRoute } from "@/routes/catalog";
-import { EnvironmentRoute } from "@/routes/environment";
-import { ExamRoute } from "@/routes/exam";
-import { HistoryRoute } from "@/routes/history";
-import { SettingsRoute } from "@/routes/settings";
 import { useActivities } from "@/stores/activity";
 import { useCoach } from "@/stores/coach";
 import { useEnvironment } from "@/stores/environment";
@@ -129,15 +125,19 @@ function App() {
 		<>
 			<HashRouter>
 				<ExamGuard />
-				<Routes>
-					<Route path="/exam" element={<ExamRoute />} />
-					<Route element={<Layout />}>
-						<Route path="/" element={<CatalogRoute />} />
-						<Route path="/history" element={<HistoryRoute />} />
-						<Route path="/environment" element={<EnvironmentRoute />} />
-						<Route path="/settings" element={<SettingsRoute />} />
-					</Route>
-				</Routes>
+				{/* The catalog comes with the app; the other screens load when first
+				    opened (the exam desk is the heaviest: the remote desktop, Markdown) */}
+				<Suspense fallback={<Loading fill />}>
+					<Routes>
+						<Route path="/exam" element={<ExamRoute />} />
+						<Route element={<Layout />}>
+							<Route path="/" element={<CatalogRoute />} />
+							<Route path="/history" element={<HistoryRoute />} />
+							<Route path="/environment" element={<EnvironmentRoute />} />
+							<Route path="/settings" element={<SettingsRoute />} />
+						</Route>
+					</Routes>
+				</Suspense>
 			</HashRouter>
 			<Toaster />
 		</>
@@ -170,6 +170,15 @@ function OpenFailed({ message, onRetry }: { message: string; onRetry: () => void
 window.addEventListener("unhandledrejection", e => {
 	toast.error(errorText(e.reason));
 });
+
+/** A route's screen, loaded when it is first shown */
+function screen<T extends string>(load: () => Promise<Record<T, () => ReactNode>>, name: T) {
+	return lazy(() => load().then(m => ({ default: m[name] })));
+}
+const ExamRoute = screen(() => import("@/routes/exam"), "ExamRoute");
+const HistoryRoute = screen(() => import("@/routes/history"), "HistoryRoute");
+const EnvironmentRoute = screen(() => import("@/routes/environment"), "EnvironmentRoute");
+const SettingsRoute = screen(() => import("@/routes/settings"), "SettingsRoute");
 
 createRoot(document.getElementById("root") as HTMLElement).render(
 	<StrictMode>
