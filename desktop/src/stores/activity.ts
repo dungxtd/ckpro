@@ -4,6 +4,8 @@ import { immer } from "zustand/middleware/immer";
 import { type Activity, activityApi } from "@/tauri/api";
 
 const LOG_LINES = 500;
+/** Finished activities kept, as on the Rust side */
+const KEPT = 20;
 
 interface ActivityStore {
 	/** By id; the Rust side keeps the last 20 */
@@ -21,6 +23,11 @@ export const useActivities = create<ActivityStore>()(
 					// Changes come without the log: keep the lines already here
 					const log = s.byId[activity.id]?.log ?? activity.log;
 					s.byId[activity.id] = { ...activity, log };
+					// As many finished ones as the Rust side keeps
+					const finished = Object.values(s.byId)
+						.filter(a => a.status !== "running")
+						.sort((a, b) => b.id - a.id);
+					for (const old of finished.slice(KEPT)) delete s.byId[old.id];
 				})
 			);
 			const stopLog = await activityApi.onLog((id, line) =>
