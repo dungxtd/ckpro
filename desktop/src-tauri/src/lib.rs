@@ -8,6 +8,7 @@ mod observability;
 mod runtime;
 mod store;
 mod sync;
+mod telemetry;
 
 use runtime::model::{Env, EnvState};
 use serde::{Deserialize, Serialize};
@@ -55,6 +56,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::desktop_open_url,
         commands::coach_status,
         commands::app_info,
+        commands::telemetry_configure,
         commands::agent_settings,
         commands::save_agent_settings,
         commands::coach_runtime,
@@ -178,6 +180,7 @@ pub fn run() {
             }
             builder.mount_events(app);
             let data_dir = data_dir();
+            telemetry::watch_panics(data_dir.clone());
             let kind = Arc::new(cluster::kind::Kind::new(data_dir.clone()));
             let infra = Arc::new(runtime::infra::Infra::new(data_dir.clone()));
             app.manage(infra.clone());

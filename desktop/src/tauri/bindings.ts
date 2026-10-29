@@ -34,6 +34,11 @@ export const commands = {
 	coachStatus: () => __TAURI_INVOKE<CoachStatus_Serialize>("coach_status"),
 	/**  Where the app keeps its data, and its version. */
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
+	/**
+	 *  Send the core's errors to PostHog as the interface's person and session,
+	 *  or stop (Settings > About).
+	 */
+	telemetryConfigure: (on: boolean, key: string, host: string, distinctId: string, sessionId: string | null) => __TAURI_INVOKE<void>("telemetry_configure", { on, key, host, distinctId, sessionId }),
 	/**  How far the assistant's agent may go on its own. */
 	agentSettings: () => typedError<AgentSettings_Serialize, AppError>(__TAURI_INVOKE("agent_settings")),
 	saveAgentSettings: (settings: AgentSettings_Deserialize) => typedError<AgentSettings_Serialize, AppError>(__TAURI_INVOKE("save_agent_settings", { settings })),

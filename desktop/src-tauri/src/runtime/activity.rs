@@ -146,6 +146,11 @@ impl Handle {
         self.id
     }
 
+    /// What it is ("Setting up CKA practice")
+    pub fn title(&self) -> String {
+        self.activities.lock().1.iter().find(|a| a.id == self.id).map(|a| a.title.clone()).unwrap_or_default()
+    }
+
     /// Move to step `index` (logged as `▸ step` when it is a new one).
     pub fn step(&self, index: u32, detail: Option<String>) {
         let mut title = None;
@@ -190,7 +195,10 @@ impl Op {
         match &result {
             Ok(_) => self.done(),
             Err(crate::error::AppError::Cancelled { .. }) => self.fail("Cancelled"),
-            Err(e) => self.fail(e),
+            Err(e) => {
+                crate::telemetry::activity_failed(&self.title(), &e.to_string());
+                self.fail(e)
+            }
         }
         result
     }

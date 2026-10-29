@@ -497,3 +497,11 @@ fn no_exam(exams: &Exams) -> AppResult<()> {
     }
     Ok(())
 }
+
+/// Send the core's errors to PostHog as the interface's person and session,
+/// or stop (Settings > About).
+#[tauri::command]
+#[specta::specta]
+pub fn telemetry_configure(on: bool, key: String, host: String, distinct_id: String, session_id: Option<String>) {
+    crate::telemetry::configure(on, key, host, distinct_id, session_id);
+}

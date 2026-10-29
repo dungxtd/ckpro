@@ -26,6 +26,7 @@ pub fn init(log_dir: &Path) {
     let _ = tracing_subscriber::registry()
         .with(fmt::layer().with_writer(std::io::stderr).with_filter(filter()))
         .with(file_layer)
+        .with(crate::telemetry::Layer)
         .try_init();
 }
 

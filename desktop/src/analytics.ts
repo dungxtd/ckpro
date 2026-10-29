@@ -1,3 +1,5 @@
+import { telemetryApi } from "@/tauri/api";
+
 /** The bundled client (its own build of PostHog) */
 type PostHog = typeof import("posthog-js/dist/module.full.no-external")["default"];
 
@@ -47,6 +49,7 @@ export async function setAnalytics(on: boolean, properties?: Record<string, unkn
 		client?.opt_out_capturing();
 		client?.stopSessionRecording();
 		queued.length = 0;
+		if (KEY) telemetryApi.configure(false, KEY, HOST);
 		return;
 	}
 	loading ??= load();
@@ -55,6 +58,14 @@ export async function setAnalytics(on: boolean, properties?: Record<string, unkn
 	if (client.has_opted_out_capturing()) client.opt_in_capturing();
 	client.startSessionRecording();
 	if (properties) client.register(properties);
+	// The core's errors go along, as the same person and session
+	telemetryApi.configure(
+		true,
+		KEY as string,
+		HOST,
+		client.get_distinct_id(),
+		client.get_session_id() ?? null
+	);
 	for (const [event, props] of queued.splice(0)) client.capture(event, props);
 }
 

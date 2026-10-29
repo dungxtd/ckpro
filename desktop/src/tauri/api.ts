@@ -268,3 +268,14 @@ export const examApi = {
 	/** Results per curriculum domain, per certification attempted */
 	studyStats: () => commands.studyStats(),
 };
+
+export const telemetryApi = {
+	/** Send the core's errors as this person and session, or stop */
+	configure: (
+		on: boolean,
+		key: string,
+		host: string,
+		distinctId = "",
+		sessionId: string | null = null
+	) => commands.telemetryConfigure(on, key, host, distinctId, sessionId),
+};
