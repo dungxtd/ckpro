@@ -1,5 +1,6 @@
 import { Button } from "@ckdry/ui/components/button";
 import { IconButton } from "@ckdry/ui/components/icon-button";
+import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import {
 	Select,
 	SelectContent,
@@ -19,7 +20,7 @@ import type { Attempt } from "@/tauri/api";
 import { AssistantPane } from "./assistant-pane";
 import { useDesktopSettings } from "./desktop-menu";
 import { DesktopView } from "./desktop-view";
-import { PracticeActions, QuestionPanel, TextSize } from "./question-panel";
+import { type PanelView, PracticeActions, QuestionPanel, TextSize } from "./question-panel";
 import { ReadMe } from "./readme";
 import { type DeskView, TopBar } from "./top-bar";
 
@@ -90,6 +91,10 @@ export function RunningExam({
 	const desk = useRef<HTMLDivElement>(null);
 	const question = attempt.questions[current];
 	const count = attempt.questions.length;
+	// The task or its solution (practice); another question opens on its task
+	const [view, setView] = useState<PanelView>("task");
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset when the question changes
+	useEffect(() => setView("task"), [question?.id]);
 
 	// The task panel's right border: its share of the desk
 	const dragTask = (event: React.PointerEvent) => {
@@ -192,8 +197,19 @@ export function RunningExam({
 						</div>
 						<TextSize />
 					</div>
+					{attempt.mode === "practice" && (
+						<div className="px-3 pb-2">
+							<SegmentedControl
+								label="Question panel"
+								options={PANEL_VIEWS}
+								value={view}
+								onChange={setView}
+								className="w-full [&>button]:flex-1"
+							/>
+						</div>
+					)}
 					<div className="min-h-0 flex-1 overflow-auto px-4 pb-4">
-						{question && <QuestionPanel attempt={attempt} question={question} />}
+						{question && <QuestionPanel attempt={attempt} question={question} view={view} />}
 					</div>
 					{question && attempt.mode === "practice" && (
 						<div className="border-border border-t px-3 pt-3">
@@ -283,6 +299,11 @@ export function RunningExam({
 		</div>
 	);
 }
+
+const PANEL_VIEWS: { value: PanelView; label: string }[] = [
+	{ value: "task", label: "Task" },
+	{ value: "solution", label: "Solution" },
+];
 
 /** A border dragged to resize the panels beside it */
 const RESIZE_HANDLE =

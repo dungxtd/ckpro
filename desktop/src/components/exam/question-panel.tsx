@@ -1,10 +1,9 @@
 import { Alert } from "@ckdry/ui/components/alert";
 import { Button } from "@ckdry/ui/components/button";
-import { Card } from "@ckdry/ui/components/card";
 import { Separator } from "@ckdry/ui/components/separator";
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { cn } from "@ckdry/ui/lib/utils";
-import { Lightbulb, ListChecks } from "lucide-react";
+import { Eye, Lightbulb, ListChecks } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { Markdown } from "@/components/markdown";
 import { useCoach } from "@/stores/coach";
@@ -12,9 +11,8 @@ import { useExam } from "@/stores/exam";
 import { useAssistantEnabled, useSettings } from "@/stores/settings";
 import type { Attempt, QuestionView } from "@/tauri/api";
 import { CheckList } from "./check-list";
-import { CopyText } from "./copy-text";
+import { CopyBlock, CopyText } from "./copy-text";
 import { DocList } from "./doc-link";
-import { useSolution } from "./use-solution";
 
 /** Question text sizes, in px (the text size stepper) */
 const SIZES = [
@@ -24,8 +22,20 @@ const SIZES = [
 	{ px: 18, className: "text-lg" },
 ];
 
-/** One task as the exam shows it, plus the practice-mode aids. */
-export function QuestionPanel({ attempt, question }: { attempt: Attempt; question: QuestionView }) {
+/** What the question panel shows: the task, or (practice) its solution */
+export type PanelView = "task" | "solution";
+
+/** One task as the exam shows it, plus the practice-mode aids; or its
+ * reference solution (practice), on a tab of its own */
+export function QuestionPanel({
+	attempt,
+	question,
+	view = "task",
+}: {
+	attempt: Attempt;
+	question: QuestionView;
+	view?: PanelView;
+}) {
 	const { hintsShown, checks } = useExam(
 		useShallow(s => ({ hintsShown: s.hintsShown, checks: s.checks }))
 	);
@@ -34,10 +44,35 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 	const practice = attempt.mode === "practice";
 	const hints = question.hints.slice(0, hintsShown[question.id] ?? 0);
 	const result = checks[question.id];
-	const { solution } = useSolution(question.id);
+	const solution = useExam(s => s.solutions[question.id]);
+	const loadSolution = useExam(s => s.loadSolution);
 	const settings = useSettings(s => s.settings);
 	const size = Math.min(SIZES.length - 1, settings.question_size);
 	const code = "rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-exam-value";
+
+	if (view === "solution")
+		return (
+			<div className={cn("flex flex-col gap-3", SIZES[size]?.className)}>
+				{solution ? (
+					<>
+						<Markdown copy className={SIZES[size]?.className}>
+							{solution.explain}
+						</Markdown>
+						<CopyBlock text={solution.run.replace(/\n$/, "")} lang="shell" />
+					</>
+				) : (
+					<div className="flex flex-col items-start gap-3 py-2">
+						<p className="text-muted-foreground">
+							The reference solution: the commands that solve this task, and why. Opening it is
+							noted, and the assistant knows you saw it.
+						</p>
+						<Button size="sm" variant="outline" onClick={() => loadSolution(question.id)}>
+							<Eye /> Show solution
+						</Button>
+					</div>
+				)}
+			</div>
+		);
 
 	return (
 		<div className={cn("flex flex-col gap-3", SIZES[size]?.className)}>
@@ -72,7 +107,7 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 				</div>
 			)}
 
-			{practice && (hints.length > 0 || Array.isArray(result) || solution) && (
+			{practice && (hints.length > 0 || Array.isArray(result)) && (
 				<section className="flex flex-col gap-2">
 					<Separator className="mb-1" />
 					{hints.map((hint, i) => (
@@ -97,14 +132,6 @@ export function QuestionPanel({ attempt, question }: { attempt: Attempt; questio
 							}
 						/>
 					)}
-					{solution && (
-						<Card padding="sm" className="flex flex-col gap-2">
-							<Markdown copy className={SIZES[size]?.className}>
-								{solution.explain}
-							</Markdown>
-							<CopyText block text={solution.run.replace(/\n$/, "")} />
-						</Card>
-					)}
 				</section>
 			)}
 		</div>
@@ -125,7 +152,6 @@ export function PracticeActions({ question }: { question: QuestionView }) {
 			check: s.check,
 		}))
 	);
-	const { shown, label, toggle } = useSolution(question.id);
 	const opened = hintsShown[question.id] ?? 0;
 	const running = checks[question.id] === "running";
 	return (
@@ -145,9 +171,6 @@ export function PracticeActions({ question }: { question: QuestionView }) {
 					Hint {opened + 1}/{question.hints.length}
 				</Button>
 			)}
-			<Button size="sm" variant="ghost" aria-expanded={shown} onClick={toggle}>
-				{label}
-			</Button>
 		</div>
 	);
 }
