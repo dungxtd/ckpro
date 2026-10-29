@@ -1,3 +1,4 @@
+import { Alert } from "@ckdry/ui/components/alert";
 import { Button } from "@ckdry/ui/components/button";
 import { Chip } from "@ckdry/ui/components/chip";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
@@ -78,7 +79,14 @@ export function AssistantPane({
 	const [history, setHistory] = useState<CoachSession[]>([]);
 	const [signingIn, setSigningIn] = useState(false);
 	const [renaming, setRenaming] = useState(false);
-	const [moreOpen, setMoreOpen] = useState(false);
+	// The menu open, if any: a choice closes it
+	const [open, setOpen] = useState<
+		"new" | "history" | "more" | "profile" | "model" | "effort" | null
+	>(null);
+	const menuOf = (name: NonNullable<typeof open>) => ({
+		open: open === name,
+		onOpenChange: (next: boolean) => setOpen(next ? name : null),
+	});
 	const signedOut = coach.account?.signed_in === false;
 	// The agents offered: turned on in Settings and signed in
 	const claudeOn = coach.enabledAgents.includes("claude");
@@ -132,7 +140,7 @@ export function AssistantPane({
 					</Truncated>
 				)}
 				{/* A new session, with one of the agents offered */}
-				<Popover>
+				<Popover {...menuOf("new")}>
 					<PopoverTrigger asChild>
 						<IconButton
 							variant="toolbar"
@@ -150,7 +158,10 @@ export function AssistantPane({
 								key={a.id}
 								type="button"
 								className={menuRow()}
-								onClick={() => coach.clear(question.id)}
+								onClick={() => {
+									setOpen(null);
+									coach.clear(question.id);
+								}}
 							>
 								<a.Icon className={cn("size-3.5 shrink-0", a.tint)} />
 								<span className={menu.label}>{a.name}</span>
@@ -158,7 +169,13 @@ export function AssistantPane({
 						))}
 					</PopoverContent>
 				</Popover>
-				<Popover onOpenChange={open => open && coach.listSessions().then(setHistory)}>
+				<Popover
+					{...menuOf("history")}
+					onOpenChange={next => {
+						setOpen(next ? "history" : null);
+						if (next) coach.listSessions().then(setHistory);
+					}}
+				>
 					<PopoverTrigger asChild>
 						<IconButton variant="toolbar" size="xs" aria-label="History">
 							<History />
@@ -176,7 +193,10 @@ export function AssistantPane({
 								key={t.question_id}
 								type="button"
 								className={menuRow()}
-								onClick={() => onOpenQuestion?.(t.question_id)}
+								onClick={() => {
+									setOpen(null);
+									onOpenQuestion?.(t.question_id);
+								}}
 							>
 								{t.question_id === question.id && <Checked />}
 								<Truncated>{t.title}</Truncated>
@@ -185,7 +205,7 @@ export function AssistantPane({
 						))}
 					</PopoverContent>
 				</Popover>
-				<Popover open={moreOpen} onOpenChange={setMoreOpen}>
+				<Popover {...menuOf("more")}>
 					<PopoverTrigger asChild>
 						<IconButton variant="toolbar" size="xs" aria-label="More">
 							<Ellipsis />
@@ -213,12 +233,17 @@ export function AssistantPane({
 							className={menuRow()}
 							disabled={messages.length === 0}
 							onClick={() => {
-								navigator.clipboard.writeText(
-									messages
-										.map(m => `${m.role === "user" ? "## You" : "## Assistant"}\n\n${m.text}`)
-										.join("\n\n")
-								);
-								toast.success("Session copied as Markdown", { duration: 1500 });
+								setOpen(null);
+								navigator.clipboard
+									.writeText(
+										messages
+											.map(m => `${m.role === "user" ? "## You" : "## Assistant"}\n\n${m.text}`)
+											.join("\n\n")
+									)
+									.then(
+										() => toast.success("Session copied as Markdown", { duration: 1500 }),
+										() => toast.error("Could not copy the session")
+									);
 							}}
 						>
 							Copy Session as Markdown
@@ -228,7 +253,7 @@ export function AssistantPane({
 							className={menuRow()}
 							disabled={messages.length === 0}
 							onClick={() => {
-								setMoreOpen(false);
+								setOpen(null);
 								setRenaming(true);
 							}}
 						>
@@ -239,7 +264,10 @@ export function AssistantPane({
 							type="button"
 							className={menuRow()}
 							disabled={writing || messages.length === 0}
-							onClick={() => coach.clear(question.id)}
+							onClick={() => {
+								setOpen(null);
+								coach.clear(question.id);
+							}}
 						>
 							Clear Session
 						</button>
@@ -304,9 +332,9 @@ export function AssistantPane({
 					</div>
 				)}
 				{coach.error && (
-					<div className="mt-2 rounded-md bg-warning/10 px-3 py-1.5 text-muted-foreground text-xs">
+					<Alert variant="warning" className="mt-2 px-3 py-1.5 text-xs">
 						{coach.error}
-					</div>
+					</Alert>
 				)}
 				<SignInDialog open={signingIn} onOpenChange={setSigningIn} />
 			</div>
@@ -417,7 +445,7 @@ export function AssistantPane({
 						{review ? (
 							<span className="text-2xs text-muted-foreground">Ask</span>
 						) : (
-							<Popover>
+							<Popover {...menuOf("profile")}>
 								<PopoverTrigger asChild>
 									<PickerButton
 										aria-label="Profile"
@@ -432,7 +460,10 @@ export function AssistantPane({
 											key={p.value}
 											type="button"
 											className={menuRow(menu.twoLine)}
-											onClick={() => coach.setProfile(p.value)}
+											onClick={() => {
+												setOpen(null);
+												coach.setProfile(p.value);
+											}}
 										>
 											{coach.profile === p.value && <Checked />}
 											<span className="flex min-w-0 flex-1 flex-col">
@@ -449,7 +480,7 @@ export function AssistantPane({
 								</PopoverContent>
 							</Popover>
 						)}
-						<Popover>
+						<Popover {...menuOf("model")}>
 							<PopoverTrigger asChild>
 								<PickerButton
 									aria-label="Model"
@@ -471,7 +502,10 @@ export function AssistantPane({
 										key={m.value}
 										type="button"
 										className={menuRow(menu.twoLine)}
-										onClick={() => coach.setModel(m.value)}
+										onClick={() => {
+											setOpen(null);
+											coach.setModel(m.value);
+										}}
 									>
 										{coach.model === m.value && <Checked />}
 										<span className="flex min-w-0 flex-1 flex-col">
@@ -488,7 +522,7 @@ export function AssistantPane({
 							</PopoverContent>
 						</Popover>
 						{coach.efforts.length > 0 && (
-							<Popover>
+							<Popover {...menuOf("effort")}>
 								<PopoverTrigger asChild>
 									<PickerButton
 										aria-label="Effort"
@@ -510,7 +544,10 @@ export function AssistantPane({
 											key={e.value}
 											type="button"
 											className={menuRow()}
-											onClick={() => coach.setEffort(e.value)}
+											onClick={() => {
+												setOpen(null);
+												coach.setEffort(e.value);
+											}}
 										>
 											{coach.effort === e.value && <Checked />}
 											<span className={menu.label}>{e.name}</span>

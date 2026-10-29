@@ -34,6 +34,7 @@ import { useAssistantEnabled, useSettings } from "@/stores/settings";
 import {
 	type AgentPermission,
 	type AgentSettings,
+	ApiError,
 	type AppInfo,
 	agentApi,
 	appApi,
@@ -112,13 +113,16 @@ function AiSettings() {
 		setChecking(false);
 	}, []);
 	useEffect(() => {
-		agentApi.settings().then(setSettings, e => toast.error(String(e)));
+		agentApi
+			.settings()
+			.then(setSettings, e => toast.error(e instanceof ApiError ? e.message : String(e)));
 	}, []);
 	useEffect(() => {
 		if (enabled) coach.warm();
 	}, [enabled, coach.warm]);
 	const save = (patch: Partial<AgentSettings>) => {
 		if (!settings) return;
+		const before = settings;
 		const next = { ...settings, ...patch };
 		setSettings(next);
 		agentApi.save(next).then(
@@ -131,7 +135,11 @@ function AiSettings() {
 				// Another CLI: what runs now, and as whom
 				if ("claude_path" in patch) recheck();
 			},
-			e => toast.error(String(e))
+			e => {
+				// Not kept: the switch or field shows what is kept
+				setSettings(before);
+				toast.error(e instanceof ApiError ? e.message : String(e));
+			}
 		);
 	};
 	const agent = open ? agentOf(open) : null;
@@ -582,8 +590,10 @@ function AboutSettings() {
 					size="push"
 					variant="push"
 					onClick={() => {
-						navigator.clipboard.writeText(info.data_dir);
-						toast.success("Path copied", { duration: 1500 });
+						navigator.clipboard.writeText(info.data_dir).then(
+							() => toast.success("Path copied", { duration: 1500 }),
+							() => toast.error("Could not copy the path")
+						);
 					}}
 				>
 					<Copy /> Copy path

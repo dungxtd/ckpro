@@ -7,6 +7,7 @@ import { Spinner } from "@ckdry/ui/components/spinner";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Check, ChevronDown, ChevronRight, Circle, Copy, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useActivities } from "@/stores/activity";
 
 /** A step running longer than this opens the log: something slow is going on */
@@ -149,7 +150,12 @@ export function ActivityProgress({
 							size="push"
 							variant="ghost"
 							className="ml-auto text-muted-foreground"
-							onClick={() => navigator.clipboard.writeText(activity.log.join("\n"))}
+							onClick={() =>
+								navigator.clipboard.writeText(activity.log.join("\n")).then(
+									() => toast.success("Log copied", { duration: 1500 }),
+									() => toast.error("Could not copy the log")
+								)
+							}
 						>
 							<Copy /> Copy log
 						</Button>
