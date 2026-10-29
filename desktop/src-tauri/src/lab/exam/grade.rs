@@ -28,6 +28,16 @@ impl Exams {
     }
 
     pub(super) async fn grade_and_finish(&self, attempt: Attempt, started_at: f64, note: Option<String>) {
+        // Graded once: the timer and the candidate may both submit, and
+        // closing waits for the grade
+        let _busy = self.busy.lock().await;
+        let current = matches!(
+            self.state(),
+            ExamState::Running { attempt: ref a, .. } | ExamState::Resuming { attempt: ref a, .. } if a.id == attempt.id
+        );
+        if !current {
+            return;
+        }
         let op = self.activities.begin(format!("Grading {}", attempt.title), vec!["Running every check".into()]);
         let id = op.id();
         match op.end(self.grade(&attempt, started_at, note, id).await) {
@@ -37,7 +47,12 @@ impl Exams {
                 self.set(ExamState::Finished { attempt, result });
                 self.measure_footprint(&clusters).await;
             }
-            Err(e) => self.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string(), activity: Some(id) }),
+            Err(e) => self.set(ExamState::Failed {
+                attempt: Some(attempt),
+                message: e.to_string(),
+                activity: Some(id),
+                resumable: true,
+            }),
         }
     }
 

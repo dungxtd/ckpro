@@ -128,6 +128,8 @@ export const commands = {
 	 */
 	startExam: (id: string, mode: Mode, replace: boolean) => typedError<null, AppError>(__TAURI_INVOKE("start_exam", { id, mode, replace })),
 	submitExam: () => typedError<null, AppError>(__TAURI_INVOKE("submit_exam")),
+	/**  Resume (or grade) again the attempt whose resume or grading failed. */
+	retryExam: () => typedError<null, AppError>(__TAURI_INVOKE("retry_exam")),
 	/**  Cancel preparation, or close the attempt and delete its clusters. */
 	endExam: () => typedError<null, AppError>(__TAURI_INVOKE("end_exam")),
 	/**  Practice mode: grade one question now. */
@@ -566,8 +568,11 @@ export type ExamState_Deserialize = { phase: "idle" } |
 { phase: "grading"; attempt: Attempt_Deserialize; activity: number; scores: (QuestionScore | null)[]; note?: string | null } | 
 /**  Removing the attempt's clusters and desktop */
 { phase: "ending"; attempt: Attempt_Deserialize; activity: number } | { phase: "finished"; attempt: Attempt_Deserialize; result: ExamResult_Deserialize } | 
-/**  `activity` has the log of what failed */
-{ phase: "failed"; attempt?: Attempt_Deserialize | null; message: string; activity?: number | null };
+/**
+ *  `activity` has the log of what failed. `resumable`: the attempt is
+ *  still kept (resuming or grading it failed) and can be tried again
+ */
+{ phase: "failed"; attempt?: Attempt_Deserialize | null; message: string; activity?: number | null; resumable?: boolean };
 
 export type ExamState_Serialize = { phase: "idle" } | 
 /**  Creating its clusters, desktop and tasks; progress in `activity` */
@@ -583,8 +588,11 @@ export type ExamState_Serialize = { phase: "idle" } |
 { phase: "grading"; attempt: Attempt_Serialize; activity: number; scores: (QuestionScore | null)[]; note: string | null } | 
 /**  Removing the attempt's clusters and desktop */
 { phase: "ending"; attempt: Attempt_Serialize; activity: number } | { phase: "finished"; attempt: Attempt_Serialize; result: ExamResult_Serialize } | 
-/**  `activity` has the log of what failed */
-{ phase: "failed"; attempt: Attempt_Serialize | null; message: string; activity: number | null };
+/**
+ *  `activity` has the log of what failed. `resumable`: the attempt is
+ *  still kept (resuming or grading it failed) and can be tried again
+ */
+{ phase: "failed"; attempt: Attempt_Serialize | null; message: string; activity: number | null; resumable: boolean };
 
 export type ExamSummary = {
 	id: string,

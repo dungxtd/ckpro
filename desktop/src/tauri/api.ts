@@ -278,6 +278,7 @@ export const examApi = {
 	start: (id: string, mode: Mode, replace: boolean) =>
 		unwrap(commands.startExam(id, mode, replace)),
 	submit: () => unwrap(commands.submitExam()),
+	retry: () => unwrap(commands.retryExam()),
 	end: () => unwrap(commands.endExam()),
 	check: (questionId: string) => unwrap(commands.checkQuestion(questionId)),
 	solution: (questionId: string) => unwrap(commands.questionSolution(questionId)),

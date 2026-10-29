@@ -12,7 +12,7 @@ const modeLabel = (mode: string) => (mode === "exam" ? "Exam mode" : "Practice m
 
 /** The current attempt, whatever phase it is in. */
 export function ExamRoute() {
-	const { state, end, start } = useExam();
+	const { state, end, start, retry: tryAgain } = useExam();
 	if (!state) return <Loading fill />;
 
 	switch (state.phase) {
@@ -61,12 +61,16 @@ export function ExamRoute() {
 			);
 		case "failed": {
 			const attempt = state.attempt;
-			const retry = attempt
-				? async () => {
-						await end();
-						await start(attempt.exam_id, attempt.mode, true);
-					}
-				: undefined;
+			// Kept (its resume or grading failed): the same attempt, the work on it
+			// intact. Else a new attempt of the exam
+			const retry = state.resumable
+				? tryAgain
+				: attempt
+					? async () => {
+							await end();
+							await start(attempt.exam_id, attempt.mode, true);
+						}
+					: undefined;
 			const actions = (
 				<>
 					<Button size="sm" variant="outline" onClick={end}>
@@ -74,7 +78,7 @@ export function ExamRoute() {
 					</Button>
 					{retry && (
 						<Button size="sm" onClick={retry}>
-							Retry
+							{state.resumable ? "Try Again" : "Start Over"}
 						</Button>
 					)}
 				</>

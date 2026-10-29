@@ -131,8 +131,15 @@ pub enum ExamState {
     /// Removing the attempt's clusters and desktop
     Ending { attempt: Attempt, activity: u32 },
     Finished { attempt: Attempt, result: ExamResult },
-    /// `activity` has the log of what failed
-    Failed { attempt: Option<Attempt>, message: String, activity: Option<u32> },
+    /// `activity` has the log of what failed. `resumable`: the attempt is
+    /// still kept (resuming or grading it failed) and can be tried again
+    Failed {
+        attempt: Option<Attempt>,
+        message: String,
+        activity: Option<u32>,
+        #[serde(default)]
+        resumable: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, specta::Type)]
@@ -211,6 +218,10 @@ pub struct Exams {
     /// Rendered questions of the current attempt (with solutions)
     session: Mutex<Vec<(String, Question)>>,
     cancel: Mutex<CancellationToken>,
+    /// Held while one step decides where the attempt goes (starting it,
+    /// grading it, closing it): a second one waits or is refused instead of
+    /// acting on the same state
+    busy: tokio::sync::Mutex<()>,
     publish: Box<dyn Fn(&ExamState) + Send + Sync>,
     activities: Arc<Activities>,
     /// Keeps the running attempt's environment as ckdry set it up
@@ -239,6 +250,7 @@ impl Exams {
             state: Mutex::new(ExamState::Idle),
             session: Mutex::new(Vec::new()),
             cancel: Mutex::new(CancellationToken::new()),
+            busy: Default::default(),
             publish: Box::new(publish),
             activities,
             guard,
@@ -306,8 +318,8 @@ impl Exams {
                 state: state.clone(),
                 questions: self.session.lock().unwrap_or_else(|p| p.into_inner()).clone(),
             })),
-            // Resumed (and graded) at the next start
-            ExamState::Grading { .. } | ExamState::Resuming { .. } => Ok(()),
+            // Resumed (and graded) at the next start, or on Try Again
+            ExamState::Grading { .. } | ExamState::Resuming { .. } | ExamState::Failed { resumable: true, .. } => Ok(()),
             _ => self.store.save_attempt::<SavedAttempt>(None),
         };
         if let Err(e) = result {
@@ -344,9 +356,27 @@ impl Exams {
                         }
                     }
                 },
-                Err(e) => this.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string(), activity: Some(id) }),
+                Err(e) => this.set(ExamState::Failed {
+                    attempt: Some(attempt),
+                    message: e.to_string(),
+                    activity: Some(id),
+                    resumable: true,
+                }),
             }
         });
+    }
+
+    /// Try a failed resume or grade again: the kept attempt is resumed (and
+    /// graded, when its time is up), as when the app opens
+    pub fn retry(self: &Arc<Self>) -> AppResult<()> {
+        let Ok(_busy) = self.busy.try_lock() else {
+            return Err(AppError::invalid("wait for the exam to finish what it is doing"));
+        };
+        if !matches!(self.state(), ExamState::Failed { resumable: true, .. }) {
+            return Err(AppError::invalid("there is nothing to try again"));
+        }
+        self.restore();
+        Ok(())
     }
 
     async fn resume(&self, attempt: &Attempt, activity: u32) -> AppResult<()> {
@@ -411,9 +441,11 @@ impl Exams {
     /// Start an attempt. Clusters with the names the exam needs must not exist
     /// unless `replace` (they are deleted).
     pub async fn start(self: &Arc<Self>, exam_id: &str, mode: Mode, replace: bool) -> AppResult<()> {
+        // Until it is Preparing: a second start (a double click) is refused
+        let Ok(_busy) = self.busy.try_lock() else {
+            return Err(AppError::invalid("an exam is already in progress"));
+        };
         let pack = self.pack();
-        // Whatever a guard noted before belongs to an earlier attempt
-        self.guard.take_outside();
         if matches!(
             self.state(),
             ExamState::Preparing { .. }
@@ -424,6 +456,8 @@ impl Exams {
         ) {
             return Err(AppError::invalid("an exam is already in progress"));
         }
+        // Whatever a guard noted before belongs to an earlier attempt
+        self.guard.take_outside();
         let exam = pack.exams.get(exam_id).ok_or_else(|| AppError::not_found(format!("no exam '{exam_id}'")))?;
         let exam = exam.value.clone();
         let cert = pack.pack.certifications.get(&exam.certification).cloned().ok_or_else(|| AppError::invalid("unknown certification"))?;
@@ -512,7 +546,12 @@ impl Exams {
                     this.cleanup(&attempt).await;
                     this.set(ExamState::Idle);
                 }
-                Err(e) => this.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string(), activity: Some(id) }),
+                Err(e) => this.set(ExamState::Failed {
+                    attempt: Some(attempt),
+                    message: e.to_string(),
+                    activity: Some(id),
+                    resumable: false,
+                }),
             }
         });
         Ok(())
@@ -593,6 +632,9 @@ impl Exams {
 
     /// Stop preparing, or close the attempt and delete its clusters.
     pub async fn end(&self) -> AppResult<()> {
+        let Ok(_busy) = self.busy.try_lock() else {
+            return Err(AppError::invalid("wait for the exam to finish what it is doing"));
+        };
         let state = self.state();
         match &state {
             // Its task cleans up once cancelled
@@ -617,7 +659,12 @@ impl Exams {
     /// Best effort: what cannot be removed stays listed under Environment.
     async fn cleanup(&self, attempt: &Attempt) {
         let owned = self.kind.owned_clusters();
-        let clusters: Vec<&String> = attempt.clusters.iter().filter(|c| owned.contains(c)).collect();
+        // Also those kind was still creating (a cancelled preparation): no
+        // kubeconfig yet, but their nodes run. The names were the attempt's
+        // own from its start (one there before was replaced or refused)
+        let existing = self.kind.all_clusters().await.unwrap_or_default();
+        let clusters: Vec<&String> =
+            attempt.clusters.iter().filter(|c| owned.contains(c) || existing.contains(c)).collect();
         let mut steps: Vec<String> = clusters.iter().map(|c| format!("Removing cluster {c}")).collect();
         steps.extend(["Removing the exam desktop", "Updating the task host"].map(String::from));
         let op = self.activities.begin("Cleaning up", steps);

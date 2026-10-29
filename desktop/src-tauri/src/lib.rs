@@ -93,6 +93,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::save_settings,
         commands::start_exam,
         commands::submit_exam,
+        commands::retry_exam,
         commands::end_exam,
         commands::check_question,
         commands::question_solution,

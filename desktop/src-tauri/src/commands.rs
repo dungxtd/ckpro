@@ -555,6 +555,13 @@ pub fn submit_exam(exams: State<'_, Arc<Exams>>) -> AppResult<()> {
     exams.inner().submit()
 }
 
+/// Resume (or grade) again the attempt whose resume or grading failed.
+#[tauri::command]
+#[specta::specta]
+pub fn retry_exam(exams: State<'_, Arc<Exams>>) -> AppResult<()> {
+    exams.inner().retry()
+}
+
 /// Cancel preparation, or close the attempt and delete its clusters.
 #[tauri::command]
 #[specta::specta]

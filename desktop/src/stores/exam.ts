@@ -41,6 +41,8 @@ interface ExamStore extends AttemptUi {
 	cancelReplace: () => void;
 	submit: () => Promise<void>;
 	end: () => Promise<void>;
+	/** Resume (or grade) again an attempt whose resume or grading failed */
+	retry: () => Promise<void>;
 	select: (index: number) => void;
 	toggleFlag: (questionId: string) => void;
 	showHint: (questionId: string) => void;
@@ -182,6 +184,16 @@ export const useExam = create<ExamStore>()(
 			submit: async () => {
 				try {
 					await examApi.submit();
+				} catch (e) {
+					set(s => {
+						s.error = message(e);
+					});
+				}
+			},
+
+			retry: async () => {
+				try {
+					await examApi.retry();
 				} catch (e) {
 					set(s => {
 						s.error = message(e);
