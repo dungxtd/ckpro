@@ -162,12 +162,16 @@ pub struct Coach {
     tools: std::sync::OnceLock<mcp_http::McpHttp>,
     /// Permission requests waiting for the candidate, by id: the options
     /// offered, and where the answer goes
-    permissions: Mutex<HashMap<u32, (Vec<String>, tokio::sync::oneshot::Sender<serde_json::Value>)>>,
+    permissions: Mutex<HashMap<u32, Waiting>>,
     /// The Claude login being run, if any
     signing_in: tokio::sync::Mutex<Option<account::SigningIn>>,
     /// The login as last read, and when: reading it starts the adapter
     account: Mutex<Option<(account::Account, std::time::Instant)>>,
 }
+
+/// A permission request waiting for the candidate: the option ids offered,
+/// and where the answer goes
+type Waiting = (Vec<String>, tokio::sync::oneshot::Sender<serde_json::Value>);
 
 /// How long a login read stays good (a sign-out in a terminal shows after it)
 const ACCOUNT_FRESH: std::time::Duration = std::time::Duration::from_secs(60);
@@ -242,10 +246,10 @@ impl Coach {
 
     /// Who the assistant answers as
     pub async fn account(&self) -> AppResult<account::Account> {
-        if let Some((account, read)) = self.account.lock().unwrap_or_else(|p| p.into_inner()).clone() {
-            if read.elapsed() < ACCOUNT_FRESH {
-                return Ok(account);
-            }
+        if let Some((account, read)) = self.account.lock().unwrap_or_else(|p| p.into_inner()).clone()
+            && read.elapsed() < ACCOUNT_FRESH
+        {
+            return Ok(account);
         }
         let account = account::account(&self.agent).await?;
         *self.account.lock().unwrap_or_else(|p| p.into_inner()) = Some((account.clone(), std::time::Instant::now()));
