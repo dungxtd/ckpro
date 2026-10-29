@@ -141,12 +141,16 @@ impl Store {
         Self::with(Connection::open_in_memory().map_err(db)?)
     }
 
-    fn with(conn: Connection) -> AppResult<Self> {
+    fn with(mut conn: Connection) -> AppResult<Self> {
         conn.pragma_update(None, "journal_mode", "WAL").map_err(db)?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0)).map_err(db)?;
+        // Each migration with its version, or neither: a crash between the two
+        // would run it again on a schema that already has it
         for (i, migration) in MIGRATIONS.iter().enumerate().skip(version as usize) {
-            conn.execute_batch(migration).map_err(db)?;
-            conn.pragma_update(None, "user_version", i as i64 + 1).map_err(db)?;
+            let tx = conn.transaction().map_err(db)?;
+            tx.execute_batch(migration).map_err(db)?;
+            tx.pragma_update(None, "user_version", i as i64 + 1).map_err(db)?;
+            tx.commit().map_err(db)?;
         }
         Ok(Self { conn: Mutex::new(conn) })
     }

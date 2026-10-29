@@ -112,8 +112,17 @@ pub const APP_ID: &str = "dev.ckdry.app";
 
 /// Where the app keeps kind, kubeconfigs and the jumphost files: the same
 /// directory for the app and the CLI.
+/// Kubeconfigs, keys and the database are the user's only: the directory is
+/// made private before anything goes in, whichever runs first.
 pub fn data_dir() -> std::path::PathBuf {
-    dirs::data_dir().unwrap_or_else(std::env::temp_dir).join(APP_ID)
+    let dir = dirs::data_dir().unwrap_or_else(std::env::temp_dir).join(APP_ID);
+    let _ = std::fs::create_dir_all(&dir);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+    }
+    dir
 }
 
 /// The bundled lab pack: from the source tree in development, from the app
@@ -175,13 +184,6 @@ pub fn run() {
             }
             builder.mount_events(app);
             let data_dir = data_dir();
-            // Kubeconfigs, keys and the database: the user's only
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let _ = std::fs::create_dir_all(&data_dir);
-                let _ = std::fs::set_permissions(&data_dir, std::fs::Permissions::from_mode(0o700));
-            }
             let kind = Arc::new(cluster::kind::Kind::new(data_dir.clone()));
             let infra = Arc::new(runtime::infra::Infra::new(data_dir.clone()));
             app.manage(infra.clone());

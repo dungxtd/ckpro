@@ -419,10 +419,12 @@ impl Exams {
         }
         step += 1;
         op.step(step, None);
+        // One deadline for them all, as the error says
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(120);
         for cluster in &attempt.clusters {
             op.detail(format!("Waiting for the API server of {cluster}"));
             let mut ready = false;
-            for _ in 0..60 {
+            while tokio::time::Instant::now() < deadline {
                 let (exit, _) =
                     checks::run_script(&docker, &self.jumphost.name, cluster, "kubectl get --raw=/readyz >/dev/null", 15).await?;
                 if exit == 0 {
