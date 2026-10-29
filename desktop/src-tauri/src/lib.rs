@@ -203,6 +203,7 @@ pub fn run() {
                 let _ = EnvChanged(state.clone()).emit(&handle);
             }));
             let notices = app.handle().clone();
+            runtime::guard::forget_shared_execs();
             let guard = runtime::guard::Guard::new(move |what| {
                 let _ = GuardNotice(what.to_string()).emit(&notices);
             });

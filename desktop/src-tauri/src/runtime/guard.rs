@@ -23,11 +23,16 @@ use crate::cluster::kind::{CLUSTER_LABEL, node_containers};
 /// Marks ckdry's own firewall rule, to find and remove it again
 const RULE_COMMENT: &str = "ckdry-guard";
 
-/// Execs ckdry itself started (`exec::run`, terminals): not outside access
-fn own_execs() -> &'static Mutex<HashSet<String>> {
-    static OWN: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+/// Execs ckdry itself started (`exec::run`, terminals), and when: not
+/// outside access. Each is judged once; one never judged is dropped after a
+/// while
+fn own_execs() -> &'static Mutex<HashMap<String, Instant>> {
+    static OWN: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
     OWN.get_or_init(Default::default)
 }
+
+/// How long an exec of ckdry's waits to be judged (its event comes at once)
+const OWN_EXEC_TTL: Duration = Duration::from_secs(600);
 
 /// Note an exec ckdry starts, before it starts
 pub fn own_exec(id: &str) {
@@ -39,10 +44,10 @@ pub fn own_exec(id: &str) {
         return;
     }
     let mut own = own_execs().lock().unwrap_or_else(|p| p.into_inner());
-    if own.len() > 10_000 {
-        own.clear();
+    if own.len() > 1_000 {
+        own.retain(|_, at| at.elapsed() < OWN_EXEC_TTL);
     }
-    own.insert(id.to_string());
+    own.insert(id.to_string(), Instant::now());
 }
 
 /// Set in a ckdry process other than the app: its execs are noted in
@@ -53,6 +58,12 @@ pub fn share_own_execs() {
     let _ = SHARED.set(());
 }
 
+/// The app starts: ids left by processes that ran before it are not judged
+/// any more (their execs are long over)
+pub fn forget_shared_execs() {
+    let _ = std::fs::remove_dir_all(shared_execs());
+}
+
 /// Execs other ckdry processes started, one empty file per id (in the app's
 /// private data directory)
 fn shared_execs() -> std::path::PathBuf {
@@ -61,7 +72,7 @@ fn shared_execs() -> std::path::PathBuf {
 
 /// Whether ckdry started the exec, here or in another of its processes
 fn is_own_exec(id: &str) -> bool {
-    own_execs().lock().unwrap_or_else(|p| p.into_inner()).contains(id)
+    own_execs().lock().unwrap_or_else(|p| p.into_inner()).remove(id).is_some()
         || (id.chars().all(|c| c.is_ascii_alphanumeric()) && std::fs::remove_file(shared_execs().join(id)).is_ok())
 }
 
@@ -95,6 +106,7 @@ fn in_own_operation() -> bool {
 }
 
 /// What the attempt runs on
+#[derive(Clone, PartialEq)]
 pub struct Watch {
     /// The attempt's clusters (kind cluster names)
     pub clusters: Vec<String>,
@@ -116,8 +128,12 @@ struct Active {
 
 pub struct Guard {
     active: Mutex<Option<Active>>,
-    /// What `follow` was last asked for
-    wanted: std::sync::atomic::AtomicBool,
+    /// What `follow` was last asked for, and what `active` was made from
+    wanted: Mutex<Option<Watch>>,
+    applied: Mutex<Option<Watch>>,
+    /// Held while the guard is brought to what is wanted: one change at a
+    /// time, so a quick start-and-end cannot activate after deactivating
+    changing: tokio::sync::Mutex<()>,
     /// What happened outside ckdry during the attempt
     outside: Mutex<Vec<String>>,
     notify: Box<dyn Fn(&str) + Send + Sync>,
@@ -125,29 +141,53 @@ pub struct Guard {
 
 impl Guard {
     pub fn new(notify: impl Fn(&str) + Send + Sync + 'static) -> Arc<Self> {
-        Arc::new(Self { active: Mutex::new(None), wanted: Default::default(), outside: Mutex::default(), notify: Box::new(notify) })
+        Arc::new(Self {
+            active: Mutex::new(None),
+            wanted: Mutex::default(),
+            applied: Mutex::default(),
+            changing: Default::default(),
+            outside: Mutex::default(),
+            notify: Box::new(notify),
+        })
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Option<Active>> {
         self.active.lock().unwrap_or_else(|p| p.into_inner())
     }
 
-    /// Guard `watch` (an attempt is running) or nothing; a change of what is
-    /// wanted activates or deactivates in the background, a repeat does nothing
+    /// Guard `watch` (an attempt is running) or nothing; the guard follows
+    /// in the background, a repeat does nothing
     pub fn follow(self: &Arc<Self>, watch: Option<Watch>) {
-        let wanted = watch.is_some();
-        if self.wanted.swap(wanted, std::sync::atomic::Ordering::SeqCst) == wanted {
-            return;
+        {
+            let mut wanted = self.wanted.lock().unwrap_or_else(|p| p.into_inner());
+            if *wanted == watch {
+                return;
+            }
+            *wanted = watch;
         }
         let guard = self.clone();
         tauri::async_runtime::spawn(async move {
             let docker = super::docker::connect().await.ok();
-            match (watch, docker) {
-                (Some(watch), Some(docker)) => guard.activate(&docker, watch).await,
-                (Some(_), None) => {}
-                (None, docker) => guard.deactivate(docker.as_ref()).await,
-            }
+            guard.converge(docker.as_ref()).await;
         });
+    }
+
+    /// Bring the guard to what is wanted now. Without Docker an activation
+    /// waits: `recheck` makes it when Docker is back
+    async fn converge(&self, docker: Option<&Docker>) {
+        let _changing = self.changing.lock().await;
+        let wanted = self.wanted.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let applied = self.applied.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        if wanted == applied {
+            return;
+        }
+        if applied.is_some() {
+            self.deactivate(docker).await;
+        }
+        if let (Some(watch), Some(docker)) = (wanted.clone(), docker) {
+            self.activate(docker, watch).await;
+            *self.applied.lock().unwrap_or_else(|p| p.into_inner()) = wanted;
+        }
     }
 
     /// Start guarding an attempt: close the host's way to its API servers
@@ -172,6 +212,7 @@ impl Guard {
 
     /// Stop guarding (the attempt ends): the host may reach the clusters again
     async fn deactivate(&self, docker: Option<&Docker>) {
+        self.applied.lock().unwrap_or_else(|p| p.into_inner()).take();
         let Some(active) = self.lock().take() else { return };
         if let (Some(docker), Some(gateway)) = (docker, &active.gateway) {
             for cluster in &active.clusters {
@@ -183,6 +224,8 @@ impl Guard {
     /// After a gap in the events (Docker reconnected): start what of the
     /// attempt is stopped or paused, and close the API servers to the host again
     pub async fn recheck(self: &Arc<Self>, docker: &Docker) {
+        // An activation Docker was down for
+        self.converge(Some(docker)).await;
         let Some((containers, clusters, gateway)) =
             self.lock().as_ref().map(|a| (a.containers.clone(), a.clusters.clone(), a.gateway.clone()))
         else {
@@ -213,7 +256,8 @@ impl Guard {
     /// Stop reacting at once, without undoing anything (the app is quitting
     /// and stops the containers itself; a resume guards them again)
     pub fn suspend(&self) {
-        self.wanted.store(false, std::sync::atomic::Ordering::SeqCst);
+        self.wanted.lock().unwrap_or_else(|p| p.into_inner()).take();
+        self.applied.lock().unwrap_or_else(|p| p.into_inner()).take();
         self.lock().take();
     }
 
@@ -382,5 +426,8 @@ mod tests {
         assert!(!is_own_exec(&id));
         // Never a path outside the directory
         assert!(!is_own_exec("../ckdry.db"));
+        // The app's own, judged once too
+        own_exec("abc123own");
+        assert!(is_own_exec("abc123own") && !is_own_exec("abc123own"));
     }
 }
