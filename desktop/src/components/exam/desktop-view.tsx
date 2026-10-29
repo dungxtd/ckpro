@@ -7,9 +7,14 @@ import { desktopApi } from "@/tauri/api";
 /** noVNC internals the HiDPI resize hooks into (no public API for it) */
 type Internals = {
 	_screen: HTMLElement;
+	_canvas: HTMLCanvasElement;
 	_requestRemoteResize(): void;
 	_screenSize(): { w: number; h: number };
+	_sendMouse(x: number, y: number, mask: number): void;
 };
+
+/** The right button in the desktop's pointer events */
+const RIGHT_BUTTON = 4;
 
 /** How long resizing must have stopped before the desktop takes the new size */
 const RESIZE_SETTLE_MS = 400;
@@ -100,6 +105,29 @@ export function DesktopView({
 					internals._screenSize = screenSize;
 				}
 			};
+			// A right click the web view reports only as a context menu (a trackpad's
+			// two-finger tap, a click with the Control key held) still reaches the
+			// desktop as one, as on the exam's remote desktop
+			let rightDown = false;
+			internals._canvas.addEventListener(
+				"mousedown",
+				e => (rightDown = (e.buttons & 2) !== 0),
+				true
+			);
+			internals._canvas.addEventListener(
+				"contextmenu",
+				e => {
+					if (rightDown) return;
+					const box = internals._canvas.getBoundingClientRect();
+					const x = e.clientX - box.left;
+					const y = e.clientY - box.top;
+					// Undo the left press a Control-click sent first
+					internals._sendMouse(x, y, 0);
+					internals._sendMouse(x, y, RIGHT_BUTTON);
+					internals._sendMouse(x, y, 0);
+				},
+				true
+			);
 			rfb.resizeSession = true;
 			rfb.scaleViewport = true;
 			rfb.focusOnClick = true;
