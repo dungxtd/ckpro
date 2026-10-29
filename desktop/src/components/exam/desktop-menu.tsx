@@ -68,8 +68,7 @@ export function DesktopMenu({
 			<button
 				key={label}
 				type="button"
-				role="menuitemradio"
-				aria-checked={active}
+				aria-pressed={active}
 				className={menuRow()}
 				onClick={() => onResolution(value)}
 			>
@@ -101,7 +100,13 @@ export function DesktopMenu({
 					<Settings />
 				</IconButton>
 			</PopoverTrigger>
-			<PopoverContent align="end" role="menu" className={cn(menu.surface, "w-60")}>
+			{/* A panel of controls (a stepper among them), not a menu: Tab moves
+			    through it */}
+			<PopoverContent
+				align="end"
+				aria-label="Desktop settings"
+				className={cn(menu.surface, "w-60")}
+			>
 				<div className={menu.header}>Remote Desktop</div>
 				<div className={cn(menu.content, "flex items-center justify-between py-1 text-callout")}>
 					Size
@@ -121,7 +126,6 @@ export function DesktopMenu({
 				<div className={menu.separator} />
 				<button
 					type="button"
-					role="menuitem"
 					className={menuRow()}
 					disabled={resetting}
 					data-disabled={resetting || undefined}
