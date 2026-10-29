@@ -207,7 +207,7 @@ pub fn run() {
             let store = Arc::new(store::Store::open(&data_dir.join("ckdry.db"))?);
             store.import_files(&data_dir);
             // The assistant runs where its settings say
-            app.state::<ai::Coach>().apply(&store.agent_settings().unwrap_or_default().normalized());
+            app.state::<ai::Coach>().apply(&ai::policy::AgentSettings::load(&store).unwrap_or_default().normalized());
             // Docker, the clusters and the guard; the attempt being resumed
             // starts its own clusters, task host and desktop
             let resuming = lab::exam::saved_running(&store).map(|(attempt, _)| attempt.clusters).unwrap_or_default();

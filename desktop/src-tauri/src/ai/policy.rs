@@ -72,6 +72,15 @@ impl Default for AgentSettings {
 pub const COMMAND_MAX_SECS: u32 = 300;
 
 impl AgentSettings {
+    /// As kept in the app database (the defaults until saved)
+    pub fn load(store: &crate::store::Store) -> crate::error::AppResult<Self> {
+        store.setting("agent")
+    }
+
+    pub fn save(&self, store: &crate::store::Store) -> crate::error::AppResult<()> {
+        store.save_setting("agent", self)
+    }
+
     /// Within bounds, the list trimmed
     pub fn normalized(mut self) -> Self {
         self.command_timeout = self.command_timeout.clamp(5, COMMAND_MAX_SECS);

@@ -421,7 +421,7 @@ impl Coach {
         let profile = if subject.review { Profile::Ask } else { profile };
         let cancel = self.start();
         // What the candidate shares with Claude (Settings > AI > Privacy)
-        let shared = store.agent_settings().unwrap_or_default();
+        let shared = policy::AgentSettings::load(store).unwrap_or_default();
         let checks = if context.checks && shared.share_checks { checks } else { &[] };
         let snapshot = if context.cluster && shared.share_cluster { snapshot(&subject).await } else { None };
         let key = (subject.attempt_id.clone(), question_id.to_string());
@@ -429,7 +429,7 @@ impl Coach {
             self.session_for(store, &subject, question_id, profile, model, effort, checks, snapshot.as_deref(), text).await?;
         // The first question names the session, while
         // the answer is written: a quick model, nothing waits longer for it
-        let settings = store.agent_settings().unwrap_or_default();
+        let settings = policy::AgentSettings::load(store).unwrap_or_default();
         let first = settings.auto_titles
             && store.coach_messages(&subject.attempt_id, question_id)?.1.is_empty()
             && store.coach_session_title(&subject.attempt_id, question_id)?.is_none();

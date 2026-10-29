@@ -121,14 +121,14 @@ pub fn coach_status(coach: State<'_, Coach>) -> CoachStatus {
 #[tauri::command]
 #[specta::specta]
 pub fn agent_settings(store: State<'_, Arc<Store>>) -> AppResult<AgentSettings> {
-    Ok(store.agent_settings()?.normalized())
+    Ok(crate::ai::policy::AgentSettings::load(&store)?.normalized())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn save_agent_settings(coach: State<'_, Coach>, store: State<'_, Arc<Store>>, settings: AgentSettings) -> AppResult<AgentSettings> {
     let settings = settings.normalized();
-    store.save_agent_settings(&settings)?;
+    settings.save(&store)?;
     coach.configure(&settings).await;
     Ok(settings)
 }

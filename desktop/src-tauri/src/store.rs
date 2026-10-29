@@ -498,14 +498,6 @@ impl Store {
     }
 
     /// How far the assistant's agent may go (Settings > Assistant)
-    pub fn agent_settings(&self) -> AppResult<crate::ai::policy::AgentSettings> {
-        self.setting("agent")
-    }
-
-    pub fn save_agent_settings(&self, settings: &crate::ai::policy::AgentSettings) -> AppResult<()> {
-        self.save_setting("agent", settings)
-    }
-
     /// What the exam nodes were measured to take on this machine
     pub fn footprint(&self) -> AppResult<Footprint> {
         self.setting("footprint")
@@ -516,7 +508,7 @@ impl Store {
     }
 
     /// A value kept as JSON under `key`; its default when unset or unreadable
-    fn setting<T: DeserializeOwned + Default>(&self, key: &str) -> AppResult<T> {
+    pub fn setting<T: DeserializeOwned + Default>(&self, key: &str) -> AppResult<T> {
         let json: Option<String> = self
             .conn()
             .query_row("SELECT value FROM settings WHERE key = ?1", params![key], |r| r.get(0))
@@ -525,7 +517,7 @@ impl Store {
         Ok(json.and_then(|json| serde_json::from_str(&json).ok()).unwrap_or_default())
     }
 
-    fn save_setting<T: Serialize>(&self, key: &str, value: &T) -> AppResult<()> {
+    pub fn save_setting<T: Serialize>(&self, key: &str, value: &T) -> AppResult<()> {
         self.conn()
             .execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)", params![key, to_json(value)?])
             .map_err(db)?;
