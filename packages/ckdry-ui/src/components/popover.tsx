@@ -13,6 +13,7 @@ function PopoverContent({
 	align = "start",
 	sideOffset = 8,
 	collisionPadding = 8,
+	onOpenAutoFocus,
 	...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
 	const theme = useThemeScope();
@@ -24,6 +25,16 @@ function PopoverContent({
 				align={align}
 				sideOffset={sideOffset}
 				collisionPadding={collisionPadding}
+				// The panel takes the focus, not its first control: a stepper's
+				// minus or a menu's first row is not chosen (or ringed) by opening
+				// it; Tab reaches them
+				onOpenAutoFocus={
+					onOpenAutoFocus ??
+					(e => {
+						e.preventDefault();
+						(e.currentTarget as HTMLElement | null)?.focus({ preventScroll: true });
+					})
+				}
 				className={cn(
 					// Never larger than the room the window leaves: long lists scroll
 					"menu-surface z-floating max-h-(--radix-popover-content-available-height) w-80 max-w-(--radix-popover-content-available-width) overflow-y-auto",
