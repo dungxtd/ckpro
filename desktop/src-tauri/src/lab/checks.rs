@@ -116,10 +116,12 @@ async fn checked(
 
 /// A private kubeconfig whose current context is `cluster`, for this script only.
 fn scoped_kubeconfig(cluster: &str) -> String {
+    let missing = quote(&format!("cluster {cluster} is not in the kubeconfig"));
+    let cluster = quote(cluster);
     format!(
         "set -o pipefail\n\
          __kc=$(mktemp)\n\
-         kubectl config view --raw --minify --context {cluster} > \"$__kc\" || {{ echo \"cluster {cluster} is not in the kubeconfig\"; exit 1; }}\n\
+         kubectl config view --raw --minify --context {cluster} > \"$__kc\" || {{ echo {missing}; exit 1; }}\n\
          export KUBECONFIG=\"$__kc\"\n\
          trap 'rm -f \"$__kc\"' EXIT\n"
     )
@@ -145,9 +147,9 @@ fn exists(r: &ResourceRef) -> String {
     let get = format!("kubectl get {}{} -o name >/dev/null 2>&1", quote(&r.resource), ns(&r.namespace));
     let where_ = r.namespace.as_ref().map(|n| format!(" in {n}")).unwrap_or_default();
     if r.absent {
-        format!("if {get}; then echo '{} still exists{where_}'; exit 1; fi", r.resource)
+        format!("if {get}; then echo {}; exit 1; fi", quote(&format!("{} still exists{where_}", r.resource)))
     } else {
-        format!("{get} || {{ echo '{} not found{where_}'; exit 1; }}", r.resource)
+        format!("{get} || {{ echo {}; exit 1; }}", quote(&format!("{} not found{where_}", r.resource)))
     }
 }
 
@@ -155,37 +157,42 @@ fn ready(r: &ResourceRef) -> String {
     let kind = r.resource.split('/').next().unwrap_or_default().to_lowercase();
     let target = format!("{}{}", quote(&r.resource), ns(&r.namespace));
     if matches!(kind.as_str(), "pod" | "pods" | "po") {
-        format!("kubectl wait --for=condition=Ready {target} --timeout=10s >/dev/null 2>&1 || {{ echo '{} is not Ready'; exit 1; }}", r.resource)
+        format!(
+            "kubectl wait --for=condition=Ready {target} --timeout=10s >/dev/null 2>&1 || {{ echo {}; exit 1; }}",
+            quote(&format!("{} is not Ready", r.resource))
+        )
     } else {
         // Every replica updated and available. A Deployment's Available
         // condition only means minimum availability (maxUnavailable)
         format!(
-            "kubectl rollout status {target} --timeout=10s >/dev/null 2>&1 || {{ echo '{} does not have all replicas updated and available'; exit 1; }}",
-            r.resource
+            "kubectl rollout status {target} --timeout=10s >/dev/null 2>&1 || {{ echo {}; exit 1; }}",
+            quote(&format!("{} does not have all replicas updated and available", r.resource))
         )
     }
 }
 
 fn jsonpath(j: &JsonpathCheck) -> String {
     let get = format!(
-        "actual=$(kubectl get {}{} -o jsonpath={} 2>/dev/null) || {{ echo '{} not found'; exit 1; }}",
+        "actual=$(kubectl get {}{} -o jsonpath={} 2>/dev/null) || {{ echo {}; exit 1; }}",
         quote(&j.resource),
         ns(&j.namespace),
         quote(&j.path),
-        j.resource
+        quote(&format!("{} not found", j.resource))
     );
+    // The message is literal text around the value found: nothing in the
+    // path or the expected value runs
+    let failed = |expected: String| format!("echo {}\"$actual\"\\'; exit 1", quote(&format!("{}: {expected}, got '", j.path)));
     let test = match &j.expect {
-        Expectation::Equals(v) => format!(
-            "[ \"$actual\" = {} ] || {{ echo \"{}: expected '{}', got '$actual'\"; exit 1; }}",
-            quote(v), j.path, v.replace('"', "\\\"")
-        ),
-        Expectation::Contains(v) => format!(
-            "case \"$actual\" in *{}*) ;; *) echo \"{}: expected to contain '{}', got '$actual'\"; exit 1;; esac",
-            quote(v), j.path, v.replace('"', "\\\"")
-        ),
+        Expectation::Equals(v) => {
+            format!("[ \"$actual\" = {} ] || {{ {}; }}", quote(v), failed(format!("expected '{v}'")))
+        }
+        Expectation::Contains(v) => {
+            format!("case \"$actual\" in *{}*) ;; *) {};; esac", quote(v), failed(format!("expected to contain '{v}'")))
+        }
         Expectation::Matches(v) => format!(
-            "printf '%s' \"$actual\" | grep -Eq {} || {{ echo \"{}: expected to match /{}/, got '$actual'\"; exit 1; }}",
-            quote(v), j.path, v.replace('"', "\\\"")
+            "printf '%s' \"$actual\" | grep -Eq {} || {{ {}; }}",
+            quote(v),
+            failed(format!("expected to match /{v}/"))
         ),
     };
     format!("{get}\n{test}")
@@ -195,19 +202,61 @@ fn can_i(c: &CanICheck) -> String {
     let expected = if c.expect { "yes" } else { "no" };
     format!(
         "answer=$(kubectl auth can-i {} {}{} --as={} 2>/dev/null)\n\
-         [ \"$answer\" = {expected} ] || {{ echo \"{} {} {}{}: expected {expected}, got ${{answer:-no answer}}\"; exit 1; }}",
+         [ \"$answer\" = {expected} ] || {{ echo {}\"${{answer:-no answer}}\"; exit 1; }}",
         quote(&c.verb),
         quote(&c.resource),
         ns(&c.namespace),
         quote(&c.as_user),
-        c.as_user,
-        c.verb,
-        c.resource,
-        c.namespace.as_ref().map(|n| format!(" in {n}")).unwrap_or_default(),
+        quote(&format!(
+            "{} {} {}{}: expected {expected}, got ",
+            c.as_user,
+            c.verb,
+            c.resource,
+            c.namespace.as_ref().map(|n| format!(" in {n}")).unwrap_or_default()
+        )),
     )
 }
 
 /// Single-quote for the shell
 fn quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The script with a stand-in kubectl that prints `value`
+    fn run(script: &str, value: &str) -> (bool, String) {
+        let dir = std::env::temp_dir().join(format!("ckdry-checks-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let kubectl = dir.join("kubectl");
+        std::fs::write(&kubectl, format!("#!/bin/sh\nprintf '%s' {}\n", quote(value))).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&kubectl, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let out = std::process::Command::new("bash")
+            .args(["-c", script])
+            .env("PATH", format!("{}:/usr/bin:/bin", dir.display()))
+            .output()
+            .unwrap();
+        (out.status.success(), String::from_utf8_lossy(&out.stdout).trim().to_string())
+    }
+
+    #[test]
+    fn messages_are_text_never_code() {
+        let check = |expect| JsonpathCheck {
+            resource: "deploy/web".into(),
+            namespace: Some("team-$(touch /tmp/ckdry-pwned)".into()),
+            path: "{.metadata.labels.`id`}".into(),
+            expect,
+        };
+        let (passed, said) = run(&jsonpath(&check(Expectation::Equals("$(id)".into()))), "$(id)");
+        assert!(passed, "{said}");
+        let (passed, said) = run(&jsonpath(&check(Expectation::Equals("a'b".into()))), "x$(id)");
+        assert!(!passed);
+        assert_eq!(said, "{.metadata.labels.`id`}: expected 'a'b', got 'x$(id)'");
+        let (_, said) = run(&jsonpath(&check(Expectation::Contains("\"q\"".into()))), "v");
+        assert_eq!(said, "{.metadata.labels.`id`}: expected to contain '\"q\"', got 'v'");
+        assert!(!std::path::Path::new("/tmp/ckdry-pwned").exists());
+    }
 }
