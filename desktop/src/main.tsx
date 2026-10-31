@@ -28,6 +28,7 @@ import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
 import { appApi, errorText } from "@/tauri/api";
+import { useTheme } from "@/theme";
 import "./index.css";
 
 function Layout() {
@@ -119,6 +120,7 @@ function App() {
 	const connectEnv = useEnvironment(s => s.connect);
 	const connectExam = useExam(s => s.connect);
 	const connectActivities = useActivities(s => s.connect);
+	useTheme();
 	const loadSettings = useSettings(s => s.load);
 	// Bumped by Try Again: everything is read and followed afresh
 	const [boot, setBoot] = useState(0);
@@ -186,6 +188,7 @@ function App() {
 							<Route path="/calendar" element={<CalendarRoute />} />
 							<Route path="/environment" element={<EnvironmentRoute />} />
 							<Route path="/settings" element={<SettingsRoute />} />
+							<Route path="/settings/:part" element={<SettingsRoute />} />
 						</Route>
 					</Routes>
 				</Suspense>

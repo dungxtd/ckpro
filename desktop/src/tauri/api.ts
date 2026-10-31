@@ -80,6 +80,7 @@ export type {
 	RuntimeInfo,
 	Solution,
 	StudyStats,
+	Theme,
 } from "./bindings";
 
 export class ApiError extends Error {

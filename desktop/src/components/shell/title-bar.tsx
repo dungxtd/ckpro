@@ -10,7 +10,8 @@ import { ChevronDown, PanelLeft, Search } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 import { ActivityChip } from "@/components/activity/activity-chip";
 import { ExamMenuItems } from "@/components/catalog/exam-list";
-import { SECTIONS } from "./sections";
+import { useSidebarLayout } from "@/stores/settings";
+import { arrangeScreens } from "./sections";
 
 /**
  * The bar over the content: it moves the window and shows what is running.
@@ -30,6 +31,7 @@ export function TitleBar({
 }) {
 	const { pathname } = useLocation();
 	const navigate = useNavigate();
+	const [layout] = useSidebarLayout();
 	return (
 		<div
 			data-tauri-drag-region
@@ -61,7 +63,7 @@ export function TitleBar({
 				>
 					<PanelLeft />
 				</IconButton>
-				{SECTIONS.map(({ path, label }) =>
+				{arrangeScreens(layout).map(({ path, label }) =>
 					path === "/" ? (
 						<DropdownMenu key={path}>
 							<DropdownMenuTrigger asChild>
@@ -80,7 +82,10 @@ export function TitleBar({
 						</CapsuleItem>
 					)
 				)}
-				<CapsuleItem current={pathname === "/settings"} onClick={() => navigate("/settings")}>
+				<CapsuleItem
+					current={pathname.startsWith("/settings")}
+					onClick={() => navigate("/settings")}
+				>
 					Settings
 				</CapsuleItem>
 				<IconButton

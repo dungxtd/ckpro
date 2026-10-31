@@ -1,7 +1,7 @@
 import { useNavigate, useSearchParams } from "react-router";
 import { useExam } from "@/stores/exam";
-import { useSettings } from "@/stores/settings";
-import type { ExamSummary, SidebarLayout } from "@/tauri/api";
+import { useSidebarLayout } from "@/stores/settings";
+import type { ExamSummary } from "@/tauri/api";
 import { arrange } from "./layout";
 
 export const gb = (mb: number) => (mb / 1024).toFixed(1);
@@ -47,15 +47,4 @@ export function useSelection() {
 		select: (id: string) => navigate(`/?exam=${encodeURIComponent(id)}`),
 		generate: () => navigate(`/?exam=${GENERATE}`),
 	};
-}
-
-/** How the sidebar lists the exams, and a change to it (saved) */
-export function useSidebarLayout() {
-	const layout = useSettings(s => s.settings.sidebar);
-	const update = useSettings(s => s.update);
-	return [
-		layout,
-		(patch: Partial<SidebarLayout>) =>
-			update({ sidebar: { ...useSettings.getState().settings.sidebar, ...patch } }),
-	] as const;
 }

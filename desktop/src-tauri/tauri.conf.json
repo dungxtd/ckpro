@@ -21,8 +21,7 @@
         "trafficLightPosition": {
           "x": 18,
           "y": 22
-        },
-        "theme": "Dark"
+        }
       }
     ],
     "security": {

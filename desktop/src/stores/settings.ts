@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import { errorText, type Settings, settingsApi } from "@/tauri/api";
+import { errorText, type Settings, type SidebarLayout, settingsApi } from "@/tauri/api";
 
 interface SettingsStore {
 	/** Mirror of what the app database keeps */
@@ -29,7 +29,15 @@ export const useSettings = create<SettingsStore>()(
 			assistant_enabled: true,
 			analytics: true,
 			sidebar_folded: false,
-			sidebar: { groups: [], exams: [], collapsed: [], hidden: [] },
+			sidebar: {
+				groups: [],
+				exams: [],
+				collapsed: [],
+				hidden: [],
+				screens: [],
+				hidden_screens: [],
+			},
+			theme: "dark",
 		},
 		loaded: false,
 		error: null,
@@ -60,3 +68,14 @@ export const useSettings = create<SettingsStore>()(
 
 /** Whether the app offers the assistant at all (Settings > Claude) */
 export const useAssistantEnabled = () => useSettings(s => s.settings.assistant_enabled);
+
+/** How the sidebar lists the screens and the exams, and a change to it (saved) */
+export function useSidebarLayout() {
+	const layout = useSettings(s => s.settings.sidebar);
+	const update = useSettings(s => s.update);
+	return [
+		layout,
+		(patch: Partial<SidebarLayout>) =>
+			update({ sidebar: { ...useSettings.getState().settings.sidebar, ...patch } }),
+	] as const;
+}

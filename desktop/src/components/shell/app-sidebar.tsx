@@ -6,7 +6,8 @@ import { PanelLeft, Search, Settings } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { ExamList } from "@/components/catalog/exam-list";
-import { SECTIONS } from "./sections";
+import { useSidebarLayout } from "@/stores/settings";
+import { arrangeScreens } from "./sections";
 
 /**
  * The app's sidebar: its screens, the exams, Settings. `searching`: a field
@@ -27,6 +28,7 @@ export function AppSidebar({
 	const { pathname } = useLocation();
 	const navigate = useNavigate();
 	const [query, setQuery] = useState("");
+	const [layout] = useSidebarLayout();
 	const stopSearching = () => {
 		setQuery("");
 		onSearching(false);
@@ -76,7 +78,7 @@ export function AppSidebar({
 			)}
 			<div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
 				{!searching &&
-					SECTIONS.map(({ path, label, icon: Icon }) => (
+					arrangeScreens(layout).map(({ path, label, icon: Icon }) => (
 						<SidebarItem
 							key={path}
 							icon={<Icon />}
@@ -91,7 +93,7 @@ export function AppSidebar({
 				<SidebarItem
 					icon={<Settings />}
 					label="Settings"
-					current={pathname === "/settings"}
+					current={pathname.startsWith("/settings")}
 					onClick={() => navigate("/settings")}
 				/>
 			</div>

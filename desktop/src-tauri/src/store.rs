@@ -138,13 +138,26 @@ pub struct Settings {
     pub analytics: bool,
     /// The sidebar folded into the floating capsule (⌃⌘S)
     pub sidebar_folded: bool,
-    /// How the sidebar lists the exams
+    /// How the sidebar lists the screens and the exams
     pub sidebar: SidebarLayout,
+    /// Light or dark, or as macOS is
+    pub theme: Theme,
 }
 
-/// How the sidebar lists the exams: in the order the candidate dragged them
-/// (what was never dragged after, as it comes), and the certifications
-/// folded or hidden
+/// The app's appearance
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    /// As macOS is set, following it when it changes
+    System,
+    Light,
+    #[default]
+    Dark,
+}
+
+/// How the sidebar lists the screens and the exams: in the order the
+/// candidate dragged them (what was never dragged after, as it comes), and
+/// what is folded or hidden
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct SidebarLayout {
@@ -156,6 +169,10 @@ pub struct SidebarLayout {
     pub collapsed: Vec<String>,
     /// Certifications not in the sidebar at all
     pub hidden: Vec<String>,
+    /// The screens (their paths), in order
+    pub screens: Vec<String>,
+    /// Screens not in the sidebar (Exams always is)
+    pub hidden_screens: Vec<String>,
 }
 
 impl Default for Settings {
@@ -173,6 +190,7 @@ impl Default for Settings {
             analytics: true,
             sidebar_folded: false,
             sidebar: SidebarLayout::default(),
+            theme: Theme::Dark,
         }
     }
 }
@@ -624,7 +642,10 @@ mod tests {
                 exams: vec!["cka-002".into()],
                 collapsed: vec!["ckad".into()],
                 hidden: vec![],
+                screens: vec!["/calendar".into()],
+                hidden_screens: vec!["/environment".into()],
             },
+            theme: Theme::System,
         };
         store.save_settings(&settings).unwrap();
         assert_eq!(store.settings().unwrap(), settings);

@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { ExamSummary, SidebarLayout } from "@/tauri/api";
-import { arrange, moved, stepped, toggled } from "./layout";
+import { arrange, moved, toggled } from "./layout";
 
 const exam = (id: string, certification: string) => ({ id, certification }) as ExamSummary;
-const none: SidebarLayout = { groups: [], exams: [], collapsed: [], hidden: [] };
+const none: SidebarLayout = {
+	groups: [],
+	exams: [],
+	collapsed: [],
+	hidden: [],
+	screens: [],
+	hidden_screens: [],
+};
 const catalog = [
 	exam("s1", "cks"),
 	exam("a1", "cka"),
@@ -38,12 +45,10 @@ describe("sidebar layout", () => {
 		expect(arrange(catalog, layout)[0].collapsed).toBe(true);
 	});
 
-	it("moves, steps and toggles items in a list", () => {
+	it("moves and toggles items in a list", () => {
 		expect(moved(["a", "b", "c"], "c", "a", false)).toEqual(["c", "a", "b"]);
 		expect(moved(["a", "b", "c"], "a", "c", true)).toEqual(["b", "c", "a"]);
 		expect(moved(["a", "b"], "a", "a", true)).toEqual(["a", "b"]);
-		expect(stepped(["a", "b", "c"], "b", -1)).toEqual(["b", "a", "c"]);
-		expect(stepped(["a", "b"], "a", -1)).toEqual(["a", "b"]);
 		expect(toggled(["a"], "b", true)).toEqual(["a", "b"]);
 		expect(toggled(["a", "b"], "a", false)).toEqual(["b"]);
 	});

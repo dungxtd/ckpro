@@ -860,8 +860,10 @@ export type Settings_Deserialize = {
 	analytics?: boolean,
 	/**  The sidebar folded into the floating capsule (⌃⌘S) */
 	sidebar_folded?: boolean,
-	/**  How the sidebar lists the exams */
+	/**  How the sidebar lists the screens and the exams */
 	sidebar?: SidebarLayout_Deserialize,
+	/**  Light or dark, or as macOS is */
+	theme?: Theme,
 };
 
 /**  The exam desk's display settings */
@@ -886,23 +888,25 @@ export type Settings_Serialize = {
 	analytics: boolean,
 	/**  The sidebar folded into the floating capsule (⌃⌘S) */
 	sidebar_folded: boolean,
-	/**  How the sidebar lists the exams */
+	/**  How the sidebar lists the screens and the exams */
 	sidebar: SidebarLayout_Serialize,
+	/**  Light or dark, or as macOS is */
+	theme: Theme,
 };
 
 export type Severity = "error" | "warning";
 
 /**
- *  How the sidebar lists the exams: in the order the candidate dragged them
- *  (what was never dragged after, as it comes), and the certifications
- *  folded or hidden
+ *  How the sidebar lists the screens and the exams: in the order the
+ *  candidate dragged them (what was never dragged after, as it comes), and
+ *  what is folded or hidden
  */
 export type SidebarLayout = SidebarLayout_Serialize | SidebarLayout_Deserialize;
 
 /**
- *  How the sidebar lists the exams: in the order the candidate dragged them
- *  (what was never dragged after, as it comes), and the certifications
- *  folded or hidden
+ *  How the sidebar lists the screens and the exams: in the order the
+ *  candidate dragged them (what was never dragged after, as it comes), and
+ *  what is folded or hidden
  */
 export type SidebarLayout_Deserialize = {
 	/**  Certifications, in order */
@@ -913,12 +917,16 @@ export type SidebarLayout_Deserialize = {
 	collapsed?: string[],
 	/**  Certifications not in the sidebar at all */
 	hidden?: string[],
+	/**  The screens (their paths), in order */
+	screens?: string[],
+	/**  Screens not in the sidebar (Exams always is) */
+	hidden_screens?: string[],
 };
 
 /**
- *  How the sidebar lists the exams: in the order the candidate dragged them
- *  (what was never dragged after, as it comes), and the certifications
- *  folded or hidden
+ *  How the sidebar lists the screens and the exams: in the order the
+ *  candidate dragged them (what was never dragged after, as it comes), and
+ *  what is folded or hidden
  */
 export type SidebarLayout_Serialize = {
 	/**  Certifications, in order */
@@ -929,6 +937,10 @@ export type SidebarLayout_Serialize = {
 	collapsed: string[],
 	/**  Certifications not in the sidebar at all */
 	hidden: string[],
+	/**  The screens (their paths), in order */
+	screens: string[],
+	/**  Screens not in the sidebar (Exams always is) */
+	hidden_screens: string[],
 };
 
 /**  A login as it runs */
@@ -958,6 +970,11 @@ export type StudyStats = {
 	/**  Heaviest domain first */
 	domains: DomainStat[],
 };
+
+/**  The app's appearance */
+export type Theme = 
+/**  As macOS is set, following it when it changes */
+"system" | "light" | "dark";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

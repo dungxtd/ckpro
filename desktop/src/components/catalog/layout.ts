@@ -54,16 +54,6 @@ export function moved(list: string[], item: string, target: string, after: boole
 	return rest;
 }
 
-/** `list` with `item` one place earlier (-1) or later (1) */
-export function stepped(list: string[], item: string, by: -1 | 1): string[] {
-	const i = list.indexOf(item);
-	const j = i + by;
-	if (i < 0 || j < 0 || j >= list.length) return list;
-	const next = [...list];
-	[next[i], next[j]] = [next[j], next[i]];
-	return next;
-}
-
 /** `list` with `item` in it, or out of it */
 export const toggled = (list: string[], item: string, on: boolean) =>
 	on ? [...new Set([...list, item])] : list.filter(x => x !== item);
