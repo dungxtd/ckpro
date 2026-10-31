@@ -3,8 +3,9 @@ import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { Progress } from "@ckdry/ui/components/progress";
 import { Stat, StatGroup } from "@ckdry/ui/components/stat";
-import { BookOpenCheck, Timer } from "lucide-react";
-import type { ReactNode } from "react";
+import { cn } from "@ckdry/ui/lib/utils";
+import { BookOpenCheck, ListChecks, Server, Target, Timer } from "lucide-react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { useExam } from "@/stores/exam";
 import { useAssistantEnabled } from "@/stores/settings";
 import type { ExamSummary } from "@/tauri/api";
@@ -23,19 +24,21 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 
 	return (
 		<div className="flex flex-col gap-7">
-			<header>
-				<Badge>{exam.certification.toUpperCase()}</Badge>
-				<h1 className="mt-2 min-w-0 break-words font-bold text-[28px] leading-tight">
-					{exam.title}
-				</h1>
-				<p className="mt-2 max-w-[60ch] text-lead text-muted-foreground">{exam.description}</p>
+			<header className="flex flex-col gap-2">
+				<Badge className="self-start">{exam.certification.toUpperCase()}</Badge>
+				<h1 className="min-w-0 break-words font-bold text-[28px] leading-tight">{exam.title}</h1>
+				<Description text={exam.description} />
 			</header>
 
 			<StatGroup>
-				<Stat value={exam.questions} label={exam.questions === 1 ? "question" : "questions"} />
-				<Stat value={`${exam.duration_minutes} min`} label="time" />
-				<Stat value={`${exam.pass_score}%`} label="to pass" />
-				<Stat value={exam.nodes} label="nodes" />
+				<Stat
+					icon={<ListChecks />}
+					value={exam.questions}
+					label={exam.questions === 1 ? "question" : "questions"}
+				/>
+				<Stat icon={<Timer />} value={`${exam.duration_minutes} min`} label="time" />
+				<Stat icon={<Target />} value={`${exam.pass_score}%`} label="to pass" />
+				<Stat icon={<Server />} value={exam.nodes} label="nodes" />
 			</StatGroup>
 
 			<div className="flex items-center gap-3 text-caption">
@@ -84,6 +87,42 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 					</Mode>
 				</div>
 			</section>
+		</div>
+	);
+}
+
+/**
+ * The exam's description in two lines, the same height for every exam;
+ * "Show more" lays it out whole, moving what follows down
+ */
+function Description({ text }: { text: string }) {
+	const ref = useRef<HTMLParagraphElement>(null);
+	const [open, setOpen] = useState(false);
+	const [long, setLong] = useState(false);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: measured again for a new text
+	useLayoutEffect(() => {
+		const p = ref.current;
+		if (p && !open) setLong(p.scrollHeight > p.clientHeight + 1);
+	}, [text, open]);
+	return (
+		<div className="flex min-h-12 max-w-[62ch] flex-col items-start">
+			<p
+				ref={ref}
+				className={cn("text-lead text-muted-foreground leading-6", !open && "line-clamp-2")}
+			>
+				{text}
+			</p>
+			{(long || open) && (
+				<Button
+					variant="quiet"
+					size="inline"
+					className="mt-1 font-medium text-callout"
+					aria-expanded={open}
+					onClick={() => setOpen(o => !o)}
+				>
+					{open ? "Show less" : "Show more"}
+				</Button>
+			)}
 		</div>
 	);
 }

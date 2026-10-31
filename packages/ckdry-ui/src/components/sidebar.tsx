@@ -22,7 +22,7 @@ export function Sidebar({ className, ...props }: React.ComponentProps<"aside">) 
 export function SidebarLabel({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
-			className={cn("px-2.5 pt-4 pb-1 font-medium text-2xs text-muted-foreground", className)}
+			className={cn("px-2.5 pt-5 pb-1 font-semibold text-caption text-muted-foreground", className)}
 			{...props}
 		/>
 	);
@@ -55,7 +55,7 @@ export function SidebarItem({
 			type={type}
 			aria-current={current ? "page" : undefined}
 			className={cn(
-				"flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-callout outline-none hover:bg-sidebar-selected focus-visible:ring-2 focus-visible:ring-ring aria-[current]:bg-sidebar-selected aria-[current]:font-semibold [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground",
+				"flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-lead text-foreground/85 outline-none transition-colors duration-150 hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring aria-[current]:bg-sidebar-selected aria-[current]:font-semibold aria-[current]:text-foreground motion-reduce:transition-none [&>svg]:size-[18px] [&>svg]:shrink-0 [&>svg]:text-muted-foreground aria-[current]:[&>svg]:text-foreground",
 				className
 			)}
 			{...props}
@@ -66,7 +66,7 @@ export function SidebarItem({
 				{detail && (
 					<span
 						className={cn(
-							"block truncate font-normal text-2xs",
+							"mt-px block truncate font-normal text-caption",
 							warning ? "text-warning" : "text-muted-foreground"
 						)}
 					>

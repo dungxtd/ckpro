@@ -52,7 +52,10 @@ export function CatalogRoute() {
 			{generating && assistant ? (
 				<GenerateCard onGenerated={loadCatalog} />
 			) : exam ? (
-				<ExamDetail exam={exam} dockerMb={docker?.state === "up" ? docker.memory_mb : null} />
+				// Each exam fades in, its description folded again
+				<div key={exam.id} className="fade-in-0 animate-in duration-200 motion-reduce:animate-none">
+					<ExamDetail exam={exam} dockerMb={docker?.state === "up" ? docker.memory_mb : null} />
+				</div>
 			) : (
 				!loaded && <Loading fill label="Loading exams…" />
 			)}

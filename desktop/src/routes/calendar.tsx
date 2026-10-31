@@ -1,4 +1,3 @@
-import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Loading } from "@ckdry/ui/components/loading";
@@ -7,7 +6,7 @@ import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { byDay, dayKey, monthKey, parseMonth, streak } from "@/components/calendar/days";
-import { Month } from "@/components/calendar/month";
+import { DayAttempts, MiniMonth, Month } from "@/components/calendar/month";
 import { Screen } from "@/components/shell/screen";
 import { examApi, type HistoryEntry } from "@/tauri/api";
 
@@ -55,25 +54,36 @@ export function CalendarRoute() {
 		<Screen
 			title="Calendar"
 			actions={
-				<div className="flex items-center gap-1">
-					<span className="mr-2 font-semibold text-lead tabular-nums">
-						{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
-					</span>
-					<IconButton
-						variant="toolbar"
-						size="sm"
-						aria-label="Previous month"
-						onClick={() => shift(-1)}
-					>
-						<ChevronLeft />
-					</IconButton>
-					<Button size="push" variant="push" onClick={() => go(now)}>
-						Today
+				picked ? (
+					<Button size="push" variant="push" onClick={() => setParams({ month: monthKey(month) })}>
+						<CalendarDays /> Month
 					</Button>
-					<IconButton variant="toolbar" size="sm" aria-label="Next month" onClick={() => shift(1)}>
-						<ChevronRight />
-					</IconButton>
-				</div>
+				) : (
+					<div className="flex items-center gap-1">
+						<span className="mr-2 font-semibold text-lead tabular-nums">
+							{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+						</span>
+						<IconButton
+							variant="toolbar"
+							size="sm"
+							aria-label="Previous month"
+							onClick={() => shift(-1)}
+						>
+							<ChevronLeft />
+						</IconButton>
+						<Button size="push" variant="push" onClick={() => go(now)}>
+							Today
+						</Button>
+						<IconButton
+							variant="toolbar"
+							size="sm"
+							aria-label="Next month"
+							onClick={() => shift(1)}
+						>
+							<ChevronRight />
+						</IconButton>
+					</div>
+				)
 			}
 		>
 			<StatGroup>
@@ -85,44 +95,35 @@ export function CalendarRoute() {
 				<Stat value={average === null ? "–" : `${average}%`} label="average score" />
 				<Stat value={run} label={run === 1 ? "day in a row" : "days in a row"} />
 			</StatGroup>
-			<Month
-				month={month}
-				days={days}
-				today={today}
-				picked={picked}
-				onPick={day => setParams({ month: monthKey(month), day })}
-			/>
-			{picked && (
-				<section className="flex flex-col gap-2">
-					<h2 className="font-semibold text-lead">
-						{new Date(`${picked}T00:00`).toLocaleDateString(undefined, { dateStyle: "full" })}
-					</h2>
-					{onDay.length === 0 ? (
-						<p className="text-callout text-muted-foreground">No attempt on this day.</p>
-					) : (
-						<div className="divide-y divide-border rounded-xl border border-border bg-card">
-							{onDay.map(h => (
-								<div
-									key={h.attempt_id}
-									className="flex items-center gap-3 px-4 py-2.5 text-callout"
-								>
-									<span className="w-12 text-muted-foreground tabular-nums">
-										{new Date(h.result.started_at ?? 0).toLocaleTimeString(undefined, {
-											hour: "2-digit",
-											minute: "2-digit",
-										})}
-									</span>
-									<span className="min-w-0 flex-1 truncate">{h.title}</span>
-									<Badge>{h.mode === "exam" ? "Exam" : "Practice"}</Badge>
-									<span className="w-10 text-right tabular-nums">{h.result.score ?? 0}%</span>
-									<Badge variant={h.result.passed ? "success" : "destructive"}>
-										{h.result.passed ? "Pass" : "Fail"}
-									</Badge>
-								</div>
-							))}
-						</div>
-					)}
-				</section>
+			{picked ? (
+				// A day picked: the month small beside it (staying as the list
+				// scrolls), the day's attempts on the right
+				<div className="grid grid-cols-[272px_minmax(0,1fr)] items-start gap-6">
+					<div className="sticky top-0">
+						<MiniMonth
+							month={month}
+							days={days}
+							today={today}
+							picked={picked}
+							onPick={day => setParams({ month: monthKey(month), day })}
+							onShift={by =>
+								setParams({
+									month: monthKey(new Date(month.getFullYear(), month.getMonth() + by, 1)),
+									day: picked,
+								})
+							}
+						/>
+					</div>
+					<DayAttempts day={picked} attempts={onDay} />
+				</div>
+			) : (
+				<Month
+					month={month}
+					days={days}
+					today={today}
+					picked={picked}
+					onPick={day => setParams({ month: monthKey(month), day })}
+				/>
 			)}
 		</Screen>
 	);

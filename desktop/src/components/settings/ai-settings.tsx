@@ -139,7 +139,7 @@ export function AiSettings() {
 									>
 										<a.Icon className={cn("size-5 shrink-0", a.tint, !on && "opacity-50")} />
 										<div className="min-w-0 flex-1">
-											<div className="text-sm">{a.name}</div>
+											<div className="text-[17px] leading-snug">{a.name}</div>
 											<div className="truncate text-muted-foreground text-xs">
 												{agentSummary(on, runtime, coach.account)}
 											</div>
@@ -248,10 +248,10 @@ function ClaudeCodePanel({
 		useCoach.getState().ensureModels();
 	}, []);
 	return (
-		<div className="divide-y divide-border">
+		<div>
 			<div className="flex flex-col gap-2 px-4 py-3">
 				<div className="flex items-center justify-between gap-3">
-					<div className="text-sm">Claude CLI</div>
+					<div className="text-[17px] leading-snug">Claude CLI</div>
 					<Button size="push" variant="push" disabled={checking} onClick={onRecheck}>
 						<RotateCw className={cn(checking && "animate-spin")} /> Recheck
 					</Button>
@@ -402,9 +402,9 @@ function ToolAccess({ settings, save }: Section) {
 					incrementDisabled={settings.command_timeout >= TIMEOUTS[TIMEOUTS.length - 1]}
 				/>
 			</Row>
-			<div className="flex flex-col gap-2 px-4 py-3">
+			<div className="ml-4 flex flex-col gap-2 border-border border-t py-3 pr-4">
 				<div>
-					<div className="text-sm">Never run</div>
+					<div className="text-[17px] leading-snug">Never run</div>
 					<div className="text-muted-foreground text-xs">
 						Commands containing these are refused, whatever you allow. Always refused: kind, docker,
 						reboot and shutdown, rm -r /.

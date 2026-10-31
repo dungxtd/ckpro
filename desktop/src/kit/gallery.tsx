@@ -63,7 +63,6 @@ import {
 } from "@ckdry/ui/components/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ckdry/ui/components/tabs";
 import { Textarea } from "@ckdry/ui/components/textarea";
-import { Tile } from "@ckdry/ui/components/tile";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/tooltip";
 import { Truncated } from "@ckdry/ui/components/truncated";
 import {
@@ -512,19 +511,14 @@ function Gallery() {
 				</Section>
 
 				<Section
-					title="Stat and Tile"
-					note="Figures side by side on one card; square shortcuts to a section."
+					title="Stat"
+					note="Figures side by side on one card, an icon above each when it helps."
 				>
 					<StatGroup>
-						<Stat value={10} label="questions" />
-						<Stat value="60 min" label="time" />
+						<Stat icon={<Monitor />} value={10} label="questions" />
+						<Stat icon={<Info />} value="60 min" label="time" />
 						<Stat value="66%" label="to pass" />
 					</StatGroup>
-					<Row>
-						<Tile icon={<Monitor />} label="Exam desk" />
-						<Tile icon={<Sparkles />} label="Assistant" />
-						<Tile icon={<Info />} label="About" />
-					</Row>
 				</Section>
 
 				<Section title="Tabs" note="Sections of one page with a sidebar.">

@@ -66,7 +66,8 @@ function Layout() {
 		// capsule comes in as it goes
 		<div
 			className={cn(
-				"grid h-full transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+				// One row the window's height: the screen scrolls inside it
+				"grid h-full grid-rows-[minmax(0,1fr)] transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
 				folded ? "grid-cols-[0px_minmax(0,1fr)]" : "grid-cols-[256px_minmax(0,1fr)]"
 			)}
 		>
@@ -78,7 +79,7 @@ function Layout() {
 					onFold={() => update({ sidebar_folded: true })}
 				/>
 			</div>
-			<div className="flex min-w-0 flex-col">
+			<div className="flex min-h-0 min-w-0 flex-col">
 				<TitleBar
 					folded={folded}
 					title={scrolled ? screenTitle(pathname) : undefined}
@@ -93,7 +94,13 @@ function Layout() {
 					className="min-h-0 flex-1 overflow-auto"
 					onScroll={e => setScrolled(e.currentTarget.scrollTop > 48)}
 				>
-					<Outlet />
+					{/* Each screen fades in as it opens */}
+					<div
+						key={pathname}
+						className="h-full fade-in-0 animate-in duration-200 motion-reduce:animate-none"
+					>
+						<Outlet />
+					</div>
 				</main>
 			</div>
 		</div>

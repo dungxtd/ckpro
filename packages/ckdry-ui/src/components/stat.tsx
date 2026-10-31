@@ -14,10 +14,19 @@ export function StatGroup({ className, ...props }: React.ComponentProps<"div">) 
 	);
 }
 
-/** One figure, large, and what it counts */
-export function Stat({ value, label }: { value: React.ReactNode; label: React.ReactNode }) {
+/** One figure, large, and what it counts; `icon` above them */
+export function Stat({
+	icon,
+	value,
+	label,
+}: {
+	icon?: React.ReactNode;
+	value: React.ReactNode;
+	label: React.ReactNode;
+}) {
 	return (
-		<div className="min-w-0 px-4 py-3">
+		<div className="min-w-0 px-4 py-3 [&>svg]:mb-2 [&>svg]:size-[18px] [&>svg]:text-muted-foreground">
+			{icon}
 			<div className="truncate font-semibold text-[22px] tabular-nums">{value}</div>
 			<div className="text-caption text-muted-foreground">{label}</div>
 		</div>
