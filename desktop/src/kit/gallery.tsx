@@ -45,7 +45,14 @@ import {
 	SheetTitle,
 	SheetTrigger,
 } from "@ckdry/ui/components/sheet";
-import { Sidebar, SidebarItem, SidebarLabel } from "@ckdry/ui/components/sidebar";
+import {
+	Sidebar,
+	SidebarEye,
+	SidebarGrip,
+	SidebarItem,
+	SidebarLabel,
+	SidebarRemove,
+} from "@ckdry/ui/components/sidebar";
 import { Skeleton } from "@ckdry/ui/components/skeleton";
 import { Toaster } from "@ckdry/ui/components/sonner";
 import { Spinner } from "@ckdry/ui/components/spinner";
@@ -488,6 +495,29 @@ function Gallery() {
 									label="Advanced Administration"
 									detail="20 questions, 120 min, runs slower"
 									warning
+								/>
+							</div>
+						</Sidebar>
+						{/* The same, while it is edited */}
+						<Sidebar className="m-0 h-72">
+							<div className="px-2 py-2">
+								<SidebarItem icon={<LayoutList />} label="Exams" trailing={<SidebarGrip />} />
+								<SidebarItem
+									icon={<History />}
+									label="History"
+									className="opacity-40"
+									trailing={
+										<>
+											<SidebarEye hidden name="History" onToggle={() => {}} />
+											<SidebarGrip />
+										</>
+									}
+								/>
+								<SidebarItem
+									label="My questions"
+									detail="3 questions, 120 min"
+									leading={<SidebarRemove name="My questions" onRemove={() => {}} />}
+									trailing={<SidebarGrip />}
 								/>
 							</div>
 						</Sidebar>

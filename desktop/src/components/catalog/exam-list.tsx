@@ -18,7 +18,14 @@ import {
 	DropdownMenuRadioItem,
 	DropdownMenuSeparator,
 } from "@ckdry/ui/components/dropdown-menu";
-import { SidebarGroupToggle, SidebarItem, SidebarLabel } from "@ckdry/ui/components/sidebar";
+import {
+	SidebarEye,
+	SidebarGrip,
+	SidebarGroupToggle,
+	SidebarItem,
+	SidebarLabel,
+	SidebarRemove,
+} from "@ckdry/ui/components/sidebar";
 import { useDragOrder } from "@ckdry/ui/hooks/use-drag-order";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Pin } from "lucide-react";
@@ -54,14 +61,26 @@ function useCatalog() {
 
 /**
  * The exams in the sidebar: the pinned ones first, then by certification,
- * and the question generator after them. Everything is dragged straight
- * into another order (exams within their certification, or among the
- * pinned), or moved with ⌥⌘↑ and ⌥⌘↓. A certification folds from its name;
- * its right-click menu sorts it (by hand, by recent practice, lowest score
- * first, by name) or hides it, an exam's pins it or deletes the
- * candidate's own. `query` keeps the exams whose title has it
+ * and the question generator after them. A certification folds from its
+ * name; its right-click menu sorts it (by hand, by recent practice, lowest
+ * score first, by name), an exam's pins it or deletes the candidate's own;
+ * both open the sidebar's editing. While `editing`, the rows stay as they
+ * are (certifications still fold, which keeps a long list short) and gain a
+ * grip to drag them into order (exams within their certification, or among
+ * the pinned), a certification an eye to hide it (hidden ones then show,
+ * dimmed), a candidate's exam a red minus to delete it. Move to Top and
+ * Bottom, and ⌥⌘↑ and ⌥⌘↓, move an exam without dragging. `query` keeps
+ * the exams whose title has it
  */
-export function ExamList({ query }: { query: string }) {
+export function ExamList({
+	query,
+	editing,
+	onEdit,
+}: {
+	query: string;
+	editing: boolean;
+	onEdit: () => void;
+}) {
 	const catalog = useCatalog();
 	const loadCatalog = useExam(s => s.loadCatalog);
 	const stats = useExamStats(s => s.stats);
@@ -77,7 +96,7 @@ export function ExamList({ query }: { query: string }) {
 
 	const all = arrange(catalog, layout, true, stats);
 	const top = pinned(catalog, layout).filter(matches);
-	const groups = arrange(catalog, layout, false, stats)
+	const groups = arrange(catalog, layout, editing, stats)
 		.map(g => ({ ...g, exams: g.exams.filter(matches) }))
 		.filter(g => !q || g.exams.length > 0);
 	const certOf = new Map(catalog.map(e => [e.id, e.certification]));
@@ -139,18 +158,36 @@ export function ExamList({ query }: { query: string }) {
 	/** One exam's row and its right-click menu; `drag`: the list it moves in */
 	const row = (exam: ExamSummary, drag: ReturnType<typeof useDragOrder>, isPinned: boolean) => {
 		const f = memoryFit(exam, dockerMb);
+		const name = shortTitle(exam.title);
+		// Its certification's own: move it to either end of it, in one go
+		const ends = () => listed.filter(id => certOf.get(id) === exam.certification);
+		const toEnd = (last: boolean) => {
+			const mine = ends();
+			const target = last ? mine.at(-1) : mine[0];
+			if (target) reorder(moved(listed, exam.id, target, last), exam.certification);
+		};
 		return (
 			<ContextMenu key={exam.id}>
 				<ContextMenuTrigger asChild>
 					<SidebarItem
-						label={shortTitle(exam.title)}
+						label={name}
 						// Pinned, away from its certification's heading: it says which
 						detail={`${isPinned ? `${exam.certification.toUpperCase()}, ` : ""}${exam.questions} questions, ${exam.duration_minutes} min${f === "slower" ? ", runs slower" : f === "too-small" ? ", needs more memory" : ""}`}
 						warning={f === "slower" || f === "too-small"}
 						current={onExams && !generating && shown?.id === exam.id}
 						onClick={() => select(exam.id)}
-						className={cn(drag.landing(exam.id))}
-						{...drag.row(exam.id, !q)}
+						// Edited: the same row, a red minus (its own) and its grip added
+						leading={
+							editing && exam.custom ? (
+								<SidebarRemove name={name} onRemove={() => setDeleting(exam)} />
+							) : undefined
+						}
+						trailing={editing ? <SidebarGrip /> : undefined}
+						className={cn(
+							editing && drag.landing(exam.id),
+							editing && !isPinned && layout.hidden.includes(exam.certification) && "opacity-40"
+						)}
+						{...(editing ? drag.row(exam.id) : {})}
 					/>
 				</ContextMenuTrigger>
 				<ContextMenuContent>
@@ -160,6 +197,12 @@ export function ExamList({ query }: { query: string }) {
 					>
 						{isPinned ? "Unpin" : "Pin to Top"}
 					</ContextMenuItem>
+					{!isPinned && (
+						<>
+							<ContextMenuItem onSelect={() => toEnd(false)}>Move to Top</ContextMenuItem>
+							<ContextMenuItem onSelect={() => toEnd(true)}>Move to Bottom</ContextMenuItem>
+						</>
+					)}
 					{exam.custom && (
 						<>
 							<ContextMenuSeparator />
@@ -168,6 +211,8 @@ export function ExamList({ query }: { query: string }) {
 							</ContextMenuItem>
 						</>
 					)}
+					<ContextMenuSeparator />
+					<ContextMenuItem onSelect={onEdit}>Edit Sidebar…</ContextMenuItem>
 				</ContextMenuContent>
 			</ContextMenu>
 		);
@@ -185,6 +230,7 @@ export function ExamList({ query }: { query: string }) {
 			)}
 			{groups.map(({ cert, exams, collapsed, sort }) => {
 				const open = !collapsed || !!q;
+				const hidden = layout.hidden.includes(cert);
 				return (
 					<div key={cert}>
 						<ContextMenu>
@@ -193,9 +239,28 @@ export function ExamList({ query }: { query: string }) {
 									label={cert.toUpperCase()}
 									open={open}
 									count={exams.length}
-									onClick={() => setLayout({ collapsed: toggled(layout.collapsed, cert, open) })}
-									className={cn(dragGroup.landing(cert))}
-									{...dragGroup.row(cert, !q)}
+									onToggle={() => setLayout({ collapsed: toggled(layout.collapsed, cert, open) })}
+									// Edited: the same heading (it still folds), its eye and grip added
+									trailing={
+										editing ? (
+											<>
+												<SidebarEye
+													hidden={hidden}
+													name={cert.toUpperCase()}
+													onToggle={() =>
+														setLayout({ hidden: toggled(layout.hidden, cert, !hidden) })
+													}
+												/>
+												<SidebarGrip />
+											</>
+										) : undefined
+									}
+									className={cn(
+										editing && "cursor-grab active:cursor-grabbing",
+										editing && dragGroup.landing(cert),
+										editing && hidden && "opacity-40"
+									)}
+									{...(editing ? dragGroup.row(cert) : {})}
 								/>
 							</ContextMenuTrigger>
 							<ContextMenuContent>
@@ -224,11 +289,7 @@ export function ExamList({ query }: { query: string }) {
 									</ContextMenuSubContent>
 								</ContextMenuSub>
 								<ContextMenuSeparator />
-								<ContextMenuItem
-									onSelect={() => setLayout({ hidden: toggled(layout.hidden, cert, true) })}
-								>
-									Hide {cert.toUpperCase()}
-								</ContextMenuItem>
+								<ContextMenuItem onSelect={onEdit}>Edit Sidebar…</ContextMenuItem>
 							</ContextMenuContent>
 						</ContextMenu>
 						{open && exams.map(exam => row(exam, dragExam, false))}
@@ -238,7 +299,7 @@ export function ExamList({ query }: { query: string }) {
 			{q && top.length === 0 && groups.length === 0 && (
 				<p className="px-2.5 pt-3 text-2xs text-muted-foreground">No exam has “{query.trim()}”.</p>
 			)}
-			{assistant && !q && (
+			{assistant && !q && !editing && (
 				<>
 					<SidebarLabel>Features</SidebarLabel>
 					<SidebarItem

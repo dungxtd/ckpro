@@ -1,8 +1,6 @@
 import {
-	ContextMenuCheckboxItem,
 	ContextMenuContent,
 	ContextMenuItem,
-	ContextMenuLabel,
 	ContextMenuRadioGroup,
 	ContextMenuRadioItem,
 	ContextMenuSeparator,
@@ -10,19 +8,18 @@ import {
 	ContextMenuSubContent,
 	ContextMenuSubTrigger,
 } from "@ckdry/ui/components/context-menu";
-import { arrange, SORTS, toggled } from "@/components/catalog/layout";
+import { arrange, SORTS } from "@/components/catalog/layout";
 import { useExam } from "@/stores/exam";
 import { useSidebarLayout } from "@/stores/settings";
 import type { ExamSort } from "@/tauri/api";
-import { SECTIONS } from "./sections";
 
 /**
  * The sidebar's own menu, from a right-click where it has no row (as
- * macOS toolbars and sidebars have): what it shows, checked on or off (a
- * screen or a certification), how every certification sorts its exams, and
- * its order put back. A row's own menu is about that row
+ * macOS toolbars and sidebars have): edit it (order, hide, delete, in
+ * place), sort every certification's exams one way, or put its order back.
+ * A row's own menu is about that row
  */
-export function SidebarMenu() {
+export function SidebarMenu({ onEdit }: { onEdit: () => void }) {
 	const catalog = useExam(s => s.catalog);
 	const [layout, setLayout] = useSidebarLayout();
 	const certs = arrange(catalog, layout, true).map(g => g.cert);
@@ -38,29 +35,7 @@ export function SidebarMenu() {
 		0;
 	return (
 		<ContextMenuContent>
-			<ContextMenuLabel>Show in Sidebar</ContextMenuLabel>
-			{SECTIONS.filter(s => s.path !== "/").map(s => (
-				<ContextMenuCheckboxItem
-					key={s.path}
-					checked={!layout.hidden_screens.includes(s.path)}
-					onCheckedChange={on =>
-						setLayout({ hidden_screens: toggled(layout.hidden_screens, s.path, !on) })
-					}
-					onSelect={e => e.preventDefault()}
-				>
-					{s.label}
-				</ContextMenuCheckboxItem>
-			))}
-			{certs.map(cert => (
-				<ContextMenuCheckboxItem
-					key={cert}
-					checked={!layout.hidden.includes(cert)}
-					onCheckedChange={on => setLayout({ hidden: toggled(layout.hidden, cert, !on) })}
-					onSelect={e => e.preventDefault()}
-				>
-					{cert.toUpperCase()}
-				</ContextMenuCheckboxItem>
-			))}
+			<ContextMenuItem onSelect={onEdit}>Edit Sidebar…</ContextMenuItem>
 			<ContextMenuSeparator />
 			<ContextMenuSub>
 				<ContextMenuSubTrigger value={SORTS.find(s => s.value === sort)?.label}>
