@@ -86,6 +86,13 @@ pub fn list_exams(exams: State<'_, Arc<Exams>>) -> Vec<ExamSummary> {
     exams.catalog()
 }
 
+/// Delete one of the candidate's own exams (generated questions) and its questions.
+#[tauri::command]
+#[specta::specta]
+pub fn delete_exam(exams: State<'_, Arc<Exams>>, id: String) -> AppResult<()> {
+    exams.delete_exam(&id, &crate::data_dir())
+}
+
 /// Reset the exam desktop: a new one, every window closed; the client reconnects.
 #[tauri::command]
 #[specta::specta]

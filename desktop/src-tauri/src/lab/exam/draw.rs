@@ -89,6 +89,7 @@ pub fn catalog(pack: &LoadedPack, measured: &crate::runtime::preflight::Footprin
                 questions: fixed + e.value.random.as_ref().map_or(0, |r| r.count),
                 duration_minutes: (e.value.duration.as_ref().unwrap_or(&cert.duration).seconds().unwrap_or(0) / 60) as u32,
                 pass_score: e.value.pass_score.unwrap_or(cert.pass_score),
+                custom: id.starts_with(&format!("{}/", crate::lab::mine::PACK_ID)),
             })
         })
         .collect()

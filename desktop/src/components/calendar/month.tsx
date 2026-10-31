@@ -189,7 +189,7 @@ export function DayAttempts({ day, attempts }: { day: string; attempts: HistoryE
 							</div>
 						</div>
 						<div className="text-right">
-							<div className="font-semibold text-[22px] tabular-nums">{h.result.score ?? 0}%</div>
+							<div className="font-semibold text-xl tabular-nums">{h.result.score ?? 0}%</div>
 							<Badge variant={h.result.passed ? "success" : "destructive"}>
 								{h.result.passed ? "Pass" : "Fail"}
 							</Badge>

@@ -44,9 +44,9 @@ export function Row({
 			)}
 		>
 			{icon}
-			<div className="flex min-h-13 min-w-0 flex-1 items-center gap-4 border-border border-t py-2 pr-4 group-first/row:border-t-0">
+			<div className="flex min-h-12 min-w-0 flex-1 items-center gap-4 border-border border-t py-2 pr-4 group-first/row:border-t-0">
 				<div className="min-w-0 flex-1">
-					<div className="text-[17px] leading-snug">{label}</div>
+					<div className="text-lead leading-snug">{label}</div>
 					{detail && <div className="text-caption text-muted-foreground">{detail}</div>}
 				</div>
 				{children && <div className="shrink-0">{children}</div>}

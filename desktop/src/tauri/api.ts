@@ -28,6 +28,8 @@ type Result<T, E> = { status: "ok"; data: T } | { status: "error"; error: E };
 
 /** The exam desk's display settings */
 export type Settings = Settings_Serialize;
+/** How the sidebar lists the exams */
+export type SidebarLayout = Settings["sidebar"];
 export type { Progress };
 
 /** The Claude login the assistant answers as */
@@ -265,6 +267,8 @@ export const examApi = {
 	check: (questionId: string) => unwrap(commands.checkQuestion(questionId)),
 	solution: (questionId: string) => unwrap(commands.questionSolution(questionId)),
 	history: () => commands.examHistory(),
+	/** Delete one of the candidate's own exams (generated questions) */
+	delete: (id: string) => unwrap(commands.deleteExam(id)),
 	/** Results per curriculum domain, per certification attempted */
 	studyStats: () => commands.studyStats(),
 };

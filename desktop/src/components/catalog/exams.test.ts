@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ExamSummary } from "@/tauri/api";
-import { byCertification, memoryFit, shortTitle } from "./exams";
+import { memoryFit, shortTitle } from "./exams";
 
 const exam = (id: string, certification: string, title = id): ExamSummary => ({
 	id,
@@ -14,23 +14,10 @@ const exam = (id: string, certification: string, title = id): ExamSummary => ({
 	minimum_mb: 3072,
 	nodes: 2,
 	clusters: ["k8s"],
+	custom: false,
 });
 
 describe("exams", () => {
-	it("groups by certification in the order they are taken", () => {
-		const groups = byCertification([
-			exam("s", "cks"),
-			exam("a", "cka"),
-			exam("d", "ckad"),
-			exam("b", "cka"),
-		]);
-		expect(groups.map(([cert, exams]) => [cert, exams.map(e => e.id)])).toEqual([
-			["cka", ["a", "b"]],
-			["ckad", ["d"]],
-			["cks", ["s"]],
-		]);
-	});
-
 	it("says how an exam fits Docker's memory", () => {
 		const e = exam("a", "cka");
 		expect(memoryFit(e, null)).toBe("unknown");

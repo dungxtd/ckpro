@@ -45,10 +45,10 @@ export function AppSidebar({
 			    bars'); moves the window */}
 			<div
 				data-tauri-drag-region
-				className="flex h-8 shrink-0 items-center justify-end gap-0.5 pr-2 pl-20"
+				className="flex h-8 shrink-0 items-center justify-end gap-1 pr-2 pl-20"
 			>
 				<IconButton
-					variant="plain"
+					variant="toolbar"
 					size="bar"
 					active={searching}
 					aria-label="Search exams"
@@ -56,7 +56,7 @@ export function AppSidebar({
 				>
 					<Search />
 				</IconButton>
-				<IconButton variant="plain" size="bar" aria-label="Hide sidebar (⌃⌘S)" onClick={onFold}>
+				<IconButton variant="toolbar" size="bar" aria-label="Hide sidebar (⌃⌘S)" onClick={onFold}>
 					<PanelLeft />
 				</IconButton>
 			</div>

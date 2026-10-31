@@ -90,6 +90,28 @@ pub fn save(data_dir: &Path, certification: &str, certification_title: &str, pat
     Ok(format!("{PACK_ID}/{certification}"))
 }
 
+/// Delete the candidate's exam `mine/<certification>` and the questions it
+/// lists (all of that certification's). Any other id is refused: nothing
+/// outside the candidate's pack is ever touched
+pub fn delete_exam(data_dir: &Path, exam_id: &str) -> AppResult<()> {
+    let certification = exam_id
+        .strip_prefix(&format!("{PACK_ID}/"))
+        .filter(|c| !c.is_empty() && c.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-'))
+        .ok_or_else(|| AppError::invalid("only your own exams can be deleted"))?;
+    let root = root(data_dir);
+    let exam = root.join("exams").join(format!("{certification}.yaml"));
+    if !exam.exists() {
+        return Err(AppError::not_found(format!("no exam '{exam_id}'")));
+    }
+    let io = |e: std::io::Error| AppError::io("deleting the exam", e);
+    std::fs::remove_file(&exam).map_err(io)?;
+    let questions = root.join("questions").join(certification);
+    if questions.exists() {
+        std::fs::remove_dir_all(&questions).map_err(io)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,6 +131,22 @@ mod tests {
         let exam_file = std::fs::read_to_string(root(&data).join("exams/cka.yaml")).unwrap();
         assert!(exam_file.contains("  - mine/cka/fix-a-pending-pvc\n  - mine/cka/fix-a-pending-pvc-2"), "{exam_file}");
         assert!(root(&data).join("pack.yaml").exists());
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    #[test]
+    fn deletes_only_the_candidates_own_exam() {
+        let data = std::env::temp_dir().join(format!("ckdry-mine-delete-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&data);
+        let (_, path) = new_question(&data, "ckad", "Probe a pod");
+        save(&data, "ckad", "Certified Kubernetes Application Developer", &path, "title: x\n").unwrap();
+        for wrong in ["cka-001", "mine/", "mine/../exams", "mine/ckad/x", "mine/cks"] {
+            assert!(delete_exam(&data, wrong).is_err(), "{wrong}");
+        }
+        assert!(path.exists());
+        delete_exam(&data, "mine/ckad").unwrap();
+        assert!(!root(&data).join("exams/ckad.yaml").exists());
+        assert!(!root(&data).join("questions/ckad").exists());
         let _ = std::fs::remove_dir_all(&data);
     }
 }

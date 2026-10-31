@@ -29,6 +29,7 @@ export const useSettings = create<SettingsStore>()(
 			assistant_enabled: true,
 			analytics: true,
 			sidebar_folded: false,
+			sidebar: { groups: [], exams: [], collapsed: [], hidden: [] },
 		},
 		loaded: false,
 		error: null,

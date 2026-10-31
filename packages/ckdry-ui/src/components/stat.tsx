@@ -27,7 +27,7 @@ export function Stat({
 	return (
 		<div className="min-w-0 px-4 py-3 [&>svg]:mb-2 [&>svg]:size-[18px] [&>svg]:text-muted-foreground">
 			{icon}
-			<div className="truncate font-semibold text-[22px] tabular-nums">{value}</div>
+			<div className="truncate font-semibold text-xl tabular-nums">{value}</div>
 			<div className="text-caption text-muted-foreground">{label}</div>
 		</div>
 	);

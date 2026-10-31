@@ -1,8 +1,8 @@
 import { useNavigate, useSearchParams } from "react-router";
 import { useExam } from "@/stores/exam";
-import type { ExamSummary } from "@/tauri/api";
-
-const CERT_ORDER = ["cka", "ckad", "cks"];
+import { useSettings } from "@/stores/settings";
+import type { ExamSummary, SidebarLayout } from "@/tauri/api";
+import { arrange } from "./layout";
 
 export const gb = (mb: number) => (mb / 1024).toFixed(1);
 
@@ -10,14 +10,6 @@ export const gb = (mb: number) => (mb / 1024).toFixed(1);
  * calendar day): without the certification and "Practice Lab" */
 export const shortTitle = (title: string) =>
 	title.replace(/^CK(A|AD|S)\s+/i, "").replace(/^Practice Lab\s*-\s*/i, "");
-
-/** The exams by certification, in the order the certifications are taken */
-export function byCertification(catalog: ExamSummary[]): [string, ExamSummary[]][] {
-	const certs = [...new Set(catalog.map(e => e.certification))].sort(
-		(a, b) => CERT_ORDER.indexOf(a) - CERT_ORDER.indexOf(b)
-	);
-	return certs.map(cert => [cert, catalog.filter(e => e.certification === cert)]);
-}
 
 /**
  * How an exam fits Docker's memory (`dockerMb`, when Docker is up). Clearly
@@ -44,14 +36,26 @@ export function useSelection() {
 	const [params] = useSearchParams();
 	const navigate = useNavigate();
 	const catalog = useExam(s => s.catalog);
+	const [layout] = useSidebarLayout();
 	const picked = params.get("exam");
 	const generating = picked === GENERATE;
-	const ordered = byCertification(catalog).flatMap(([, exams]) => exams);
-	const exam = ordered.find(e => e.id === picked) ?? ordered[0] ?? null;
+	const shown = arrange(catalog, layout).flatMap(g => g.exams);
+	const exam = catalog.find(e => e.id === picked) ?? shown[0] ?? catalog[0] ?? null;
 	return {
 		exam,
 		generating,
 		select: (id: string) => navigate(`/?exam=${encodeURIComponent(id)}`),
 		generate: () => navigate(`/?exam=${GENERATE}`),
 	};
+}
+
+/** How the sidebar lists the exams, and a change to it (saved) */
+export function useSidebarLayout() {
+	const layout = useSettings(s => s.settings.sidebar);
+	const update = useSettings(s => s.update);
+	return [
+		layout,
+		(patch: Partial<SidebarLayout>) =>
+			update({ sidebar: { ...useSettings.getState().settings.sidebar, ...patch } }),
+	] as const;
 }

@@ -26,7 +26,7 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 		<div className="flex flex-col gap-7">
 			<header className="flex flex-col gap-2">
 				<Badge className="self-start">{exam.certification.toUpperCase()}</Badge>
-				<h1 className="min-w-0 break-words font-bold text-[28px] leading-tight">{exam.title}</h1>
+				<h1 className="min-w-0 break-words font-bold text-[26px] leading-tight">{exam.title}</h1>
 				<Description text={exam.description} />
 			</header>
 
@@ -105,10 +105,10 @@ function Description({ text }: { text: string }) {
 		if (p && !open) setLong(p.scrollHeight > p.clientHeight + 1);
 	}, [text, open]);
 	return (
-		<div className="flex min-h-12 max-w-[62ch] flex-col items-start">
+		<div className="flex min-h-11 max-w-[62ch] flex-col items-start">
 			<p
 				ref={ref}
-				className={cn("text-lead text-muted-foreground leading-6", !open && "line-clamp-2")}
+				className={cn("text-[14px] text-muted-foreground leading-[22px]", !open && "line-clamp-2")}
 			>
 				{text}
 			</p>
@@ -116,7 +116,7 @@ function Description({ text }: { text: string }) {
 				<Button
 					variant="quiet"
 					size="inline"
-					className="mt-1 font-medium text-callout"
+					className="mt-1 font-medium text-callout text-highlight hover:text-highlight/80"
 					aria-expanded={open}
 					onClick={() => setOpen(o => !o)}
 				>

@@ -53,7 +53,7 @@ export function TitleBar({
 				)}
 			>
 				<IconButton
-					variant="plain"
+					variant="toolbar"
 					size="bar"
 					className="rounded-full"
 					aria-label="Show sidebar (⌃⌘S)"
@@ -84,7 +84,7 @@ export function TitleBar({
 					Settings
 				</CapsuleItem>
 				<IconButton
-					variant="plain"
+					variant="toolbar"
 					size="bar"
 					className="rounded-full"
 					aria-label="Search exams"

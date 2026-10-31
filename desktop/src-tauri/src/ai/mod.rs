@@ -652,10 +652,7 @@ impl Coach {
         self.reviewing.locked().take();
         let generated = generated?;
         // The catalog shows it from now on
-        match crate::lab::load::load(&bank.root).0 {
-            Some(core) => exams.replace_pack(crate::lab::mine::merged(core, data_dir)),
-            None => tracing::warn!("could not reload the bundled pack: the new question shows after a restart"),
-        }
+        exams.reload_mine(data_dir);
         Ok(generated)
     }
 

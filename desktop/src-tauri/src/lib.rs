@@ -50,6 +50,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::delete_cluster,
         commands::repair_cluster,
         commands::list_exams,
+        commands::delete_exam,
         commands::exam_state,
         commands::desktop_session,
         commands::desktop_reset,

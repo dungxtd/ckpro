@@ -14,7 +14,8 @@ import type { ReactNode } from "react";
 
 /**
  * An action that cannot be undone (end an exam, delete a cluster), done only
- * once confirmed: `children` is the button that asks.
+ * once confirmed: `children` is the button that asks. Without one (asked
+ * from a menu), `open` and `onOpenChange` show it
  */
 export function ConfirmDialog({
 	title,
@@ -22,6 +23,8 @@ export function ConfirmDialog({
 	action,
 	cancel = "Cancel",
 	onConfirm,
+	open,
+	onOpenChange,
 	children,
 }: {
 	title: string;
@@ -30,11 +33,13 @@ export function ConfirmDialog({
 	action: string;
 	cancel?: string;
 	onConfirm: () => void;
-	children: ReactNode;
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	children?: ReactNode;
 }) {
 	return (
-		<AlertDialog>
-			<AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
+		<AlertDialog open={open} onOpenChange={onOpenChange}>
+			{children && <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>}
 			<AlertDialogContent>
 				<AlertDialogHeader>
 					<AlertDialogTitle>{title}</AlertDialogTitle>

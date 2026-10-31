@@ -56,6 +56,8 @@ pub struct ExamSummary {
     pub nodes: u32,
     /// The clusters it runs on
     pub clusters: Vec<String>,
+    /// The candidate's own (generated questions): it may be deleted
+    pub custom: bool,
 }
 
 /// What the candidate sees of a question.
@@ -264,6 +266,29 @@ impl Exams {
     /// The question bank as it is now
     pub fn bank(&self) -> Arc<LoadedPack> {
         self.pack()
+    }
+
+    /// Read the candidate's questions again (one was added or deleted), over
+    /// the bundled pack read again from where it came from
+    pub fn reload_mine(&self, data_dir: &std::path::Path) {
+        match crate::lab::load::load(&self.bank().root).0 {
+            Some(core) => self.replace_pack(crate::lab::mine::merged(core, data_dir)),
+            None => tracing::warn!("could not reload the bundled pack: the change shows after a restart"),
+        }
+    }
+
+    /// Delete one of the candidate's own exams (and its questions); not while
+    /// an attempt of it is open
+    pub fn delete_exam(&self, exam_id: &str, data_dir: &std::path::Path) -> AppResult<()> {
+        let state = self.state();
+        if !matches!(state, ExamState::Idle | ExamState::Finished { .. })
+            && state.attempt().is_some_and(|a| a.exam_id == exam_id)
+        {
+            return Err(AppError::invalid("this exam has an attempt open; close it first"));
+        }
+        crate::lab::mine::delete_exam(data_dir, exam_id)?;
+        self.reload_mine(data_dir);
+        Ok(())
     }
 
     pub fn state(&self) -> ExamState {

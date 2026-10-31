@@ -138,6 +138,24 @@ pub struct Settings {
     pub analytics: bool,
     /// The sidebar folded into the floating capsule (⌃⌘S)
     pub sidebar_folded: bool,
+    /// How the sidebar lists the exams
+    pub sidebar: SidebarLayout,
+}
+
+/// How the sidebar lists the exams: in the order the candidate dragged them
+/// (what was never dragged after, as it comes), and the certifications
+/// folded or hidden
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(default)]
+pub struct SidebarLayout {
+    /// Certifications, in order
+    pub groups: Vec<String>,
+    /// Exam ids, in order
+    pub exams: Vec<String>,
+    /// Certifications whose exams are folded away
+    pub collapsed: Vec<String>,
+    /// Certifications not in the sidebar at all
+    pub hidden: Vec<String>,
 }
 
 impl Default for Settings {
@@ -154,6 +172,7 @@ impl Default for Settings {
             assistant_enabled: true,
             analytics: true,
             sidebar_folded: false,
+            sidebar: SidebarLayout::default(),
         }
     }
 }
@@ -600,6 +619,12 @@ mod tests {
             assistant_enabled: false,
             analytics: false,
             sidebar_folded: true,
+            sidebar: SidebarLayout {
+                groups: vec!["cks".into(), "cka".into()],
+                exams: vec!["cka-002".into()],
+                collapsed: vec!["ckad".into()],
+                hidden: vec![],
+            },
         };
         store.save_settings(&settings).unwrap();
         assert_eq!(store.settings().unwrap(), settings);

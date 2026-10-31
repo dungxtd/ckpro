@@ -41,7 +41,11 @@ export function iconButtonVariants({
 		size === "sm" && "size-8 [&_svg]:size-4",
 		size === "md" && "size-10 [&_svg]:size-5",
 		size === "lg" && "size-12 [&_svg]:size-6",
-		active && "glass-selected text-glass-selected-foreground opacity-100"
+		// A toolbar's button stays in its square: a tint, not the glass fill
+		active &&
+			(variant === "toolbar"
+				? "bg-foreground/12 text-foreground"
+				: "glass-selected text-glass-selected-foreground opacity-100")
 	);
 }
 

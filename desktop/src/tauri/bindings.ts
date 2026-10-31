@@ -19,6 +19,8 @@ export const commands = {
 	/**  Start a cluster's stopped nodes. */
 	repairCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("repair_cluster", { name })),
 	listExams: () => __TAURI_INVOKE<ExamSummary[]>("list_exams"),
+	/**  Delete one of the candidate's own exams (generated questions) and its questions. */
+	deleteExam: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_exam", { id })),
 	/**  Current attempt; later changes arrive as `ExamChanged` events. */
 	examState: () => __TAURI_INVOKE<ExamState_Serialize>("exam_state"),
 	/**
@@ -613,6 +615,8 @@ export type ExamSummary = {
 	nodes: number,
 	/**  The clusters it runs on */
 	clusters: string[],
+	/**  The candidate's own (generated questions): it may be deleted */
+	custom: boolean,
 };
 
 /**  What to generate */
@@ -856,6 +860,8 @@ export type Settings_Deserialize = {
 	analytics?: boolean,
 	/**  The sidebar folded into the floating capsule (⌃⌘S) */
 	sidebar_folded?: boolean,
+	/**  How the sidebar lists the exams */
+	sidebar?: SidebarLayout_Deserialize,
 };
 
 /**  The exam desk's display settings */
@@ -880,9 +886,50 @@ export type Settings_Serialize = {
 	analytics: boolean,
 	/**  The sidebar folded into the floating capsule (⌃⌘S) */
 	sidebar_folded: boolean,
+	/**  How the sidebar lists the exams */
+	sidebar: SidebarLayout_Serialize,
 };
 
 export type Severity = "error" | "warning";
+
+/**
+ *  How the sidebar lists the exams: in the order the candidate dragged them
+ *  (what was never dragged after, as it comes), and the certifications
+ *  folded or hidden
+ */
+export type SidebarLayout = SidebarLayout_Serialize | SidebarLayout_Deserialize;
+
+/**
+ *  How the sidebar lists the exams: in the order the candidate dragged them
+ *  (what was never dragged after, as it comes), and the certifications
+ *  folded or hidden
+ */
+export type SidebarLayout_Deserialize = {
+	/**  Certifications, in order */
+	groups?: string[],
+	/**  Exam ids, in order */
+	exams?: string[],
+	/**  Certifications whose exams are folded away */
+	collapsed?: string[],
+	/**  Certifications not in the sidebar at all */
+	hidden?: string[],
+};
+
+/**
+ *  How the sidebar lists the exams: in the order the candidate dragged them
+ *  (what was never dragged after, as it comes), and the certifications
+ *  folded or hidden
+ */
+export type SidebarLayout_Serialize = {
+	/**  Certifications, in order */
+	groups: string[],
+	/**  Exam ids, in order */
+	exams: string[],
+	/**  Certifications whose exams are folded away */
+	collapsed: string[],
+	/**  Certifications not in the sidebar at all */
+	hidden: string[],
+};
 
 /**  A login as it runs */
 export type SignInEvent = 

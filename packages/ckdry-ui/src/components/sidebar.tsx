@@ -1,4 +1,5 @@
 import { cn } from "@ckdry/ui/lib/utils";
+import { ChevronRight } from "lucide-react";
 import type * as React from "react";
 
 /**
@@ -22,9 +23,43 @@ export function Sidebar({ className, ...props }: React.ComponentProps<"aside">) 
 export function SidebarLabel({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
-			className={cn("px-2.5 pt-5 pb-1 font-semibold text-caption text-muted-foreground", className)}
+			className={cn("px-2.5 pt-5 pb-1 font-semibold text-2xs text-muted-foreground", className)}
 			{...props}
 		/>
+	);
+}
+
+/**
+ * A group's name in the sidebar that folds its items away and back: a
+ * chevron that turns, and how many it holds while folded
+ */
+export function SidebarGroupToggle({
+	label,
+	open,
+	count,
+	className,
+	type = "button",
+	...props
+}: React.ComponentProps<"button"> & { label: React.ReactNode; open: boolean; count?: number }) {
+	return (
+		<button
+			type={type}
+			aria-expanded={open}
+			className={cn(
+				"group/toggle flex w-full items-center gap-1 rounded-md px-2.5 pt-5 pb-1 text-left font-semibold text-2xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+				className
+			)}
+			{...props}
+		>
+			<span className="flex-1">{label}</span>
+			{!open && count !== undefined && <span className="font-normal tabular-nums">{count}</span>}
+			<ChevronRight
+				className={cn(
+					"size-3 transition-transform duration-150 motion-reduce:transition-none",
+					open && "rotate-90"
+				)}
+			/>
+		</button>
 	);
 }
 
@@ -55,7 +90,7 @@ export function SidebarItem({
 			type={type}
 			aria-current={current ? "page" : undefined}
 			className={cn(
-				"flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-lead text-foreground/85 outline-none transition-colors duration-150 hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring aria-[current]:bg-sidebar-selected aria-[current]:font-semibold aria-[current]:text-foreground motion-reduce:transition-none [&>svg]:size-[18px] [&>svg]:shrink-0 [&>svg]:text-muted-foreground aria-[current]:[&>svg]:text-foreground",
+				"flex w-full items-center gap-3 rounded-lg px-2.5 py-1.5 text-left text-[14px] text-foreground/85 outline-none transition-colors duration-150 hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring aria-[current]:bg-sidebar-selected aria-[current]:font-semibold aria-[current]:text-foreground motion-reduce:transition-none [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground aria-[current]:[&>svg]:text-foreground",
 				className
 			)}
 			{...props}
@@ -66,7 +101,7 @@ export function SidebarItem({
 				{detail && (
 					<span
 						className={cn(
-							"mt-px block truncate font-normal text-caption",
+							"block truncate font-normal text-2xs",
 							warning ? "text-warning" : "text-muted-foreground"
 						)}
 					>

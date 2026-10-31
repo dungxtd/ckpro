@@ -20,7 +20,7 @@ export function Screen({
 	return (
 		<div className={cn("mx-auto flex max-w-4xl flex-col gap-6 px-8 pt-1 pb-10", className)}>
 			<header className="flex items-center justify-between gap-4">
-				<h1 className="font-bold text-[28px] leading-tight">{title}</h1>
+				<h1 className="font-bold text-[26px] leading-tight">{title}</h1>
 				{actions}
 			</header>
 			{children}
