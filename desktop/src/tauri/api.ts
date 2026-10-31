@@ -65,6 +65,7 @@ export type {
 	DomainStat,
 	Draft,
 	EnvState,
+	ExamSort,
 	ExamSummary,
 	Generated,
 	GenerateRequest,

@@ -557,6 +557,17 @@ export type ExamResult_Serialize = {
 	assisted: string[],
 };
 
+/**  How a certification's exams are sorted in the sidebar */
+export type ExamSort = 
+/**  As dragged; the rest as they come */
+"manual" | 
+/**  Practised most recently first; never practised after */
+"recent" | 
+/**  By name */
+"name" | 
+/**  Lowest last score first; never practised before them */
+"score";
+
 export type ExamState = ExamState_Serialize | ExamState_Deserialize;
 
 export type ExamState_Deserialize = { phase: "idle" } | 
@@ -921,6 +932,10 @@ export type SidebarLayout_Deserialize = {
 	screens?: string[],
 	/**  Screens not in the sidebar (Exams always is) */
 	hidden_screens?: string[],
+	/**  Exams pinned to the top of the sidebar, in order */
+	pinned?: string[],
+	/**  How each certification sorts its exams (by default: as dragged) */
+	sort?: { [key in string]: ExamSort },
 };
 
 /**
@@ -941,6 +956,10 @@ export type SidebarLayout_Serialize = {
 	screens: string[],
 	/**  Screens not in the sidebar (Exams always is) */
 	hidden_screens: string[],
+	/**  Exams pinned to the top of the sidebar, in order */
+	pinned: string[],
+	/**  How each certification sorts its exams (by default: as dragged) */
+	sort: { [key in string]: ExamSort },
 };
 
 /**  A login as it runs */

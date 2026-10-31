@@ -7,6 +7,7 @@ import {
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { cn } from "@ckdry/ui/lib/utils";
 import { ChevronDown, PanelLeft, Search } from "lucide-react";
+import type * as React from "react";
 import { useLocation, useNavigate } from "react-router";
 import { ActivityChip } from "@/components/activity/activity-chip";
 import { ExamMenuItems } from "@/components/catalog/exam-list";
@@ -23,9 +24,12 @@ export function TitleBar({
 	title,
 	onUnfold,
 	onSearch,
+	capsuleRef,
 }: {
 	folded: boolean;
 	title?: string;
+	/** The capsule, which the window's surface takes the shape of while folded */
+	capsuleRef?: React.Ref<HTMLElement>;
 	onUnfold: () => void;
 	onSearch: () => void;
 }) {
@@ -46,12 +50,17 @@ export function TitleBar({
 			>
 				{title}
 			</span>
+			{/* Its pill is the window's morphing surface (main.tsx): only the
+			    items fade, in as the surface reaches its shape, out as it leaves */}
 			<Capsule
+				ref={capsuleRef}
 				aria-label="Screens"
 				inert={!folded}
 				className={cn(
-					"absolute left-1/2 -translate-x-1/2 transition-[opacity,scale] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
-					folded ? "scale-100 opacity-100 delay-100" : "pointer-events-none scale-90 opacity-0"
+					"absolute left-1/2 z-20 -translate-x-1/2 bg-transparent shadow-none backdrop-blur-none transition-opacity motion-reduce:transition-none",
+					folded
+						? "opacity-100 delay-200 duration-200"
+						: "pointer-events-none opacity-0 duration-100"
 				)}
 			>
 				<IconButton

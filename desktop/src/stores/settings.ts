@@ -36,6 +36,8 @@ export const useSettings = create<SettingsStore>()(
 				hidden: [],
 				screens: [],
 				hidden_screens: [],
+				pinned: [],
+				sort: {},
 			},
 			theme: "dark",
 		},

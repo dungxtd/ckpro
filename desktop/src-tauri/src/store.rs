@@ -173,6 +173,25 @@ pub struct SidebarLayout {
     pub screens: Vec<String>,
     /// Screens not in the sidebar (Exams always is)
     pub hidden_screens: Vec<String>,
+    /// Exams pinned to the top of the sidebar, in order
+    pub pinned: Vec<String>,
+    /// How each certification sorts its exams (by default: as dragged)
+    pub sort: std::collections::BTreeMap<String, ExamSort>,
+}
+
+/// How a certification's exams are sorted in the sidebar
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "lowercase")]
+pub enum ExamSort {
+    /// As dragged; the rest as they come
+    #[default]
+    Manual,
+    /// Practised most recently first; never practised after
+    Recent,
+    /// By name
+    Name,
+    /// Lowest last score first; never practised before them
+    Score,
 }
 
 impl Default for Settings {
@@ -644,6 +663,8 @@ mod tests {
                 hidden: vec![],
                 screens: vec!["/calendar".into()],
                 hidden_screens: vec!["/environment".into()],
+                pinned: vec!["cka-003".into()],
+                sort: [("ckad".to_string(), ExamSort::Score)].into(),
             },
             theme: Theme::System,
         };

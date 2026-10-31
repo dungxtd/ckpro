@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { pageView, setAnalytics, track } from "@/analytics";
 import { AppSidebar } from "@/components/shell/app-sidebar";
+import { useMorphSurface } from "@/components/shell/morph-surface";
 import { screenTitle } from "@/components/shell/sections";
 import { TitleBar } from "@/components/shell/title-bar";
 import { WindowFrame } from "@/components/shell/window";
@@ -42,6 +43,7 @@ function Layout() {
 	// The screen's own title scrolled away: the title bar shows it small
 	const [scrolled, setScrolled] = useState(false);
 	const main = useRef<HTMLElement>(null);
+	const surface = useMorphSurface(folded);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: each screen opens at its top
 	useEffect(() => {
 		main.current?.scrollTo({ top: 0 });
@@ -66,12 +68,21 @@ function Layout() {
 		// The sidebar slides away and the content widens into its place; the
 		// capsule comes in as it goes
 		<div
+			ref={surface.root}
 			className={cn(
+				"relative",
 				// One row the window's height: the screen scrolls inside it
 				"grid h-full grid-rows-[minmax(0,1fr)] transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
 				folded ? "grid-cols-[0px_minmax(0,1fr)]" : "grid-cols-[256px_minmax(0,1fr)]"
 			)}
 		>
+			{/* The sidebar's panel and the capsule's pill are this one surface,
+			    which morphs from the one shape into the other */}
+			<div
+				aria-hidden
+				className="pointer-events-none absolute inset-0 z-10 bg-sidebar-panel transition-[clip-path] duration-[450ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
+				style={{ clipPath: surface.clip }}
+			/>
 			<div className="min-w-0 overflow-hidden">
 				<AppSidebar
 					folded={folded}
@@ -82,6 +93,7 @@ function Layout() {
 			</div>
 			<div className="flex min-h-0 min-w-0 flex-col">
 				<TitleBar
+					capsuleRef={surface.capsule}
 					folded={folded}
 					title={scrolled ? screenTitle(pathname) : undefined}
 					onUnfold={() => update({ sidebar_folded: false })}

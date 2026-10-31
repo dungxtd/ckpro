@@ -1,5 +1,4 @@
-import { Monitor, Palette, PanelLeft } from "lucide-react";
-import { useState } from "react";
+import { Monitor, Palette } from "lucide-react";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { AboutSettings } from "@/components/settings/about-settings";
@@ -7,7 +6,6 @@ import { AiSettings } from "@/components/settings/ai-settings";
 import { DeskSettings } from "@/components/settings/desk-settings";
 import { InterfaceSettings } from "@/components/settings/interface-settings";
 import { Group, Row } from "@/components/settings/layout";
-import { SidebarDialog } from "@/components/settings/sidebar-dialog";
 import { Screen } from "@/components/shell/screen";
 import { SETTINGS_PARTS } from "@/components/shell/sections";
 import { useSettings } from "@/stores/settings";
@@ -16,15 +14,14 @@ const THEME_NAMES = { system: "Follow System", light: "Light", dark: "Dark" };
 
 /**
  * The app's settings as macOS apps lay them out: one page of rows that open
- * each part (the interface, the sidebar, the exam desk, the assistant), the
- * app's own rows, and its icon and version at the end. A part is a page of
- * its own (/settings/<part>); the sidebar opens over the page
+ * each part (the interface, the exam desk, the assistant), the
+ * app's own rows, and its icon and version at the end. Each part is a page
+ * of its own (/settings/<part>). The sidebar is arranged in the sidebar
  */
 export function SettingsRoute() {
 	const { part } = useParams();
 	const navigate = useNavigate();
 	const settings = useSettings(s => s.settings);
-	const [editingSidebar, setEditingSidebar] = useState(false);
 
 	if (part) {
 		const title = SETTINGS_PARTS[part];
@@ -46,7 +43,6 @@ export function SettingsRoute() {
 					value={THEME_NAMES[settings.theme]}
 					onClick={() => navigate("/settings/interface")}
 				/>
-				<Row icon={<PanelLeft />} label="Sidebar" onClick={() => setEditingSidebar(true)} />
 				<Row icon={<Monitor />} label="Exam desk" onClick={() => navigate("/settings/desk")} />
 			</Group>
 			<Group title="Assistant">
@@ -58,7 +54,6 @@ export function SettingsRoute() {
 				/>
 			</Group>
 			<AboutSettings />
-			<SidebarDialog open={editingSidebar} onOpenChange={setEditingSidebar} />
 		</Screen>
 	);
 }
