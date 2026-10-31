@@ -23,6 +23,13 @@ the cluster.
   on the result.
 - **History**: scores per certification and curriculum domain, the domains to practise next, and the assistant sessions of each attempt.
 
+## Install
+
+```bash
+brew tap dungxtd/ckdry https://github.com/dungxtd/ckdry
+brew install --cask ckdry
+```
+
 ## Requirements
 
 - macOS (Apple silicon or Intel)
