@@ -40,10 +40,8 @@ describe("exams", () => {
 	});
 
 	it("drops what the certification's heading already says", () => {
-		expect(shortTitle(exam("a", "cka", "CKA Practice Lab - Core Concepts"))).toBe("Core Concepts");
-		expect(shortTitle(exam("d", "ckad", "CKAD Comprehensive Lab - 1"))).toBe(
-			"Comprehensive Lab - 1"
-		);
-		expect(shortTitle(exam("h", "cka", "Helm Fundamentals Lab"))).toBe("Helm Fundamentals Lab");
+		expect(shortTitle("CKA Practice Lab - Core Concepts")).toBe("Core Concepts");
+		expect(shortTitle("CKAD Comprehensive Lab - 1")).toBe("Comprehensive Lab - 1");
+		expect(shortTitle("Helm Fundamentals Lab")).toBe("Helm Fundamentals Lab");
 	});
 });

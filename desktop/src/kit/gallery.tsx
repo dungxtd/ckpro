@@ -49,6 +49,7 @@ import { Sidebar, SidebarItem, SidebarLabel } from "@ckdry/ui/components/sidebar
 import { Skeleton } from "@ckdry/ui/components/skeleton";
 import { Toaster } from "@ckdry/ui/components/sonner";
 import { Spinner } from "@ckdry/ui/components/spinner";
+import { Stat, StatGroup } from "@ckdry/ui/components/stat";
 import { StatusDot } from "@ckdry/ui/components/status-dot";
 import { Stepper } from "@ckdry/ui/components/stepper";
 import { Switch } from "@ckdry/ui/components/switch";
@@ -62,6 +63,7 @@ import {
 } from "@ckdry/ui/components/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ckdry/ui/components/tabs";
 import { Textarea } from "@ckdry/ui/components/textarea";
+import { Tile } from "@ckdry/ui/components/tile";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/tooltip";
 import { Truncated } from "@ckdry/ui/components/truncated";
 import {
@@ -509,7 +511,23 @@ function Gallery() {
 					</Row>
 				</Section>
 
-				<Section title="Tabs" note="Sections of one page with a sidebar (Settings).">
+				<Section
+					title="Stat and Tile"
+					note="Figures side by side on one card; square shortcuts to a section."
+				>
+					<StatGroup>
+						<Stat value={10} label="questions" />
+						<Stat value="60 min" label="time" />
+						<Stat value="66%" label="to pass" />
+					</StatGroup>
+					<Row>
+						<Tile icon={<Monitor />} label="Exam desk" />
+						<Tile icon={<Sparkles />} label="Assistant" />
+						<Tile icon={<Info />} label="About" />
+					</Row>
+				</Section>
+
+				<Section title="Tabs" note="Sections of one page with a sidebar.">
 					<div className="flex h-36 overflow-hidden rounded-lg border border-border">
 						<Tabs defaultValue="a">
 							<TabsList aria-label="Example">

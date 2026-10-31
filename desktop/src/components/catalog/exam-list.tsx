@@ -51,7 +51,7 @@ export function ExamList({ query }: { query: string }) {
 						return (
 							<SidebarItem
 								key={exam.id}
-								label={shortTitle(exam)}
+								label={shortTitle(exam.title)}
 								detail={`${exam.questions} questions, ${exam.duration_minutes} min${f === "slower" ? ", runs slower" : f === "too-small" ? ", needs more memory" : ""}`}
 								warning={f === "slower" || f === "too-small"}
 								current={onExams && !generating && shown?.id === exam.id}
@@ -96,7 +96,7 @@ export function ExamMenuItems() {
 						<DropdownMenuLabel>{cert.toUpperCase()}</DropdownMenuLabel>
 						{exams.map(exam => (
 							<DropdownMenuRadioItem key={exam.id} value={exam.id}>
-								{shortTitle(exam)}
+								{shortTitle(exam.title)}
 							</DropdownMenuRadioItem>
 						))}
 					</Fragment>

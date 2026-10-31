@@ -54,9 +54,9 @@
 	--menu-rim: rgb(255 255 255 / 0.9); /* inner bright rim */
 	--menu-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
 	--hover-glow: 0 2px 6px rgb(0 0 0 / 0.1);
-	/* The window's sidebar and the capsule it folds into, over the window's
-	   own translucent material (the window's sidebar effect) */
-	--sidebar-panel: rgb(255 255 255 / 0.32);
+	/* The window's sidebar, a panel inset in the window, and the floating
+	   capsule it folds into */
+	--sidebar-panel: #f2f2f1;
 	--sidebar-selected: rgb(0 0 0 / 0.08);
 	--capsule: rgb(250 250 250 / 0.72);
 	--capsule-edge: rgb(0 0 0 / 0.12);
@@ -103,8 +103,8 @@
 	--menu-rim: rgb(255 255 255 / 0.24); /* bright inner rim */
 	--menu-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
 	--hover-glow: 0 2px 8px rgb(255 255 255 / 0.1);
-	--sidebar-panel: rgb(255 255 255 / 0.05);
-	--sidebar-selected: rgb(255 255 255 / 0.1);
+	--sidebar-panel: #262628;
+	--sidebar-selected: rgb(255 255 255 / 0.08);
 	--capsule: rgb(44 44 46 / 0.72);
 	--capsule-edge: rgb(255 255 255 / 0.14);
 	--capsule-shadow: 0 8px 24px rgb(0 0 0 / 0.4);

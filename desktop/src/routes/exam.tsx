@@ -18,9 +18,7 @@ const modeLabel = (mode: string) => (mode === "exam" ? "Exam mode" : "Practice m
 export function ExamRoute() {
 	const running = useExam(s => s.state?.phase === "running");
 	return running ? (
-		<div className="h-full bg-background">
-			<ExamPhase />
-		</div>
+		<ExamPhase />
 	) : (
 		<WindowFrame>
 			<ExamPhase />

@@ -1,6 +1,7 @@
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Input } from "@ckdry/ui/components/input";
 import { Sidebar, SidebarItem } from "@ckdry/ui/components/sidebar";
+import { cn } from "@ckdry/ui/lib/utils";
 import { PanelLeft, Search, Settings } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -12,10 +13,13 @@ import { SECTIONS } from "./sections";
  * that narrows the exams to those whose title has what is typed
  */
 export function AppSidebar({
+	folded,
 	searching,
 	onSearching,
 	onFold,
 }: {
+	/** Slid away (the capsule stands in for it): kept, out of reach */
+	folded: boolean;
 	searching: boolean;
 	onSearching: (on: boolean) => void;
 	onFold: () => void;
@@ -29,11 +33,19 @@ export function AppSidebar({
 	};
 
 	return (
-		<Sidebar aria-label="Sidebar">
-			{/* Beside the window's buttons; moves the window */}
+		<Sidebar
+			aria-label="Sidebar"
+			inert={folded}
+			className={cn(
+				"h-[calc(100%-1rem)] transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+				folded && "-translate-x-6 opacity-0"
+			)}
+		>
+			{/* Beside the window's buttons (centred on the same line as the title
+			    bars'); moves the window */}
 			<div
 				data-tauri-drag-region
-				className="flex h-10 shrink-0 items-center justify-end gap-0.5 pr-2 pl-20"
+				className="flex h-8 shrink-0 items-center justify-end gap-0.5 pr-2 pl-20"
 			>
 				<IconButton
 					variant="plain"

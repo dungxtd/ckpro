@@ -2,6 +2,7 @@ import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { Card } from "@ckdry/ui/components/card";
 import { Progress } from "@ckdry/ui/components/progress";
+import { Stat, StatGroup } from "@ckdry/ui/components/stat";
 import { BookOpenCheck, Timer } from "lucide-react";
 import type { ReactNode } from "react";
 import { useExam } from "@/stores/exam";
@@ -30,12 +31,12 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 				<p className="mt-2 max-w-[60ch] text-lead text-muted-foreground">{exam.description}</p>
 			</header>
 
-			<Card padding="none" className="grid grid-cols-4 divide-x divide-border">
-				<Fact value={exam.questions} label={exam.questions === 1 ? "question" : "questions"} />
-				<Fact value={`${exam.duration_minutes} min`} label="time" />
-				<Fact value={`${exam.pass_score}%`} label="to pass" />
-				<Fact value={exam.nodes} label="nodes" />
-			</Card>
+			<StatGroup>
+				<Stat value={exam.questions} label={exam.questions === 1 ? "question" : "questions"} />
+				<Stat value={`${exam.duration_minutes} min`} label="time" />
+				<Stat value={`${exam.pass_score}%`} label="to pass" />
+				<Stat value={exam.nodes} label="nodes" />
+			</StatGroup>
 
 			<div className="flex items-center gap-3 text-caption">
 				<span>Memory</span>
@@ -83,15 +84,6 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 					</Mode>
 				</div>
 			</section>
-		</div>
-	);
-}
-
-function Fact({ value, label }: { value: ReactNode; label: string }) {
-	return (
-		<div className="px-4 py-3">
-			<div className="font-semibold text-[22px] tabular-nums">{value}</div>
-			<div className="text-caption text-muted-foreground">{label}</div>
 		</div>
 	);
 }

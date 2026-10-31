@@ -8,6 +8,7 @@ import { useLocation } from "react-router";
 import { ActivityList } from "@/components/activity/activity-list";
 import { ClusterCard } from "@/components/environment/cluster-card";
 import { IssuesPanel } from "@/components/environment/issues-panel";
+import { Screen } from "@/components/shell/screen";
 import { useEnvironment } from "@/stores/environment";
 import { type EnvState, envApi } from "@/tauri/api";
 
@@ -60,11 +61,11 @@ export function EnvironmentRoute() {
 	if (!env) return <Loading fill label="Reading the environment…" />;
 
 	return (
-		<div className="mx-auto flex h-full max-w-2xl flex-col gap-3 overflow-auto p-3">
-			<header className="flex items-center justify-between">
-				<strong>ckdry</strong>
-				<DockerStatus docker={env.docker} />
-			</header>
+		<Screen
+			title="Environment"
+			actions={<DockerStatus docker={env.docker} />}
+			className="max-w-2xl gap-3"
+		>
 			<IssuesPanel issues={env.issues} />
 			{error && <Alert variant="destructive">{error}</Alert>}
 			{env.clusters.length === 0 && (
@@ -79,6 +80,6 @@ export function EnvironmentRoute() {
 				<h2 className="font-semibold text-sm">Activity</h2>
 				<ActivityList />
 			</section>
-		</div>
+		</Screen>
 	);
 }

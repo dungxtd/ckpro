@@ -2,8 +2,9 @@ import { Alert } from "@ckdry/ui/components/alert";
 import { Button } from "@ckdry/ui/components/button";
 import { Loading } from "@ckdry/ui/components/loading";
 import { Toaster } from "@ckdry/ui/components/sonner";
+import { cn } from "@ckdry/ui/lib/utils";
 import { CircleAlert } from "lucide-react";
-import { lazy, type ReactNode, StrictMode, Suspense, useEffect, useState } from "react";
+import { lazy, type ReactNode, StrictMode, Suspense, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
 	HashRouter,
@@ -17,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { pageView, setAnalytics, track } from "@/analytics";
 import { AppSidebar } from "@/components/shell/app-sidebar";
+import { screenTitle } from "@/components/shell/sections";
 import { TitleBar } from "@/components/shell/title-bar";
 import { WindowFrame } from "@/components/shell/window";
 import { CatalogRoute } from "@/routes/catalog";
@@ -30,11 +32,20 @@ import "./index.css";
 
 function Layout() {
 	const navigate = useNavigate();
+	const { pathname } = useLocation();
 	// An attempt in progress: ExamGuard moves to it; nothing flashes meanwhile
 	const busy = useExam(s => s.state !== null && s.state.phase !== "idle");
 	const folded = useSettings(s => s.settings.sidebar_folded);
 	const update = useSettings(s => s.update);
 	const [searching, setSearching] = useState(false);
+	// The screen's own title scrolled away: the title bar shows it small
+	const [scrolled, setScrolled] = useState(false);
+	const main = useRef<HTMLElement>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: each screen opens at its top
+	useEffect(() => {
+		main.current?.scrollTo({ top: 0 });
+		setScrolled(false);
+	}, [pathname]);
 	// ⌘, opens Settings and ⌃⌘S shows or hides the sidebar, as in every Mac app
 	useEffect(() => {
 		const keys = (e: KeyboardEvent) => {
@@ -51,24 +62,37 @@ function Layout() {
 	}, [navigate, update]);
 	if (busy) return null;
 	return (
-		<div className="flex h-full">
-			{!folded && (
+		// The sidebar slides away and the content widens into its place; the
+		// capsule comes in as it goes
+		<div
+			className={cn(
+				"grid h-full transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+				folded ? "grid-cols-[0px_minmax(0,1fr)]" : "grid-cols-[256px_minmax(0,1fr)]"
+			)}
+		>
+			<div className="min-w-0 overflow-hidden">
 				<AppSidebar
+					folded={folded}
 					searching={searching}
 					onSearching={setSearching}
 					onFold={() => update({ sidebar_folded: true })}
 				/>
-			)}
-			<div className="flex min-w-0 flex-1 flex-col bg-background">
+			</div>
+			<div className="flex min-w-0 flex-col">
 				<TitleBar
 					folded={folded}
+					title={scrolled ? screenTitle(pathname) : undefined}
 					onUnfold={() => update({ sidebar_folded: false })}
 					onSearch={() => {
 						setSearching(true);
 						update({ sidebar_folded: false });
 					}}
 				/>
-				<main className="min-h-0 flex-1 overflow-auto">
+				<main
+					ref={main}
+					className="min-h-0 flex-1 overflow-auto"
+					onScroll={e => setScrolled(e.currentTarget.scrollTop > 48)}
+				>
 					<Outlet />
 				</main>
 			</div>
@@ -152,6 +176,7 @@ function App() {
 						<Route element={<Layout />}>
 							<Route path="/" element={<CatalogRoute />} />
 							<Route path="/history" element={<HistoryRoute />} />
+							<Route path="/calendar" element={<CalendarRoute />} />
 							<Route path="/environment" element={<EnvironmentRoute />} />
 							<Route path="/settings" element={<SettingsRoute />} />
 						</Route>
@@ -203,6 +228,7 @@ function screen<T extends string>(load: () => Promise<Record<T, () => ReactNode>
 }
 const ExamRoute = screen(() => import("@/routes/exam"), "ExamRoute");
 const HistoryRoute = screen(() => import("@/routes/history"), "HistoryRoute");
+const CalendarRoute = screen(() => import("@/routes/calendar"), "CalendarRoute");
 const EnvironmentRoute = screen(() => import("@/routes/environment"), "EnvironmentRoute");
 const SettingsRoute = screen(() => import("@/routes/settings"), "SettingsRoute");
 

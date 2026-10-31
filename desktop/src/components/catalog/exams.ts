@@ -6,12 +6,10 @@ const CERT_ORDER = ["cka", "ckad", "cks"];
 
 export const gb = (mb: number) => (mb / 1024).toFixed(1);
 
-/** An exam's name under its certification's heading: without the
- * certification and "Practice Lab" the heading already says */
-export const shortTitle = (exam: ExamSummary) =>
-	exam.title
-		.replace(new RegExp(`^${exam.certification}\\s+`, "i"), "")
-		.replace(/^Practice Lab\s*-\s*/i, "");
+/** An exam's name where its certification shows already (its heading, a
+ * calendar day): without the certification and "Practice Lab" */
+export const shortTitle = (title: string) =>
+	title.replace(/^CK(A|AD|S)\s+/i, "").replace(/^Practice Lab\s*-\s*/i, "");
 
 /** The exams by certification, in the order the certifications are taken */
 export function byCertification(catalog: ExamSummary[]): [string, ExamSummary[]][] {

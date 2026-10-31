@@ -13,6 +13,7 @@ import { History } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AttemptChats } from "@/components/history/attempt-chats";
 import { DomainScores } from "@/components/history/domain-scores";
+import { Screen } from "@/components/shell/screen";
 import { coachApi, examApi, type HistoryEntry } from "@/tauri/api";
 
 /** Past attempts, newest first. */
@@ -28,9 +29,13 @@ export function HistoryRoute() {
 
 	if (history === null) return <Loading fill label="Loading history…" />;
 	if (history.length === 0)
-		return <div className="p-6 text-muted-foreground text-sm">No attempts yet.</div>;
+		return (
+			<Screen title="History">
+				<p className="text-muted-foreground text-sm">No attempts yet.</p>
+			</Screen>
+		);
 	return (
-		<div className="flex flex-col gap-6 p-6">
+		<Screen title="History">
 			<DomainScores />
 			<h2 className="-mb-3 font-semibold">Attempts</h2>
 			<Table>
@@ -78,6 +83,6 @@ export function HistoryRoute() {
 				</TableBody>
 			</Table>
 			<AttemptChats entry={reading} onOpenChange={open => !open && setReading(null)} />
-		</div>
+		</Screen>
 	);
 }
