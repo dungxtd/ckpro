@@ -1,10 +1,8 @@
 import { Alert } from "@ckdry/ui/components/alert";
 import { Button } from "@ckdry/ui/components/button";
-import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Loading } from "@ckdry/ui/components/loading";
-import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import { Toaster } from "@ckdry/ui/components/sonner";
-import { CircleAlert, Settings } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { lazy, type ReactNode, StrictMode, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -18,7 +16,9 @@ import {
 } from "react-router";
 import { toast } from "sonner";
 import { pageView, setAnalytics, track } from "@/analytics";
-import { ActivityChip } from "@/components/activity/activity-chip";
+import { AppSidebar } from "@/components/shell/app-sidebar";
+import { TitleBar } from "@/components/shell/title-bar";
+import { WindowFrame } from "@/components/shell/window";
 import { CatalogRoute } from "@/routes/catalog";
 import { useActivities } from "@/stores/activity";
 import { useCoach } from "@/stores/coach";
@@ -28,52 +28,50 @@ import { useSettings } from "@/stores/settings";
 import { appApi, errorText } from "@/tauri/api";
 import "./index.css";
 
-const NAV = [
-	{ value: "/", label: "Exams" },
-	{ value: "/history", label: "History" },
-	{ value: "/environment", label: "Environment" },
-];
-
 function Layout() {
-	const { pathname } = useLocation();
 	const navigate = useNavigate();
 	// An attempt in progress: ExamGuard moves to it; nothing flashes meanwhile
 	const busy = useExam(s => s.state !== null && s.state.phase !== "idle");
-	// ⌘, opens Settings, as in every Mac app
+	const folded = useSettings(s => s.settings.sidebar_folded);
+	const update = useSettings(s => s.update);
+	const [searching, setSearching] = useState(false);
+	// ⌘, opens Settings and ⌃⌘S shows or hides the sidebar, as in every Mac app
 	useEffect(() => {
-		const open = (e: KeyboardEvent) => {
+		const keys = (e: KeyboardEvent) => {
 			if (e.metaKey && e.key === ",") {
 				e.preventDefault();
 				navigate("/settings");
+			} else if (e.metaKey && e.ctrlKey && e.key.toLowerCase() === "s") {
+				e.preventDefault();
+				update({ sidebar_folded: !useSettings.getState().settings.sidebar_folded });
 			}
 		};
-		window.addEventListener("keydown", open);
-		return () => window.removeEventListener("keydown", open);
-	}, [navigate]);
+		window.addEventListener("keydown", keys);
+		return () => window.removeEventListener("keydown", keys);
+	}, [navigate, update]);
 	if (busy) return null;
 	return (
-		<div className="flex h-full flex-col">
-			<header className="flex select-none items-center gap-4 border-border border-b px-4 py-2">
-				<strong>ckdry</strong>
-				<nav>
-					<SegmentedControl label="Sections" options={NAV} value={pathname} onChange={navigate} />
-				</nav>
-				<div className="ml-auto flex items-center gap-2">
-					<ActivityChip />
-					<IconButton
-						variant="plain"
-						size="bar"
-						active={pathname === "/settings"}
-						aria-label="Settings (⌘,)"
-						onClick={() => navigate("/settings")}
-					>
-						<Settings />
-					</IconButton>
-				</div>
-			</header>
-			<main className="min-h-0 flex-1 overflow-auto">
-				<Outlet />
-			</main>
+		<div className="flex h-full">
+			{!folded && (
+				<AppSidebar
+					searching={searching}
+					onSearching={setSearching}
+					onFold={() => update({ sidebar_folded: true })}
+				/>
+			)}
+			<div className="flex min-w-0 flex-1 flex-col bg-background">
+				<TitleBar
+					folded={folded}
+					onUnfold={() => update({ sidebar_folded: false })}
+					onSearch={() => {
+						setSearching(true);
+						update({ sidebar_folded: false });
+					}}
+				/>
+				<main className="min-h-0 flex-1 overflow-auto">
+					<Outlet />
+				</main>
+			</div>
 		</div>
 	);
 }
@@ -128,8 +126,18 @@ function App() {
 	const settingsError = useSettings(s => s.error);
 	const examError = useExam(s => s.connectError);
 	const failed = settingsError ?? examError;
-	if (failed) return <OpenFailed message={failed} onRetry={() => setBoot(b => b + 1)} />;
-	if (!settingsLoaded || !examKnown) return <Loading fill label="Opening ckdry…" />;
+	if (failed)
+		return (
+			<WindowFrame>
+				<OpenFailed message={failed} onRetry={() => setBoot(b => b + 1)} />
+			</WindowFrame>
+		);
+	if (!settingsLoaded || !examKnown)
+		return (
+			<WindowFrame>
+				<Loading fill label="Opening ckdry…" />
+			</WindowFrame>
+		);
 
 	return (
 		<>

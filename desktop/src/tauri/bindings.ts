@@ -854,6 +854,8 @@ export type Settings_Deserialize = {
 	assistant_enabled?: boolean,
 	/**  Anonymous usage analytics (on unless turned off in Settings > About) */
 	analytics?: boolean,
+	/**  The sidebar folded into the floating capsule (⌃⌘S) */
+	sidebar_folded?: boolean,
 };
 
 /**  The exam desk's display settings */
@@ -876,6 +878,8 @@ export type Settings_Serialize = {
 	assistant_enabled: boolean,
 	/**  Anonymous usage analytics (on unless turned off in Settings > About) */
 	analytics: boolean,
+	/**  The sidebar folded into the floating capsule (⌃⌘S) */
+	sidebar_folded: boolean,
 };
 
 export type Severity = "error" | "warning";

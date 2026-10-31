@@ -48,8 +48,12 @@ export function TopBar({
 }) {
 	const practice = attempt.mode === "practice";
 	return (
-		// Labels give way to icons as the window narrows (container queries)
-		<header className="@container flex h-12 shrink-0 select-none items-center gap-3 border-border border-b px-3">
+		// Labels give way to icons as the window narrows (container queries);
+		// it starts after the window's buttons and moves the window
+		<header
+			data-tauri-drag-region
+			className="@container flex h-12 shrink-0 select-none items-center gap-3 border-border border-b pr-3 pl-20"
+		>
 			<Timer startedAt={startedAt} endsAt={endsAt} />
 			<div className="flex min-w-0 flex-1 items-center gap-2">
 				<strong className="min-w-0 truncate text-lead">{attempt.title}</strong>

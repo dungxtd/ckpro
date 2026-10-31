@@ -27,7 +27,8 @@ Architecture: `docs/ARCHITECTURE.md`.
 - **Where components live** (`desktop/src/components/`): `exam/` the exam
   desk, `assistant/` everything Claude (pane, composer, answers, sign-in),
   `text/` what the candidate reads (Markdown, click-to-copy values and code,
-  documentation links), then one folder per screen (`catalog/`, `history/`,
+  documentation links), `shell/` the window's chrome (sidebar, title bar,
+  capsule), then one folder per screen (`catalog/`, `history/`,
   `environment/`, `settings/`, `activity/`). Shared across screens means the
   kit, not another screen's folder.
 
@@ -36,7 +37,7 @@ Architecture: `docs/ARCHITECTURE.md`.
   `SegmentedControl`, `Stepper`, `Select`, `Switch`, `Popover` with the
   `menu` classes, `DropdownMenu` (submenus), `Dialog`/`AlertDialog`,
   `ConfirmDialog`, `Tooltip`, `Truncated`, `Card`, `Alert`, `CodeBlock`,
-  `Badge`, `Chip`, `StatusDot`, `Spinner`, `Loading`. A hand-rolled control or a class
+  `Badge`, `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Spinner`, `Loading`. A hand-rolled control or a class
   string used twice becomes a kit component or variant.
 - **The design system, live**: `desktop/kit.html` (`pnpm exec vite`, then
   `/kit.html`). New components and variants go there.

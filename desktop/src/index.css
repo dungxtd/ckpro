@@ -29,6 +29,11 @@ body,
 	[data-theme="light"] {
 		color-scheme: light;
 	}
+	/* The window is transparent over its own sidebar material: only the
+	   sidebar lets it through; every screen paints its own background */
+	.app-window body {
+		background: transparent;
+	}
 	/* Links and images are not draggable (a drag would lift the app's URL) */
 	a,
 	img {

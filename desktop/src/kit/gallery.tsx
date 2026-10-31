@@ -4,6 +4,7 @@
 import { Alert } from "@ckdry/ui/components/alert";
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
+import { Capsule, CapsuleItem } from "@ckdry/ui/components/capsule";
 import { Card } from "@ckdry/ui/components/card";
 import { Chip } from "@ckdry/ui/components/chip";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
@@ -44,6 +45,7 @@ import {
 	SheetTitle,
 	SheetTrigger,
 } from "@ckdry/ui/components/sheet";
+import { Sidebar, SidebarItem, SidebarLabel } from "@ckdry/ui/components/sidebar";
 import { Skeleton } from "@ckdry/ui/components/skeleton";
 import { Toaster } from "@ckdry/ui/components/sonner";
 import { Spinner } from "@ckdry/ui/components/spinner";
@@ -66,9 +68,12 @@ import {
 	Check,
 	ChevronDown,
 	CircleAlert,
+	History,
 	Info,
+	LayoutList,
 	Lightbulb,
 	Monitor,
+	PanelLeft,
 	Plus,
 	Settings,
 	Sparkles,
@@ -465,6 +470,43 @@ function Gallery() {
 							<CodeBlock wrap>▸ Creating nodes{"\n"}▸ Waiting for the control plane</CodeBlock>
 						</Disclosure>
 					</Card>
+				</Section>
+
+				<Section
+					title="Sidebar and Capsule"
+					note="The window's sidebar over its translucent material, and the floating capsule it folds into."
+				>
+					<Row>
+						<Sidebar className="m-0 h-72">
+							<div className="px-2 py-2">
+								<SidebarItem icon={<LayoutList />} label="Exams" current />
+								<SidebarItem icon={<History />} label="History" />
+								<SidebarLabel>CKA</SidebarLabel>
+								<SidebarItem label="Core Concepts" detail="10 questions, 60 min" current />
+								<SidebarItem
+									label="Advanced Administration"
+									detail="20 questions, 120 min, runs slower"
+									warning
+								/>
+							</div>
+						</Sidebar>
+						<Capsule aria-label="Screens">
+							<IconButton
+								variant="plain"
+								size="bar"
+								className="rounded-full"
+								aria-label="Show sidebar"
+							>
+								<PanelLeft />
+							</IconButton>
+							<CapsuleItem current>
+								Exams
+								<ChevronDown />
+							</CapsuleItem>
+							<CapsuleItem>History</CapsuleItem>
+							<CapsuleItem>Settings</CapsuleItem>
+						</Capsule>
+					</Row>
 				</Section>
 
 				<Section title="Tabs" note="Sections of one page with a sidebar (Settings).">

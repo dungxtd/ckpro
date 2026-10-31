@@ -136,6 +136,8 @@ pub struct Settings {
     pub assistant_enabled: bool,
     /// Anonymous usage analytics (on unless turned off in Settings > About)
     pub analytics: bool,
+    /// The sidebar folded into the floating capsule (⌃⌘S)
+    pub sidebar_folded: bool,
 }
 
 impl Default for Settings {
@@ -151,6 +153,7 @@ impl Default for Settings {
             assistant_effort: None,
             assistant_enabled: true,
             analytics: true,
+            sidebar_folded: false,
         }
     }
 }
@@ -596,6 +599,7 @@ mod tests {
             assistant_effort: Some("high".into()),
             assistant_enabled: false,
             analytics: false,
+            sidebar_folded: true,
         };
         store.save_settings(&settings).unwrap();
         assert_eq!(store.settings().unwrap(), settings);

@@ -7,12 +7,28 @@ import { ActivityPage } from "@/components/activity/activity-progress";
 import { Grading } from "@/components/exam/grading";
 import { Results } from "@/components/exam/results";
 import { RunningExam } from "@/components/exam/running-exam";
+import { WindowFrame } from "@/components/shell/window";
 import { useExam } from "@/stores/exam";
 
 const modeLabel = (mode: string) => (mode === "exam" ? "Exam mode" : "Practice mode");
 
-/** The current attempt, whatever phase it is in. */
+/** The current attempt, whatever phase it is in. The desk has its own top
+ * bar beside the window's buttons; the other phases sit under a bar that
+ * moves the window */
 export function ExamRoute() {
+	const running = useExam(s => s.state?.phase === "running");
+	return running ? (
+		<div className="h-full bg-background">
+			<ExamPhase />
+		</div>
+	) : (
+		<WindowFrame>
+			<ExamPhase />
+		</WindowFrame>
+	);
+}
+
+function ExamPhase() {
 	const {
 		state,
 		end,
