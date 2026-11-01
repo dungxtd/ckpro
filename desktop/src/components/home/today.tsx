@@ -1,5 +1,6 @@
 import { Button } from "@ckdry/ui/components/button";
-import { Card } from "@ckdry/ui/components/card";
+import { Card, CardDescription, CardTitle } from "@ckdry/ui/components/card";
+import { ProgressRing } from "@ckdry/ui/components/progress";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Check, Play } from "lucide-react";
 import { useNavigate } from "react-router";
@@ -31,20 +32,15 @@ export function Today({
 		<Card padding="lg" className="flex flex-col gap-3">
 			<div className="flex items-center gap-4">
 				{plans.length > 0 && (
-					<div
-						className="grid size-20 shrink-0 place-items-center rounded-full"
-						style={{ background: `conic-gradient(var(--success) 0 ${share}%, var(--muted) 0)` }}
-					>
-						<div className="grid size-16 place-items-center rounded-full bg-card font-bold text-lg tabular-nums">
-							{done}/{plans.length}
-						</div>
-					</div>
+					<ProgressRing value={share} label={`${done} of ${plans.length} done today`}>
+						{done}/{plans.length}
+					</ProgressRing>
 				)}
 				<div className="min-w-0 flex-1">
-					<div className="font-semibold text-lead">Today</div>
-					<div className="text-caption text-muted-foreground">
+					<CardTitle>Today</CardTitle>
+					<CardDescription>
 						{plans.length ? `${done} of ${plans.length} done` : "Nothing planned for today"}
-					</div>
+					</CardDescription>
 					{next ? (
 						<Button size="sm" className="mt-2" onClick={() => start(next.exam_id, next.mode)}>
 							<Play /> Continue: {shortTitle(next.title)}

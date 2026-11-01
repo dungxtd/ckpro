@@ -36,3 +36,18 @@ export function Card({
 		/>
 	);
 }
+
+/** A card's title, and what it is about at the end of the same line */
+export function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
+	return (
+		<div className={cn("mb-3 flex items-baseline justify-between gap-3", className)} {...props} />
+	);
+}
+
+export function CardTitle({ className, ...props }: React.ComponentProps<"h2">) {
+	return <h2 className={cn("font-semibold text-lead", className)} {...props} />;
+}
+
+export function CardDescription({ className, ...props }: React.ComponentProps<"p">) {
+	return <p className={cn("text-caption text-muted-foreground", className)} {...props} />;
+}

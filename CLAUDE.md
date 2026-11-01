@@ -37,8 +37,8 @@ Architecture: `docs/ARCHITECTURE.md`.
   control and surface: `Button`, `IconButton` (its label is the tooltip),
   `SegmentedControl`, `Stepper`, `Select`, `Switch`, `Popover` with the
   `menu` classes, `DropdownMenu` (submenus), `Dialog`/`AlertDialog`,
-  `ConfirmDialog`, `Tooltip`, `Truncated`, `Card`, `Alert`, `CodeBlock`,
-  `Badge`, `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal`, `Placeholder`, `Spinner`, `Loading`. A hand-rolled control or a class
+  `ConfirmDialog`, `Tooltip`, `Truncated`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`), `Alert`, `CodeBlock`,
+  `Badge`, `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal` (`Terminal.Prompt`), `Placeholder`, `Progress` (`marker`), `ProgressRing`, `Spinner`, `Loading`. A hand-rolled control or a class
   string used twice becomes a kit component or variant.
 - **The design system, live**: `desktop/kit.html` (`pnpm exec vite`, then
   `/kit.html`). New components and variants go there.

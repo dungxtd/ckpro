@@ -1,5 +1,6 @@
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
+import { CardTitle } from "@ckdry/ui/components/card";
 import { Play, Plus } from "lucide-react";
 import { scoreOf, startedAt } from "@/components/study/data";
 import { byDay, dayKey, parseDay } from "@/days";
@@ -58,9 +59,7 @@ export function DayView({
 			</div>
 			<section className="flex min-w-0 flex-col gap-3">
 				<div className="flex items-center justify-between">
-					<h2 className="font-semibold text-lead">
-						{date.toLocaleDateString(undefined, { dateStyle: "full" })}
-					</h2>
+					<CardTitle>{date.toLocaleDateString(undefined, { dateStyle: "full" })}</CardTitle>
 					<ExamPicker label={`Plan an exam, ${day}`} onPick={id => onAdd(day, id)}>
 						<Button size="sm">
 							<Plus /> Add

@@ -1,9 +1,10 @@
-import { Card } from "@ckdry/ui/components/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@ckdry/ui/components/card";
 import { Placeholder } from "@ckdry/ui/components/placeholder";
 import { Stat } from "@ckdry/ui/components/stat";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Flag } from "lucide-react";
-import { level, mapWeeks } from "@/components/study/data";
+import { useEffect, useState } from "react";
+import { level, MAP_WEEKS, mapWeeks } from "@/components/study/data";
 import { dayKey } from "@/days";
 
 const LEVELS = [
@@ -14,6 +15,21 @@ const LEVELS = [
 	"bg-success",
 ];
 const WEEKDAYS = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
+/** A week's column (a 12px square and its gap), and the weekday names before them */
+const COLUMN = 15;
+const LABELS = 30;
+
+/** An element's width, followed as it changes */
+function useWidth(element: HTMLElement | null) {
+	const [width, setWidth] = useState(0);
+	useEffect(() => {
+		if (!element) return;
+		const watch = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+		watch.observe(element);
+		return () => watch.disconnect();
+	}, [element]);
+	return width;
+}
 
 /**
  * The preparation day by day, as a contribution graph: a few weeks at least,
@@ -37,7 +53,11 @@ export function PrepMap({
 	figures: { days: number; streak: number; weeks: number; attempts: number };
 }) {
 	const today = dayKey(new Date());
-	const weeks = mapWeeks(start, end);
+	// As many weeks as the map's width holds, the latest ones
+	const [area, setArea] = useState<HTMLDivElement | null>(null);
+	const width = useWidth(area);
+	const fit = width ? Math.max(4, Math.floor((width - LABELS) / COLUMN)) : MAP_WEEKS;
+	const weeks = mapWeeks(start, end, fit).slice(-fit);
 	const squares = (
 		<div className="flex gap-[3px]" role="img" aria-label={`${figures.days} days studied`}>
 			<div className="mr-1 grid grid-rows-[12px_repeat(7,12px)] gap-[3px] text-[9px] text-muted-foreground">
@@ -87,28 +107,33 @@ export function PrepMap({
 		</div>
 	);
 	return (
-		<Card padding="lg">
-			<div className="mb-3 flex items-baseline justify-between">
-				<h2 className="font-semibold text-lead">Prep map</h2>
+		<Card padding="lg" className="@container">
+			<CardHeader>
+				<CardTitle>Prep map</CardTitle>
 				{figures.days > 0 && (
-					<span className="text-caption text-muted-foreground">
+					<CardDescription>
 						since {start.toLocaleDateString(undefined, { day: "numeric", month: "long" })}
 						{exam &&
 							`, to the exam on ${new Date(`${exam}T00:00`).toLocaleDateString(undefined, { day: "numeric", month: "long" })}`}
-					</span>
+					</CardDescription>
 				)}
-			</div>
+			</CardHeader>
 			{figures.days === 0 ? (
-				<Placeholder
-					sample={squares}
-					title="Your study days show here"
-					description="Each day tinted by its best score"
-				/>
+				<div ref={setArea}>
+					<Placeholder
+						sample={squares}
+						title="Your study days show here"
+						description="Each day tinted by its best score"
+					/>
+				</div>
 			) : (
 				<>
-					<div className="flex items-center gap-6">
-						{squares}
-						<div className="grid flex-1 grid-cols-2 gap-x-4 gap-y-1 [&>div]:px-0 [&>div]:py-1">
+					{/* The figures beside the map, under it on a narrow card */}
+					<div className="flex flex-col gap-3 @sm:flex-row @sm:items-center @sm:gap-6">
+						<div ref={setArea} className="min-w-0 flex-1">
+							{squares}
+						</div>
+						<div className="grid w-44 shrink-0 grid-cols-2 gap-x-3 gap-y-1 [&>div]:px-0 [&>div]:py-1">
 							<Stat value={figures.days} label="days studied" />
 							<Stat value={figures.streak || "–"} label="days in a row" />
 							<Stat value={figures.weeks} label="weeks studied" />

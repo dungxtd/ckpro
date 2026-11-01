@@ -5,7 +5,7 @@ import { Alert } from "@ckdry/ui/components/alert";
 import { Badge } from "@ckdry/ui/components/badge";
 import { Button } from "@ckdry/ui/components/button";
 import { Capsule, CapsuleItem } from "@ckdry/ui/components/capsule";
-import { Card } from "@ckdry/ui/components/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@ckdry/ui/components/card";
 import { Chip } from "@ckdry/ui/components/chip";
 import { CodeBlock } from "@ckdry/ui/components/code-block";
 import { ConfirmDialog } from "@ckdry/ui/components/confirm-dialog";
@@ -27,7 +27,7 @@ import { Loading } from "@ckdry/ui/components/loading";
 import { menu, menuRow } from "@ckdry/ui/components/menu";
 import { Placeholder } from "@ckdry/ui/components/placeholder";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
-import { Progress } from "@ckdry/ui/components/progress";
+import { Progress, ProgressRing } from "@ckdry/ui/components/progress";
 import { Range } from "@ckdry/ui/components/range";
 import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import {
@@ -388,6 +388,13 @@ function Gallery() {
 						<Card>padding md (default)</Card>
 						<Card variant="dashed">dashed</Card>
 					</div>
+					<Card padding="lg" className="max-w-md">
+						<CardHeader>
+							<CardTitle>Readiness</CardTitle>
+							<CardDescription>2 of 5 domains measured</CardDescription>
+						</CardHeader>
+						A header: its title, and what it is about at the end of the line.
+					</Card>
 				</Section>
 
 				<Section
@@ -470,6 +477,15 @@ function Gallery() {
 						<Progress label="success" value={80} tone="success" />
 						<Progress label="warning" value={50} tone="warning" />
 						<Progress label="destructive" value={20} tone="destructive" />
+						<Progress label="with a pass line" value={58} tone="warning" marker={66} />
+					</div>
+					<div className="flex gap-3">
+						<ProgressRing value={50} label="1 of 2 done">
+							1/2
+						</ProgressRing>
+						<ProgressRing value={100} label="all done">
+							3/3
+						</ProgressRing>
 					</div>
 					<Card padding="none" className="max-w-md overflow-hidden">
 						<Disclosure
@@ -590,6 +606,7 @@ function Gallery() {
 						<Terminal.Warn>Warning</Terminal.Warn>
 						{"  BelowPass  storage 58%"}
 					</Terminal>
+					<PromptSample />
 				</Section>
 
 				<Section title="Tabs" note="Sections of one page with a sidebar.">
@@ -791,3 +808,26 @@ const Row = ({ children }: { children: ReactNode }) => (
 );
 
 createRoot(document.getElementById("root") as HTMLElement).render(<Gallery />);
+
+/** A prompt with a command typed already and its suggestion */
+function PromptSample() {
+	const [line, setLine] = useState("kubectl set exam ");
+	const [ran, setRan] = useState("");
+	return (
+		<Terminal className="flex flex-col">
+			{ran && <Terminal.Muted>{`$ ${ran}\n`}</Terminal.Muted>}
+			<Terminal.Prompt
+				label="Command"
+				value={line}
+				onChange={setLine}
+				onSubmit={value => {
+					setRan(value);
+					setLine("kubectl set exam ");
+				}}
+				initial="kubectl set exam "
+				suggestion="kubectl set exam cka --date 2026-12-15"
+				comment="Tab fills it in, Enter sets it"
+			/>
+		</Terminal>
+	);
+}

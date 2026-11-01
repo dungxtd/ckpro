@@ -1,28 +1,42 @@
-import { Button } from "@ckdry/ui/components/button";
 import { Terminal } from "@ckdry/ui/components/terminal";
+import { useState } from "react";
 import { type Event, predicted } from "@/components/study/data";
+import { addDays, dayKey } from "@/days";
+import { useSettings } from "@/stores/settings";
 import type { ExamReadiness, ExamTarget } from "@/tauri/api";
+import { commandFor, PROMPT, runCommand } from "./command";
 
 const pad = (s: string | number, n: number) => String(s).padEnd(n, " ");
 
 /**
  * Where the preparation stands, as `kubectl get` would print it: the exam
  * aimed at, its day, the predicted score against the pass line (once enough
- * is measured), and the events that stand out. Without a target, how to set one
+ * is measured), and the events that stand out. Its last line is a prompt,
+ * `kubectl set exam` typed already and a filled-in command suggested after
+ * the caret (Tab takes it): Enter sets the target, `kubectl delete exam`
+ * removes it
  */
 export function StatusTerminal({
 	target,
 	days,
 	readiness,
 	events,
-	onChangeTarget,
+	certifications,
+	certification,
 }: {
 	target: ExamTarget | null;
 	days: number | null;
 	readiness: ExamReadiness | null;
 	events: Event[];
-	onChangeTarget: () => void;
+	/** The certifications a target may name */
+	certifications: string[];
+	/** The one suggested when there is no target yet */
+	certification: string | null;
 }) {
+	const update = useSettings(s => s.update);
+	const [line, setLine] = useState(PROMPT);
+	const [last, setLast] = useState<{ line: string; output: string; failed: boolean } | null>(null);
+
 	const score = predicted(readiness);
 	const pass = readiness?.pass_score ?? 66;
 	const status =
@@ -33,9 +47,36 @@ export function StatusTerminal({
 			: score >= pass
 				? "OnTrack"
 				: "BelowPass";
+	const today = dayKey(new Date());
+	const defaultDate = dayKey(addDays(new Date(), 60));
+	const suggested = commandFor(
+		target ?? {
+			certification: certification ?? certifications[0] ?? "cka",
+			date: defaultDate,
+			rest_days: [],
+		}
+	);
+	const comment = !suggested.startsWith(line)
+		? target
+			? "Enter changes it"
+			: "Enter sets your target"
+		: line === suggested
+			? "Enter sets it"
+			: "Tab fills it in";
+
+	const run = () => {
+		const done = runCommand(line, { certifications, current: target, today, defaultDate });
+		if (done.kind === "set") update({ target: done.target });
+		if (done.kind === "delete") update({ target: null });
+		setLast(
+			done.kind === "none" ? null : { line, output: done.output, failed: done.kind === "error" }
+		);
+		setLine(PROMPT);
+	};
+
 	return (
-		<div className="flex flex-col gap-3">
-			<Terminal className="flex-1">
+		<Terminal className="flex flex-col whitespace-pre-wrap">
+			<span>
 				<Terminal.Muted>$ kubectl get exam {target?.certification ?? ""}</Terminal.Muted>
 				{"\n"}
 				{target ? (
@@ -53,7 +94,7 @@ export function StatusTerminal({
 						)}
 					</>
 				) : (
-					<Terminal.Muted>No resources found. Set the exam you prepare for.</Terminal.Muted>
+					<Terminal.Muted>No resources found. Set the exam you prepare for below.</Terminal.Muted>
 				)}
 				{"\n\n"}
 				<Terminal.Muted>$ kubectl get events</Terminal.Muted>
@@ -72,12 +113,28 @@ export function StatusTerminal({
 						</span>
 					))
 				)}
-			</Terminal>
-			<div className="flex gap-2">
-				<Button size="push" variant="push" onClick={onChangeTarget}>
-					{target ? "Change target" : "Set a target"}
-				</Button>
-			</div>
-		</div>
+				{last && (
+					<>
+						{"\n"}
+						<Terminal.Muted>$ {last.line}</Terminal.Muted>
+						{"\n"}
+						{last.failed ? <Terminal.Bad>{last.output}</Terminal.Bad> : last.output}
+						{"\n"}
+					</>
+				)}
+			</span>
+			{/* Pushed to the bottom: the command line, typed already */}
+			<Terminal.Prompt
+				className="mt-auto pt-3"
+				label="Command, for example kubectl set exam cka --date 2026-12-15"
+				value={line}
+				onChange={setLine}
+				onSubmit={run}
+				initial={PROMPT}
+				suggestion={suggested}
+				comment={comment}
+				autoFocus={!target}
+			/>
+		</Terminal>
 	);
 }

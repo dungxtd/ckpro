@@ -1,5 +1,5 @@
 import { Button } from "@ckdry/ui/components/button";
-import { Card } from "@ckdry/ui/components/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@ckdry/ui/components/card";
 import { Placeholder } from "@ckdry/ui/components/placeholder";
 import { cn } from "@ckdry/ui/lib/utils";
 import { useNavigate } from "react-router";
@@ -62,10 +62,10 @@ export function Week({
 	);
 	return (
 		<Card padding="lg">
-			<div className="mb-3 flex items-baseline justify-between">
-				<h2 className="font-semibold text-lead">This week</h2>
-				<span className="text-caption text-muted-foreground">change it in the Calendar</span>
-			</div>
+			<CardHeader>
+				<CardTitle>This week</CardTitle>
+				<CardDescription>change it in the Calendar</CardDescription>
+			</CardHeader>
 			{plans.length ? (
 				days
 			) : (

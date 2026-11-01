@@ -4,7 +4,6 @@ import { useNavigate } from "react-router";
 import { PrepMap } from "@/components/home/prep-map";
 import { Readiness } from "@/components/home/readiness";
 import { StatusTerminal } from "@/components/home/status-terminal";
-import { TargetDialog } from "@/components/home/target-dialog";
 import { Today } from "@/components/home/today";
 import { Week } from "@/components/home/week";
 import { Screen } from "@/components/shell/screen";
@@ -38,7 +37,6 @@ export function HomeRoute() {
 	const [history, setHistory] = useState<HistoryEntry[] | null>(null);
 	const [plans, setPlans] = useState<PlanView[]>([]);
 	const [readiness, setReadiness] = useState<ExamReadiness | null>(null);
-	const [editing, setEditing] = useState(false);
 	const navigate = useNavigate();
 
 	const now = new Date();
@@ -89,15 +87,17 @@ export function HomeRoute() {
 					{now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
 				</span>
 			}
-			className="max-w-5xl gap-4"
+			// Wider windows give the cards room; narrow ones stack them
+			className="@container max-w-[1440px] gap-4"
 		>
-			<div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-4">
+			<div className="grid gap-4 @3xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
 				<StatusTerminal
 					target={target}
 					days={target ? daysUntil(target.date, now) : null}
 					readiness={readiness}
 					events={events(measured, readiness)}
-					onChangeTarget={() => setEditing(true)}
+					certifications={certifications}
+					certification={certification}
 				/>
 				<Today
 					plans={plans.filter(p => p.day === today)}
@@ -114,7 +114,7 @@ export function HomeRoute() {
 					to: `/calendar?view=week&day=${dayKey(addDays(weekStart, 7))}`,
 				}}
 			/>
-			<div className="grid grid-cols-2 gap-4">
+			<div className="grid gap-4 @3xl:grid-cols-2 @6xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
 				<PrepMap
 					start={start}
 					end={target ? parseDay(target.date) : now}
@@ -130,7 +130,6 @@ export function HomeRoute() {
 				/>
 			</div>
 			<Week plans={plans} weekStart={weekStart} restDays={target?.rest_days ?? []} />
-			<TargetDialog open={editing} onOpenChange={setEditing} certifications={certifications} />
 		</Screen>
 	);
 }

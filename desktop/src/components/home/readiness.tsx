@@ -1,12 +1,10 @@
 import { Button } from "@ckdry/ui/components/button";
-import { Card } from "@ckdry/ui/components/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@ckdry/ui/components/card";
 import { Placeholder } from "@ckdry/ui/components/placeholder";
 import { Progress } from "@ckdry/ui/components/progress";
-import { PREDICT_COVERAGE, predicted } from "@/components/study/data";
+import { PREDICT_COVERAGE, predicted, scoreTone } from "@/components/study/data";
 import type { ExamReadiness } from "@/tauri/api";
 
-const tone = (percent: number, pass: number) =>
-	percent >= pass ? "success" : percent >= 40 ? "warning" : "destructive";
 const TEXT = { success: "text-success", warning: "text-warning", destructive: "text-destructive" };
 
 /**
@@ -33,16 +31,16 @@ export function Readiness({
 	const pass = readiness?.pass_score ?? 66;
 	return (
 		<Card padding="lg">
-			<div className="mb-2 flex items-baseline justify-between">
-				<h2 className="font-semibold text-lead">Readiness</h2>
+			<CardHeader className="mb-2">
+				<CardTitle>Readiness</CardTitle>
 				{measured.length > 0 && (
-					<span className="text-caption text-muted-foreground">
+					<CardDescription>
 						{score === null
 							? `${measured.length} of ${domains.length} domains measured`
 							: `predicted ${Math.round(score)}%, ${readiness?.window_days ? "last 30 days" : "all attempts"}`}
-					</span>
+					</CardDescription>
 				)}
-			</div>
+			</CardHeader>
 			{measured.length === 0 ? (
 				<Placeholder
 					sample={[60, 45, 80, 35].map((value, i) => (
@@ -118,7 +116,7 @@ function Bar({
 	percent: number;
 	pass: number;
 }) {
-	const t = tone(percent, pass);
+	const t = scoreTone(percent, pass);
 	return (
 		<div className="mt-2.5">
 			<div className="flex justify-between text-caption">
@@ -127,20 +125,14 @@ function Bar({
 				</span>
 				<b className={TEXT[t]}>{Math.round(percent)}%</b>
 			</div>
-			<div className="relative mt-1.5 h-1.5">
-				<Progress
-					value={percent}
-					tone={t}
-					label={`${name} score`}
-					// On a card, the track needs more than the card's own grey
-					className="bg-foreground/10"
-				/>
-				{/* The pass line */}
-				<span
-					className="absolute -top-0.5 -bottom-0.5 w-0.5 rounded bg-foreground/80"
-					style={{ left: `${pass}%` }}
-				/>
-			</div>
+			<Progress
+				value={percent}
+				tone={t}
+				marker={pass}
+				label={`${name} score`}
+				// On a card, the track needs more than the card's own grey
+				className="mt-1.5 bg-foreground/10"
+			/>
 		</div>
 	);
 }

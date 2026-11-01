@@ -28,14 +28,18 @@ export function bestByDay(history: HistoryEntry[]): Map<string, number> {
 export const MAP_WEEKS = 12;
 
 /** The prep map's columns: Monday-first weeks from `start`'s week to `end`'s,
- * at least MAP_WEEKS of them (reaching back before `start`) */
-export function mapWeeks(start: Date, end: Date): Date[][] {
+ * `min` of them at least (reaching back before `start`) */
+export function mapWeeks(start: Date, end: Date, min = MAP_WEEKS): Date[][] {
 	const weeks: Date[][] = [];
-	const earliest = addDays(monday(end), -7 * (MAP_WEEKS - 1));
+	const earliest = addDays(monday(end), -7 * (min - 1));
 	for (let day = monday(start < earliest ? start : earliest); day <= end; day = addDays(day, 7))
 		weeks.push(Array.from({ length: 7 }, (_, i) => addDays(day, i)));
 	return weeks;
 }
+
+/** A score's tone against the pass line: passing, near it, far under it */
+export const scoreTone = (percent: number, pass: number) =>
+	percent >= pass ? "success" : percent >= 40 ? "warning" : "destructive";
 
 /** How a day's best score is drawn on the map: none, below the pass line, then by score */
 export function level(score: number | undefined, pass: number): 0 | 1 | 2 | 3 | 4 {

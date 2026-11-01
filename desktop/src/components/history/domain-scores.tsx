@@ -1,5 +1,5 @@
 import { Badge } from "@ckdry/ui/components/badge";
-import { Progress, type ProgressTone } from "@ckdry/ui/components/progress";
+import { Progress } from "@ckdry/ui/components/progress";
 import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import {
 	Table,
@@ -10,12 +10,11 @@ import {
 	TableRow,
 } from "@ckdry/ui/components/table";
 import { useEffect, useState } from "react";
+import { scoreTone } from "@/components/study/data";
 import { type DomainStat, examApi, type StudyStats } from "@/tauri/api";
 
 /** Passing is 66% on the CKA/CKAD/CKS */
 const PASS = 66;
-const tone = (percent: number): ProgressTone =>
-	percent >= PASS ? "success" : percent >= 40 ? "warning" : "destructive";
 
 export const percentOf = (d: DomainStat) => (d.max_points ? (d.points * 100) / d.max_points : null);
 
@@ -102,7 +101,7 @@ function DomainRow({ domain: d, next }: { domain: DomainStat; next: boolean }) {
 					<span className="flex items-center gap-2">
 						<Progress
 							value={percent}
-							tone={tone(percent)}
+							tone={scoreTone(percent, PASS)}
 							label={`${d.domain} score`}
 							className="flex-1"
 						/>
