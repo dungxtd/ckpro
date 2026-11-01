@@ -3,6 +3,7 @@ import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Loading } from "@ckpro/ui/components/loading";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
 import { Stat, StatGroup } from "@ckpro/ui/components/stat";
+import { cn } from "@ckpro/ui/lib/utils";
 import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -157,7 +158,8 @@ export function CalendarRoute() {
 	return (
 		<Screen
 			title="Calendar"
-			className="@container max-w-[1440px] gap-4"
+			// The month and the week fill the window's height (the day lists)
+			className={cn("@container max-w-[1440px] gap-4", view !== "day" && "min-h-full")}
 			actions={
 				<div className="flex flex-wrap items-center gap-2">
 					{target && daysUntil(target.date, now) >= 0 && (
