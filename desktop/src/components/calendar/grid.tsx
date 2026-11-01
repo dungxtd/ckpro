@@ -1,6 +1,6 @@
 import { cn } from "@ckdry/ui/lib/utils";
 import { Flag, GripVertical, Plus, X } from "lucide-react";
-import { type DragEvent, useRef, useState } from "react";
+import { type DragEvent, useEffect, useRef, useState } from "react";
 import { scoreOf, startedAt } from "@/components/study/data";
 import { dayKey, monthWeeks } from "@/days";
 import type { ExamTarget, HistoryEntry, PlanView } from "@/tauri/api";
@@ -13,8 +13,11 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /** How long the pointer rests on a day before it is described: long enough
  * that moving across the grid shows nothing */
 const DESCRIBE_AFTER_MS = 800;
-/** What a day of the month shows before "+N more": its height stays the same */
-const MONTH_ITEMS = 3;
+/** A day's number and padding, and each thing listed under it, in px */
+const DAY_HEAD = 36;
+const DAY_ITEM = 24;
+/** The "+N more" line, shorter than a thing */
+const DAY_MORE = 18;
 
 export interface GridActions {
 	onOpen: (day: string) => void;
@@ -55,6 +58,21 @@ export function Grid({
 	const [hover, setHover] = useState<{ day: string; rect: DOMRect } | null>(null);
 	const timer = useRef<number>(0);
 	const grown = week && dayKey(week);
+	// The month fills the window's height: as many things a day as its row holds
+	const frame = useRef<HTMLDivElement>(null);
+	const [rowHeight, setRowHeight] = useState(112);
+	useEffect(() => {
+		const element = frame.current;
+		if (!element) return;
+		const watch = new ResizeObserver(() => {
+			const row = element.querySelector<HTMLElement>("[data-week]");
+			if (row) setRowHeight(row.getBoundingClientRect().height);
+		});
+		watch.observe(element);
+		return () => watch.disconnect();
+	}, []);
+	const fits = Math.floor((rowHeight - DAY_HEAD) / DAY_ITEM);
+	const fitsWithMore = Math.max(0, Math.floor((rowHeight - DAY_HEAD - DAY_MORE) / DAY_ITEM));
 	const rest = (e: React.MouseEvent<HTMLElement>, day: string) => {
 		window.clearTimeout(timer.current);
 		const rect = e.currentTarget.getBoundingClientRect();
@@ -69,7 +87,8 @@ export function Grid({
 		// Leaving the grid puts the description away; only the pointer does that
 		// biome-ignore lint/a11y/noStaticElementInteractions: a hover detail, not an action
 		<div
-			className="relative overflow-hidden rounded-xl border border-border bg-card"
+			ref={frame}
+			className="relative flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card"
 			onMouseLeave={leave}
 		>
 			<div className={cn("grid grid-cols-7 border-border border-b", week && "hidden")}>
@@ -87,12 +106,21 @@ export function Grid({
 					<div
 						key={key}
 						className={cn(
-							"grid transition-[grid-template-rows,opacity] duration-[380ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
-							folded ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr]"
+							"grid transition-[grid-template-rows,flex-grow,opacity] duration-[380ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+							// The weeks share the height; a folded one gives its share up
+							// (a short window scrolls rather than squeezing a week)
+							folded
+								? "min-h-0 flex-[0_1_0px] grid-rows-[0fr] opacity-0"
+								: cn(
+										// A line between weeks (the weekday names come first)
+										"flex-[1_1_0px] grid-rows-[1fr] border-border [&:not(:nth-child(2))]:border-t",
+										week ? "min-h-60" : "min-h-[4.5rem]"
+									)
 						)}
 						inert={folded}
+						data-week={folded ? undefined : true}
 					>
-						<div className="grid min-h-0 grid-cols-7 overflow-hidden border-border not-first:border-t">
+						<div className="grid h-full min-h-0 grid-cols-7 overflow-hidden">
 							{days.map(day => {
 								const k = dayKey(day);
 								const attempts = history.filter(h => dayKey(new Date(startedAt(h))) === k);
@@ -101,7 +129,7 @@ export function Grid({
 								// (Week shows them all, the description too)
 								const flagged = k === exam?.date ? 1 : 0;
 								const total = flagged + attempts.length + open.length;
-								const room = week || total <= MONTH_ITEMS ? total : MONTH_ITEMS - 1;
+								const room = week || total <= fits ? total : fitsWithMore;
 								const shownAttempts = attempts.slice(0, Math.max(0, room - flagged));
 								const shownOpen = open.slice(0, Math.max(0, room - flagged - shownAttempts.length));
 								return (
@@ -134,7 +162,7 @@ export function Grid({
 										}}
 										className={cn(
 											"group/day flex min-w-0 cursor-pointer flex-col border-border p-1.5 outline-none transition-[min-height,background-color] duration-[380ms] not-first:border-l hover:bg-foreground/[0.03] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset motion-reduce:transition-none",
-											week ? "min-h-[420px]" : "h-28 overflow-hidden",
+											!week && "overflow-hidden",
 											!week && day.getMonth() !== month.getMonth() && "text-muted-foreground/60",
 											k === exam?.date && "bg-highlight/[0.07]",
 											over === k && "bg-highlight/15 ring-2 ring-highlight ring-inset"
