@@ -48,7 +48,8 @@ export function DayView({
 	const onDay = history.filter(h => dayKey(new Date(startedAt(h))) === day);
 	const open = plans.filter(p => p.day === day && p.done === null);
 	return (
-		<div className="grid items-start gap-6 @3xl:grid-cols-[272px_minmax(0,1fr)]">
+		// It comes in from the month or the week as they come back from it
+		<div className="grid items-start gap-6 fade-in-0 zoom-in-[0.98] animate-in duration-300 ease-out motion-reduce:animate-none @3xl:grid-cols-[272px_minmax(0,1fr)]">
 			<div className="max-w-sm @3xl:sticky @3xl:top-0">
 				<MiniMonth
 					month={new Date(date.getFullYear(), date.getMonth(), 1)}
