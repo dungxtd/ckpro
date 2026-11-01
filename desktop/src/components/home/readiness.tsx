@@ -36,10 +36,19 @@ export function Readiness({
 			<CardHeader className="mb-2">
 				<CardTitle>Readiness</CardTitle>
 				{measured.length > 0 && (
-					<CardDescription>
+					// Short enough to stay on the title's line; the rest on hover
+					<CardDescription
+						title={
+							score === null
+								? `A score is predicted once ${PREDICT_COVERAGE}% of the exam is measured`
+								: readiness?.window_days
+									? "From the last 30 days"
+									: "From all attempts"
+						}
+					>
 						{score === null
-							? `${measured.length} of ${domains.length} measured, predicts from ${PREDICT_COVERAGE}%`
-							: `predicted ${Math.round(score)}%, ${readiness?.window_days ? "last 30 days" : "all attempts"}`}
+							? `${measured.length} of ${domains.length} measured`
+							: `${Math.round(score)}% predicted`}
 					</CardDescription>
 				)}
 			</CardHeader>
@@ -83,18 +92,18 @@ export function Readiness({
 							<Untested key={d.domain} name={d.domain.replaceAll("-", " ")} weight={d.weight} />
 						))}
 					</Bars>
-					<div className="mt-3 flex flex-wrap gap-2">
-						{onPractise && (
-							<Button size="push" variant="push" onClick={onPractise}>
+					{/* One next step: measure what is not yet, else practise the weakest */}
+					{untested.length > 0 && onMeasure ? (
+						<Button size="push" variant="push" className="mt-3" onClick={onMeasure}>
+							Measure the rest
+						</Button>
+					) : (
+						onPractise && (
+							<Button size="push" variant="push" className="mt-3" onClick={onPractise}>
 								Practise the weakest
 							</Button>
-						)}
-						{untested.length > 0 && onMeasure && (
-							<Button size="push" variant="push" onClick={onMeasure}>
-								Measure the rest
-							</Button>
-						)}
-					</div>
+						)
+					)}
 				</>
 			)}
 		</Card>
@@ -104,7 +113,7 @@ export function Readiness({
 /** The domains one line each, their bars lined up in one column */
 function Bars({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="grid grid-cols-[minmax(0,max-content)_minmax(3rem,1fr)_2.5rem] items-center gap-x-3 gap-y-2 text-caption">
+		<div className="grid grid-cols-[fit-content(60%)_minmax(3rem,1fr)_2.5rem] items-center gap-x-3 gap-y-2 text-caption">
 			{children}
 		</div>
 	);
