@@ -17,3 +17,14 @@ const twMerge = extendTailwindMerge({
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
 }
+
+/** Height of the strip along the window's top edge floating surfaces stay out
+ * of (macOS: the window buttons float over the web view; 0 elsewhere) */
+export function titlebarHeight(): number {
+	if (typeof document === "undefined") return 0;
+	const value = getComputedStyle(document.documentElement).getPropertyValue("--titlebar-h");
+	return Number.parseFloat(value) || 0;
+}
+
+/** The room floating surfaces keep from the window's edges, the title bar's strip included */
+export const floatingPadding = () => ({ top: titlebarHeight() + 4, left: 8, right: 8, bottom: 8 });

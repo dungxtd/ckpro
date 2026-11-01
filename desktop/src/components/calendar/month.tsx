@@ -35,7 +35,11 @@ export function MiniMonth({
 	onShift: (by: number) => void;
 }) {
 	return (
-		<div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
+		// The big month folds into it, and back (routes/calendar)
+		<div
+			className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3"
+			data-morph="calendar-month"
+		>
 			<div className="flex items-center justify-between">
 				<span className="font-semibold text-callout">
 					{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
