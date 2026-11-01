@@ -1,9 +1,9 @@
 import { Card, CardDescription, CardHeader, CardTitle } from "@ckdry/ui/components/card";
 import { Placeholder } from "@ckdry/ui/components/placeholder";
 import { Stat } from "@ckdry/ui/components/stat";
+import { useElementSize } from "@ckdry/ui/hooks/use-element-size";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Flag } from "lucide-react";
-import { useEffect, useState } from "react";
 import { level, MAP_WEEKS, mapWeeks } from "@/components/study/data";
 import { dayKey } from "@/days";
 
@@ -18,18 +18,6 @@ const WEEKDAYS = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
 /** A week's column (a 12px square and its gap), and the weekday names before them */
 const COLUMN = 15;
 const LABELS = 34;
-/** An element's width, followed as it changes */
-function useWidth(element: HTMLElement | null) {
-	const [width, setWidth] = useState(0);
-	useEffect(() => {
-		if (!element) return;
-		const watch = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
-		watch.observe(element);
-		return () => watch.disconnect();
-	}, [element]);
-	return width;
-}
-
 /**
  * The preparation day by day, as a contribution graph: a few weeks at least,
  * from its first day to the exam (or today, without one), each day tinted by
@@ -53,8 +41,7 @@ export function PrepMap({
 }) {
 	const today = dayKey(new Date());
 	// As many weeks as the map's width holds, the latest ones
-	const [area, setArea] = useState<HTMLDivElement | null>(null);
-	const width = useWidth(area);
+	const [setArea, { width }] = useElementSize<HTMLDivElement>();
 	const fit = width ? Math.max(4, Math.floor((width - LABELS) / COLUMN)) : MAP_WEEKS;
 	const weeks = mapWeeks(start, end, fit).slice(-fit);
 	const squares = (
