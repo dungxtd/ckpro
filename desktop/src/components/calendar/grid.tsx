@@ -10,6 +10,9 @@ import { DescribeCard } from "./describe-card";
 import { ExamPicker } from "./exam-picker";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+/** How long the pointer rests on a day before it is described: long enough
+ * that moving across the grid shows nothing */
+const DESCRIBE_AFTER_MS = 800;
 
 export interface GridActions {
 	onOpen: (day: string) => void;
@@ -53,7 +56,7 @@ export function Grid({
 	const rest = (e: React.MouseEvent<HTMLElement>, day: string) => {
 		window.clearTimeout(timer.current);
 		const rect = e.currentTarget.getBoundingClientRect();
-		timer.current = window.setTimeout(() => setHover({ day, rect }), 450);
+		timer.current = window.setTimeout(() => setHover({ day, rect }), DESCRIBE_AFTER_MS);
 	};
 	const leave = () => {
 		window.clearTimeout(timer.current);
