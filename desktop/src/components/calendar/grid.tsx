@@ -13,6 +13,8 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /** How long the pointer rests on a day before it is described: long enough
  * that moving across the grid shows nothing */
 const DESCRIBE_AFTER_MS = 800;
+/** What a day of the month shows before "+N more": its height stays the same */
+const MONTH_ITEMS = 3;
 
 export interface GridActions {
 	onOpen: (day: string) => void;
@@ -95,6 +97,13 @@ export function Grid({
 								const k = dayKey(day);
 								const attempts = history.filter(h => dayKey(new Date(startedAt(h))) === k);
 								const open = plans.filter(p => p.day === k && p.done === null);
+								// A month's day keeps its height: the first things, then how many more
+								// (Week shows them all, the description too)
+								const flagged = k === exam?.date ? 1 : 0;
+								const total = flagged + attempts.length + open.length;
+								const room = week || total <= MONTH_ITEMS ? total : MONTH_ITEMS - 1;
+								const shownAttempts = attempts.slice(0, Math.max(0, room - flagged));
+								const shownOpen = open.slice(0, Math.max(0, room - flagged - shownAttempts.length));
 								return (
 									// biome-ignore lint/a11y/useSemanticElements: a day holds buttons of its own
 									<div
@@ -125,7 +134,7 @@ export function Grid({
 										}}
 										className={cn(
 											"group/day flex min-w-0 cursor-pointer flex-col border-border p-1.5 outline-none transition-[min-height,background-color] duration-[380ms] not-first:border-l hover:bg-foreground/[0.03] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset motion-reduce:transition-none",
-											week ? "min-h-[420px]" : "min-h-24",
+											week ? "min-h-[420px]" : "h-28 overflow-hidden",
 											!week && day.getMonth() !== month.getMonth() && "text-muted-foreground/60",
 											k === exam?.date && "bg-highlight/[0.07]",
 											over === k && "bg-highlight/15 ring-2 ring-highlight ring-inset"
@@ -172,7 +181,7 @@ export function Grid({
 												<span className="truncate">{exam.certification.toUpperCase()} exam</span>
 											</span>
 										)}
-										{attempts.map(h => (
+										{shownAttempts.map(h => (
 											<span
 												key={h.attempt_id}
 												className={cn(
@@ -186,7 +195,7 @@ export function Grid({
 												{Math.round(scoreOf(h))}% {shortTitle(h.title)}
 											</span>
 										))}
-										{open.map(p => (
+										{shownOpen.map(p => (
 											// biome-ignore lint/a11y/noStaticElementInteractions: its parts are buttons; the row only stops the day's click
 											<div
 												key={p.id}
@@ -242,6 +251,11 @@ export function Grid({
 												</button>
 											</div>
 										))}
+										{total > room && (
+											<span className="mt-1 px-1.5 text-2xs text-muted-foreground">
+												+{total - room} more
+											</span>
+										)}
 										{week && (
 											<ExamPicker label={`Plan an exam, ${k}`} onPick={id => actions.onAdd(k, id)}>
 												<button
