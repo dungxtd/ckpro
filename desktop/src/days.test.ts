@@ -21,13 +21,15 @@ const entry = (id: string, started: number | null): HistoryEntry => ({
 });
 
 describe("study calendar days", () => {
-	it("lays a month out in Monday-first weeks", () => {
+	it("lays a month out in six Monday-first weeks", () => {
 		// October 2026 starts on a Thursday and ends on a Saturday
 		const weeks = monthWeeks(new Date(2026, 9, 1));
-		expect(weeks).toHaveLength(5);
+		expect(weeks).toHaveLength(6);
 		expect(weeks.every(w => w.length === 7)).toBe(true);
 		expect(dayKey(weeks[0][0])).toBe("2026-09-28");
-		expect(dayKey(weeks[4][6])).toBe("2026-11-01");
+		expect(dayKey(weeks[5][6])).toBe("2026-11-08");
+		// A month that fills six weeks itself is as tall
+		expect(monthWeeks(new Date(2026, 10, 1))).toHaveLength(6);
 	});
 
 	it("reads only a YYYY-MM month", () => {

@@ -30,14 +30,14 @@ export function parseMonth(key: string | null): Date | null {
 }
 
 /** The weeks a month's grid shows, Monday first, from the week of the 1st
- * to the week of its last day */
+ * through six weeks, so every month is as tall */
 export function monthWeeks(month: Date): Date[][] {
 	const first = new Date(month.getFullYear(), month.getMonth(), 1);
 	const start = new Date(first);
 	start.setDate(1 - ((first.getDay() + 6) % 7));
-	const last = new Date(month.getFullYear(), month.getMonth() + 1, 0);
 	const weeks: Date[][] = [];
-	for (const day = new Date(start); day <= last || weeks.at(-1)?.length !== 7; ) {
+	// Six weeks always, as calendars show a month: its height stays the same
+	for (const day = new Date(start); weeks.length < 6 || weeks.at(-1)?.length !== 7; ) {
 		if (!weeks.length || weeks.at(-1)?.length === 7) weeks.push([]);
 		weeks.at(-1)?.push(new Date(day));
 		day.setDate(day.getDate() + 1);
