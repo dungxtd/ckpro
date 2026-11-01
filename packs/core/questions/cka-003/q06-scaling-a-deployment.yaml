@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Scaling a Deployment
+certifications:
+  cka: workloads-scheduling
+difficulty: hard
+namespace: default
+tags: [deployments, scaling]
+
+statement: "Scale the existing Deployment `presentation` to exactly `3` replicas."
+
+setup: |
+  set -e
+
+  kubectl create namespace default --dry-run=client -o yaml | kubectl apply -f - || true
+
+  # Existing deployment with 1 replica, to be scaled by the candidate
+  kubectl apply -f - <<EOF
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: presentation
+    namespace: default
+    labels:
+      app: presentation
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: presentation
+    template:
+      metadata:
+        labels:
+          app: presentation
+      spec:
+        containers:
+          - name: nginx
+            image: nginx:1.19
+  EOF
+
+  echo "Waiting for presentation deployment to be available..."
+  kubectl wait --for=condition=available --timeout=120s deployment/presentation -n default || {
+    echo "WARNING: presentation deployment did not become available in time, continuing anyway"
+  }
+
+checks:
+  - name: "Deployment presentation has spec.replicas=3 and 3 readyReplicas"
+    weight: 6
+    run: |
+      set -e
+
+      kubectl get deployment presentation -n default || {
+          echo "Deployment presentation not found in namespace default"
+          exit 1
+      }
+
+      SPEC_REPLICAS=$(kubectl get deployment presentation -n default -o jsonpath='{.spec.replicas}')
+      if [[ "$SPEC_REPLICAS" != "3" ]]; then
+          echo "Deployment presentation spec.replicas is not 3 (got '$SPEC_REPLICAS')"
+          exit 1
+      fi
+
+      READY=$(kubectl get deployment presentation -n default -o jsonpath='{.status.readyReplicas}')
+      if [[ "$READY" == "3" ]]; then
+          echo "Deployment presentation scaled to 3 ready replicas"
+          exit 0
+      fi
+
+      echo "Deployment presentation does not have 3 readyReplicas (got '$READY')"
+      exit 1
+
+solution:
+  explain: |
+    ### Solution
+    ```bash
+    kubectl scale deployment presentation -n default --replicas=3
+    ```
+
+    ### Why this works
+    `kubectl scale` patches `spec.replicas` directly; the Deployment controller then reconciles the actual replica count to match, creating 2 additional pods.
+  run: "kubectl scale deployment presentation -n default --replicas=3"

@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../schema/exam.schema.json
+title: Helm Fundamentals Lab
+description: Comprehensive lab covering Helm basics including chart installation, repositories, customization, packaging, debugging, and advanced Helm operations for Kubernetes applications.
+certification: cka
+duration: 90m
+questions:
+  - core/helm-001/q01-verify-helm-installation
+  - core/helm-001/q02-add-bitnami-chart-repository
+  - core/helm-001/q03-search-for-nginx-chart
+  - core/helm-001/q04-install-nginx-chart-with-custom-configuration
+  - core/helm-001/q05-list-all-helm-releases
+  - core/helm-001/q06-get-release-status-and-manifests
+  - core/helm-001/q07-upgrade-release-with-new-replica-count
+  - core/helm-001/q08-create-custom-values-file-and-install-redis
+  - core/helm-001/q09-create-a-new-helm-chart
+  - core/helm-001/q10-package-chart-and-create-local-repository
+  - core/helm-001/q11-roll-back-a-release
+  - core/helm-001/q12-debug-a-problematic-release

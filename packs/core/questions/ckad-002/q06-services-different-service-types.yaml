@@ -1,0 +1,331 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Services - Different Service Types
+certifications:
+  ckad: application-design-build
+difficulty: hard
+namespace: services
+tags: [services, deployments, clusterip, nodeport, loadbalancer]
+
+statement: |
+  Create a Deployment named `web-app` in the `services` namespace with 3 replicas using the image `nginx:alpine`.
+  Label the pods with `app=web`.
+
+  Expose the deployment with three different services:
+  1. A ClusterIP service named `web-svc-cluster` on port `80`
+  2. A NodePort service named `web-svc-nodeport` on port `80`, using nodePort `30080`
+  3. A LoadBalancer service named `web-svc-lb` on port `80`
+
+  Ensure the namespace exists before creating the resources.
+
+setup: |
+  # Delete the services namespace if it exists
+  echo "Setting up environment for Question 6 (Services)..."
+  kubectl delete namespace services --ignore-not-found=true
+
+  # Wait for deletion to complete
+  sleep 2
+
+  # Confirm environment is ready
+  echo "Environment ready for Question 6"
+  exit 0
+
+checks:
+  - name: Namespace is created
+    run: |
+      # Validate that the services namespace exists
+      NS=$(kubectl get namespace services -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$NS" == "services" ]]; then
+          # Namespace exists
+          exit 0
+      else
+          # Namespace does not exist
+          echo "Namespace 'services' does not exist"
+          exit 1
+      fi
+  - name: Deployment is created correctly
+    weight: 2
+    run: |
+      # Validate that the web-app deployment exists
+      DEPLOYMENT=$(kubectl get deployment web-app -n services -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$DEPLOYMENT" == "web-app" ]]; then
+          # Deployment exists, now check specs
+
+          # Check image
+          IMAGE=$(kubectl get deployment web-app -n services -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)
+
+          # Check replicas
+          REPLICAS=$(kubectl get deployment web-app -n services -o jsonpath='{.spec.replicas}' 2>/dev/null)
+
+          # Check pod labels
+          APP_LABEL=$(kubectl get deployment web-app -n services -o jsonpath='{.spec.template.metadata.labels.app}' 2>/dev/null)
+
+          if [[ "$IMAGE" == "nginx:alpine" && "$REPLICAS" == "3" && "$APP_LABEL" == "web" ]]; then
+              # Deployment is configured correctly
+              exit 0
+          else
+              echo "Deployment 'web-app' is not configured correctly."
+              echo "Found image: $IMAGE (expected: nginx:alpine)"
+              echo "Found replicas: $REPLICAS (expected: 3)"
+              echo "Found app label: $APP_LABEL (expected: web)"
+              exit 1
+          fi
+      else
+          # Deployment does not exist
+          echo "Deployment 'web-app' does not exist in the 'services' namespace"
+          exit 1
+      fi
+  - name: ClusterIP service is configured correctly
+    weight: 2
+    run: |
+      # Validate that the ClusterIP service exists
+      SERVICE=$(kubectl get service web-svc-cluster -n services -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$SERVICE" == "web-svc-cluster" ]]; then
+          # Service exists, now check specs
+
+          # Check type
+          TYPE=$(kubectl get service web-svc-cluster -n services -o jsonpath='{.spec.type}' 2>/dev/null)
+
+          # Check port
+          PORT=$(kubectl get service web-svc-cluster -n services -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+
+          # Check selector
+          APP_SELECTOR=$(kubectl get service web-svc-cluster -n services -o jsonpath='{.spec.selector.app}' 2>/dev/null)
+
+          if [[ "$TYPE" == "ClusterIP" && "$PORT" == "80" && "$APP_SELECTOR" == "web" ]]; then
+              # ClusterIP service is configured correctly
+              exit 0
+          else
+              echo "ClusterIP service 'web-svc-cluster' is not configured correctly."
+              echo "Found type: $TYPE (expected: ClusterIP)"
+              echo "Found port: $PORT (expected: 80)"
+              echo "Found app selector: $APP_SELECTOR (expected: web)"
+              exit 1
+          fi
+      else
+          # Service does not exist
+          echo "Service 'web-svc-cluster' does not exist in the 'services' namespace"
+          exit 1
+      fi
+  - name: NodePort service is configured correctly
+    weight: 2
+    run: |
+      # Validate that the NodePort service exists
+      SERVICE=$(kubectl get service web-svc-nodeport -n services -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$SERVICE" == "web-svc-nodeport" ]]; then
+          # Service exists, now check specs
+
+          # Check type
+          TYPE=$(kubectl get service web-svc-nodeport -n services -o jsonpath='{.spec.type}' 2>/dev/null)
+
+          # Check port
+          PORT=$(kubectl get service web-svc-nodeport -n services -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+
+          # Check nodePort
+          NODE_PORT=$(kubectl get service web-svc-nodeport -n services -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null)
+
+          # Check selector
+          APP_SELECTOR=$(kubectl get service web-svc-nodeport -n services -o jsonpath='{.spec.selector.app}' 2>/dev/null)
+
+          if [[ "$TYPE" == "NodePort" && "$PORT" == "80" && "$NODE_PORT" == "30080" && "$APP_SELECTOR" == "web" ]]; then
+              # NodePort service is configured correctly
+              exit 0
+          else
+              echo "NodePort service 'web-svc-nodeport' is not configured correctly."
+              echo "Found type: $TYPE (expected: NodePort)"
+              echo "Found port: $PORT (expected: 80)"
+              echo "Found nodePort: $NODE_PORT (expected: 30080)"
+              echo "Found app selector: $APP_SELECTOR (expected: web)"
+              exit 1
+          fi
+      else
+          # Service does not exist
+          echo "Service 'web-svc-nodeport' does not exist in the 'services' namespace"
+          exit 1
+      fi
+  - name: LoadBalancer service is configured correctly
+    weight: 2
+    run: |
+      # Validate that the LoadBalancer service exists
+      SERVICE=$(kubectl get service web-svc-lb -n services -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$SERVICE" == "web-svc-lb" ]]; then
+          # Service exists, now check specs
+
+          # Check type
+          TYPE=$(kubectl get service web-svc-lb -n services -o jsonpath='{.spec.type}' 2>/dev/null)
+
+          # Check port
+          PORT=$(kubectl get service web-svc-lb -n services -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+
+          # Check selector
+          APP_SELECTOR=$(kubectl get service web-svc-lb -n services -o jsonpath='{.spec.selector.app}' 2>/dev/null)
+
+          if [[ "$TYPE" == "LoadBalancer" && "$PORT" == "80" && "$APP_SELECTOR" == "web" ]]; then
+              # LoadBalancer service is configured correctly
+              exit 0
+          else
+              echo "LoadBalancer service 'web-svc-lb' is not configured correctly."
+              echo "Found type: $TYPE (expected: LoadBalancer)"
+              echo "Found port: $PORT (expected: 80)"
+              echo "Found app selector: $APP_SELECTOR (expected: web)"
+              exit 1
+          fi
+      else
+          # Service does not exist
+          echo "Service 'web-svc-lb' does not exist in the 'services' namespace"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    Create deployment with different service types:
+
+    ```bash
+    # Create namespace
+    kubectl create namespace services
+
+    # Create deployment and three different services
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: services
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web-app
+      namespace: services
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: web
+      template:
+        metadata:
+          labels:
+            app: web
+        spec:
+          containers:
+          - name: nginx
+            image: nginx:alpine
+            ports:
+            - containerPort: 80
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-svc-cluster
+      namespace: services
+    spec:
+      selector:
+        app: web
+      ports:
+      - port: 80
+        targetPort: 80
+      type: ClusterIP
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-svc-nodeport
+      namespace: services
+    spec:
+      selector:
+        app: web
+      ports:
+      - port: 80
+        targetPort: 80
+        nodePort: 30080
+      type: NodePort
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-svc-lb
+      namespace: services
+    spec:
+      selector:
+        app: web
+      ports:
+      - port: 80
+        targetPort: 80
+      type: LoadBalancer
+    EOF
+    ```
+  run: |
+    # Create namespace
+    kubectl create namespace services
+
+    # Create deployment and three different services
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: services
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web-app
+      namespace: services
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: web
+      template:
+        metadata:
+          labels:
+            app: web
+        spec:
+          containers:
+          - name: nginx
+            image: nginx:alpine
+            ports:
+            - containerPort: 80
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-svc-cluster
+      namespace: services
+    spec:
+      selector:
+        app: web
+      ports:
+      - port: 80
+        targetPort: 80
+      type: ClusterIP
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-svc-nodeport
+      namespace: services
+    spec:
+      selector:
+        app: web
+      ports:
+      - port: 80
+        targetPort: 80
+        nodePort: 30080
+      type: NodePort
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-svc-lb
+      namespace: services
+    spec:
+      selector:
+        app: web
+      ports:
+      - port: 80
+        targetPort: 80
+      type: LoadBalancer
+    EOF

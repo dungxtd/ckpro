@@ -1,0 +1,146 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Roll Back a Release
+certifications:
+  cka: cluster-architecture
+  ckad: application-deployment
+difficulty: medium
+namespace: default
+tags: [helm, rollback]
+
+statement: |
+  Roll back the `web-server` release to its first revision (the original installation).
+
+  Verify the rollback was successful by checking the revision number and that the replica count is back to the original value.
+
+setup: |
+  # Setup environment for Question 11 - Roll Back Release
+
+  # No specific setup needed for this question
+  # The student needs to roll back the web-server release to its first revision
+  # and verify the rollback was successful by checking revision number and replica count
+
+  echo "Environment setup complete for Question 11"
+  exit 0
+
+checks:
+  - name: Release was rolled back
+    weight: 2
+    run: |
+      # Validate script for Question 11, Step 1: Check if release was rolled back
+
+      # Check if helm command is available
+      if ! command -v helm &> /dev/null; then
+        echo "❌ Helm command not found in PATH"
+        exit 1
+      fi
+
+      # Check if the release exists
+      release_info=$(helm list -n default -f "web-server" 2>&1)
+
+      if [ $? -ne 0 ] || ! echo "$release_info" | grep -q "web-server"; then
+        echo "❌ Release 'web-server' not found in namespace 'default'"
+        echo "Current releases:"
+        helm list -n default
+        exit 1
+      fi
+
+      # Check the history to see if a rollback occurred
+      history=$(helm history web-server -n default 2>&1)
+
+      if [ $? -ne 0 ]; then
+        echo "❌ Failed to get history for release 'web-server'"
+        echo "Error: $history"
+        exit 1
+      fi
+
+      # Check if there was a rollback operation in the history
+      if ! echo "$history" | grep -qi "rollback"; then
+        echo "❌ No rollback operation found in the release history"
+        echo "Release history:"
+        echo "$history"
+        exit 1
+      fi
+
+      echo "✅ Release 'web-server' has been rolled back"
+      echo "Release history:"
+      echo "$history"
+      exit 0
+  - name: Revision and configuration are correct
+    weight: 2
+    run: |
+      # Validate script for Question 11, Step 2: Check if revision and configuration are correct
+
+      # Check if kubectl command is available
+      if ! command -v kubectl &> /dev/null; then
+        echo "❌ kubectl command not found in PATH"
+        exit 1
+      fi
+
+      # Check if helm command is available
+      if ! command -v helm &> /dev/null; then
+        echo "❌ Helm command not found in PATH"
+        exit 1
+      fi
+
+      # Check the current revision number
+      revision=$(helm list -n default -f "web-server" -o json | jq -r '.[0].revision')
+
+      if [ -z "$revision" ] || [ "$revision" = "null" ]; then
+        echo "❌ Could not determine revision for release 'web-server'"
+        exit 1
+      fi
+
+      # We need to check if the replica count is back to the original value (likely 1)
+      # Find the deployment name
+      deploy_name=$(kubectl get deployments -n default -o custom-columns=NAME:.metadata.name | grep "web-server.*nginx")
+
+      if [ -z "$deploy_name" ]; then
+        echo "❌ Could not find the web-server nginx deployment"
+        echo "Available deployments:"
+        kubectl get deployments -n default
+        exit 1
+      fi
+
+      # Get the replica count
+      replicas=$(kubectl get deployment $deploy_name -n default -o jsonpath='{.spec.replicas}')
+
+      if [ -z "$replicas" ]; then
+        echo "❌ Could not determine replica count for deployment '$deploy_name'"
+        exit 1
+      fi
+
+      # If we rolled back to revision 1, we expect the replicas to be 1
+      # If not, we check that it's different from 3 (the value set in question 7)
+      if [ "$replicas" -eq 3 ]; then
+        echo "❌ Replica count is still 3, rollback did not reset the configuration"
+        exit 1
+      fi
+
+      echo "✅ Release 'web-server' is at revision $revision with replica count $replicas"
+      echo "Pods status:"
+      kubectl get pods -n default -l app=nginx,release=web-server
+      exit 0
+
+solution:
+  explain: |
+    ```bash
+    # Check the history
+    helm history web-server
+
+    # Roll back to revision 1
+    helm rollback web-server 1
+
+    # Verify the rollback
+    helm status web-server
+    kubectl get deployment -l app.kubernetes.io/instance=web-server
+    ```
+  run: |
+    # Check the history
+    helm history web-server
+
+    # Roll back to revision 1
+    helm rollback web-server 1
+
+    # Verify the rollback
+    helm status web-server
+    kubectl get deployment -l app.kubernetes.io/instance=web-server

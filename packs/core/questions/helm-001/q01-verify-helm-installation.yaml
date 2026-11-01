@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Verify Helm Installation
+certifications:
+  cka: cluster-architecture
+  ckad: application-deployment
+difficulty: medium
+namespace: default
+tags: [helm, verification]
+
+statement: |
+  Verify the existing Helm installation in the cluster by checking the Helm version.
+
+  Run the version command and save the output to a file at `/tmp/exam/q1/helm-version.txt`.
+
+  The output should show both client and server version information.
+
+setup: |
+  # Setup environment for Question 1 - Verify Helm Installation
+
+  # Create necessary directories
+  mkdir -p /tmp/exam/q1
+
+  # Ensure Helm is installed on the system
+  # This is likely already set up as part of the environment initialization
+  # but we'll check and report status
+
+  if ! command -v helm &> /dev/null; then
+    echo "❌ Helm is not installed on the system. This is a prerequisite for the helm-001 lab."
+    exit 1
+  else
+    echo "✅ Helm is installed and available for the exam."
+  fi
+
+  # No other setup needed for this question as it only requires checking the helm version
+
+  echo "Environment setup complete for Question 1"
+  exit 0
+
+checks:
+  - name: Helm version saved correctly
+    weight: 4
+    run: |
+      # Validate script for Question 1, Step 1: Check if Helm version is saved correctly
+
+      # Check if the version file exists
+      if [ ! -f /tmp/exam/q1/helm-version.txt ]; then
+        echo "❌ Helm version file does not exist at /tmp/exam/q1/helm-version.txt"
+        exit 1
+      fi
+
+      # Check if the file has content
+      if [ ! -s /tmp/exam/q1/helm-version.txt ]; then
+        echo "❌ Helm version file exists but is empty"
+        exit 1
+      fi
+
+      # Check if the file contains Helm version information
+      if ! grep -q "version.BuildInfo" /tmp/exam/q1/helm-version.txt; then
+        echo "❌ Helm version file does not contain client version information"
+        echo "File content:"
+        cat /tmp/exam/q1/helm-version.txt
+        exit 1
+      fi
+
+      # Check for server connection (Tiller in v2 or Kubernetes API in v3)
+      if grep -q "Error" /tmp/exam/q1/helm-version.txt; then
+        echo "❌ Helm version file shows connection errors"
+        echo "File content:"
+        cat /tmp/exam/q1/helm-version.txt
+        exit 1
+      fi
+
+      echo "✅ Helm version saved correctly showing proper client and server information"
+      echo "File content:"
+      cat /tmp/exam/q1/helm-version.txt
+      exit 0
+
+solution:
+  explain: |
+    Verify the Helm installation by running the version command and saving the output to a file:
+
+    ```bash
+    # Check Helm version and save to file
+    helm version > /tmp/exam/q1/helm-version.txt
+
+    # Verify the file content
+    cat /tmp/exam/q1/helm-version.txt
+    ```
+
+    This command displays both the client and server version information, confirming that Helm is correctly installed and connected to the Kubernetes cluster.
+  run: |
+    # Check Helm version and save to file
+    helm version > /tmp/exam/q1/helm-version.txt
+
+    # Verify the file content
+    cat /tmp/exam/q1/helm-version.txt

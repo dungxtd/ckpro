@@ -1,0 +1,383 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Network Policies
+certifications:
+  cka: workloads-scheduling
+difficulty: hard
+namespace: network
+tags: [networking, network-policies, security]
+
+statement: |
+  Configure network policies:
+
+  1. Create a deployment named `web` using `nginx` image with label `app=web`
+  2. Create a deployment named `api` using `nginx` image with label `app=api`
+  3. Create a deployment named `db` using `postgres` image with label `app=db` and environment variable `POSTGRES_HOST_AUTH_METHOD=trust`
+  4. Create NetworkPolicies to:
+     - Allow web to communicate only with api
+     - Allow api to communicate only with db
+     - Deny all other traffic between pods
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace network --dry-run=client -o yaml | kubectl apply -f -
+
+  # Ensure NetworkPolicy API is enabled
+  kubectl get networkpolicies -n network || {
+    echo "NetworkPolicy API is not enabled"
+    exit 1
+  }
+
+  # Delete any existing network policies
+  kubectl delete networkpolicy --all -n network 2>/dev/null || true
+
+checks:
+  - name: Deployments exist with correct labels
+    run: |
+      set -e
+
+      # Check web deployment
+      kubectl get deployment web -n network || {
+          echo "Deployment web not found in namespace network"
+          exit 1
+      }
+
+      # Check api deployment
+      kubectl get deployment api -n network || {
+          echo "Deployment api not found in namespace network"
+          exit 1
+      }
+
+      # Check db deployment
+      kubectl get deployment db -n network || {
+          echo "Deployment db not found in namespace network"
+          exit 1
+      }
+
+      # Check web deployment configuration
+      WEB_IMAGE=$(kubectl get deployment web -n network -o jsonpath='{.spec.template.spec.containers[0].image}')
+      if [[ ! "$WEB_IMAGE" =~ "nginx" ]]; then
+          echo "Web deployment is not using nginx image"
+          exit 1
+      fi
+
+      WEB_LABEL=$(kubectl get deployment web -n network -o jsonpath='{.spec.template.metadata.labels.app}')
+      if [[ "$WEB_LABEL" != "web" ]]; then
+          echo "Web deployment does not have correct label app=web"
+          exit 1
+      fi
+
+      # Check api deployment configuration
+      API_IMAGE=$(kubectl get deployment api -n network -o jsonpath='{.spec.template.spec.containers[0].image}')
+      if [[ ! "$API_IMAGE" =~ "nginx" ]]; then
+          echo "API deployment is not using nginx image"
+          exit 1
+      fi
+
+      API_LABEL=$(kubectl get deployment api -n network -o jsonpath='{.spec.template.metadata.labels.app}')
+      if [[ "$API_LABEL" != "api" ]]; then
+          echo "API deployment does not have correct label app=api"
+          exit 1
+      fi
+
+      # Check db deployment configuration
+      DB_IMAGE=$(kubectl get deployment db -n network -o jsonpath='{.spec.template.spec.containers[0].image}')
+      if [[ ! "$DB_IMAGE" =~ "postgres" ]]; then
+          echo "DB deployment is not using postgres image"
+          exit 1
+      fi
+
+      DB_LABEL=$(kubectl get deployment db -n network -o jsonpath='{.spec.template.metadata.labels.app}')
+      if [[ "$DB_LABEL" != "db" ]]; then
+          echo "DB deployment does not have correct label app=db"
+          exit 1
+      fi
+
+      # Check if all pods are running
+      for DEPLOY in web api db; do
+          READY_PODS=$(kubectl get deployment $DEPLOY -n network -o jsonpath='{.status.readyReplicas}')
+          if [[ -z "$READY_PODS" ]] || [[ "$READY_PODS" -lt 1 ]]; then
+              echo "Deployment $DEPLOY has no ready pods"
+              exit 1
+          fi
+      done
+
+      echo "Deployments validation successful"
+      exit 0
+  - name: Network policies exist with correct specifications
+    weight: 2
+    run: |
+      set -e
+
+      # Helper to check if a policy exists
+      check_policy_exists() {
+        local name=$1
+        if ! kubectl get networkpolicy "$name" -n network >/dev/null 2>&1; then
+          echo "❌ $name not found"
+          exit 1
+        fi
+      }
+
+      # Helper to check if a policy egress allows traffic to a given app
+      check_egress_to() {
+        local policy=$1
+        local app=$2
+        local found=$(kubectl get networkpolicy "$policy" -n network -o jsonpath="{.spec.egress[*].to[*].podSelector.matchLabels.app}" | grep -w "$app" || true)
+        if [[ -z "$found" ]]; then
+          echo "❌ $policy does not allow egress to $app"
+          exit 1
+        fi
+      }
+
+      # Check required policies
+      check_policy_exists web-policy
+      check_policy_exists api-policy
+
+      # Check egress rules
+      check_egress_to web-policy api
+      check_egress_to api-policy db
+
+      echo "✅ NetworkPolicies validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web
+      namespace: network
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: web
+      template:
+        metadata:
+          labels:
+            app: web
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: api
+      namespace: network
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: api
+      template:
+        metadata:
+          labels:
+            app: api
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: db
+      namespace: network
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: db
+      template:
+        metadata:
+          labels:
+            app: db
+        spec:
+          containers:
+          - name: postgres
+            image: postgres
+            env:
+            - name: POSTGRES_HOST_AUTH_METHOD
+              value: trust
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: web-policy
+      namespace: network
+    spec:
+      podSelector:
+        matchLabels:
+          app: web
+      policyTypes:
+      - Egress
+      egress:
+      - to:
+        - podSelector:
+            matchLabels:
+              app: api
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: api-policy
+      namespace: network
+    spec:
+      podSelector:
+        matchLabels:
+          app: api
+      policyTypes:
+      - Egress
+      - Ingress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              app: web
+      egress:
+      - to:
+        - podSelector:
+            matchLabels:
+              app: db
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: db-policy
+      namespace: network
+    spec:
+      podSelector:
+        matchLabels:
+          app: db
+      policyTypes:
+      - Ingress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              app: api
+    ```
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web
+      namespace: network
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: web
+      template:
+        metadata:
+          labels:
+            app: web
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: api
+      namespace: network
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: api
+      template:
+        metadata:
+          labels:
+            app: api
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: db
+      namespace: network
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: db
+      template:
+        metadata:
+          labels:
+            app: db
+        spec:
+          containers:
+          - name: postgres
+            image: postgres
+            env:
+            - name: POSTGRES_HOST_AUTH_METHOD
+              value: trust
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: web-policy
+      namespace: network
+    spec:
+      podSelector:
+        matchLabels:
+          app: web
+      policyTypes:
+      - Egress
+      egress:
+      - to:
+        - podSelector:
+            matchLabels:
+              app: api
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: api-policy
+      namespace: network
+    spec:
+      podSelector:
+        matchLabels:
+          app: api
+      policyTypes:
+      - Egress
+      - Ingress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              app: web
+      egress:
+      - to:
+        - podSelector:
+            matchLabels:
+              app: db
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: db-policy
+      namespace: network
+    spec:
+      podSelector:
+        matchLabels:
+          app: db
+      policyTypes:
+      - Ingress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              app: api
+    MANIFEST

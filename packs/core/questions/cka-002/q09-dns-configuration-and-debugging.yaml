@@ -1,0 +1,284 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: DNS Configuration and Debugging
+certifications:
+  cka: workloads-scheduling
+difficulty: hard
+namespace: dns-debug
+tags: [dns, service-discovery, networking]
+
+statement: |
+  Set up DNS service discovery testing environment:
+
+  1. Create a deployment named `web-app` with `3` replicas using `nginx` image
+
+  2. Create a `ClusterIP` service named `web-svc` to expose the deployment
+
+  3. Create a Pod named `dns-test` using the `busybox` image that will:
+     - Run the command `wget -qO- http://web-svc && wget -qO- http://web-svc.dns-debug.svc.cluster.local && sleep 36000`
+     - Verify it can resolve both the service DNS (`web-svc.dns-debug.svc.cluster.local`)
+     - Verify it can resolve pod DNS entries
+  4. Create a ConfigMap named `dns-config` with custom search domains for the test pod
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace dns-debug --dry-run=client -o yaml | kubectl apply -f -
+
+  # Ensure CoreDNS is running
+  kubectl rollout status deployment/coredns -n kube-system --timeout=30s || {
+    echo "CoreDNS is not running properly"
+    exit 1
+  }
+
+checks:
+  - name: Deployment and service exist and are correctly configured
+    weight: 2
+    run: |
+      set -e
+
+      # Check if deployment exists
+      kubectl get deployment web-app -n dns-debug || {
+          echo "Deployment web-app not found in namespace dns-debug"
+          exit 1
+      }
+
+      # Check replicas
+      REPLICAS=$(kubectl get deployment web-app -n dns-debug -o jsonpath='{.spec.replicas}')
+      if [[ "$REPLICAS" != "3" ]]; then
+          echo "Incorrect number of replicas. Expected 3, got $REPLICAS"
+          exit 1
+      fi
+
+      # Check image
+      IMAGE=$(kubectl get deployment web-app -n dns-debug -o jsonpath='{.spec.template.spec.containers[0].image}')
+      if [[ "$IMAGE" != *"nginx"* ]]; then
+          echo "Deployment is not using nginx image. Current image: $IMAGE"
+          exit 1
+      fi
+
+      # Check if service exists
+      kubectl get service web-svc -n dns-debug || {
+          echo "Service web-svc not found in namespace dns-debug"
+          exit 1
+      }
+
+      # Check service type
+      SERVICE_TYPE=$(kubectl get service web-svc -n dns-debug -o jsonpath='{.spec.type}')
+      if [[ "$SERVICE_TYPE" != "ClusterIP" ]]; then
+          echo "Incorrect service type. Expected ClusterIP, got $SERVICE_TYPE"
+          exit 1
+      fi
+
+      # Check service selector
+      SELECTOR=$(kubectl get service web-svc -n dns-debug -o jsonpath='{.spec.selector.app}')
+      if [[ "$SELECTOR" != "web-app" ]]; then
+          echo "Incorrect service selector. Expected app=web-app, got app=$SELECTOR"
+          exit 1
+      fi
+
+      # Check if pods are running
+      READY_PODS=$(kubectl get deployment web-app -n dns-debug -o jsonpath='{.status.readyReplicas}')
+      if [[ "$READY_PODS" != "3" ]]; then
+          echo "Not all pods are ready. Expected 3, got $READY_PODS"
+          exit 1
+      fi
+
+      echo "Deployment and service validation successful"
+      exit 0
+  - name: DNS test pod exists and can resolve service
+    weight: 2
+    run: |
+      set -e
+
+      # Check if test pod exists
+      kubectl get pod dns-test -n dns-debug || {
+          echo "Pod dns-test not found in namespace dns-debug"
+          exit 1
+      }
+
+      # Check if pod is running
+      POD_STATUS=$(kubectl get pod dns-test -n dns-debug -o jsonpath='{.status.phase}')
+      if [[ "$POD_STATUS" != "Running" ]]; then
+          echo "Pod is not in Running state. Current state: $POD_STATUS"
+          exit 1
+      fi
+
+      # Test service DNS resolution
+      kubectl exec dns-test -n dns-debug -- wget -qO- http://web-svc || {
+          echo "Failed to resolve service DNS: web-svc.dns-debug.svc.cluster.local"
+          exit 1
+      }
+
+      # Test service DNS resolution
+      kubectl exec dns-test -n dns-debug -- wget -qO- http://web-svc.dns-debug.svc.cluster.local || {
+          echo "Failed to resolve service DNS: web-svc.dns-debug.svc.cluster.local"
+          exit 1
+      }
+
+      # Test pod DNS resolution (for first pod)
+      # POD_IP=$(kubectl get pod -l app=web-app -n dns-debug -o jsonpath='{.items[0].status.podIP}')
+      # POD_IP_REVERSED=$(echo $POD_IP | awk -F. '{print $4"."$3"."$2"."$1}')
+      # kubectl exec dns-test -n dns-debug -- nslookup $POD_IP_REVERSED.in-addr.arpa || {
+      #     echo "Failed to resolve pod DNS"
+      #     exit 1
+      # }
+
+      echo "DNS resolution validation successful"
+      exit 0
+  - name: DNS configuration is correct with custom search domains
+    run: |
+      set -e
+
+      # Check if ConfigMap exists
+      kubectl get configmap dns-config -n dns-debug || {
+          echo "ConfigMap dns-config not found in namespace dns-debug"
+          exit 1
+      }
+
+      # Check if test pod uses the ConfigMap
+      DNS_CONFIG=$(kubectl get pod dns-test -n dns-debug -o jsonpath='{.spec.dnsConfig}')
+      if [[ -z "$DNS_CONFIG" ]]; then
+          echo "Pod dns-test does not have custom DNS configuration"
+          exit 1
+      fi
+
+      # Check if pod has correct DNS policy
+      DNS_POLICY=$(kubectl get pod dns-test -n dns-debug -o jsonpath='{.spec.dnsPolicy}')
+      if [[ "$DNS_POLICY" != "None" ]] && [[ "$DNS_POLICY" != "ClusterFirst" ]]; then
+          echo "Incorrect DNS policy. Expected None or ClusterFirst, got $DNS_POLICY"
+          exit 1
+      fi
+
+      # Check if search domains are configured
+      SEARCH_DOMAINS=$(kubectl get pod dns-test -n dns-debug -o jsonpath='{.spec.dnsConfig.searches[*]}')
+      if [[ -z "$SEARCH_DOMAINS" ]]; then
+          echo "No search domains configured in pod's DNS config"
+          exit 1
+      fi
+
+      echo "DNS configuration validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web-app
+      namespace: dns-debug
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: web-app
+      template:
+        metadata:
+          labels:
+            app: web-app
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-svc
+      namespace: dns-debug
+    spec:
+      selector:
+        app: web-app
+      ports:
+      - port: 80
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: dns-test
+      namespace: dns-debug
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command:
+        - sh
+        - -c
+        - "wget -qO- http://web-svc && wget -qO- http://web-svc.dns-debug.svc.cluster.local && sleep 36000"
+      dnsConfig:
+        searches:
+        - dns-debug.svc.cluster.local
+        - svc.cluster.local
+        - cluster.local
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: dns-config
+      namespace: dns-debug
+    data:
+      search-domains: |
+        search dns-debug.svc.cluster.local svc.cluster.local cluster.local
+    ```
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web-app
+      namespace: dns-debug
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: web-app
+      template:
+        metadata:
+          labels:
+            app: web-app
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-svc
+      namespace: dns-debug
+    spec:
+      selector:
+        app: web-app
+      ports:
+      - port: 80
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: dns-test
+      namespace: dns-debug
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command:
+        - sh
+        - -c
+        - "wget -qO- http://web-svc && wget -qO- http://web-svc.dns-debug.svc.cluster.local && sleep 36000"
+      dnsConfig:
+        searches:
+        - dns-debug.svc.cluster.local
+        - svc.cluster.local
+        - cluster.local
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: dns-config
+      namespace: dns-debug
+    data:
+      search-domains: |
+        search dns-debug.svc.cluster.local svc.cluster.local cluster.local
+    MANIFEST

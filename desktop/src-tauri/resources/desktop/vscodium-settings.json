@@ -1,0 +1,17 @@
+{
+  // Over VNC every animation and blink is frames to send
+  "editor.smoothScrolling": false,
+  "editor.cursorBlinking": "solid",
+  "editor.cursorSmoothCaretAnimation": "off",
+  "workbench.list.smoothScrolling": false,
+  "terminal.integrated.smoothScrolling": false,
+  "terminal.integrated.cursorBlinking": false,
+  "workbench.reduceMotion": "on",
+  // Its own Open/Save dialog: always fits the desktop (GTK's is taller
+  // than 800 px, its Save button off screen) and takes a typed path
+  "files.simpleDialog.enable": true,
+  "update.mode": "none",
+  "extensions.autoCheckUpdates": false,
+  "workbench.startupEditor": "none",
+  "telemetry.telemetryLevel": "off"
+}

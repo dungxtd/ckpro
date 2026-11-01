@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../schema/exam.schema.json
+title: CKA Practice Lab - Core Concepts
+description: Practice essential Kubernetes administrator tasks covering cluster management, networking, storage, and security
+certification: cka
+duration: 60m
+questions:
+  - core/cka-001/q01-namespace-and-pod-creation
+  - core/cka/static-pod-on-node
+  - core/cka-001/q03-storage-setup
+  - core/cka-001/q04-logging-setup
+  - core/cka-001/q05-rbac-setup
+  - core/cka-001/q06-network-policy
+  - core/cka-001/q07-deployment-and-service
+  - core/cka-001/q08-resource-management
+  - core/cka-001/q09-configmap-and-pod
+  - core/cka-001/q10-health-checks

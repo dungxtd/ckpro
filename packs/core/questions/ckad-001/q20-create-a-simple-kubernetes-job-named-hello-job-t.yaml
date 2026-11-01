@@ -1,0 +1,310 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Create a simple Kubernetes Job named 'hello-job' that executes a command and completes
+certifications:
+  ckad: application-design-build
+difficulty: medium
+namespace: networking
+tags: [jobs, batch-processing, pods, containers]
+
+statement: |
+  Create a simple batch processing task to demonstrate the Job resource type.
+
+  Create a Kubernetes Job named `hello-job` in the `networking` namespace that runs a pod with the `busybox` image.
+
+  The job should execute a single command that prints 'Hello from Kubernetes job!' to standard output, and then completes successfully.
+
+  Configure the job to:
+
+  1. Run only once and not be restarted after completion
+  2. Have a deadline of 30 seconds (the job will be terminated if it doesn't complete within this time)
+  3. Use `Never` as the restart policy for the pod
+
+  This job demonstrates the basic pattern for one-time task execution in Kubernetes.
+
+setup: |
+  # Setup for Question 20: Create a Job to backup configuration files
+
+  # Create the networking namespace if it doesn't exist already
+  if ! kubectl get namespace networking &> /dev/null; then
+      kubectl create namespace networking
+  fi
+
+  # Delete any existing job with the same name
+  kubectl delete job backup-job -n networking --ignore-not-found=true
+
+  # Create a ConfigMap with sample configuration files
+  kubectl delete configmap example-config -n networking --ignore-not-found=true
+  cat <<EOF | kubectl apply -f -
+  apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: example-config
+    namespace: networking
+  data:
+    nginx.conf: |
+      server {
+        listen 80;
+        server_name example.com;
+        location / {
+          root /usr/share/nginx/html;
+          index index.html index.htm;
+        }
+      }
+    app.conf: |
+      log_level=debug
+      port=8080
+      max_connections=100
+  EOF
+
+  echo "Setup complete for Question 20: Environment ready for creating backup Job"
+  echo "Note: The example ConfigMap is just for reference. In a real environment,"
+  echo "      the student would need to create a Pod that mounts both /etc/config and /backup directories."
+  exit 0
+
+checks:
+  - name: Job is created with correct name
+    weight: 2
+    run: |
+      # Check if the Job is created with the correct name in the networking namespace
+
+      JOB_NAME="hello-job"
+      NAMESPACE="networking"
+
+      # Check if the job exists
+      if kubectl get job ${JOB_NAME} -n ${NAMESPACE} &> /dev/null; then
+        echo "✅ Job '${JOB_NAME}' exists in namespace '${NAMESPACE}'"
+        exit 0
+      else
+        echo "❌ Job '${JOB_NAME}' does not exist in namespace '${NAMESPACE}'"
+        exit 1
+      fi
+  - name: Job has correct configuration
+    weight: 2
+    run: |
+      # Validate that the Kubernetes Job 'backup-job' in namespace 'networking' has the correct configuration
+
+      NAMESPACE="networking"
+      JOB_NAME="hello-job"
+      EXPECTED_IMAGE="busybox"
+      EXPECTED_RESTART_POLICY="Never"
+      EXPECTED_BACKOFF_LIMIT=0
+
+      # Check if the job exists
+      kubectl get job $JOB_NAME -n $NAMESPACE > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+        echo "❌ Job '$JOB_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check for activeDeadlineSeconds set to 30
+      DEADLINE=$(kubectl get job $JOB_NAME -n $NAMESPACE -o jsonpath='{.spec.activeDeadlineSeconds}')
+      if [[ "$DEADLINE" == "30" ]]; then
+        echo "✅ Job has correct activeDeadlineSeconds value: 30"
+      else
+        echo "❌ Job has incorrect activeDeadlineSeconds value: ${DEADLINE:-not set}"
+        exit 1
+      fi
+
+      # Check the job's backoffLimit
+      BACKOFF_LIMIT=$(kubectl get job $JOB_NAME -n $NAMESPACE -o jsonpath='{.spec.backoffLimit}' 2>/dev/null)
+
+      if [ -z "$BACKOFF_LIMIT" ]; then
+        echo "⚠️  Job '$JOB_NAME' does not have backoffLimit specified, using default (6)"
+        BACKOFF_LIMIT=6
+      fi
+
+      if [ "$BACKOFF_LIMIT" -ne "$EXPECTED_BACKOFF_LIMIT" ]; then
+        echo "❌ Job '$JOB_NAME' has incorrect backoffLimit: $BACKOFF_LIMIT, expected: $EXPECTED_BACKOFF_LIMIT"
+        exit 1
+      fi
+
+      echo "✅ Job '$JOB_NAME' has correct backoffLimit: $BACKOFF_LIMIT"
+
+      # Check the pod template's restartPolicy
+      RESTART_POLICY=$(kubectl get job $JOB_NAME -n $NAMESPACE -o jsonpath='{.spec.template.spec.restartPolicy}' 2>/dev/null)
+
+      if [ -z "$RESTART_POLICY" ]; then
+        echo "⚠️  Job '$JOB_NAME' does not have restartPolicy specified, using default (Always)"
+        RESTART_POLICY="Always"
+      fi
+
+      if [ "$RESTART_POLICY" != "$EXPECTED_RESTART_POLICY" ]; then
+        echo "❌ Job '$JOB_NAME' has incorrect restartPolicy: $RESTART_POLICY, expected: $EXPECTED_RESTART_POLICY"
+        exit 1
+      fi
+
+      echo "✅ Job '$JOB_NAME' has correct restartPolicy: $RESTART_POLICY"
+
+      # Check the container image
+      IMAGE=$(kubectl get job $JOB_NAME -n $NAMESPACE -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)
+
+      if [ -z "$IMAGE" ]; then
+        echo "❌ Cannot determine container image for Job '$JOB_NAME'"
+        exit 1
+      fi
+
+      # Check if the image contains the expected value (allowing for tags)
+      if [[ ! "$IMAGE" == *"$EXPECTED_IMAGE"* ]]; then
+        echo "❌ Job '$JOB_NAME' uses incorrect image: $IMAGE, expected to contain: $EXPECTED_IMAGE"
+        exit 1
+      fi
+
+      echo "✅ Job '$JOB_NAME' uses correct image: $IMAGE"
+
+      # Check if the job pod has a command to copy files
+      COMMAND=$(kubectl get job $JOB_NAME -n $NAMESPACE -o jsonpath='{.spec.template.spec.containers[0].command}' 2>/dev/null)
+
+      if [ -z "$COMMAND" ]; then
+        # Try args if command is not set
+        ARGS=$(kubectl get job $JOB_NAME -n $NAMESPACE -o jsonpath='{.spec.template.spec.containers[0].args}' 2>/dev/null)
+
+        if [ -z "$ARGS" ]; then
+          echo "⚠️  Job '$JOB_NAME' does not specify a command or args"
+        else
+          echo "ℹ️  Job container args: $ARGS"
+
+          # Check if the command contains references to copying files
+          if [[ "$ARGS" == *"/etc/config"* ]] && [[ "$ARGS" == *"/backup"* ]] && [[ "$ARGS" == *"cp"* || "$ARGS" == *"copy"* || "$ARGS" == *"mv"* ]]; then
+            echo "✅ Job contains a command that appears to copy files from /etc/config to /backup"
+          else
+            echo "⚠️  Job args do not appear to include copying files from /etc/config to /backup"
+          fi
+        fi
+      else
+        echo "ℹ️  Job container command: $COMMAND"
+
+        # Check if the command contains references to copying files
+        if [[ "$COMMAND" == *"/etc/config"* ]] && [[ "$COMMAND" == *"/backup"* ]] && [[ "$COMMAND" == *"cp"* || "$COMMAND" == *"copy"* || "$COMMAND" == *"mv"* ]]; then
+          echo "✅ Job contains a command that appears to copy files from /etc/config to /backup"
+        else
+          echo "⚠️  Job command does not appear to include copying files from /etc/config to /backup"
+        fi
+      fi
+
+      echo "✅ Job '$JOB_NAME' has the correct configuration (restartPolicy: $RESTART_POLICY, backoffLimit: $BACKOFF_LIMIT, image: $IMAGE)"
+      exit 0
+  - name: Job completes successfully
+    run: |
+      # Check if the Job completes successfully
+
+      JOB_NAME="hello-job"
+      NAMESPACE="networking"
+
+      # Check if the job exists
+      if ! kubectl get job ${JOB_NAME} -n ${NAMESPACE} &> /dev/null; then
+        echo "❌ Job '${JOB_NAME}' does not exist in namespace '${NAMESPACE}'"
+        exit 1
+      fi
+
+      # Check if the job has completed
+      STATUS=$(kubectl get job ${JOB_NAME} -n ${NAMESPACE} -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}')
+      if [[ "$STATUS" == "True" ]]; then
+        echo "✅ Job '${JOB_NAME}' has completed successfully"
+
+        # Check if the job's pod generated the expected output
+        POD_NAME=$(kubectl get pods -n ${NAMESPACE} -l job-name=${JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
+        if [ -n "$POD_NAME" ]; then
+          LOG=$(kubectl logs ${POD_NAME} -n ${NAMESPACE})
+          if [[ "$LOG" == *"Hello from Kubernetes job!"* ]]; then
+            echo "✅ Job pod produced expected output: '$LOG'"
+            exit 0
+          else
+            echo "❌ Job pod did not produce expected output. Found: '$LOG'"
+            exit 1
+          fi
+        else
+          echo "⚠️ Could not find pod for job, but job shows as complete"
+          exit 0
+        fi
+      else
+        # If not completed, check if it's still running (could be normal)
+        ACTIVE=$(kubectl get job ${JOB_NAME} -n ${NAMESPACE} -o jsonpath='{.status.active}')
+        if [[ "$ACTIVE" == "1" ]]; then
+          echo "⚠️ Job '${JOB_NAME}' is still running. Please wait for it to complete."
+          exit 1
+        else
+          # If not active and not complete, check for failure
+          FAILED=$(kubectl get job ${JOB_NAME} -n ${NAMESPACE} -o jsonpath='{.status.failed}')
+          if [[ -n "$FAILED" && "$FAILED" -gt 0 ]]; then
+            echo "❌ Job '${JOB_NAME}' has failed with $FAILED failures"
+
+            # Try to get logs from the failed pod for debugging
+            FAILED_POD=$(kubectl get pods -n ${NAMESPACE} -l job-name=${JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
+            if [ -n "$FAILED_POD" ]; then
+              echo "❌ Error logs: $(kubectl logs ${FAILED_POD} -n ${NAMESPACE})"
+            fi
+            exit 1
+          else
+            echo "❌ Job '${JOB_NAME}' has not completed and is not running"
+            exit 1
+          fi
+        fi
+      fi
+
+solution:
+  explain: |
+    ```yaml
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: hello-job
+      namespace: networking
+    spec:
+      activeDeadlineSeconds: 30
+      template:
+        spec:
+          containers:
+          - name: hello
+            image: busybox
+            command: ["sh", "-c", "echo 'Hello from Kubernetes job!'"]
+          restartPolicy: Never
+      backoffLimit: 0
+    ```
+
+    Save this as `hello-job.yaml` and apply:
+
+    ```bash
+    kubectl apply -f hello-job.yaml
+    ```
+
+    You can check the job's status and output:
+    ```bash
+    # Check job status
+    kubectl get jobs -n networking
+
+    # View the pod created by the job
+    kubectl get pods -n networking -l job-name=hello-job
+
+    # Check the logs to see the output message
+    kubectl logs -n networking -l job-name=hello-job
+    ```
+  run: |
+    cat > hello-job.yaml <<'MANIFEST'
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: hello-job
+      namespace: networking
+    spec:
+      activeDeadlineSeconds: 30
+      template:
+        spec:
+          containers:
+          - name: hello
+            image: busybox
+            command: ["sh", "-c", "echo 'Hello from Kubernetes job!'"]
+          restartPolicy: Never
+      backoffLimit: 0
+    MANIFEST
+
+    kubectl apply -f hello-job.yaml
+    kubectl wait --for=condition=complete job/hello-job -n networking --timeout=60s
+
+    # Check job status
+    kubectl get jobs -n networking
+
+    # View the pod created by the job
+    kubectl get pods -n networking -l job-name=hello-job
+
+    # Check the logs to see the output message
+    kubectl logs -n networking -l job-name=hello-job

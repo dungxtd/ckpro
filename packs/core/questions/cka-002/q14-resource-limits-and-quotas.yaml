@@ -1,0 +1,286 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Resource Limits and Quotas
+certifications:
+  cka: workloads-scheduling
+difficulty: hard
+namespace: limits
+tags: [resource-management, limitrange, resourcequota]
+
+statement: |
+  Configure resource management:
+
+  1. Create a LimitRange in namespace `limits` with:
+     - Default request: CPU: `100m`, Memory: `128Mi`
+     - Default limit: CPU: `200m`, Memory: `256Mi`
+     - Max limit: CPU: `500m`, Memory: `512Mi`
+
+  2. Create a ResourceQuota for the namespace:
+     - Max total CPU: `2`
+     - Max total memory: `2Gi`
+     - Max number of pods: `5`
+
+  3. Create a deployment named `test-limits` with `2` replicas to verify the limits are applied
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace limits --dry-run=client -o yaml | kubectl apply -f -
+
+  # Remove any existing LimitRange or ResourceQuota
+  kubectl delete limitrange --all -n limits 2>/dev/null || true
+  kubectl delete resourcequota --all -n limits 2>/dev/null || true
+
+checks:
+  - name: LimitRange exists with correct specifications
+    weight: 2
+    run: |
+      set -e
+
+      # Check if LimitRange exists
+      kubectl get limitrange -n limits || {
+          echo "No LimitRange found in namespace limits"
+          exit 1
+      }
+
+      # Check default request
+      CPU_REQUEST=$(kubectl get limitrange -n limits -o jsonpath='{.items[0].spec.limits[?(@.type=="Container")].defaultRequest.cpu}')
+      if [[ "$CPU_REQUEST" != "100m" ]]; then
+          echo "Incorrect default CPU request. Expected 100m, got $CPU_REQUEST"
+          exit 1
+      fi
+
+      MEM_REQUEST=$(kubectl get limitrange -n limits -o jsonpath='{.items[0].spec.limits[?(@.type=="Container")].defaultRequest.memory}')
+      if [[ "$MEM_REQUEST" != "128Mi" ]]; then
+          echo "Incorrect default memory request. Expected 128Mi, got $MEM_REQUEST"
+          exit 1
+      fi
+
+      # Check default limit
+      CPU_LIMIT=$(kubectl get limitrange -n limits -o jsonpath='{.items[0].spec.limits[?(@.type=="Container")].default.cpu}')
+      if [[ "$CPU_LIMIT" != "200m" ]]; then
+          echo "Incorrect default CPU limit. Expected 200m, got $CPU_LIMIT"
+          exit 1
+      fi
+
+      MEM_LIMIT=$(kubectl get limitrange -n limits -o jsonpath='{.items[0].spec.limits[?(@.type=="Container")].default.memory}')
+      if [[ "$MEM_LIMIT" != "256Mi" ]]; then
+          echo "Incorrect default memory limit. Expected 256Mi, got $MEM_LIMIT"
+          exit 1
+      fi
+
+      # Check max limit
+      MAX_CPU=$(kubectl get limitrange -n limits -o jsonpath='{.items[0].spec.limits[?(@.type=="Container")].max.cpu}')
+      if [[ "$MAX_CPU" != "500m" ]]; then
+          echo "Incorrect max CPU limit. Expected 500m, got $MAX_CPU"
+          exit 1
+      fi
+
+      MAX_MEM=$(kubectl get limitrange -n limits -o jsonpath='{.items[0].spec.limits[?(@.type=="Container")].max.memory}')
+      if [[ "$MAX_MEM" != "512Mi" ]]; then
+          echo "Incorrect max memory limit. Expected 512Mi, got $MAX_MEM"
+          exit 1
+      fi
+
+      echo "LimitRange validation successful"
+      exit 0
+  - name: ResourceQuota exists with correct specifications
+    weight: 2
+    run: |
+      set -e
+
+      # Check if ResourceQuota exists
+      kubectl get resourcequota -n limits || {
+          echo "No ResourceQuota found in namespace limits"
+          exit 1
+      }
+
+      # Check CPU quota
+      CPU_QUOTA=$(kubectl get resourcequota -n limits -o jsonpath='{.items[0].spec.hard.cpu}')
+      if [[ "$CPU_QUOTA" != "2" ]]; then
+          echo "Incorrect CPU quota. Expected 2, got $CPU_QUOTA"
+          exit 1
+      fi
+
+      # Check memory quota
+      MEM_QUOTA=$(kubectl get resourcequota -n limits -o jsonpath='{.items[0].spec.hard.memory}')
+      if [[ "$MEM_QUOTA" != "2Gi" ]]; then
+          echo "Incorrect memory quota. Expected 2Gi, got $MEM_QUOTA"
+          exit 1
+      fi
+
+      # Check pod quota
+      POD_QUOTA=$(kubectl get resourcequota -n limits -o jsonpath='{.items[0].spec.hard.pods}')
+      if [[ "$POD_QUOTA" != "5" ]]; then
+          echo "Incorrect pod quota. Expected 5, got $POD_QUOTA"
+          exit 1
+      fi
+
+      # Check if quota is being enforced
+      QUOTA_STATUS=$(kubectl get resourcequota -n limits -o jsonpath='{.items[0].status.used}')
+      if [[ -z "$QUOTA_STATUS" ]]; then
+          echo "ResourceQuota is not being enforced"
+          exit 1
+      fi
+
+      echo "ResourceQuota validation successful"
+      exit 0
+  - name: Deployment respects resource constraints
+    run: |
+      set -e
+
+      # Check if deployment exists
+      kubectl get deployment test-limits -n limits || {
+          echo "Deployment test-limits not found in namespace limits"
+          exit 1
+      }
+
+      # Check replicas
+      REPLICAS=$(kubectl get deployment test-limits -n limits -o jsonpath='{.spec.replicas}')
+      if [[ "$REPLICAS" != "2" ]]; then
+          echo "Incorrect number of replicas. Expected 2, got $REPLICAS"
+          exit 1
+      fi
+
+      # Check if pods are running
+      READY_PODS=$(kubectl get deployment test-limits -n limits -o jsonpath='{.status.readyReplicas}')
+      if [[ "$READY_PODS" != "2" ]]; then
+          echo "Not all pods are ready. Expected 2, got $READY_PODS"
+          exit 1
+      fi
+
+      # Check if pods respect LimitRange
+      PODS=$(kubectl get pods -n limits -l app=test-limits -o jsonpath='{.items[*].metadata.name}')
+      for POD in $PODS; do
+          # Check resource requests
+          CPU_REQUEST=$(kubectl get pod $POD -n limits -o jsonpath='{.spec.containers[0].resources.requests.cpu}')
+          if [[ "$CPU_REQUEST" != "100m" ]]; then
+              echo "Pod $POD has incorrect CPU request. Expected 100m, got $CPU_REQUEST"
+              exit 1
+          fi
+
+          MEM_REQUEST=$(kubectl get pod $POD -n limits -o jsonpath='{.spec.containers[0].resources.requests.memory}')
+          if [[ "$MEM_REQUEST" != "128Mi" ]]; then
+              echo "Pod $POD has incorrect memory request. Expected 128Mi, got $MEM_REQUEST"
+              exit 1
+          fi
+
+          # Check resource limits
+          CPU_LIMIT=$(kubectl get pod $POD -n limits -o jsonpath='{.spec.containers[0].resources.limits.cpu}')
+          if [[ "$CPU_LIMIT" != "200m" ]]; then
+              echo "Pod $POD has incorrect CPU limit. Expected 200m, got $CPU_LIMIT"
+              exit 1
+          fi
+
+          MEM_LIMIT=$(kubectl get pod $POD -n limits -o jsonpath='{.spec.containers[0].resources.limits.memory}')
+          if [[ "$MEM_LIMIT" != "256Mi" ]]; then
+              echo "Pod $POD has incorrect memory limit. Expected 256Mi, got $MEM_LIMIT"
+              exit 1
+          fi
+      done
+
+      echo "Deployment validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: v1
+    kind: LimitRange
+    metadata:
+      name: resource-limits
+      namespace: limits
+    spec:
+      limits:
+      - type: Container
+        default:
+          cpu: 200m
+          memory: 256Mi
+        defaultRequest:
+          cpu: 100m
+          memory: 128Mi
+        max:
+          cpu: 500m
+          memory: 512Mi
+    ---
+    apiVersion: v1
+    kind: ResourceQuota
+    metadata:
+      name: compute-quota
+      namespace: limits
+    spec:
+      hard:
+        cpu: "2"
+        memory: 2Gi
+        pods: "5"
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: test-limits
+      namespace: limits
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: test-limits
+      template:
+        metadata:
+          labels:
+            app: test-limits
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    ```
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: LimitRange
+    metadata:
+      name: resource-limits
+      namespace: limits
+    spec:
+      limits:
+      - type: Container
+        default:
+          cpu: 200m
+          memory: 256Mi
+        defaultRequest:
+          cpu: 100m
+          memory: 128Mi
+        max:
+          cpu: 500m
+          memory: 512Mi
+    ---
+    apiVersion: v1
+    kind: ResourceQuota
+    metadata:
+      name: compute-quota
+      namespace: limits
+    spec:
+      hard:
+        cpu: "2"
+        memory: 2Gi
+        pods: "5"
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: test-limits
+      namespace: limits
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: test-limits
+      template:
+        metadata:
+          labels:
+            app: test-limits
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+    MANIFEST

@@ -1,0 +1,100 @@
+{
+  "$defs": {
+    "Duration": {
+      "description": "A length like \"120m\", \"2h\" or \"90s\"",
+      "pattern": "^\\d+(s|m|h)$",
+      "type": "string"
+    },
+    "RandomDraw": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "weights": {
+          "additionalProperties": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "default": null,
+          "description": "Domain weights; defaults to the certification's",
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "count"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "`exams/<name>.yaml`: a fixed list, a draw by domain weight, or both.",
+  "properties": {
+    "certification": {
+      "description": "Certification blueprint (a key of `certifications`)",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "type": "string"
+    },
+    "duration": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Duration"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Defaults to the certification's duration"
+    },
+    "passScore": {
+      "default": null,
+      "description": "Defaults to the certification's pass score",
+      "format": "uint32",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "questions": {
+      "default": [],
+      "description": "Question ids, always included, in this order",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "random": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RandomDraw"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Extra questions drawn at random from the bank"
+    },
+    "title": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "certification"
+  ],
+  "title": "Exam",
+  "type": "object"
+}

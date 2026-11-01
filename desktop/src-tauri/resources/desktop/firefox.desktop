@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Firefox
+Comment=Browse the allowed documentation
+Exec=firefox-esr %u
+Icon=firefox-esr
+StartupNotify=true

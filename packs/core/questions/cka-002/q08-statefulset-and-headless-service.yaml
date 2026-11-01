@@ -1,0 +1,268 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: StatefulSet and Headless Service
+certifications:
+  cka: storage
+difficulty: hard
+namespace: stateful
+tags: [statefulsets, headless-services, storage]
+
+statement: |
+  Create a StatefulSet named `web` with `3` replicas using the `nginx` image. Requirements:
+
+  - Create a headless service named `web-svc` to expose the StatefulSet
+  - Each pod should have a volume mounted at `/usr/share/nginx/html`
+  - Use the StorageClass `cold` for dynamic provisioning
+  - Volume claim template should request 1Gi storage
+
+  Ensure pods are created in sequence and can be accessed using their stable network identity.
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace stateful --dry-run=client -o yaml | kubectl apply -f -
+
+  # Ensure storage class exists
+  kubectl get storageclass cold || kubectl create -f - <<EOF
+  apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    name: cold
+  provisioner: rancher.io/local-path
+  volumeBindingMode: WaitForFirstConsumer
+  EOF
+
+checks:
+  - name: StatefulSet exists with correct specifications
+    weight: 2
+    run: |
+      set -e
+
+      # Check if StatefulSet exists
+      kubectl get statefulset web -n stateful || {
+          echo "StatefulSet web not found in namespace stateful"
+          exit 1
+      }
+
+      # Check replicas
+      REPLICAS=$(kubectl get statefulset web -n stateful -o jsonpath='{.spec.replicas}')
+      if [[ "$REPLICAS" != "3" ]]; then
+          echo "Incorrect number of replicas. Expected 3, got $REPLICAS"
+          exit 1
+      fi
+
+      # Check image
+      IMAGE=$(kubectl get statefulset web -n stateful -o jsonpath='{.spec.template.spec.containers[0].image}')
+      if [[ "$IMAGE" != *"nginx"* ]]; then
+          echo "StatefulSet is not using nginx image. Current image: $IMAGE"
+          exit 1
+      fi
+
+      # Check volume mount
+      MOUNT_PATH=$(kubectl get statefulset web -n stateful -o jsonpath='{.spec.template.spec.containers[0].volumeMounts[0].mountPath}')
+      if [[ "$MOUNT_PATH" != "/usr/share/nginx/html" ]]; then
+          echo "Incorrect volume mount path. Expected /usr/share/nginx/html, got $MOUNT_PATH"
+          exit 1
+      fi
+
+      # Check volume claim template
+      STORAGE_CLASS=$(kubectl get statefulset web -n stateful -o jsonpath='{.spec.volumeClaimTemplates[0].spec.storageClassName}')
+      if [[ "$STORAGE_CLASS" != "cold" ]]; then
+          echo "Incorrect storage class. Expected cold, got $STORAGE_CLASS"
+          exit 1
+      fi
+
+      STORAGE_SIZE=$(kubectl get statefulset web -n stateful -o jsonpath='{.spec.volumeClaimTemplates[0].spec.resources.requests.storage}')
+      if [[ "$STORAGE_SIZE" != "1Gi" ]]; then
+          echo "Incorrect storage size. Expected 1Gi, got $STORAGE_SIZE"
+          exit 1
+      fi
+
+      # Check if pods are running
+      READY_PODS=$(kubectl get statefulset web -n stateful -o jsonpath='{.status.readyReplicas}')
+      if [[ "$READY_PODS" != "3" ]]; then
+          echo "Not all pods are ready. Expected 3, got $READY_PODS"
+          exit 1
+      fi
+
+      echo "StatefulSet validation successful"
+      exit 0
+  - name: Headless service exists and is configured correctly
+    weight: 2
+    run: |
+      set -e
+
+      # Check if service exists
+      kubectl get service web-svc -n stateful || {
+          echo "Service web-svc not found in namespace stateful"
+          exit 1
+      }
+
+      # Check if it's a headless service
+      CLUSTER_IP=$(kubectl get service web-svc -n stateful -o jsonpath='{.spec.clusterIP}')
+      if [[ "$CLUSTER_IP" != "None" ]]; then
+          echo "Service is not headless. ClusterIP should be None, got $CLUSTER_IP"
+          exit 1
+      fi
+
+      # Check selector
+      SELECTOR=$(kubectl get service web-svc -n stateful -o jsonpath='{.spec.selector.app}')
+      if [[ "$SELECTOR" != "web" ]]; then
+          echo "Incorrect service selector. Expected app=web, got app=$SELECTOR"
+          exit 1
+      fi
+
+      # Check ports
+      PORT=$(kubectl get service web-svc -n stateful -o jsonpath='{.spec.ports[0].port}')
+      if [[ "$PORT" != "80" ]]; then
+          echo "Incorrect port. Expected 80, got $PORT"
+          exit 1
+      fi
+
+      # # Verify DNS records exist for pods
+      # for i in {0..2}; do
+      #     nslookup web-$i.web-svc.stateful.svc.cluster.local 2>/dev/null || {
+      #         echo "DNS record for web-$i.web-svc.stateful.svc.cluster.local not found"
+      #         exit 1
+      #     }
+      # done
+
+      echo "Headless service validation successful"
+      exit 0
+  - name: PVCs are created and bound correctly
+    run: |
+      set -e
+
+      # Check if PVCs are created
+      for i in {0..2}; do
+          PVC_NAME="www-web-$i"
+
+          # Check if PVC exists
+          kubectl get pvc $PVC_NAME -n stateful || {
+              echo "PVC $PVC_NAME not found in namespace stateful"
+              exit 1
+          }
+
+          # Check storage class
+          STORAGE_CLASS=$(kubectl get pvc $PVC_NAME -n stateful -o jsonpath='{.spec.storageClassName}')
+          if [[ "$STORAGE_CLASS" != "cold" ]]; then
+              echo "PVC $PVC_NAME has incorrect storage class. Expected cold, got $STORAGE_CLASS"
+              exit 1
+          fi
+
+          # Check storage size
+          STORAGE_SIZE=$(kubectl get pvc $PVC_NAME -n stateful -o jsonpath='{.spec.resources.requests.storage}')
+          if [[ "$STORAGE_SIZE" != "1Gi" ]]; then
+              echo "PVC $PVC_NAME has incorrect storage size. Expected 1Gi, got $STORAGE_SIZE"
+              exit 1
+          fi
+
+          # Check if PVC is bound
+          STATUS=$(kubectl get pvc $PVC_NAME -n stateful -o jsonpath='{.status.phase}')
+          if [[ "$STATUS" != "Bound" ]]; then
+              echo "PVC $PVC_NAME is not bound. Current status: $STATUS"
+              exit 1
+          fi
+      done
+
+      echo "Storage validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ``bash
+    kubectl create namespace stateful
+    ``
+
+    ```yaml
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-svc
+      namespace: stateful
+    spec:
+      clusterIP: None
+      selector:
+        app: web
+      ports:
+      - port: 80
+    ---
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      name: web
+      namespace: stateful
+    spec:
+      serviceName: web-svc
+      replicas: 3
+      selector:
+        matchLabels:
+          app: web
+      template:
+        metadata:
+          labels:
+            app: web
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+            volumeMounts:
+            - name: www
+              mountPath: /usr/share/nginx/html
+      volumeClaimTemplates:
+      - metadata:
+          name: www
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          storageClassName: cold
+          resources:
+            requests:
+              storage: 1Gi
+    ```
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-svc
+      namespace: stateful
+    spec:
+      clusterIP: None
+      selector:
+        app: web
+      ports:
+      - port: 80
+    ---
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      name: web
+      namespace: stateful
+    spec:
+      serviceName: web-svc
+      replicas: 3
+      selector:
+        matchLabels:
+          app: web
+      template:
+        metadata:
+          labels:
+            app: web
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+            volumeMounts:
+            - name: www
+              mountPath: /usr/share/nginx/html
+      volumeClaimTemplates:
+      - metadata:
+          name: www
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          storageClassName: cold
+          resources:
+            requests:
+              storage: 1Gi
+    MANIFEST

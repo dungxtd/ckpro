@@ -1,0 +1,201 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Pod Security Policy
+certifications:
+  cka: storage
+difficulty: hard
+namespace: security
+tags: [security, pod-security-policy]
+
+statement: |
+  Configure Pod Security for the `security` namespace and create a secure `nginx` pod with `nginx` image :
+
+  1. Create the `security` namespace with Pod Security Admission (PSA) controls
+     - Set the namespace to enforce the 'restricted' security profile
+     - Use the latest version of the security profile
+
+  2. Create a secure pod named `secure-pod` in the `security` namespace with the following specifications:
+     - Use the `nginx` image
+     - Set the pod-level security context to:
+       * Run as a non-root user with UID `1000`
+       * Enable `runAsNonRoot`
+
+     - Configure container-level security context to:
+       * Prevent privilege escalation
+       * Run as non-root user (UID `1000`)
+       * Drop ALL Linux capabilities
+
+     - Add a volume mount:
+       * Create an emptyDir volume named 'html'
+       * Mount the volume at '/usr/share/nginx/html'
+   use default seccomp profile
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace security --dry-run=client -o yaml | kubectl apply -f -
+
+  # Enable PodSecurity admission controller if not already enabled
+  # Note: This might require cluster-level access and might not be possible in all environments
+
+  # Create the role and rolebinding for PSP
+  kubectl create -f - <<EOF
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: Role
+  metadata:
+    name: psp-role
+    namespace: security
+  rules:
+  - apiGroups: ['policy']
+    resources: ['podsecuritypolicies']
+    verbs: ['use']
+  ---
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: psp-role-binding
+    namespace: security
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: psp-role
+  subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: security
+  EOF
+
+checks:
+  - name: Pod Security Policy exists with correct specifications
+    weight: 2
+    run: |
+      set -e
+
+      NAMESPACE="security"
+
+      # Check if namespace exists
+      kubectl get namespace "$NAMESPACE" > /dev/null || {
+          echo "Namespace '$NAMESPACE' not found"
+          exit 1
+      }
+
+      # Check enforce label
+      ENFORCE=$(kubectl get namespace "$NAMESPACE" -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}')
+      if [[ "$ENFORCE" != "restricted" ]]; then
+          echo "Namespace '$NAMESPACE' does not have enforce=restricted label"
+          exit 1
+      fi
+
+      # Check enforce-version label
+      VERSION=$(kubectl get namespace "$NAMESPACE" -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce-version}')
+      if [[ "$VERSION" != "latest" ]]; then
+          echo "Namespace '$NAMESPACE' does not have enforce-version=latest label"
+          exit 1
+      fi
+
+      echo "PSA label validation successful"
+      exit 0
+  - name: Pod exists and complies with the policy
+    weight: 2
+    run: |
+      set -e
+
+      # Check if pod exists
+      kubectl get pod secure-pod -n security || {
+          echo "Pod secure-pod not found in namespace security"
+          exit 1
+      }
+
+      # Check if pod is running
+      POD_STATUS=$(kubectl get pod secure-pod -n security -o jsonpath='{.status.phase}')
+      if [[ "$POD_STATUS" != "Running" ]]; then
+          echo "Pod is not in Running state. Current state: $POD_STATUS"
+          exit 1
+      fi
+
+      # Check if pod is using nginx image
+      POD_IMAGE=$(kubectl get pod secure-pod -n security -o jsonpath='{.spec.containers[0].image}')
+      if [[ "$POD_IMAGE" != *"nginx"* ]]; then
+          echo "Pod is not using nginx image. Current image: $POD_IMAGE"
+          exit 1
+      fi
+
+      # Check if pod is running as non-root
+      RUN_AS_USER=$(kubectl get pod secure-pod -n security -o jsonpath='{.spec.securityContext.runAsNonRoot}')
+      if [[ "$RUN_AS_USER" != "true" ]]; then
+          echo "Pod is not configured to run as non-root user"
+          exit 1
+      fi
+
+      # Check if pod has no privileged containers
+      PRIVILEGED=$(kubectl get pod secure-pod -n security -o jsonpath='{.spec.containers[0].securityContext.privileged}')
+      if [[ "$PRIVILEGED" == "true" ]]; then
+          echo "Pod has privileged container"
+          exit 1
+      fi
+
+      echo "Pod validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```bash
+    kubectl label namespace security pod-security.kubernetes.io/enforce=restricted  pod-security.kubernetes.io/enforce-version=latest
+    ```
+
+    ```yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: secure-pod
+      namespace: security
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: nginx
+        image: nginx
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+              - ALL
+      volumes:
+      - name: html
+        emptyDir: {}
+    ```
+  run: |
+    kubectl label namespace security pod-security.kubernetes.io/enforce=restricted  pod-security.kubernetes.io/enforce-version=latest
+
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: secure-pod
+      namespace: security
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: nginx
+        image: nginx
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+              - ALL
+      volumes:
+      - name: html
+        emptyDir: {}
+    MANIFEST

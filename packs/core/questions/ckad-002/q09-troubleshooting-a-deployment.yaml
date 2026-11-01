@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Troubleshooting a Deployment
+certifications:
+  ckad: application-observability-maintenance
+difficulty: hard
+namespace: troubleshooting
+tags: [troubleshooting, deployments, debugging]
+
+statement: |
+  There is a deployment named `broken-deployment` in the `troubleshooting` namespace that is not functioning correctly. The deployment should have `3` replicas of `nginx:1.19` pods, but it's failing.
+
+  Find and fix the issue(s) with the deployment. Possible issues might include:
+  - Incorrect image name or tag
+  - Resource constraints that can't be satisfied
+  - Configuration problems with the pod template
+  - Network policy restrictions
+
+  Ensure the deployment functions correctly with 3 replicas running.
+
+setup: |
+  # Create the troubleshooting namespace
+  kubectl create namespace troubleshooting
+
+  # Create a broken deployment - using an invalid image name
+  cat <<EOF | kubectl apply -f -
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: broken-deployment
+    namespace: troubleshooting
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: nginx
+    template:
+      metadata:
+        labels:
+          app: nginx
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.19-invalid-tag
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+  EOF
+
+  # Wait a bit to ensure the deployment is created
+  sleep 2
+
+  echo "Broken deployment created in the troubleshooting namespace."
+
+checks:
+  - name: Deployment has 3 replicas
+    weight: 2
+    run: |
+      # Validate that the broken-deployment exists in troubleshooting namespace
+      DEPLOYMENT=$(kubectl get deployment broken-deployment -n troubleshooting -o jsonpath='{.spec.replicas}' 2>/dev/null)
+
+      if [[ "$DEPLOYMENT" == "3" ]]; then
+          # Deployment exists with correct name
+          exit 0
+      else
+          # Deployment does not exist or has a different name
+          echo "Deployment 'broken-deployment' does not have 3 replicas"
+          exit 1
+      fi
+  - name: All pods are in running state
+    weight: 3
+    run: |
+      # Get the total number of pods for the deployment
+      TOTAL_PODS=$(kubectl get deployment broken-deployment -n troubleshooting -o jsonpath='{.spec.replicas}' 2>/dev/null)
+
+      # Get the number of running pods for the deployment
+      RUNNING_PODS=$(kubectl get pods -n troubleshooting -l app=nginx --field-selector=status.phase=Running -o name 2>/dev/null | wc -l)
+
+      if [[ "$RUNNING_PODS" -eq "$TOTAL_PODS" && "$TOTAL_PODS" -gt 0 ]]; then
+          # All pods are running
+          exit 0
+      else
+          # Not all pods are running
+          echo "Not all pods are running for 'broken-deployment'. Running pods: $RUNNING_PODS, Expected: $TOTAL_PODS"
+          exit 1
+      fi
+  - name: Pods are using correct image
+    weight: 2
+    run: |
+      # validate the container image is correct having image name nginx
+      # Validate if the pods of deployment 'broken-app' are running in the 'troubleshooting' namespace
+      #check deployment status is runing or not
+      DEPLOYMENT_STATUS=$(kubectl get deployment broken-deployment -n troubleshooting -o jsonpath='{.status.conditions[?(@.type=="Available")].status}')
+      if [ "$DEPLOYMENT_STATUS" != "True" ]; then
+          echo "Error: The deployment 'broken-deployment' is not running"
+          exit 1
+      fi
+
+      IMAGE=$(kubectl get deployment broken-deployment -n troubleshooting -o jsonpath='{.spec.template.spec.containers[0].image}' | cut -d':' -f1)
+
+      if [ "$IMAGE" == "nginx" ]; then
+          echo "Success: The container image is correct"
+          exit 0
+      else
+          echo "Error: The container image is not correct"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    Fix a broken deployment (assuming it's already created but not working):
+
+    ```bash
+    # First check what's wrong with the deployment
+    kubectl describe deployment broken-deployment -n troubleshooting
+
+    # Common fixes might include:
+
+    # Fix 1: Correct the image if it's incorrect
+    kubectl set image deployment/broken-deployment nginx=nginx:1.19 -n troubleshooting
+
+    # Fix 2: If resource requests are too high
+    kubectl patch deployment broken-deployment -n troubleshooting --patch '{"spec":{"template":{"spec":{"containers":[{"name":"nginx","resources":{"requests":{"cpu":"100m","memory":"128Mi"},"limits":{"cpu":"200m","memory":"256Mi"}}}]}}}}'
+
+    # Fix 3: If there's a configuration issue in the pod template
+    kubectl edit deployment broken-deployment -n troubleshooting
+
+    # Fix 4: If a network policy is blocking traffic
+    kubectl get networkpolicies -n troubleshooting
+    kubectl delete networkpolicy restrictive-policy -n troubleshooting
+
+    # Verify the fix
+    kubectl rollout status deployment/broken-deployment -n troubleshooting
+    ```
+  # Diagnosis (ImagePullBackOff on nginx:1.19-invalid-tag, 1 replica instead of
+  # 3), then the fix
+  run: |
+    kubectl describe pods -n troubleshooting -l app=nginx | grep -iE "image|failed" | head -5
+    kubectl set image deployment/broken-deployment -n troubleshooting nginx=nginx:1.19
+    kubectl scale deployment/broken-deployment -n troubleshooting --replicas=3
+    kubectl rollout status deployment/broken-deployment -n troubleshooting --timeout=180s

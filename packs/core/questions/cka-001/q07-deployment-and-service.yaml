@@ -1,0 +1,203 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Deployment and Service
+certifications:
+  cka: workloads-scheduling
+difficulty: easy
+namespace: default
+tags: [deployments, services, pod distribution]
+
+statement: |
+  Create a deployment named `web-app` in the `default` namespace with `3` replicas using the `nginx:1.19` image.
+
+  Create a NodePort service named `web-service` that exposes the deployment on port `80`.
+
+  Ensure the pods are distributed across multiple nodes using an appropriate pod anti-affinity rule.
+
+setup: |
+  # Setup for Question 7: Deployment and Service setup
+
+  # Remove any existing deployment and service with the same names
+  kubectl delete deployment web-app --ignore-not-found=true
+  kubectl delete service web-service --ignore-not-found=true
+
+  # Pre-pull the nginx image to speed up deployment creation
+  kubectl run prefetch-nginx --image=nginx:1.20 --restart=Never --dry-run=client -o yaml | kubectl apply -f -
+  sleep 5
+  kubectl delete pod prefetch-nginx --ignore-not-found=true
+
+  exit 0
+
+checks:
+  - name: Deployment and service exist
+    weight: 2
+    run: |
+      # Validate if Deployment exists with correct configuration
+
+      DEPLOYMENT_NAME="web-app"
+      EXPECTED_REPLICAS=3
+      EXPECTED_IMAGE="nginx:1.19"
+
+      # Check if Deployment exists
+      if ! kubectl get deployment $DEPLOYMENT_NAME &> /dev/null; then
+          echo "❌ Deployment '$DEPLOYMENT_NAME' not found"
+          exit 1
+      fi
+
+      # Check if correct number of replicas
+      REPLICAS=$(kubectl get deployment $DEPLOYMENT_NAME -o jsonpath='{.spec.replicas}')
+      if [ "$REPLICAS" != "$EXPECTED_REPLICAS" ]; then
+          echo "❌ Deployment '$DEPLOYMENT_NAME' has incorrect number of replicas: $REPLICAS (expected: $EXPECTED_REPLICAS)"
+          exit 1
+      fi
+
+      # Check if correct image is used
+      POD_IMAGE=$(kubectl get deployment $DEPLOYMENT_NAME -o jsonpath='{.spec.template.spec.containers[0].image}')
+      if [ "$POD_IMAGE" != "$EXPECTED_IMAGE" ]; then
+          echo "❌ Deployment '$DEPLOYMENT_NAME' using incorrect image: $POD_IMAGE (expected: $EXPECTED_IMAGE)"
+          exit 1
+      fi
+
+      # Check if deployment is available
+      AVAILABLE=$(kubectl get deployment $DEPLOYMENT_NAME -o jsonpath='{.status.availableReplicas}')
+      if [ "$AVAILABLE" != "$EXPECTED_REPLICAS" ]; then
+          echo "❌ Deployment '$DEPLOYMENT_NAME' is not fully available (available: $AVAILABLE, expected: $EXPECTED_REPLICAS)"
+          exit 1
+      fi
+
+      echo "✅ Deployment '$DEPLOYMENT_NAME' exists with correct configuration"
+      exit 0
+  - name: Service has correct configuration
+    weight: 2
+    run: |
+      # Validate if Service exists with correct configuration
+
+      SERVICE_NAME="web-service"
+      EXPECTED_TYPE="NodePort"
+      EXPECTED_PORT=80
+      EXPECTED_TARGET_PORT=80
+
+      # Check if Service exists
+      if ! kubectl get service $SERVICE_NAME &> /dev/null; then
+          echo "❌ Service '$SERVICE_NAME' not found"
+          exit 1
+      fi
+
+      # Check if service type is NodePort
+      SERVICE_TYPE=$(kubectl get service $SERVICE_NAME -o jsonpath='{.spec.type}')
+      if [ "$SERVICE_TYPE" != "$EXPECTED_TYPE" ]; then
+          echo "❌ Service '$SERVICE_NAME' has incorrect type: $SERVICE_TYPE (expected: $EXPECTED_TYPE)"
+          exit 1
+      fi
+
+      # Check if port is configured correctly
+      SERVICE_PORT=$(kubectl get service $SERVICE_NAME -o jsonpath='{.spec.ports[0].port}')
+      if [ "$SERVICE_PORT" != "$EXPECTED_PORT" ]; then
+          echo "❌ Service '$SERVICE_NAME' has incorrect port: $SERVICE_PORT (expected: $EXPECTED_PORT)"
+          exit 1
+      fi
+
+      # Check if target port is configured correctly
+      TARGET_PORT=$(kubectl get service $SERVICE_NAME -o jsonpath='{.spec.ports[0].targetPort}')
+      if [ "$TARGET_PORT" != "$EXPECTED_TARGET_PORT" ]; then
+          echo "❌ Service '$SERVICE_NAME' has incorrect target port: $TARGET_PORT (expected: $EXPECTED_TARGET_PORT)"
+          exit 1
+      fi
+
+      # Check if service has endpoints
+      ENDPOINTS=$(kubectl get endpoints $SERVICE_NAME -o jsonpath='{.subsets[*].addresses[*].ip}' | wc -w)
+      if [ "$ENDPOINTS" -eq 0 ]; then
+          echo "❌ Service '$SERVICE_NAME' has no endpoints"
+          exit 1
+      fi
+
+      echo "✅ Service '$SERVICE_NAME' exists with correct configuration"
+      exit 0
+
+solution:
+  explain: |
+    Create a Deployment named `web-app` with 3 replicas and a NodePort Service named `web-service` with the following specifications:
+
+    Deployment:
+    - Name: web-app
+    - Image: nginx:1.19
+    - Replicas: 3
+
+    Service:
+    - Name: web-service
+    - Type: NodePort
+    - Port: 80
+    - Target Port: 80
+
+    ```yaml
+    # Create Deployment
+    cat << EOF | kubectl apply -f -
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web-app
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: web-app
+      template:
+        metadata:
+          labels:
+            app: web-app
+        spec:
+          containers:
+          - name: nginx
+            image: nginx:1.19
+    EOF
+
+    # Create Service
+    cat << EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-service
+    spec:
+      type: NodePort
+      ports:
+      - port: 80
+        targetPort: 80
+      selector:
+        app: web-app
+    EOF
+    ```
+  run: |
+    # Create Deployment
+    cat << EOF | kubectl apply -f -
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web-app
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: web-app
+      template:
+        metadata:
+          labels:
+            app: web-app
+        spec:
+          containers:
+          - name: nginx
+            image: nginx:1.19
+    EOF
+
+    # Create Service
+    cat << EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: web-service
+    spec:
+      type: NodePort
+      ports:
+      - port: 80
+        targetPort: 80
+      selector:
+        app: web-app
+    EOF

@@ -1,0 +1,36 @@
+name: Sync version from git tag
+description: |
+  Patches the version in desktop/package.json, desktop/src-tauri/tauri.conf.json,
+  and desktop/src-tauri/Cargo.toml. Uses the `version` input when given (e.g. a
+  workflow_dispatch publishing into an existing release), else the git tag.
+
+inputs:
+  version:
+    description: Explicit version/tag override (e.g. v1.2.3). Falls back to the git ref.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Sync version from tag
+      shell: bash
+      env:
+        VERSION_OVERRIDE: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        # Prefer the explicit override (dispatch publishing into a release),
+        # else the git ref name.
+        SRC="${VERSION_OVERRIDE:-$GITHUB_REF_NAME}"
+        V="${SRC#v}"
+        # On a non-version ref (e.g. a dry-run from a branch), fall back to a
+        # valid placeholder so tauri.conf/Cargo stay semver-valid.
+        if ! printf '%s' "$V" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
+          echo "Ref '$SRC' is not a version; using 0.0.0 for this build"
+          V="0.0.0"
+        fi
+        echo "Building version $V from '$SRC'"
+        sed -i.bak -E 's/"version":[[:space:]]*"[0-9.]+"/"version": "'"$V"'"/' desktop/package.json
+        sed -i.bak -E 's/"version":[[:space:]]*"[0-9.]+"/"version": "'"$V"'"/' desktop/src-tauri/tauri.conf.json
+        sed -i.bak -E 's/^version = "[0-9.]+"/version = "'"$V"'"/' desktop/src-tauri/Cargo.toml
+        rm -f desktop/package.json.bak desktop/src-tauri/tauri.conf.json.bak desktop/src-tauri/Cargo.toml.bak

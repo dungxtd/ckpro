@@ -1,0 +1,225 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: StorageClass, PVC and Volume Expansion
+certifications:
+  cka: storage
+difficulty: hard
+namespace: storage-pvc
+tags: [storageclass, pvc, dynamic-provisioning, volume-expansion]
+
+statement: |
+  Create a new StorageClass named `csi-hostpath-sc` with `allowVolumeExpansion: true`.
+
+  Note: this environment uses the kind built-in `rancher.io/local-path` provisioner in place of the real exam's `csi-hostpath-driver`, since no CSI driver is pre-installed - use provisioner `rancher.io/local-path` and you must also set `volumeBindingMode: WaitForFirstConsumer` on the StorageClass - `rancher.io/local-path` requires it to know which node to provision the volume on, and the PVC will stay stuck `Pending` without it.
+
+  Create a PersistentVolumeClaim named `pv-volume` using that StorageClass, requesting `10Mi` of storage with access mode `ReadWriteOnce`.
+
+  Create a Pod named `web-server` using image `nginx` which mounts that PersistentVolumeClaim at `/usr/share/nginx/html`.
+
+  Finally, expand the PersistentVolumeClaim `pv-volume` to `70Mi` (edit/patch its requested storage).
+
+setup: |
+  set -e
+
+  kubectl create namespace storage-pvc --dry-run=client -o yaml | kubectl apply -f -
+
+checks:
+  - name: "StorageClass csi-hostpath-sc exists with allowVolumeExpansion=true"
+    run: |
+      set -e
+
+      kubectl get storageclass csi-hostpath-sc || {
+          echo "StorageClass csi-hostpath-sc not found"
+          exit 1
+      }
+
+      EXPANSION=$(kubectl get storageclass csi-hostpath-sc -o jsonpath='{.allowVolumeExpansion}')
+      if [[ "$EXPANSION" != "true" ]]; then
+          echo "StorageClass csi-hostpath-sc does not have allowVolumeExpansion=true (got '$EXPANSION')"
+          exit 1
+      fi
+
+      echo "StorageClass validation successful"
+      exit 0
+  - name: PVC pv-volume uses csi-hostpath-sc with access mode ReadWriteOnce
+    run: |
+      set -e
+
+      kubectl get pvc pv-volume -n storage-pvc || {
+          echo "PVC pv-volume not found in namespace storage-pvc"
+          exit 1
+      }
+
+      SC=$(kubectl get pvc pv-volume -n storage-pvc -o jsonpath='{.spec.storageClassName}')
+      if [[ "$SC" != "csi-hostpath-sc" ]]; then
+          echo "PVC pv-volume does not use StorageClass csi-hostpath-sc (got '$SC')"
+          exit 1
+      fi
+
+      ACCESS_MODE=$(kubectl get pvc pv-volume -n storage-pvc -o jsonpath='{.spec.accessModes[0]}')
+      if [[ "$ACCESS_MODE" != "ReadWriteOnce" ]]; then
+          echo "PVC pv-volume access mode is not ReadWriteOnce (got '$ACCESS_MODE')"
+          exit 1
+      fi
+
+      echo "PVC storageClass/accessMode validation successful"
+      exit 0
+  - name: PVC pv-volume is Bound
+    run: |
+      set -e
+
+      # rancher.io/local-path binds dynamically, but only once a consuming pod exists
+      # (WaitForFirstConsumer)
+      STATUS=$(kubectl get pvc pv-volume -n storage-pvc -o jsonpath='{.status.phase}' 2>/dev/null || true)
+      if [[ "$STATUS" == "Bound" ]]; then
+          echo "PVC pv-volume is Bound"
+          exit 0
+      fi
+
+      echo "PVC pv-volume is not Bound (status='$STATUS')"
+      exit 1
+  - name: Pod web-server mounts pv-volume at /usr/share/nginx/html and is Running
+    run: |
+      set -e
+
+      kubectl get pod web-server -n storage-pvc || {
+          echo "Pod web-server not found in namespace storage-pvc"
+          exit 1
+      }
+
+      MOUNT_PATH=$(kubectl get pod web-server -n storage-pvc -o jsonpath='{.spec.containers[0].volumeMounts[?(@.mountPath=="/usr/share/nginx/html")].mountPath}')
+      if [[ "$MOUNT_PATH" != "/usr/share/nginx/html" ]]; then
+          echo "Pod web-server does not mount a volume at /usr/share/nginx/html"
+          exit 1
+      fi
+
+      CLAIM_NAME=$(kubectl get pod web-server -n storage-pvc -o jsonpath='{.spec.volumes[?(@.persistentVolumeClaim.claimName=="pv-volume")].persistentVolumeClaim.claimName}')
+      if [[ "$CLAIM_NAME" != "pv-volume" ]]; then
+          echo "Pod web-server does not reference PVC pv-volume"
+          exit 1
+      fi
+
+      PHASE=$(kubectl get pod web-server -n storage-pvc -o jsonpath='{.status.phase}' 2>/dev/null || true)
+      if [[ "$PHASE" == "Running" ]]; then
+          echo "Pod web-server validation successful"
+          exit 0
+      fi
+
+      echo "Pod web-server is not Running (phase='$PHASE')"
+      exit 1
+  - name: PVC pv-volume requested storage was patched to 70Mi
+    weight: 2
+    run: |
+      set -e
+
+      # NOTE: rancher.io/local-path does not actually support live filesystem expansion,
+      # so this only checks that the PVC's *declared* requested size was patched to 70Mi,
+      # matching how the real CKA exam also only checks the object was patched.
+      REQUEST=$(kubectl get pvc pv-volume -n storage-pvc -o jsonpath='{.spec.resources.requests.storage}')
+      if [[ "$REQUEST" != "70Mi" ]]; then
+          echo "PVC pv-volume requested storage is not 70Mi (got '$REQUEST')"
+          exit 1
+      fi
+
+      echo "PVC expansion validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: csi-hostpath-sc
+    provisioner: rancher.io/local-path
+    volumeBindingMode: WaitForFirstConsumer
+    allowVolumeExpansion: true
+    ---
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: pv-volume
+      namespace: storage-pvc
+    spec:
+      storageClassName: csi-hostpath-sc
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Mi
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: web-server
+      namespace: storage-pvc
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/nginx/html
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pv-volume
+    ```
+
+    Expand the PVC:
+    ```bash
+    # Only a bound claim can be resized
+    kubectl wait --for=jsonpath='{.status.phase}'=Bound pvc/pv-volume -n storage-pvc --timeout=120s
+    kubectl patch pvc pv-volume -n storage-pvc \
+      -p '{"spec":{"resources":{"requests":{"storage":"70Mi"}}}}'
+    ```
+
+    ### Environment-specific adaptation
+    The real CKA exam curriculum references the `csi-hostpath-driver` for this style of question. This simulator has no CSI driver pre-installed cluster-wide (by design - see `docs/how-to-add-new-labs.md` conventions), so this lab uses kind's built-in `rancher.io/local-path` provisioner instead, which supports the same dynamic-provisioning and `allowVolumeExpansion` mechanics needed to complete the task. Also note `rancher.io/local-path` does not actually perform live filesystem expansion the way some CSI drivers do - verification here (matching the real exam's own grading behavior) only checks that the PVC's **declared/requested** size was patched to `70Mi`, not that the underlying hostPath filesystem was physically grown.
+
+    `volumeBindingMode: WaitForFirstConsumer` is required on the StorageClass - unlike some CSI drivers, `rancher.io/local-path` needs to know which node the consuming Pod lands on before it can create the volume, and errors with "no node was specified" (leaving the PVC stuck `Pending` forever) under the default `Immediate` binding mode. This is a real, confirmed requirement of this environment, not just a style preference.
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: csi-hostpath-sc
+    provisioner: rancher.io/local-path
+    volumeBindingMode: WaitForFirstConsumer
+    allowVolumeExpansion: true
+    ---
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: pv-volume
+      namespace: storage-pvc
+    spec:
+      storageClassName: csi-hostpath-sc
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Mi
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: web-server
+      namespace: storage-pvc
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/nginx/html
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pv-volume
+    MANIFEST
+
+    # Only a bound claim can be resized
+    kubectl wait --for=jsonpath='{.status.phase}'=Bound pvc/pv-volume -n storage-pvc --timeout=120s
+    kubectl patch pvc pv-volume -n storage-pvc \
+      -p '{"spec":{"resources":{"requests":{"storage":"70Mi"}}}}'

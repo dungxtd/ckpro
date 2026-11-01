@@ -1,0 +1,277 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: RBAC Configuration
+certifications:
+  cka: workloads-scheduling
+difficulty: hard
+namespace: cluster-admin
+tags: [rbac, service-accounts, security]
+
+statement: |
+  Perform the following cluster administration tasks:
+
+  1. Create a ServiceAccount named `app-admin` in the `cluster-admin` namespace
+  2. Create a Role that allows:
+     - `List`, `get`, `watch` operations on `pods` and `deployments`
+     - `Create` and `delete` operations on `configmaps`
+     - `Update` operations on `deployments`
+  3. Bind the Role to the ServiceAccount
+  4. Create a test Pod named `admin-pod` that uses this ServiceAccount with:
+     - Image: `bitnami/kubectl:latest`
+     - Command: `sleep 3600`
+     - Mount the ServiceAccount token as a volume
+
+  Verify the pod can perform the allowed operations but cannot perform other operations (like creating pods).
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace cluster-admin --dry-run=client -o yaml | kubectl apply -f -
+
+checks:
+  - name: ServiceAccount exists with correct configuration
+    weight: 2
+    run: |
+      set -e
+
+      # Check if ServiceAccount exists
+      kubectl get serviceaccount app-admin -n cluster-admin || {
+          echo "ServiceAccount app-admin not found in namespace cluster-admin"
+          exit 1
+      }
+
+      # Check if token is automatically mounted
+      AUTO_MOUNT=$(kubectl get serviceaccount app-admin -n cluster-admin -o jsonpath='{.automountServiceAccountToken}')
+      if [[ "$AUTO_MOUNT" == "false" ]]; then
+          echo "ServiceAccount token automounting is disabled"
+          exit 1
+      fi
+
+      # Check if secret is created for the ServiceAccount
+      # SECRET_NAME=$(kubectl get serviceaccount app-admin -n cluster-admin -o jsonpath='{.secrets[0].name}')
+      # if [[ -z "$SECRET_NAME" ]]; then
+      #     echo "No token secret found for ServiceAccount"
+      #     exit 1
+      # fi
+
+      # # Verify secret exists
+      # kubectl get secret $SECRET_NAME -n cluster-admin || {
+      #     echo "Token secret $SECRET_NAME not found"
+      #     exit 1
+      # }
+
+      echo "ServiceAccount validation successful"
+      exit 0
+  - name: Role and RoleBinding are configured correctly
+    weight: 2
+    run: |
+      set -e
+
+      # Check if Role exists
+      kubectl get role app-admin -n cluster-admin || {
+          echo "Role app-admin not found in namespace cluster-admin"
+          exit 1
+      }
+
+      # Check Role permissions for pods and deployments
+      RULES=$(kubectl get role app-admin -n cluster-admin -o json)
+
+      # Check list, get, watch permissions for pods and deployments
+      POD_RULES=$(echo "$RULES" | jq -r '.rules[] | select(.resources[] | contains("pods"))')
+      DEPLOYMENT_RULES=$(echo "$RULES" | jq -r '.rules[] | select(.resources[] | contains("deployments"))')
+
+      if [[ ! "$POD_RULES" =~ "list" ]] || [[ ! "$POD_RULES" =~ "get" ]] || [[ ! "$POD_RULES" =~ "watch" ]]; then
+          echo "Missing required permissions for pods"
+          exit 1
+      fi
+
+      if [[ ! "$DEPLOYMENT_RULES" =~ "list" ]] || [[ ! "$DEPLOYMENT_RULES" =~ "get" ]] || [[ ! "$DEPLOYMENT_RULES" =~ "watch" ]] || [[ ! "$DEPLOYMENT_RULES" =~ "update" ]]; then
+          echo "Missing required permissions for deployments"
+          exit 1
+      fi
+
+      # Check configmap permissions
+      CONFIGMAP_RULES=$(echo "$RULES" | jq -r '.rules[] | select(.resources[] | contains("configmaps"))')
+      if [[ ! "$CONFIGMAP_RULES" =~ "create" ]] || [[ ! "$CONFIGMAP_RULES" =~ "delete" ]]; then
+          echo "Missing required permissions for configmaps"
+          exit 1
+      fi
+
+      # Check if RoleBinding exists
+      kubectl get rolebinding app-admin -n cluster-admin || {
+          echo "RoleBinding app-admin not found in namespace cluster-admin"
+          exit 1
+      }
+
+      # Check if RoleBinding references correct Role and ServiceAccount
+      ROLE_REF=$(kubectl get rolebinding app-admin -n cluster-admin -o jsonpath='{.roleRef.name}')
+      if [[ "$ROLE_REF" != "app-admin" ]]; then
+          echo "RoleBinding references incorrect Role. Expected app-admin, got $ROLE_REF"
+          exit 1
+      fi
+
+      SA_REF=$(kubectl get rolebinding app-admin -n cluster-admin -o jsonpath='{.subjects[0].name}')
+      if [[ "$SA_REF" != "app-admin" ]]; then
+          echo "RoleBinding references incorrect ServiceAccount. Expected app-admin, got $SA_REF"
+          exit 1
+      fi
+
+      echo "RBAC validation successful"
+      exit 0
+  - name: Test pod is running with correct ServiceAccount
+    weight: 2
+    run: |
+      # Create a test pod with the app-admin ServiceAccount
+      # Test pod operations (should succeed)
+      LIST_PODS=$(kubectl auth can-i list pods --as=system:serviceaccount:cluster-admin:app-admin -n cluster-admin)
+      GET_PODS=$(kubectl auth can-i get pods --as=system:serviceaccount:cluster-admin:app-admin -n cluster-admin)
+      WATCH_PODS=$(kubectl auth can-i watch pods --as=system:serviceaccount:cluster-admin:app-admin -n cluster-admin)
+
+      # Test deployment operations (should succeed)
+      LIST_DEPLOY=$(kubectl auth can-i list deployments --as=system:serviceaccount:cluster-admin:app-admin -n cluster-admin)
+      GET_DEPLOY=$(kubectl auth can-i get deployments --as=system:serviceaccount:cluster-admin:app-admin -n cluster-admin)
+      UPDATE_DEPLOY=$(kubectl auth can-i update deployments --as=system:serviceaccount:cluster-admin:app-admin -n cluster-admin)
+
+      # Test configmap operations (should succeed)
+      CREATE_CM=$(kubectl auth can-i create configmaps --as=system:serviceaccount:cluster-admin:app-admin -n cluster-admin)
+      DELETE_CM=$(kubectl auth can-i delete configmaps --as=system:serviceaccount:cluster-admin:app-admin -n cluster-admin)
+
+
+      # Check all permissions are correct
+      if [[ "$LIST_PODS" == "yes" && \
+            "$GET_PODS" == "yes" && \
+            "$WATCH_PODS" == "yes" && \
+            "$LIST_DEPLOY" == "yes" && \
+            "$GET_DEPLOY" == "yes" && \
+            "$UPDATE_DEPLOY" == "yes" && \
+            "$CREATE_CM" == "yes" && \
+            "$DELETE_CM" == "yes" ]]; then
+          exit 0
+      else
+          exit 1
+      fi
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: app-admin
+      namespace: cluster-admin
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: app-admin
+      namespace: cluster-admin
+    rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["list", "get", "watch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments"]
+      verbs: ["list", "get", "watch", "update"]
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["create", "delete"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: app-admin
+      namespace: cluster-admin
+    subjects:
+    - kind: ServiceAccount
+      name: app-admin
+      namespace: cluster-admin
+    roleRef:
+      kind: Role
+      name: app-admin
+      apiGroup: rbac.authorization.k8s.io
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: admin-pod
+      namespace: cluster-admin
+    spec:
+      serviceAccountName: app-admin
+      containers:
+      - name: kubectl
+        image: bitnami/kubectl:latest
+        command: ["sleep", "3600"]
+        volumeMounts:
+        - name: token
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      volumes:
+      - name: token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 3600
+              audience: kubernetes.default.svc
+    ```
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: app-admin
+      namespace: cluster-admin
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: app-admin
+      namespace: cluster-admin
+    rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["list", "get", "watch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments"]
+      verbs: ["list", "get", "watch", "update"]
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["create", "delete"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: app-admin
+      namespace: cluster-admin
+    subjects:
+    - kind: ServiceAccount
+      name: app-admin
+      namespace: cluster-admin
+    roleRef:
+      kind: Role
+      name: app-admin
+      apiGroup: rbac.authorization.k8s.io
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: admin-pod
+      namespace: cluster-admin
+    spec:
+      serviceAccountName: app-admin
+      containers:
+      - name: kubectl
+        image: bitnami/kubectl:latest
+        command: ["sleep", "3600"]
+        volumeMounts:
+        - name: token
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      volumes:
+      - name: token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 3600
+              audience: kubernetes.default.svc
+    MANIFEST

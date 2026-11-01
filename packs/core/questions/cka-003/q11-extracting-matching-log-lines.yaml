@@ -1,0 +1,105 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Extracting Matching Log Lines
+certifications:
+  cka: troubleshooting
+difficulty: hard
+namespace: logging
+tags: [logging, kubectl-logs, grep]
+
+statement: |
+  Pod `foo` is running and periodically writing log lines, some of which contain the literal string `error file-not-found`.
+
+  Extract only the log lines containing the literal string `error file-not-found` from pod `foo`'s logs and write them to `/tmp/exam/foo-errors.log` (the file already exists, currently empty).
+
+  Do not include any non-matching lines in the file.
+
+setup: |
+  set -e
+
+  kubectl create namespace logging --dry-run=client -o yaml | kubectl apply -f -
+
+  mkdir -p /tmp/exam
+  touch /tmp/exam/foo-errors.log
+
+  # Existing pod that periodically logs a mix of matching and non-matching lines.
+  # NOTE: heredoc delimiter is quoted ('EOF') so $(date)/$((...)) below are NOT
+  # expanded by this setup script - they must stay literal so busybox evaluates
+  # them fresh on every loop iteration inside the container, not once here.
+  kubectl apply -f - <<'EOF'
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: foo
+    namespace: logging
+    labels:
+      app: foo
+  spec:
+    containers:
+      - name: foo
+        image: busybox:1.36
+        command:
+          - "sh"
+          - "-c"
+          - |
+            i=0
+            while true; do
+              i=$((i+1))
+              if [ $((i % 2)) -eq 0 ]; then
+                echo "$(date) error file-not-found"
+              else
+                echo "$(date) INFO ok"
+              fi
+              sleep 2
+            done
+  EOF
+
+  echo "Waiting for pod foo to be running..."
+  kubectl wait --for=condition=Ready --timeout=90s pod/foo -n logging || {
+    echo "WARNING: pod foo not ready in time, continuing anyway"
+  }
+
+checks:
+  - name: foo-errors.log contains only 'error file-not-found' lines and at least one is present
+    weight: 6
+    run: |
+      set -e
+
+      FILE=/tmp/exam/foo-errors.log
+
+      if [[ ! -s "$FILE" ]]; then
+          echo "File $FILE is missing or empty"
+          exit 1
+      fi
+
+      # Every non-empty line must contain the literal string "error file-not-found" (no false positives)
+      NON_EMPTY_BAD=$(grep -v "error file-not-found" "$FILE" | grep -c -v '^[[:space:]]*$' || true)
+      if [[ "$NON_EMPTY_BAD" -gt 0 ]]; then
+          echo "File $FILE contains lines that do not match 'error file-not-found'"
+          exit 1
+      fi
+
+      MATCH_COUNT=$(grep -c "error file-not-found" "$FILE" || true)
+      if [[ "$MATCH_COUNT" -lt 1 ]]; then
+          echo "File $FILE has no lines matching 'error file-not-found'"
+          exit 1
+      fi
+
+      # Sanity check at least one such line genuinely appears in the pod's own logs
+      kubectl logs foo -n logging 2>/dev/null | grep -q "error file-not-found" || {
+          echo "Pod foo logs do not contain 'error file-not-found' - cannot cross-validate extraction"
+          exit 1
+      }
+
+      echo "foo-errors.log validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```bash
+    kubectl logs foo -n logging | grep "error file-not-found" > /tmp/exam/foo-errors.log
+    ```
+
+    ### Why this works
+    `kubectl logs` streams the container's stdout; piping through `grep` with a literal (non-regex-sensitive) match extracts exactly the lines containing that string, with no false positives from other log lines.
+  run: "kubectl logs foo -n logging | grep \"error file-not-found\" > /tmp/exam/foo-errors.log"

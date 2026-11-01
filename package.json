@@ -1,0 +1,25 @@
+{
+  "name": "ckdry",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ckdry - Kubernetes exam practice app monorepo",
+  "packageManager": "pnpm@12.11.2",
+  "scripts": {
+    "dev": "pnpm --filter ckdry-desktop dev",
+    "build": "pnpm --filter ckdry-desktop build",
+    "typecheck": "pnpm --filter ckdry-desktop typecheck",
+    "format": "biome check . --write",
+    "format-check": "biome check ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.2"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

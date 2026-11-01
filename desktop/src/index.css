@@ -1,0 +1,64 @@
+@import "@ckdry/ui/styles.css";
+
+/* The exam's own accents, as the ExamUI colours them: the values to use
+   (host, namespace) and the question's concepts */
+@theme {
+	--color-exam-value: #f472b6;
+	--color-exam-concept: #38bdf8;
+	/* Claude's own colour, where its mark stands for the assistant */
+	--color-claude: #d97757;
+	/* Around the exam desktop's picture while it connects or letterboxes
+	   (desktop-view.tsx gives noVNC the same) */
+	--color-desktop: #1e1e1e;
+}
+
+/* An app window: only the areas meant to scroll do. clip, not hidden:
+   hidden still lets focus() and scrollIntoView() scroll the page */
+html,
+body,
+#root {
+	height: 100%;
+	overflow: clip;
+}
+
+/* Window behaviour of a desktop app */
+@layer base {
+	[data-theme="dark"] {
+		color-scheme: dark;
+	}
+	[data-theme="light"] {
+		color-scheme: light;
+	}
+	/* Links and images are not draggable (a drag would lift the app's URL) */
+	a,
+	img {
+		-webkit-user-drag: none;
+	}
+	/* Tailwind v4 preflight dropped the pointer cursor on buttons. */
+	button:not(:disabled),
+	[role="button"]:not([aria-disabled="true"]) {
+		cursor: pointer;
+	}
+	/* Thin, consistent scrollbars app-wide (macOS overlay feel). */
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent;
+	}
+	::-webkit-scrollbar {
+		width: 8px;
+		height: 8px;
+	}
+	::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	::-webkit-scrollbar-thumb {
+		background: color-mix(in oklab, var(--foreground) 18%, transparent);
+		border-radius: 8px;
+		border: 2px solid transparent;
+		background-clip: padding-box;
+	}
+	::-webkit-scrollbar-thumb:hover {
+		background: color-mix(in oklab, var(--foreground) 32%, transparent);
+		background-clip: padding-box;
+	}
+}

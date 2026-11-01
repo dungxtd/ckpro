@@ -1,0 +1,150 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Work with the Open Container Initiative (OCI) format
+certifications:
+  ckad: application-design-build
+difficulty: medium
+namespace: docker-oci
+tags: [containers, images, oci-format, docker]
+requires: [container-runtime]  # needs docker/podman on the jumphost
+
+statement: |
+  For improved container image distribution and portability, you need to work with the Open Container Initiative (OCI) format.
+
+  Complete the following steps:
+
+  1. Pull the `nginx:latest` image from Docker Hub using the `docker pull` command
+
+  2. Create a directory at `/root/oci-images` if it doesn`t already exist
+
+  3. Using the appropriate docker commands, export the nginx image in OCI format and store it in this directory
+
+  This will help standardize the container image format and improve portability across different container runtimes.
+
+setup: |
+  # Setup for Question 22: Pull and store nginx image in OCI format
+
+  # Create the directory for storing OCI images
+  mkdir -p /root/oci-images
+
+  # Remove any existing content to ensure clean state
+  rm -rf /root/oci-images/*
+
+  # Make sure required tools are installed
+
+  if ! command -v docker &> /dev/null; then
+      echo "Installing docker for image pulling..."
+      apt-get update
+      apt-get install -y docker.io
+      systemctl start docker
+  fi
+
+  echo "Setup complete for Question 22: Environment ready for pulling and storing the nginx image in OCI format"
+  echo "Task: Pull the nginx:latest image and store it in OCI format in the directory /root/oci-images"
+  exit 0
+
+checks:
+  - name: OCI directory exists with image content
+    weight: 2
+    run: |
+      # Validate that an OCI directory exists in the specified path
+
+      OCI_DIR="/root/oci-images"
+
+      if [ -d "$OCI_DIR" ]; then
+          # Check if the directory has some content (not empty)
+          if [ "$(ls -A $OCI_DIR)" ]; then
+              echo "SUCCESS: OCI directory exists at $OCI_DIR and contains files."
+              exit 0
+          else
+              echo "ERROR: OCI directory exists at $OCI_DIR but is empty. Did you store the image?"
+              exit 1
+          fi
+      else
+          echo "ERROR: OCI directory does not exist at $OCI_DIR."
+          exit 1
+      fi
+  - name: Nginx image is properly stored in OCI format
+    weight: 3
+    run: |
+      # Validate that the nginx image is properly stored in OCI format
+
+      OCI_DIR="/root/oci-images"
+
+      if [ ! -d "$OCI_DIR" ]; then
+          echo "ERROR: OCI directory does not exist at $OCI_DIR."
+          exit 1
+      fi
+
+      # Check if the image is an OCI layout
+      if [ ! -f "$OCI_DIR/index.json" ] || [ ! -d "$OCI_DIR/blobs" ]; then
+          echo "ERROR: The directory at $OCI_DIR does not appear to contain a valid OCI image layout."
+          echo "       A valid OCI layout should contain an index.json file and a blobs directory."
+          exit 1
+      fi
+
+      # Check if the image is the nginx image by examining the index.json or manifest files
+      NGINX_FOUND=false
+
+      # First check for "nginx" in index.json
+      if grep -q "nginx" "$OCI_DIR/index.json" 2>/dev/null; then
+          NGINX_FOUND=true
+      else
+          # Try to find nginx in manifests
+          for manifest in $(find "$OCI_DIR/blobs" -type f -name "*.json" 2>/dev/null); do
+              if grep -q "nginx" "$manifest" 2>/dev/null; then
+                  NGINX_FOUND=true
+                  break
+              fi
+          done
+      fi
+
+      if [ "$NGINX_FOUND" = true ]; then
+          echo "SUCCESS: The nginx image appears to be properly stored in OCI format at $OCI_DIR."
+          exit 0
+      else
+          echo "ERROR: Could not find evidence that the nginx image is stored in the OCI directory."
+          exit 1
+      fi
+
+solution:
+  explain: |
+    ```bash
+    # Pull the image
+    docker pull nginx:latest
+
+    # Save the image to a tarball
+    docker save nginx:latest -o /tmp/nginx-image.tar
+
+    # Create the OCI directory
+    mkdir -p /root/oci-images
+
+    # Extract the tarball to the OCI directory
+    tar -xf /tmp/nginx-image.tar -C /root/oci-images
+
+    # Clean up the tarball
+    rm /tmp/nginx-image.tar
+    ```
+
+    Check the result:
+    ```bash
+    ls -la /root/oci-images
+    cat /root/oci-images/index.json  # Verify it's in OCI format
+    ```
+  run: |
+    # Pull the image
+    docker pull nginx:latest
+
+    # Save the image to a tarball
+    docker save nginx:latest -o /tmp/nginx-image.tar
+
+    # Create the OCI directory
+    mkdir -p /root/oci-images
+
+    # Extract the tarball to the OCI directory
+    tar -xf /tmp/nginx-image.tar -C /root/oci-images
+
+    # Clean up the tarball
+    rm /tmp/nginx-image.tar
+
+    ls -la /root/oci-images
+    cat /root/oci-images/index.json  # Verify it's in OCI format

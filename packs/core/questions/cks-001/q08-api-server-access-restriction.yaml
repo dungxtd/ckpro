@@ -1,0 +1,269 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: API Server Access Restriction
+certifications:
+  cks: supply-chain-security
+difficulty: hard
+namespace: api-restrict
+tags: [network policies, api server, egress control]
+
+statement: |
+  Restrict access to the Kubernetes API server by creating a NetworkPolicy named `api-server-policy` in the `api-restrict` namespace that denies all egress traffic to the Kubernetes API server except from pods with the label `role=admin`.
+
+  Create a pod named `admin-pod` with label `role=admin` and a pod named `restricted-pod` with label `role=restricted` in the same namespace. Both pods should use the `busybox` image and sleep for 3600 seconds.
+
+setup: |
+  # Setup for Question 8: API Server Access Restriction
+
+  # Create namespace if it doesn't exist
+  kubectl create namespace api-restrict 2>/dev/null || true
+
+  # Create a ConfigMap containing API server IP for reference
+  # Note: In a Kind setup, the API server is typically available at 10.96.0.1
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: api-server-info
+    namespace: api-restrict
+  data:
+    api-server-ip: "10.96.0.1"
+    api-server-port: "443"
+  EOF
+
+  # Create a pod to test API server access
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: api-tester
+    namespace: api-restrict
+  spec:
+    containers:
+    - name: curl
+      image: curlimages/curl:7.78.0
+      command: ["sleep", "3600"]
+  EOF
+
+  echo "Setup completed for Question 8"
+  exit 0
+
+checks:
+  - name: NetworkPolicy exists
+    run: |
+      # Validate that the NetworkPolicy exists
+
+      POLICY_NAME="api-server-policy"
+      NAMESPACE="api-restrict"
+
+      # Check if namespace exists
+      kubectl get namespace $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Namespace '$NAMESPACE' not found"
+        exit 1
+      fi
+
+      # Check if NetworkPolicy exists
+      kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ NetworkPolicy '$POLICY_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      echo "✅ NetworkPolicy '$POLICY_NAME' exists in namespace '$NAMESPACE'"
+      exit 0
+  - name: NetworkPolicy has correct selectors
+    weight: 2
+    run: |
+      # Validate that the NetworkPolicy has correct selectors and egress rules
+
+      POLICY_NAME="api-server-policy"
+      NAMESPACE="api-restrict"
+
+      # Check if namespace exists
+      kubectl get namespace "$NAMESPACE" &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Namespace '$NAMESPACE' not found"
+        exit 1
+      fi
+
+      # Check if NetworkPolicy exists
+      kubectl get networkpolicy "$POLICY_NAME" -n "$NAMESPACE" &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ NetworkPolicy '$POLICY_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check if policy includes Egress in policyTypes
+      POLICY_TYPES=$(kubectl get networkpolicy "$POLICY_NAME" -n "$NAMESPACE" -o jsonpath='{.spec.policyTypes}')
+      if [[ "$POLICY_TYPES" != *"Egress"* ]]; then
+        echo "❌ NetworkPolicy does not include Egress in policyTypes"
+        exit 1
+      fi
+
+      # Check if it denies traffic to API server IP
+      API_SERVER_IP=$(kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}')
+      if ! kubectl get networkpolicy "$POLICY_NAME" -n "$NAMESPACE" -o json | grep -q "$API_SERVER_IP"; then
+        echo "❌ NetworkPolicy does not target the API server IP ($API_SERVER_IP)"
+        exit 1
+      fi
+
+      echo "✅ NetworkPolicy '$POLICY_NAME' is correctly configured"
+      exit 0
+  - name: Restricted pod cannot access API server
+    weight: 2
+    run: |
+      # Validate that restricted pod cannot access API server
+
+      NAMESPACE="api-restrict"
+      POD_NAME="restricted-pod"
+
+      # Check if namespace exists
+      kubectl get namespace $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Namespace '$NAMESPACE' not found"
+        exit 1
+      fi
+
+      # Check if pod exists
+      kubectl get pod $POD_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ Pod '$POD_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check if pod has the right label
+      POD_LABEL=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.metadata.labels.role}')
+      if [ "$POD_LABEL" != "restricted" ]; then
+        echo "❌ Pod '$POD_NAME' does not have label 'role=restricted'"
+        exit 1
+      fi
+
+      # Test if the pod can access the API server - it should fail due to NetworkPolicy
+      API_SERVER_IP=$(kubectl get endpoints kubernetes -o jsonpath='{.subsets[0].addresses[0].ip}')
+      API_SERVER_PORT=$(kubectl get endpoints kubernetes -o jsonpath='{.subsets[0].ports[0].port}')
+      TEST_RESULT=$(kubectl exec -n $NAMESPACE $POD_NAME -- wget -T 3 -q -O- "https://$API_SERVER_IP:$API_SERVER_PORT" 2>&1)
+
+      if ! echo "$TEST_RESULT" | grep -q "Connection refused\|timed out\|Unable to connect"; then
+        echo "❌ Restricted pod can access API server when it should be blocked"
+        exit 1
+      fi
+
+      echo "✅ Restricted pod correctly blocked from accessing API server"
+      exit 0
+
+solution:
+  explain: |
+    NetworkPolicies are allow-lists for the pods they select: a policy that
+    selects only `role=admin` pods leaves every other pod unrestricted. Select
+    the non-admin pods instead and allow their egress everywhere except the API
+    server (the `kubernetes` Service IP and the endpoint behind it).
+
+    Create NetworkPolicy and test pods:
+
+    ```bash
+    API_SERVER_IP=$(kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}')
+    ```
+
+    ```yaml
+    cat <<EOF > api-server-policy.yaml
+    # 1. Deny access to API server for all pods
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: api-server-policy
+      namespace: api-restrict
+    spec:
+      podSelector: {}
+      policyTypes:
+      - Egress
+      egress:
+      - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+            - ${API_SERVER_IP}/32
+
+    ---
+    # 2. Allow access to API server for pods with label role=admin
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-admin-api-egress
+      namespace: api-restrict
+    spec:
+      podSelector:
+        matchLabels:
+          role: admin
+      policyTypes:
+      - Egress
+      egress:
+      - to:
+        - ipBlock:
+            cidr: ${API_SERVER_IP}/32
+        ports:
+        - protocol: TCP
+          port: 443
+
+    ---
+    # admin-pod (can access API server)
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: admin-pod
+      namespace: api-restrict
+      labels:
+        role: admin
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ["sleep", "3600"]
+
+    ---
+    # restricted-pod (blocked from API server)
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: restricted-pod
+      namespace: api-restrict
+      labels:
+        role: restricted
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ["sleep", "3600"]
+    EOF
+    ```
+
+    ```bash
+    kubectl apply -f api-server-policy.yaml
+    ```
+  # A NetworkPolicy only restricts the pods it selects, so select every pod
+  # except the admins and allow egress anywhere but the API server (its
+  # Service IP and the endpoint behind it)
+  run: |
+    kubectl create namespace api-restrict --dry-run=client -o yaml | kubectl apply -f -
+    API_IP=$(kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}')
+    ENDPOINT_IP=$(kubectl get endpoints kubernetes -n default -o jsonpath='{.subsets[0].addresses[0].ip}')
+    kubectl apply -f - <<EOF
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: api-server-policy
+      namespace: api-restrict
+    spec:
+      podSelector:
+        matchExpressions:
+          - { key: role, operator: NotIn, values: [admin] }
+      policyTypes: [Egress]
+      egress:
+        - to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+                except: ["${API_IP}/32", "${ENDPOINT_IP}/32"]
+    EOF
+    for role in admin restricted; do
+      kubectl run ${role}-pod -n api-restrict --image=busybox --labels=role=$role -- sleep 3600
+    done
+    kubectl wait -n api-restrict --for=condition=Ready pod/admin-pod pod/restricted-pod --timeout=120s

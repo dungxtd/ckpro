@@ -1,0 +1,173 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Network Policy
+certifications:
+  cka: services-networking
+difficulty: easy
+namespace: networking
+tags: [network policies, pod networking]
+
+statement: |
+  Create a NetworkPolicy named `db-policy` in the `networking` namespace that:
+
+  1. Allows pods with label `role=frontend` to connect to pods with label `role=db` on port `3306`
+  2. Denies all other ingress traffic to pods with label `role=db`
+
+  Ensure the policy is correctly applied to pods with the matching labels.
+
+setup: |
+  # Setup for Question 6: Network Policy setup
+
+  # Create networking namespace if it doesn't exist
+  kubectl create namespace networking --dry-run=client -o yaml | kubectl apply -f -
+
+  # Remove any existing network policy
+  kubectl delete networkpolicy -n networking db-policy --ignore-not-found=true
+
+  # Create test pods with appropriate labels
+  kubectl run frontend --image=nginx --labels=role=frontend -n networking --dry-run=client -o yaml | kubectl apply -f -
+  kubectl run db --image=mysql --labels=role=db -n networking --env=MYSQL_ROOT_PASSWORD=password --dry-run=client -o yaml | kubectl apply -f -
+
+  exit 0
+
+checks:
+  - name: NetworkPolicy exists
+    weight: 2
+    run: |
+      # Validate if NetworkPolicy exists with correct configuration
+
+      NAMESPACE="networking"
+      POLICY_NAME="db-policy"
+      DB_LABEL="role=db"
+      FRONTEND_LABEL="role=frontend"
+
+      # Check if NetworkPolicy exists
+      if ! kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE &> /dev/null; then
+          echo "❌ NetworkPolicy '$POLICY_NAME' not found in namespace '$NAMESPACE'"
+          exit 1
+      fi
+
+      # Check if policy targets pods with role=db label
+      TARGET_LABEL=$(kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE -o jsonpath='{.spec.podSelector.matchLabels.role}')
+      if [ "$TARGET_LABEL" != "db" ]; then
+          echo "❌ NetworkPolicy '$POLICY_NAME' not targeting pods with label 'role=db'"
+          exit 1
+      fi
+
+      # Check if policy allows ingress from frontend pods
+      INGRESS_RULES=$(kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE -o jsonpath='{.spec.ingress[*].from[*].podSelector.matchLabels.role}')
+      if [[ ! "$INGRESS_RULES" =~ "frontend" ]]; then
+          echo "❌ NetworkPolicy '$POLICY_NAME' not allowing ingress from pods with label 'role=frontend'"
+          exit 1
+      fi
+
+      # Check if policy allows port 3306
+      ALLOWED_PORTS=$(kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE -o jsonpath='{.spec.ingress[*].ports[*].port}')
+      if [[ ! "$ALLOWED_PORTS" =~ "3306" ]]; then
+          echo "❌ NetworkPolicy '$POLICY_NAME' not allowing port 3306"
+          exit 1
+      fi
+
+      echo "✅ NetworkPolicy '$POLICY_NAME' exists with correct configuration"
+      exit 0
+  - name: Network policy is correctly configured and effective
+    weight: 3
+    run: |
+      # Validate network policy effectiveness
+
+      NAMESPACE="networking"
+      FRONTEND_POD="frontend"
+      DB_POD="db"
+
+      # Check if frontend pod exists
+      if ! kubectl get pod $FRONTEND_POD -n $NAMESPACE &> /dev/null; then
+          echo "❌ Frontend pod not found"
+          exit 1
+      fi
+
+      # Check if db pod exists
+      if ! kubectl get pod $DB_POD -n $NAMESPACE &> /dev/null; then
+          echo "❌ Database pod not found"
+          exit 1
+      fi
+
+      # Check if network policy is applied to correct pods
+      POLICY_PODS=$(kubectl get networkpolicy db-policy -n $NAMESPACE -o jsonpath='{.spec.podSelector.matchLabels.role}')
+      if [ "$POLICY_PODS" != "db" ]; then
+          echo "❌ Network policy is not applied to correct pods"
+          exit 1
+      fi
+
+      # Check if network policy has correct policy types
+      POLICY_TYPES=$(kubectl get networkpolicy db-policy -n $NAMESPACE -o jsonpath='{.spec.policyTypes[*]}')
+      if [[ ! "$POLICY_TYPES" =~ "Ingress" ]]; then
+          echo "❌ Network policy missing Ingress policy type"
+          exit 1
+      fi
+
+      # Check if network policy has correct port configuration
+      POLICY_PORT=$(kubectl get networkpolicy db-policy -n $NAMESPACE -o jsonpath='{.spec.ingress[0].ports[0].port}')
+      if [ "$POLICY_PORT" != "3306" ]; then
+          echo "❌ Network policy has incorrect port configuration"
+          exit 1
+      fi
+
+      echo "✅ Network policy is correctly configured and effective"
+      exit 0
+
+solution:
+  explain: |
+    Create a NetworkPolicy named `db-policy` in the networking namespace to allow only frontend pods to access the database pods on port 3306.
+
+    ```yaml
+    # Create networking namespace
+    kubectl create namespace networking
+
+    # Create NetworkPolicy
+    cat << EOF | kubectl apply -f -
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: db-policy
+      namespace: networking
+    spec:
+      podSelector:
+        matchLabels:
+          role: db
+      policyTypes:
+      - Ingress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              role: frontend
+        ports:
+        - protocol: TCP
+          port: 3306
+    EOF
+    ```
+  run: |
+    # Create networking namespace
+    kubectl create namespace networking
+
+    # Create NetworkPolicy
+    cat << EOF | kubectl apply -f -
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: db-policy
+      namespace: networking
+    spec:
+      podSelector:
+        matchLabels:
+          role: db
+      policyTypes:
+      - Ingress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              role: frontend
+        ports:
+        - protocol: TCP
+          port: 3306
+    EOF

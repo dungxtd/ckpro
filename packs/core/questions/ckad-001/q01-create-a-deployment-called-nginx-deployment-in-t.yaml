@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: "Create a deployment called nginx-deployment in the namespace dev with 3 replicas and image nginx:latest"
+certifications:
+  ckad: application-design-build
+difficulty: medium
+namespace: dev
+tags: [deployments, namespaces, replicas]
+
+statement: |
+  In this task, you need to set up a basic web application deployment.
+
+  Create a deployment called `nginx-deployment` in the namespace `dev` with `3` replicas using the image `nginx:latest`.
+
+  Ensure that the namespace exists before creating the deployment. The deployment should maintain exactly 3 pods running at all times, and all pods should be using the specified nginx image version.
+
+setup: |
+  # Setup for Question 1: Create a deployment called nginx-deployment in namespace dev
+
+  # Create the namespace if it doesn't exist already
+  if kubectl get namespace dev &> /dev/null; then
+      kubectl delete namespace dev --ignore-not-found=true
+  fi
+
+  # Delete any existing deployment with the same name to ensure a clean state
+  kubectl delete deployment nginx-deployment -n dev --ignore-not-found=true
+
+  echo "Setup complete for Question 1: Environment ready for creating nginx deployment in namespace 'dev'"
+  exit 0
+
+checks:
+  - name: Namespace is created
+    run: |
+      #bin/bash
+
+      # Validate namespace if present then return 0 else return 1
+      kubectl get namespace dev
+      if [ $? -eq 0 ]; then
+          echo "Namespace dev is present"
+          exit 0
+      else
+          echo "Namespace dev is not present"
+          exit 1
+      fi
+  - name: Deployment is created
+    weight: 2
+    run: |
+      # Validate if the deployment 'nginx-deployment' exists in the 'dev' namespace
+      if kubectl get deployment nginx-deployment -n dev &> /dev/null; then
+          echo "Success: Deployment 'nginx-deployment' exists in namespace 'dev'"
+          exit 0
+      else
+          echo "Error: Deployment 'nginx-deployment' does not exist in namespace 'dev'"
+          exit 1
+      fi
+  - name: Deployment is is using correct image nginx
+    weight: 2
+    run: |
+      # Validate if the deployment 'nginx-deployment' in namespace 'dev' is using the correct image (nginx:latest)
+      IMAGE=$(kubectl get deployment nginx-deployment -n dev -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)
+
+      if [ "$IMAGE" = "nginx:latest" ]; then
+          echo "Success: Deployment 'nginx-deployment' is using the correct image 'nginx:latest'"
+          exit 0
+      else
+          echo "Error: Deployment 'nginx-deployment' is not using the correct image. Found: '$IMAGE', Expected: 'nginx:latest'"
+          exit 1
+      fi
+  - name: Deployment has 3 replicas
+    weight: 2
+    run: |
+      # Validate if the deployment 'nginx-deployment' in namespace 'dev' has 3 replicas
+      REPLICAS=$(kubectl get deployment nginx-deployment -n dev -o jsonpath='{.spec.replicas}' 2>/dev/null)
+
+      if [ "$REPLICAS" = "3" ]; then
+          echo "Success: Deployment 'nginx-deployment' has the correct number of replicas (3)"
+          exit 0
+      else
+          echo "Error: Deployment 'nginx-deployment' does not have the correct number of replicas. Found: '$REPLICAS', Expected: '3'"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    ```bash
+    # Create the namespace if it doesn't exist
+    kubectl create namespace dev
+
+    # Create the deployment with 3 replicas
+    kubectl create deployment nginx-deployment -n dev --image=nginx:latest --replicas=3
+    ```
+  run: |
+    # Create the namespace if it doesn't exist
+    kubectl create namespace dev
+
+    # Create the deployment with 3 replicas
+    kubectl create deployment nginx-deployment -n dev --image=nginx:latest --replicas=3

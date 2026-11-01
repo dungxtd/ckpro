@@ -1,0 +1,118 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Core Concepts
+certifications:
+  ckad: application-design-build
+difficulty: hard
+namespace: core-concepts
+tags: [core-concepts, pods, namespaces, labels]
+
+statement: |
+  Create a namespace called `core-concepts` and a pod with image `nginx` called `nginx-pod` in this namespace.
+
+  The pod should have the following labels: `app=web`, `env=prod`.
+
+setup: |
+  # Clean up any previous resources
+  kubectl delete namespace core-concepts --ignore-not-found=true
+
+  # Wait for namespace to be deleted
+  echo "Setting up environment for Question 1..."
+  sleep 2
+
+  echo "Environment ready for Question 1."
+
+checks:
+  - name: Namespace is created
+    run: |
+      # Validate that the core-concepts namespace exists
+      NS=$(kubectl get namespace core-concepts -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$NS" == "core-concepts" ]]; then
+          # Namespace exists
+          exit 0
+      else
+          # Namespace does not exist
+          echo "Namespace 'core-concepts' does not exist"
+          exit 1
+      fi
+  - name: Pod is created with correct name
+    weight: 2
+    run: |
+      # Validate that the nginx-pod exists in core-concepts namespace
+      POD=$(kubectl get pod nginx-pod -n core-concepts -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$POD" == "nginx-pod" ]]; then
+          # Pod exists with correct name
+          exit 0
+      else
+          # Pod does not exist or has a different name
+          echo "Pod 'nginx-pod' does not exist in namespace 'core-concepts'"
+          exit 1
+      fi
+  - name: Pod is using correct image
+    run: |
+      # Validate that the nginx-pod is using the nginx image
+      IMAGE=$(kubectl get pod nginx-pod -n core-concepts -o jsonpath='{.spec.containers[0].image}' 2>/dev/null)
+
+      if [[ "$IMAGE" == *"nginx"* ]]; then
+          # Pod is using the correct image
+          exit 0
+      else
+          # Pod is using a different image
+          echo "Pod 'nginx-pod' is not using the nginx image. Found: $IMAGE"
+          exit 1
+      fi
+  - name: Pod has correct labels
+    run: |
+      # Validate that the nginx-pod has the correct labels
+      APP_LABEL=$(kubectl get pod nginx-pod -n core-concepts -o jsonpath='{.metadata.labels.app}' 2>/dev/null)
+      ENV_LABEL=$(kubectl get pod nginx-pod -n core-concepts -o jsonpath='{.metadata.labels.env}' 2>/dev/null)
+
+      if [[ "$APP_LABEL" == "web" && "$ENV_LABEL" == "prod" ]]; then
+          # Pod has the correct labels
+          exit 0
+      else
+          # Pod has incorrect or missing labels
+          echo "Pod 'nginx-pod' does not have the correct labels. Found app=$APP_LABEL, env=$ENV_LABEL. Expected app=web, env=prod"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    Create a namespace and a pod with labels:
+
+    ```bash
+    # Create namespace
+    kubectl create namespace core-concepts
+
+    # Create pod with labels
+    kubectl run nginx-pod --image=nginx -n core-concepts --labels="app=web,env=prod"
+
+    # Or using YAML:
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: core-concepts
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: nginx-pod
+      namespace: core-concepts
+      labels:
+        app: web
+        env: prod
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+    EOF
+    ```
+  run: |
+    # Create namespace
+    kubectl create namespace core-concepts
+
+    # Create pod with labels
+    kubectl run nginx-pod --image=nginx -n core-concepts --labels="app=web,env=prod"
+

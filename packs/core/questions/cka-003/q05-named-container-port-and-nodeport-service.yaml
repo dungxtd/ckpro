@@ -1,0 +1,170 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Named Container Port and NodePort Service
+certifications:
+  cka: services-networking
+difficulty: hard
+namespace: default
+tags: [deployments, services, nodeport, named-ports]
+
+statement: |
+  Reconfigure the existing Deployment `front-end` (container `nginx`) to add a named container port called `http` exposing container port `80/tcp`.
+
+  Then create a new Service named `front-end-svc` which exposes this Deployment's Pods via the `http` container port, and additionally configure the Service so it is accessible via NodePort on every node in the cluster.
+
+setup: |
+  set -e
+
+  # Create namespace (default already exists, but keep it explicit/idempotent)
+  kubectl create namespace default --dry-run=client -o yaml | kubectl apply -f - || true
+
+  # Existing deployment with no container ports declared, to be reconfigured by the candidate
+  kubectl apply -f - <<EOF
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: front-end
+    namespace: default
+    labels:
+      app: front-end
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: front-end
+    template:
+      metadata:
+        labels:
+          app: front-end
+      spec:
+        containers:
+          - name: nginx
+            image: nginx:1.19
+  EOF
+
+  echo "Waiting for front-end deployment to be available..."
+  kubectl wait --for=condition=available --timeout=120s deployment/front-end -n default || {
+    echo "WARNING: front-end deployment did not become available in time, continuing anyway"
+  }
+
+checks:
+  - name: "front-end Deployment's nginx container has a port named 'http' = 80/TCP"
+    weight: 3
+    run: |
+      set -e
+
+      kubectl get deployment front-end -n default || {
+          echo "Deployment front-end not found in namespace default"
+          exit 1
+      }
+
+      PORT_NAME=$(kubectl get deployment front-end -n default -o jsonpath='{.spec.template.spec.containers[?(@.name=="nginx")].ports[?(@.containerPort==80)].name}')
+      if [[ "$PORT_NAME" != "http" ]]; then
+          echo "nginx container does not have a port named 'http' on 80/TCP (got name='$PORT_NAME')"
+          exit 1
+      fi
+
+      PROTOCOL=$(kubectl get deployment front-end -n default -o jsonpath='{.spec.template.spec.containers[?(@.name=="nginx")].ports[?(@.containerPort==80)].protocol}')
+      if [[ -n "$PROTOCOL" && "$PROTOCOL" != "TCP" ]]; then
+          echo "Port 80 protocol is not TCP (got '$PROTOCOL')"
+          exit 1
+      fi
+
+      echo "front-end container port validation successful"
+      exit 0
+  - name: Service front-end-svc is type NodePort, targets the 'http' port, and matches front-end pods
+    weight: 4
+    run: |
+      set -e
+
+      kubectl get service front-end-svc -n default || {
+          echo "Service front-end-svc not found in namespace default"
+          exit 1
+      }
+
+      SVC_TYPE=$(kubectl get service front-end-svc -n default -o jsonpath='{.spec.type}')
+      if [[ "$SVC_TYPE" != "NodePort" ]]; then
+          echo "Service type is not NodePort (got '$SVC_TYPE')"
+          exit 1
+      fi
+
+      TARGET_PORT=$(kubectl get service front-end-svc -n default -o jsonpath='{.spec.ports[0].targetPort}')
+      if [[ "$TARGET_PORT" != "http" ]]; then
+          echo "Service targetPort does not reference named port 'http' (got '$TARGET_PORT')"
+          exit 1
+      fi
+
+      SELECTOR_APP=$(kubectl get service front-end-svc -n default -o jsonpath='{.spec.selector.app}')
+      DEPLOY_LABEL=$(kubectl get deployment front-end -n default -o jsonpath='{.spec.template.metadata.labels.app}')
+      if [[ -z "$SELECTOR_APP" || "$SELECTOR_APP" != "$DEPLOY_LABEL" ]]; then
+          echo "Service selector does not match front-end pod labels (selector.app='$SELECTOR_APP', pod label app='$DEPLOY_LABEL')"
+          exit 1
+      fi
+
+      # Confirm the service actually has endpoints (selector really matches running pods)
+      ENDPOINT_COUNT=$(kubectl get endpoints front-end-svc -n default -o jsonpath='{.subsets[*].addresses[*].ip}' | wc -w)
+      if [[ "$ENDPOINT_COUNT" -lt 1 ]]; then
+          echo "Service front-end-svc has no endpoints - selector likely does not match any front-end pod"
+          exit 1
+      fi
+
+      echo "front-end-svc validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```bash
+    kubectl patch deployment front-end -n default --type='json' -p='[
+      {"op": "add", "path": "/spec/template/spec/containers/0/ports", "value": [{"name": "http", "containerPort": 80, "protocol": "TCP"}]}
+    ]'
+
+    kubectl expose deployment front-end -n default \
+      --name=front-end-svc \
+      --type=NodePort \
+      --port=80 \
+      --target-port=http
+    ```
+
+    Equivalent Service manifest:
+    ```yaml
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: front-end-svc
+      namespace: default
+    spec:
+      type: NodePort
+      selector:
+        app: front-end
+      ports:
+        - port: 80
+          targetPort: http
+    ```
+
+    ### Why this works
+    Naming a container port lets Services reference it symbolically via `targetPort: http` instead of a hard-coded number, which is more resilient to container spec changes. `type: NodePort` additionally opens a high port (30000-32767 by default) on every node, on top of the normal ClusterIP.
+  run: |
+    kubectl patch deployment front-end -n default --type='json' -p='[
+      {"op": "add", "path": "/spec/template/spec/containers/0/ports", "value": [{"name": "http", "containerPort": 80, "protocol": "TCP"}]}
+    ]'
+
+    kubectl expose deployment front-end -n default \
+      --name=front-end-svc \
+      --type=NodePort \
+      --port=80 \
+      --target-port=http
+
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: front-end-svc
+      namespace: default
+    spec:
+      type: NodePort
+      selector:
+        app: front-end
+      ports:
+        - port: 80
+          targetPort: http
+    MANIFEST

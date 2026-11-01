@@ -1,0 +1,250 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Custom Resource Definitions
+certifications:
+  ckad: application-environment-configuration-security
+difficulty: hard
+namespace: crd-demo
+tags: [custom-resource-definitions, api-extensions, custom-resources]
+
+statement: |
+  Create a Custom Resource Definition (CRD) for a simple application:
+
+  1. Create a CRD named `applications.training.ckad.io` with:
+     - Group: `training.ckad.io`
+     - Version: `v1`
+     - Kind: `Application`
+     - Scope: `Namespaced`
+     - Required fields: `spec.image` (string) and `spec.replicas` (integer)
+
+  2. After creating the CRD, create a custom resource in the `crd-demo` namespace named `my-app` with:
+     - Image: `nginx:1.19.0`
+     - Replicas: `3`
+
+  Ensure the namespace exists before creating the resources.
+
+setup: |
+  echo "Setup complete for Question 18"
+  exit 0
+
+checks:
+  - name: Namespace is created
+    run: |
+      # Check if the namespace exists
+      kubectl get namespace crd-demo &> /dev/null
+      if [[ $? -eq 0 ]]; then
+        echo "✅ Namespace 'crd-demo' exists"
+        exit 0
+      else
+        echo "❌ Namespace 'crd-demo' not found"
+        exit 1
+      fi
+  - name: CRD is created with correct configuration
+    weight: 3
+    run: |
+      # Check if the CRD exists
+      kubectl get crd applications.training.ckad.io &> /dev/null
+      if [[ $? -ne 0 ]]; then
+        echo "❌ CRD 'applications.training.ckad.io' not found"
+        exit 1
+      fi
+
+      # Check group
+      GROUP=$(kubectl get crd applications.training.ckad.io -o jsonpath='{.spec.group}')
+      if [[ "$GROUP" != "training.ckad.io" ]]; then
+        echo "❌ CRD has incorrect group. Expected 'training.ckad.io', got '$GROUP'"
+        exit 1
+      fi
+
+      # Check kind
+      KIND=$(kubectl get crd applications.training.ckad.io -o jsonpath='{.spec.names.kind}')
+      if [[ "$KIND" != "Application" ]]; then
+        echo "❌ CRD has incorrect kind. Expected 'Application', got '$KIND'"
+        exit 1
+      fi
+
+      # Check scope
+      SCOPE=$(kubectl get crd applications.training.ckad.io -o jsonpath='{.spec.scope}')
+      if [[ "$SCOPE" != "Namespaced" ]]; then
+        echo "❌ CRD has incorrect scope. Expected 'Namespaced', got '$SCOPE'"
+        exit 1
+      fi
+
+      # Check for required fields in schema
+      # This is a simple check - in a real scenario we would do more validation
+      SCHEMA=$(kubectl get crd applications.training.ckad.io -o jsonpath='{.spec.versions[*].schema.openAPIV3Schema.properties.spec.properties}')
+      if [[ "$SCHEMA" != *"image"* || "$SCHEMA" != *"replicas"* ]]; then
+        echo "❌ CRD schema should define 'image' and 'replicas' fields"
+        exit 1
+      fi
+
+      echo "✅ CRD 'applications.training.ckad.io' is configured correctly"
+      exit 0
+  - name: Custom resource is created with correct name
+    weight: 2
+    run: |
+      # Check if the CRD exists first (prerequisite)
+      kubectl get crd applications.training.ckad.io &> /dev/null
+      if [[ $? -ne 0 ]]; then
+        echo "❌ CRD 'applications.training.ckad.io' not found. Cannot validate custom resources."
+        exit 1
+      fi
+
+      # Check if the custom resource exists
+      kubectl get application my-app -n crd-demo &> /dev/null
+      if [[ $? -ne 0 ]]; then
+        echo "❌ Custom resource 'my-app' not found in namespace 'crd-demo'"
+        exit 1
+      fi
+
+      echo "✅ Custom resource 'my-app' exists with correct name"
+      exit 0
+  - name: Custom resource has correct image field
+    weight: 2
+    run: |
+      # Check if the custom resource exists first
+      kubectl get application my-app -n crd-demo &> /dev/null
+      if [[ $? -ne 0 ]]; then
+        echo "❌ Custom resource 'my-app' not found in namespace 'crd-demo'"
+        exit 1
+      fi
+
+      # Check if the image field is set correctly
+      IMAGE=$(kubectl get application my-app -n crd-demo -o jsonpath='{.spec.image}' 2>/dev/null)
+      if [[ "$IMAGE" != "nginx:1.19.0" ]]; then
+        echo "❌ Custom resource should have spec.image='nginx:1.19.0'. Current value: '$IMAGE'"
+        exit 1
+      fi
+
+      echo "✅ Custom resource has correct image field"
+      exit 0
+  - name: Custom resource has correct replicas field
+    weight: 2
+    run: |
+      # Check if the custom resource exists first
+      kubectl get application my-app -n crd-demo &> /dev/null
+      if [[ $? -ne 0 ]]; then
+        echo "❌ Custom resource 'my-app' not found in namespace 'crd-demo'"
+        exit 1
+      fi
+
+      # Check if the replicas field is set correctly
+      REPLICAS=$(kubectl get application my-app -n crd-demo -o jsonpath='{.spec.replicas}' 2>/dev/null)
+      if [[ "$REPLICAS" != "3" ]]; then
+        echo "❌ Custom resource should have spec.replicas=3. Current value: '$REPLICAS'"
+        exit 1
+      fi
+
+      echo "✅ Custom resource has correct replicas field"
+      exit 0
+
+solution:
+  explain: |
+    Create a CRD and a custom resource:
+
+    ```bash
+    # Create namespace
+    kubectl create namespace crd-demo
+
+    # Create the Custom Resource Definition (CRD)
+    cat <<EOF | kubectl apply -f -
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: applications.training.ckad.io
+    spec:
+      group: training.ckad.io
+      names:
+        kind: Application
+        plural: applications
+        singular: application
+        shortNames:
+        - app
+      scope: Namespaced
+      versions:
+      - name: v1
+        served: true
+        storage: true
+        schema:
+          openAPIV3Schema:
+            type: object
+            properties:
+              spec:
+                type: object
+                required: ["image", "replicas"]
+                properties:
+                  image:
+                    type: string
+                  replicas:
+                    type: integer
+                    minimum: 1
+    EOF
+
+    # Create the Custom Resource
+    cat <<EOF | kubectl apply -f -
+    apiVersion: training.ckad.io/v1
+    kind: Application
+    metadata:
+      name: my-app
+      namespace: crd-demo
+    spec:
+      image: nginx:1.19.0
+      replicas: 3
+    EOF
+
+    # Verify the resources
+    kubectl get crd applications.training.ckad.io
+    kubectl get application -n crd-demo
+    ```
+  run: |
+    # Create namespace
+    kubectl create namespace crd-demo
+
+    # Create the Custom Resource Definition (CRD)
+    cat <<EOF | kubectl apply -f -
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: applications.training.ckad.io
+    spec:
+      group: training.ckad.io
+      names:
+        kind: Application
+        plural: applications
+        singular: application
+        shortNames:
+        - app
+      scope: Namespaced
+      versions:
+      - name: v1
+        served: true
+        storage: true
+        schema:
+          openAPIV3Schema:
+            type: object
+            properties:
+              spec:
+                type: object
+                required: ["image", "replicas"]
+                properties:
+                  image:
+                    type: string
+                  replicas:
+                    type: integer
+                    minimum: 1
+    EOF
+
+    # Create the Custom Resource
+    cat <<EOF | kubectl apply -f -
+    apiVersion: training.ckad.io/v1
+    kind: Application
+    metadata:
+      name: my-app
+      namespace: crd-demo
+    spec:
+      image: nginx:1.19.0
+      replicas: 3
+    EOF
+
+    # Verify the resources
+    kubectl get crd applications.training.ckad.io
+    kubectl get application -n crd-demo

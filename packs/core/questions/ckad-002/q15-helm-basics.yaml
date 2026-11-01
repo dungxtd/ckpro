@@ -1,0 +1,135 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: "- Helm Basics"
+certifications:
+  ckad: application-deployment
+difficulty: hard
+namespace: helm-basics
+tags: [helm, package-management, kubernetes-applications]
+
+statement: |
+  Perform basic Helm operations:
+
+  1. Create a namespace named `helm-basics`
+  2. Add the Bitnami repository to Helm with the name `bitnami`
+  3. Install the `nginx` chart from the Bitnami repository in the `helm-basics` namespace with the release name `nginx-release`
+  4. Save the release notes of the installation to a file at `/tmp/release-notes.txt`
+
+setup: |
+  # Check if Helm is installed
+  if ! command -v helm &> /dev/null; then
+    echo "Helm is not available, skipping setup"
+    exit 0
+  fi
+
+  # Clean up any existing resources
+  kubectl delete namespace helm-basics --ignore-not-found=true
+
+
+  echo "Setup complete for Question 15"
+  exit 0
+
+checks:
+  - name: Namespace is created
+    run: |
+      # Check if the namespace exists
+      kubectl get namespace helm-basics &> /dev/null
+      if [[ $? -eq 0 ]]; then
+        echo "✅ Namespace 'helm-basics' exists"
+        exit 0
+      else
+        echo "❌ Namespace 'helm-basics' not found"
+        exit 1
+      fi
+  - name: Helm chart is installed correctly
+    weight: 3
+    run: |
+      # Check if Helm is installed
+      if ! command -v helm &> /dev/null; then
+        echo "❌ Helm is not available on this system"
+        exit 1
+      fi
+
+      # Check if Bitnami repository is added
+      REPO_EXISTS=$(helm repo list | grep bitnami | wc -l)
+      if [[ "$REPO_EXISTS" -eq 0 ]]; then
+        echo "❌ Bitnami repository is not added to Helm"
+        exit 1
+      fi
+
+      # Check if the nginx chart is installed
+      RELEASE_EXISTS=$(helm list -n helm-basics | grep nginx-release | wc -l)
+      if [[ "$RELEASE_EXISTS" -eq 0 ]]; then
+        echo "❌ nginx chart is not installed in the 'helm-basics' namespace"
+        exit 1
+      fi
+
+      # Check if pods related to the release are running
+      PODS_RUNNING=$(kubectl get pods -n helm-basics -l app.kubernetes.io/instance=nginx-release | grep Running | wc -l)
+      if [[ "$PODS_RUNNING" -eq 0 ]]; then
+        echo "❌ No pods from the nginx release are running"
+        exit 1
+      fi
+
+      echo "✅ Helm chart 'nginx' is installed correctly in the 'helm-basics' namespace"
+      exit 0
+  - name: Release notes are saved to file
+    weight: 2
+    run: |
+      # Check if the release notes file exists
+      if [[ ! -f "/tmp/release-notes.txt" ]]; then
+        echo "❌ File '/tmp/release-notes.txt' not found"
+        exit 1
+      fi
+
+      # Check if the file has content
+      if [[ ! -s "/tmp/release-notes.txt" ]]; then
+        echo "❌ Release notes file is empty"
+        exit 1
+      fi
+
+      # Check if the file actually contains release notes
+      if ! grep -q "RELEASE NOTES" /tmp/release-notes.txt && ! grep -q "Bitnami" /tmp/release-notes.txt && ! grep -q "nginx" /tmp/release-notes.txt; then
+        echo "❌ File does not appear to contain Helm release notes"
+        exit 1
+      fi
+
+      echo "✅ Release notes are saved correctly to /tmp/release-notes.txt"
+      exit 0
+
+solution:
+  explain: |
+    The task is to perform basic Helm operations including creating a namespace, adding a repository, installing a chart, and saving release notes.
+
+    ```bash
+    # Step 1: Create the namespace
+    kubectl create namespace helm-basics
+
+    # Step 2: Add the Bitnami repository
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+    helm repo update
+
+    # Step 3: Install the nginx chart
+    helm install nginx-release bitnami/nginx --namespace helm-basics
+
+    # Step 4: Save the release notes to a file
+    helm get notes nginx-release --namespace helm-basics > /tmp/release-notes.txt
+    ```
+
+    These commands:
+    1. Create a namespace called `helm-basics`
+    2. Add the Bitnami Helm chart repository and update it to get the latest charts
+    3. Install the nginx chart from Bitnami in the helm-basics namespace with the release name "nginx-release"
+    4. Save the release notes to /tmp/release-notes.txt using the `helm get notes` command
+  run: |
+    # Step 1: Create the namespace
+    kubectl create namespace helm-basics
+
+    # Step 2: Add the Bitnami repository
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+    helm repo update
+
+    # Step 3: Install the nginx chart
+    helm install nginx-release bitnami/nginx --namespace helm-basics
+
+    # Step 4: Save the release notes to a file
+    helm get notes nginx-release --namespace helm-basics > /tmp/release-notes.txt
