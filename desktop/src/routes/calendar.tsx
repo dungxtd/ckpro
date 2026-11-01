@@ -180,28 +180,29 @@ export function CalendarRoute() {
 							{run} day{run === 1 ? "" : "s"} in a row
 						</span>
 					)}
-					<SegmentedControl
-						label="View"
-						value={view}
-						onChange={v => go({ view: v as View })}
-						options={VIEWS}
-					/>
-					{/* Where the calendar is and its arrows, kept together on one line */}
-					<span className="ml-2 flex items-center gap-2">
-						<span className="whitespace-nowrap font-semibold text-lead">{title}</span>
-						<IconButton variant="toolbar" size="sm" aria-label="Back" onClick={() => shift(-1)}>
-							<ChevronLeft />
-						</IconButton>
-						<Button size="push" variant="push" onClick={() => go({ day: today })}>
-							Today
-						</Button>
-						<IconButton variant="toolbar" size="sm" aria-label="Forward" onClick={() => shift(1)}>
-							<ChevronRight />
-						</IconButton>
-					</span>
 				</div>
 			}
 		>
+			{/* The toolbar on a line of its own, so a longer title moves nothing: where
+			    the calendar is on the left, the view on the right */}
+			<div className="-mt-2 flex items-center gap-2">
+				<IconButton variant="toolbar" size="sm" aria-label="Back" onClick={() => shift(-1)}>
+					<ChevronLeft />
+				</IconButton>
+				<Button size="push" variant="push" onClick={() => go({ day: today })}>
+					Today
+				</Button>
+				<IconButton variant="toolbar" size="sm" aria-label="Forward" onClick={() => shift(1)}>
+					<ChevronRight />
+				</IconButton>
+				<h2 className="ml-2 flex-1 truncate font-semibold text-lead">{title}</h2>
+				<SegmentedControl
+					label="View"
+					value={view}
+					onChange={v => go({ view: v as View })}
+					options={VIEWS}
+				/>
+			</div>
 			<StatGroup>
 				{view === "day" ? (
 					<>

@@ -104,7 +104,8 @@ function Layout() {
 				/>
 				<main
 					ref={main}
-					className="min-h-0 flex-1 overflow-auto"
+					// Room kept for the scrollbar: a screen that grows past the window does not shift
+					className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]"
 					onScroll={e => setScrolled(e.currentTarget.scrollTop > 48)}
 				>
 					{/* Each screen fades in as it opens */}

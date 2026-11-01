@@ -30,8 +30,8 @@ export interface GridActions {
 /**
  * The month as a grid of weeks, or one week of it grown (the other weeks
  * folding away): each day with its attempts (score, green when passed) and
- * its open plans, dragged by their grip to another day. + adds a plan
- * (Month: on the day, on hover; Week: under the day); a click elsewhere
+ * its open plans, dragged by their grip to another day. + on the day (on
+ * hover) adds a plan; a click elsewhere
  * opens the day; resting on a day describes it as kubectl would. The exam
  * day is flagged
  */
@@ -59,18 +59,19 @@ export function Grid({
 	const timer = useRef<number>(0);
 	const grown = week && dayKey(week);
 	// The month fills the window's height: as many things a day as its row holds
+	// (from the frame, whose six rows share it under the weekday names: a
+	// week's own height is the grown one's in Week, or folding between)
 	const frame = useRef<HTMLDivElement>(null);
-	const [rowHeight, setRowHeight] = useState(112);
+	const names = useRef<HTMLDivElement>(null);
+	const [frameHeight, setFrameHeight] = useState(0);
 	useEffect(() => {
 		const element = frame.current;
 		if (!element) return;
-		const watch = new ResizeObserver(() => {
-			const row = element.querySelector<HTMLElement>("[data-week]");
-			if (row) setRowHeight(row.getBoundingClientRect().height);
-		});
+		const watch = new ResizeObserver(([entry]) => setFrameHeight(entry.contentRect.height));
 		watch.observe(element);
 		return () => watch.disconnect();
 	}, []);
+	const rowHeight = frameHeight ? (frameHeight - (names.current?.offsetHeight || 33)) / 6 : 112;
 	const fits = Math.floor((rowHeight - DAY_HEAD) / DAY_ITEM);
 	const fitsWithMore = Math.max(0, Math.floor((rowHeight - DAY_HEAD - DAY_MORE) / DAY_ITEM));
 	const rest = (e: React.MouseEvent<HTMLElement>, day: string) => {
@@ -88,10 +89,11 @@ export function Grid({
 		// biome-ignore lint/a11y/noStaticElementInteractions: a hover detail, not an action
 		<div
 			ref={frame}
-			className="relative flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card"
+			// Back from the day it comes in as the day did (the month and the week fold instead)
+			className="relative flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card fade-in-0 zoom-in-[0.98] animate-in duration-300 ease-out motion-reduce:animate-none"
 			onMouseLeave={leave}
 		>
-			<div className={cn("grid grid-cols-7 border-border border-b", week && "hidden")}>
+			<div ref={names} className={cn("grid grid-cols-7 border-border border-b", week && "hidden")}>
 				{WEEKDAYS.map(d => (
 					<div key={d} className="px-2 py-1.5 text-caption text-muted-foreground">
 						{d}
@@ -118,7 +120,6 @@ export function Grid({
 									)
 						)}
 						inert={folded}
-						data-week={folded ? undefined : true}
 					>
 						<div className="grid h-full min-h-0 grid-cols-7 overflow-hidden">
 							{days.map(day => {
@@ -182,26 +183,21 @@ export function Grid({
 												)}
 												{day.getDate()}
 											</span>
-											{!week && (
-												<ExamPicker
-													label={`Plan an exam, ${k}`}
-													onPick={id => actions.onAdd(k, id)}
+											<ExamPicker label={`Plan an exam, ${k}`} onPick={id => actions.onAdd(k, id)}>
+												<button
+													type="button"
+													aria-label={`Plan an exam on ${k}`}
+													onClick={e => e.stopPropagation()}
+													className="grid size-6 place-items-center rounded-md bg-foreground/10 opacity-0 outline-none hover:bg-highlight hover:text-highlight-foreground focus-visible:opacity-100 group-hover/day:opacity-100 data-[state=open]:opacity-100 [&_svg]:size-3.5"
 												>
-													<button
-														type="button"
-														aria-label={`Plan an exam on ${k}`}
-														onClick={e => e.stopPropagation()}
-														className="grid size-6 place-items-center rounded-md bg-foreground/10 opacity-0 outline-none hover:bg-highlight hover:text-highlight-foreground focus-visible:opacity-100 group-hover/day:opacity-100 data-[state=open]:opacity-100 [&_svg]:size-3.5"
-													>
-														<Plus />
-													</button>
-												</ExamPicker>
-											)}
+													<Plus />
+												</button>
+											</ExamPicker>
 										</div>
 										{k === exam?.date && (
 											<span
 												className={cn(
-													"mt-1 flex items-center gap-1 truncate rounded-md bg-highlight px-1.5 py-0.5 font-semibold text-highlight-foreground [&_svg]:size-3 [&_svg]:shrink-0",
+													"mt-1 flex shrink-0 items-center gap-1 truncate rounded-md bg-highlight px-1.5 py-0.5 font-semibold text-highlight-foreground [&_svg]:size-3 [&_svg]:shrink-0",
 													week ? "text-callout" : "text-2xs"
 												)}
 											>
@@ -213,7 +209,7 @@ export function Grid({
 											<span
 												key={h.attempt_id}
 												className={cn(
-													"mt-1 truncate rounded-md px-1.5 py-0.5",
+													"mt-1 shrink-0 truncate rounded-md px-1.5 py-0.5",
 													week ? "text-callout" : "text-2xs",
 													scoreOf(h) >= h.pass_score
 														? "bg-success/15 text-success"
@@ -230,7 +226,7 @@ export function Grid({
 												onClick={e => e.stopPropagation()}
 												onKeyDown={e => e.stopPropagation()}
 												className={cn(
-													"group/plan mt-1 flex min-w-0 items-center gap-1 overflow-hidden rounded-md py-0.5 pr-1 pl-0.5 ring-1 ring-inset",
+													"group/plan mt-1 flex min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-md py-0.5 pr-1 pl-0.5 ring-1 ring-inset",
 													week ? "text-callout" : "text-2xs",
 													// A day gone by without it: missed
 													p.day < today
@@ -280,20 +276,9 @@ export function Grid({
 											</div>
 										))}
 										{total > room && (
-											<span className="mt-1 px-1.5 text-2xs text-muted-foreground">
+											<span className="mt-1 shrink-0 px-1.5 text-2xs text-muted-foreground">
 												+{total - room} more
 											</span>
-										)}
-										{week && (
-											<ExamPicker label={`Plan an exam, ${k}`} onPick={id => actions.onAdd(k, id)}>
-												<button
-													type="button"
-													onClick={e => e.stopPropagation()}
-													className="mt-1.5 w-full rounded-md border border-border border-dashed px-2 py-1 text-caption text-muted-foreground outline-none hover:border-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-												>
-													+ Add
-												</button>
-											</ExamPicker>
 										)}
 									</div>
 								);
