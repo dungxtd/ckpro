@@ -1,24 +1,38 @@
 import { addDays, dayKey, monday, streak } from "@/days";
-import type { ExamReadiness, HistoryEntry } from "@/tauri/api";
+import type { ExamReadiness, ExamSummary, HistoryEntry } from "@/tauri/api";
 
 /** When an attempt started (Unix ms), and its score */
 export const startedAt = (h: HistoryEntry): number => h.result.started_at ?? 0;
 export const scoreOf = (h: HistoryEntry): number => h.result.score ?? 0;
+/** An attempt ended before earning a point says nothing about the candidate:
+ * it stays in History, and the study figures leave it out (as Rust does) */
+export const worked = (h: HistoryEntry): boolean => scoreOf(h) > 0;
 
-/** Each day's best score, by YYYY-MM-DD */
+/** The weight of the exam that must be measured before a score is predicted */
+export const PREDICT_COVERAGE = 70;
+/** The predicted score, once enough of the exam is measured to mean something */
+export const predicted = (readiness: ExamReadiness | null): number | null =>
+	readiness && readiness.coverage >= PREDICT_COVERAGE ? (readiness.predicted ?? null) : null;
+
+/** Each day's best score, by YYYY-MM-DD (worked attempts only) */
 export function bestByDay(history: HistoryEntry[]): Map<string, number> {
 	const best = new Map<string, number>();
-	for (const h of history) {
+	for (const h of history.filter(worked)) {
 		const day = dayKey(new Date(startedAt(h)));
 		best.set(day, Math.max(best.get(day) ?? -1, scoreOf(h)));
 	}
 	return best;
 }
 
-/** The prep map's columns: Monday-first weeks from `start`'s week to `end`'s */
+/** The fewest weeks the prep map shows, so a new preparation is not two lone columns */
+export const MAP_WEEKS = 12;
+
+/** The prep map's columns: Monday-first weeks from `start`'s week to `end`'s,
+ * at least MAP_WEEKS of them (reaching back before `start`) */
 export function mapWeeks(start: Date, end: Date): Date[][] {
 	const weeks: Date[][] = [];
-	for (let day = monday(start); day <= end; day = addDays(day, 7))
+	const earliest = addDays(monday(end), -7 * (MAP_WEEKS - 1));
+	for (let day = monday(start < earliest ? start : earliest); day <= end; day = addDays(day, 7))
 		weeks.push(Array.from({ length: 7 }, (_, i) => addDays(day, i)));
 	return weeks;
 }
@@ -30,8 +44,9 @@ export function level(score: number | undefined, pass: number): 0 | 1 | 2 | 3 | 
 	return score < 75 ? 2 : score < 88 ? 3 : 4;
 }
 
-/** The figures beside the map */
-export function studyFigures(history: HistoryEntry[], today: Date) {
+/** The figures beside the map (worked attempts only) */
+export function studyFigures(all: HistoryEntry[], today: Date) {
+	const history = all.filter(worked);
 	const days = new Set(history.map(h => dayKey(new Date(startedAt(h)))));
 	const weeks = new Set([...days].map(d => dayKey(monday(new Date(`${d}T00:00`)))));
 	return {
@@ -43,8 +58,9 @@ export function studyFigures(history: HistoryEntry[], today: Date) {
 }
 
 /** A stretch of days (a week by default) in a few figures: days studied,
- * attempts, the best, exams passed for the first time */
-export function weekRecap(history: HistoryEntry[], weekStart: Date, length = 7) {
+ * attempts, the best, exams passed for the first time (worked attempts only) */
+export function weekRecap(all: HistoryEntry[], weekStart: Date, length = 7) {
+	const history = all.filter(worked);
 	const from = weekStart.getTime();
 	const to = addDays(weekStart, length).getTime();
 	const before = history.filter(h => startedAt(h) < from);
@@ -80,14 +96,32 @@ export interface Event {
 	message: string;
 }
 
+const named = (domain: string) => domain.replaceAll("-", " ");
+/** Names in a short line: the first two, then how many more */
+const listed = (names: string[]) =>
+	names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2} more` : names.join(", ");
+
 /**
- * What stands out, as kubectl lists events: the latest attempt beating the
- * exam's best so far, and the domains under the pass line
+ * What stands out, as kubectl lists events: the latest attempts ending
+ * before any point, the latest one beating the exam's best so far, the
+ * domains under the pass line (in one line) and those not measured yet
  */
 export function events(history: HistoryEntry[], readiness: ExamReadiness | null): Event[] {
 	const out: Event[] = [];
-	const [latest, ...older] = [...history].sort((a, b) => startedAt(b) - startedAt(a));
-	if (latest) {
+	const sorted = [...history].sort((a, b) => startedAt(b) - startedAt(a));
+	const unscored = sorted.findIndex(worked);
+	const ended = unscored === -1 ? sorted.length : unscored;
+	if (ended > 0)
+		out.push({
+			type: "Warning",
+			reason: "NoPoints",
+			message:
+				ended === 1
+					? "the last attempt ended before any point"
+					: `the last ${ended} attempts ended before any point`,
+		});
+	const [latest, ...older] = sorted.filter(worked);
+	if (latest && latest === sorted[0]) {
 		const before = older.filter(h => h.exam_id === latest.exam_id).map(h => scoreOf(h));
 		if (before.length && scoreOf(latest) > Math.max(...before))
 			out.push({
@@ -96,17 +130,51 @@ export function events(history: HistoryEntry[], readiness: ExamReadiness | null)
 				message: `${latest.title} ${Math.round(scoreOf(latest))}% (was ${Math.round(Math.max(...before))}%)`,
 			});
 	}
-	for (const d of readiness?.domains ?? []) {
-		if (!d.max_points) continue;
-		const percent = (d.points * 100) / d.max_points;
-		if (percent < (readiness?.pass_score ?? 66))
-			out.push({
-				type: "Warning",
-				reason: "BelowPass",
-				message: `${d.domain} ${Math.round(percent)}%`,
-			});
-	}
+	const domains = readiness?.domains ?? [];
+	const pass = readiness?.pass_score ?? 66;
+	const measured = domains.filter(d => d.max_points > 0);
+	const below = measured
+		.map(d => ({ d, percent: (d.points * 100) / d.max_points }))
+		.filter(x => x.percent < pass);
+	if (below.length)
+		out.push({
+			type: "Warning",
+			reason: "BelowPass",
+			message: `${below.length} domain${below.length === 1 ? "" : "s"} under ${pass}%: ${listed(below.map(x => `${named(x.d.domain)} ${Math.round(x.percent)}%`))}`,
+		});
+	const untested = domains.filter(d => !d.max_points);
+	if (measured.length && untested.length)
+		out.push({
+			type: "Normal",
+			reason: "NotMeasured",
+			message: `${untested.length} domain${untested.length === 1 ? "" : "s"} not measured yet`,
+		});
 	return out;
+}
+
+/**
+ * What to practise when nothing is planned, by rule: an exam of the
+ * certification not worked yet (in the catalog's order), else the one with
+ * the lowest best score
+ */
+export function suggestion(
+	exams: ExamSummary[],
+	history: HistoryEntry[],
+	certification: string | null
+): { exam: ExamSummary; reason: string } | null {
+	const own = exams.filter(e => !certification || e.certification === certification);
+	const best = new Map<string, number>();
+	for (const h of history.filter(worked))
+		best.set(h.exam_id, Math.max(best.get(h.exam_id) ?? 0, scoreOf(h)));
+	const fresh = own.find(e => !best.has(e.id));
+	if (fresh) return { exam: fresh, reason: "not tried yet" };
+	const lowest = own.reduce<ExamSummary | null>(
+		(low, e) => (!low || (best.get(e.id) ?? 0) < (best.get(low.id) ?? 0) ? e : low),
+		null
+	);
+	return (
+		lowest && { exam: lowest, reason: `your lowest best, ${Math.round(best.get(lowest.id) ?? 0)}%` }
+	);
 }
 
 /** Whole days from `today` to a YYYY-MM-DD day (0 on the day) */

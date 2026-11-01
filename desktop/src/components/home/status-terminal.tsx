@@ -1,14 +1,14 @@
 import { Button } from "@ckdry/ui/components/button";
 import { Terminal } from "@ckdry/ui/components/terminal";
-import type { Event } from "@/components/study/data";
+import { type Event, predicted } from "@/components/study/data";
 import type { ExamReadiness, ExamTarget } from "@/tauri/api";
 
 const pad = (s: string | number, n: number) => String(s).padEnd(n, " ");
 
 /**
  * Where the preparation stands, as `kubectl get` would print it: the exam
- * aimed at, its day, the predicted score against the pass line, and the
- * events that stand out. Without a target, how to set one
+ * aimed at, its day, the predicted score against the pass line (once enough
+ * is measured), and the events that stand out. Without a target, how to set one
  */
 export function StatusTerminal({
 	target,
@@ -23,9 +23,16 @@ export function StatusTerminal({
 	events: Event[];
 	onChangeTarget: () => void;
 }) {
-	const predicted = readiness?.predicted;
+	const score = predicted(readiness);
 	const pass = readiness?.pass_score ?? 66;
-	const status = predicted == null ? "NoResults" : predicted >= pass ? "OnTrack" : "BelowPass";
+	const status =
+		score === null
+			? readiness?.coverage
+				? "Measuring"
+				: "NoResults"
+			: score >= pass
+				? "OnTrack"
+				: "BelowPass";
 	return (
 		<div className="flex flex-col gap-3">
 			<Terminal className="flex-1">
@@ -35,9 +42,7 @@ export function StatusTerminal({
 					<>
 						{`${pad("NAME", 7)}${pad("DATE", 12)}${pad("DAYS", 6)}${pad("PREDICTED", 11)}${pad("PASS", 6)}STATUS\n`}
 						{`${pad(target.certification, 7)}${pad(target.date, 12)}${pad(days ?? "", 6)}`}
-						<Terminal.Ok>
-							{pad(predicted == null ? "-" : `${Math.round(predicted)}%`, 11)}
-						</Terminal.Ok>
+						<Terminal.Ok>{pad(score === null ? "-" : `${Math.round(score)}%`, 11)}</Terminal.Ok>
 						{pad(`${pass}%`, 6)}
 						{status === "OnTrack" ? (
 							<Terminal.Ok>{status}</Terminal.Ok>
@@ -63,7 +68,7 @@ export function StatusTerminal({
 							) : (
 								<Terminal.Warn>{pad(e.type, 9)}</Terminal.Warn>
 							)}
-							{`${pad(e.reason, 11)}${e.message}\n`}
+							{`${pad(e.reason, 13)}${e.message}\n`}
 						</span>
 					))
 				)}

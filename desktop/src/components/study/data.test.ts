@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { dayKey } from "@/days";
-import type { ExamReadiness, HistoryEntry } from "@/tauri/api";
+import type { ExamReadiness, ExamSummary, HistoryEntry } from "@/tauri/api";
 import {
 	bestByDay,
 	daysUntil,
 	events,
 	level,
+	MAP_WEEKS,
 	mapWeeks,
+	predicted,
 	studyFigures,
+	suggestion,
 	weakest,
 	weekRecap,
 } from "./data";
@@ -63,10 +66,16 @@ describe("home figures", () => {
 	});
 
 	it("lays the map out in Monday-first weeks to the end's week", () => {
-		const weeks = mapWeeks(new Date(2026, 9, 6), new Date(2026, 11, 15));
-		expect(dayKey(weeks[0][0])).toBe("2026-10-05");
+		const weeks = mapWeeks(new Date(2026, 8, 9), new Date(2026, 11, 15));
+		expect(dayKey(weeks[0][0])).toBe("2026-09-07");
 		expect(dayKey(weeks.at(-1)?.[0] as Date)).toBe("2026-12-14");
 		expect(weeks.every(w => w.length === 7)).toBe(true);
+	});
+
+	it("shows a few weeks at least, reaching back before a new start", () => {
+		const weeks = mapWeeks(new Date(2026, 9, 28), new Date(2026, 10, 1));
+		expect(weeks).toHaveLength(MAP_WEEKS);
+		expect(dayKey(weeks.at(-1)?.[0] as Date)).toBe("2026-10-26");
 	});
 
 	it("draws a score below the pass line apart from passing ones", () => {
@@ -103,11 +112,50 @@ describe("home figures", () => {
 		expect(weakest(null)).toBeNull();
 	});
 
-	it("lists a new best and the domains below the pass line", () => {
+	it("lists a new best, the domains below the pass line and those not measured", () => {
 		expect(events(history, readiness)).toEqual([
 			{ type: "Normal", reason: "NewBest", message: "Core 94% (was 72%)" },
-			{ type: "Warning", reason: "BelowPass", message: "storage 40%" },
+			{ type: "Warning", reason: "BelowPass", message: "1 domain under 66%: storage 40%" },
+			{ type: "Normal", reason: "NotMeasured", message: "1 domain not measured yet" },
 		]);
+	});
+
+	it("leaves out attempts ended before any point, and says so", () => {
+		const ended = [attempt("6", "core", 31, 0, "Core"), attempt("7", "core", 31, 0, "Core")];
+		const all = [...ended, ...history];
+		expect(studyFigures(all, new Date(2026, 9, 31)).attempts).toBe(5);
+		expect(bestByDay(all).has(dayKey(new Date(at(31))))).toBe(false);
+		expect(weekRecap(ended, new Date(2026, 9, 26))).toEqual({
+			days: 0,
+			attempts: 0,
+			best: null,
+			firstPasses: [],
+		});
+		expect(events(all, null)).toEqual([
+			{
+				type: "Warning",
+				reason: "NoPoints",
+				message: "the last 2 attempts ended before any point",
+			},
+		]);
+	});
+
+	it("predicts a score only once most of the exam is measured", () => {
+		expect(predicted(readiness)).toBeNull();
+		expect(predicted({ ...readiness, coverage: 75 })).toBe(70);
+		expect(predicted(null)).toBeNull();
+	});
+
+	it("suggests an exam not tried yet, else the lowest best", () => {
+		const exam = (id: string, certification = "cka") => ({ id, certification }) as ExamSummary;
+		const exams = [exam("core"), exam("helm"), exam("lab"), exam("app", "ckad")];
+		expect(suggestion(exams, history, "ckad")?.exam.id).toBe("app");
+		expect(suggestion(exams, history, "cka")).toEqual({
+			exam: exams[2],
+			reason: "your lowest best, 61%",
+		});
+		expect(suggestion([...exams, exam("new")], history, "cka")?.reason).toBe("not tried yet");
+		expect(suggestion([], history, null)).toBeNull();
 	});
 
 	it("counts the days to the exam", () => {

@@ -25,6 +25,7 @@ import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Input } from "@ckdry/ui/components/input";
 import { Loading } from "@ckdry/ui/components/loading";
 import { menu, menuRow } from "@ckdry/ui/components/menu";
+import { Placeholder } from "@ckdry/ui/components/placeholder";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
 import { Progress } from "@ckdry/ui/components/progress";
 import { Range } from "@ckdry/ui/components/range";
@@ -539,6 +540,29 @@ function Gallery() {
 							<CapsuleItem>Settings</CapsuleItem>
 						</Capsule>
 					</Row>
+				</Section>
+
+				<Section
+					title="Placeholder"
+					note="What a surface will show, faded, while it has nothing yet: a line and an action over it."
+				>
+					<Card padding="lg">
+						<Placeholder
+							sample={
+								<StatGroup>
+									<Stat value={12} label="days studied" />
+									<Stat value="78%" label="best" />
+								</StatGroup>
+							}
+							title="Your study days show here"
+							description="Each day tinted by its best score"
+							action={
+								<Button size="push" variant="push">
+									Plan the week
+								</Button>
+							}
+						/>
+					</Card>
 				</Section>
 
 				<Section

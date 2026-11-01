@@ -20,10 +20,15 @@ export function Recap({
 }) {
 	const navigate = useNavigate();
 	const items = [
-		<>
-			<b>{recap.days}</b> day{recap.days === 1 ? "" : "s"} studied, <b>{recap.attempts}</b> attempt
-			{recap.attempts === 1 ? "" : "s"}
-		</>,
+		recap.days ? (
+			<>
+				<b>{recap.days}</b> day{recap.days === 1 ? "" : "s"} studied, <b>{recap.attempts}</b>{" "}
+				attempt
+				{recap.attempts === 1 ? "" : "s"}
+			</>
+		) : (
+			"nothing studied yet"
+		),
 		recap.best && (
 			<>
 				best <b>{Math.round(recap.best.score)}%</b> ({shortTitle(recap.best.title)})

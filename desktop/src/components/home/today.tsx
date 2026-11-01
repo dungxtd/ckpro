@@ -3,15 +3,25 @@ import { Card } from "@ckdry/ui/components/card";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Check, Play } from "lucide-react";
 import { useNavigate } from "react-router";
+import type { suggestion } from "@/components/study/data";
 import { useExam } from "@/stores/exam";
 import type { PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 
 /**
  * Today's session: the exams planned for today, done ones ticked with their
- * score; Continue starts the next one. Nothing planned: a way to plan today
+ * score; Continue starts the next one. Nothing planned: an exam to practise
+ * (by rule), and a way to plan today
  */
-export function Today({ plans, today }: { plans: PlanView[]; today: string }) {
+export function Today({
+	plans,
+	today,
+	suggested,
+}: {
+	plans: PlanView[];
+	today: string;
+	suggested: ReturnType<typeof suggestion>;
+}) {
 	const start = useExam(s => s.start);
 	const navigate = useNavigate();
 	const done = plans.filter(p => p.done !== null).length;
@@ -20,14 +30,16 @@ export function Today({ plans, today }: { plans: PlanView[]; today: string }) {
 	return (
 		<Card padding="lg" className="flex flex-col gap-3">
 			<div className="flex items-center gap-4">
-				<div
-					className="grid size-20 shrink-0 place-items-center rounded-full"
-					style={{ background: `conic-gradient(var(--success) 0 ${share}%, var(--muted) 0)` }}
-				>
-					<div className="grid size-16 place-items-center rounded-full bg-card font-bold text-lg tabular-nums">
-						{done}/{plans.length}
+				{plans.length > 0 && (
+					<div
+						className="grid size-20 shrink-0 place-items-center rounded-full"
+						style={{ background: `conic-gradient(var(--success) 0 ${share}%, var(--muted) 0)` }}
+					>
+						<div className="grid size-16 place-items-center rounded-full bg-card font-bold text-lg tabular-nums">
+							{done}/{plans.length}
+						</div>
 					</div>
-				</div>
+				)}
 				<div className="min-w-0 flex-1">
 					<div className="font-semibold text-lead">Today</div>
 					<div className="text-caption text-muted-foreground">
@@ -51,6 +63,19 @@ export function Today({ plans, today }: { plans: PlanView[]; today: string }) {
 					)}
 				</div>
 			</div>
+			{!plans.length && suggested && (
+				<Card variant="dashed" padding="sm" className="flex items-center gap-3">
+					<div className="min-w-0 flex-1">
+						<div className="truncate font-semibold text-callout">
+							{shortTitle(suggested.exam.title)}
+						</div>
+						<div className="text-2xs text-muted-foreground">Suggested: {suggested.reason}</div>
+					</div>
+					<Button size="push" variant="push" onClick={() => start(suggested.exam.id, "practice")}>
+						<Play /> Start
+					</Button>
+				</Card>
+			)}
 			{plans.map(p => (
 				<div key={p.id} className="flex items-center gap-3 border-border border-t pt-2.5">
 					<span

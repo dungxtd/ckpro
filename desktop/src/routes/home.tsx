@@ -1,5 +1,6 @@
 import { Loading } from "@ckdry/ui/components/loading";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { PrepMap } from "@/components/home/prep-map";
 import { Readiness } from "@/components/home/readiness";
 import { StatusTerminal } from "@/components/home/status-terminal";
@@ -13,8 +14,10 @@ import {
 	events,
 	startedAt,
 	studyFigures,
+	suggestion,
 	weakest,
 	weekRecap,
+	worked,
 } from "@/components/study/data";
 import { Recap } from "@/components/study/recap";
 import { addDays, dayKey, monday, parseDay } from "@/days";
@@ -36,6 +39,7 @@ export function HomeRoute() {
 	const [plans, setPlans] = useState<PlanView[]>([]);
 	const [readiness, setReadiness] = useState<ExamReadiness | null>(null);
 	const [editing, setEditing] = useState(false);
+	const navigate = useNavigate();
 
 	const now = new Date();
 	const today = dayKey(now);
@@ -64,7 +68,14 @@ export function HomeRoute() {
 		? history.filter(h => catalog.find(e => e.id === h.exam_id)?.certification === certification)
 		: history;
 	const weak = weakest(readiness);
-	const first = measured.at(-1);
+	// The certification's longest exam measures the most domains at once
+	const mock = catalog
+		.filter(e => e.certification === certification)
+		.reduce<(typeof catalog)[number] | null>(
+			(m, e) => (!m || e.questions > m.questions ? e : m),
+			null
+		);
+	const first = measured.filter(worked).at(-1);
 	const start = target
 		? parseDay(target.started)
 		: first
@@ -88,7 +99,11 @@ export function HomeRoute() {
 					events={events(measured, readiness)}
 					onChangeTarget={() => setEditing(true)}
 				/>
-				<Today plans={plans.filter(p => p.day === today)} today={today} />
+				<Today
+					plans={plans.filter(p => p.day === today)}
+					today={today}
+					suggested={suggestion(catalog, measured, certification)}
+				/>
 			</div>
 			<Recap
 				title={`Your week, ${weekStart.toLocaleDateString(undefined, { day: "numeric", month: "short" })} to ${addDays(weekStart, 6).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`}
@@ -108,7 +123,11 @@ export function HomeRoute() {
 					pass={readiness?.pass_score ?? 66}
 					figures={studyFigures(measured, now)}
 				/>
-				{readiness && <Readiness readiness={readiness} />}
+				<Readiness
+					readiness={readiness}
+					onMeasure={mock ? () => navigate(`/exams?exam=${mock.id}`) : null}
+					onPractise={weak ? () => navigate("/exams") : null}
+				/>
 			</div>
 			<Week plans={plans} weekStart={weekStart} restDays={target?.rest_days ?? []} />
 			<TargetDialog open={editing} onOpenChange={setEditing} certifications={certifications} />

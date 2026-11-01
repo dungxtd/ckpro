@@ -119,6 +119,14 @@ pub struct ExamResult {
     pub assisted: Vec<String>,
 }
 
+impl ExamResult {
+    /// Whether the attempt was worked: one ended before earning any point says
+    /// nothing about the candidate, so readiness and plans leave it out
+    pub fn worked(&self) -> bool {
+        self.score > 0.0
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "phase", rename_all = "snake_case")]
 pub enum ExamState {

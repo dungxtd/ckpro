@@ -81,7 +81,7 @@ fn views(plans: Vec<StoredPlan>, exams: &Exams, history: &[HistoryEntry], offset
             let exam = pack.exams.get(&p.exam_id).map(|e| &e.value);
             let done = history
                 .iter()
-                .filter(|h| h.exam_id == p.exam_id)
+                .filter(|h| h.exam_id == p.exam_id && h.result.worked())
                 .filter(|h| day_of(h.result.started_at, offset_minutes) == p.day)
                 .map(|h| h.result.score)
                 .fold(None, |best: Option<f64>, s| Some(best.map_or(s, |b| b.max(s))));
@@ -143,12 +143,13 @@ pub fn readiness(
         .get(certification)
         .ok_or_else(|| AppError::not_found(format!("no certification '{certification}'")))?;
     let since = now - f64::from(WINDOW_DAYS) * 86_400_000.0;
+    let history: Vec<HistoryEntry> = history.iter().filter(|h| h.result.worked()).cloned().collect();
     let recent: Vec<HistoryEntry> =
         history.iter().filter(|h| h.result.started_at >= since).cloned().collect();
     let pick = |entries: &[HistoryEntry]| study_stats(pack, entries).into_iter().find(|s| s.certification == certification);
     let (stats, window_days) = match pick(&recent) {
         Some(s) => (Some(s), WINDOW_DAYS),
-        None => (pick(history), 0),
+        None => (pick(&history), 0),
     };
     let domains = stats.map(|s| s.domains).unwrap_or_else(|| {
         let mut domains: Vec<DomainStat> = cert
@@ -202,7 +203,8 @@ mod tests {
     }
 
     /// Two CKA attempts: the predicted score weighs each tested domain as the
-    /// exam does, and an untested domain lowers the coverage, not the score
+    /// exam does, an untested domain lowers the coverage, not the score, and an
+    /// attempt without a point is left out
     #[test]
     fn readiness_weighs_domains_as_the_exam() {
         use super::super::{ExamResult, QuestionResult};
@@ -221,7 +223,7 @@ mod tests {
             mode: Mode::Practice,
             pass_score: 66,
             result: ExamResult {
-                score: 0.0,
+                score: results.iter().map(|(_, points)| f64::from(*points)).sum(),
                 passed: false,
                 started_at: at,
                 finished_at: at,
@@ -245,5 +247,8 @@ mod tests {
         let old = readiness(&pack, &[entry(now - 90.0 * day, &[(&storage, 4)])], "cka", now).unwrap();
         assert_eq!((old.window_days, old.predicted.map(f64::round)), (0, Some(40.0)));
         assert!(readiness(&pack, &[], "cka", now).unwrap().predicted.is_none());
+        // An attempt ended before any point measures nothing
+        let unworked = readiness(&pack, &[entry(now - day, &[(&trouble, 0)])], "cka", now).unwrap();
+        assert_eq!((unworked.predicted, unworked.coverage), (None, 0));
     }
 }
