@@ -76,13 +76,30 @@ export function Grid({
 	const fitsWithMore = Math.max(0, Math.floor((rowHeight - DAY_HEAD - DAY_MORE) / DAY_ITEM));
 	const rest = (e: React.MouseEvent<HTMLElement>, day: string) => {
 		window.clearTimeout(timer.current);
+		window.clearTimeout(closing.current);
 		const rect = e.currentTarget.getBoundingClientRect();
 		timer.current = window.setTimeout(() => setHover({ day, rect }), DESCRIBE_AFTER_MS);
 	};
+	// The description is a card the pointer can go onto (to scroll or select
+	// it): leaving the day or the card puts it away after a moment, unless the
+	// pointer arrives on the other
+	const closing = useRef<number>(0);
 	const leave = () => {
 		window.clearTimeout(timer.current);
-		setHover(null);
+		window.clearTimeout(closing.current);
+		closing.current = window.setTimeout(() => setHover(null), 200);
 	};
+	const stay = () => {
+		window.clearTimeout(timer.current);
+		window.clearTimeout(closing.current);
+	};
+	// Scrolling moves the day from under it: away it goes
+	useEffect(() => {
+		if (!hover) return;
+		const away = () => setHover(null);
+		window.addEventListener("scroll", away, true);
+		return () => window.removeEventListener("scroll", away, true);
+	}, [hover]);
 
 	return (
 		// Leaving the grid puts the description away; only the pointer does that
@@ -290,7 +307,11 @@ export function Grid({
 			{hover && (
 				<DescribeCard
 					lines={describe(hover.day, history, plans, today)}
-					className="pointer-events-none fixed z-floating w-[360px] shadow-[var(--shadow-float)]"
+					className="fixed z-floating w-[360px] select-text shadow-[var(--shadow-float)]"
+					onMouseEnter={stay}
+					onMouseLeave={leave}
+					// Its own: a click in it is not the day's under it
+					onClick={e => e.stopPropagation()}
 					// Beside the day, on the side with room
 					style={{
 						top: hover.rect.top,
