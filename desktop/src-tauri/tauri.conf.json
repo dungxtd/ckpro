@@ -16,6 +16,8 @@
         "title": "ckdry",
         "width": 1100,
         "height": 800,
+        "minWidth": 800,
+        "minHeight": 560,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "trafficLightPosition": {

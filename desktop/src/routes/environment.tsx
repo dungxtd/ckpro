@@ -64,7 +64,7 @@ export function EnvironmentRoute() {
 		<Screen
 			title="Environment"
 			actions={<DockerStatus docker={env.docker} />}
-			className="max-w-2xl gap-3"
+			className="max-w-3xl gap-3"
 		>
 			<IssuesPanel issues={env.issues} />
 			{error && <Alert variant="destructive">{error}</Alert>}

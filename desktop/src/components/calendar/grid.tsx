@@ -174,7 +174,7 @@ export function Grid({
 												onClick={e => e.stopPropagation()}
 												onKeyDown={e => e.stopPropagation()}
 												className={cn(
-													"group/plan mt-1 flex min-w-0 items-center gap-1 rounded-md py-0.5 pr-1 pl-0.5 ring-1 ring-inset",
+													"group/plan mt-1 flex min-w-0 items-center gap-1 overflow-hidden rounded-md py-0.5 pr-1 pl-0.5 ring-1 ring-inset",
 													week ? "text-callout" : "text-2xs",
 													// A day gone by without it: missed
 													p.day < today
@@ -207,7 +207,11 @@ export function Grid({
 													onClick={() => actions.onMode(p)}
 													className="shrink-0 rounded bg-highlight/20 px-1 font-bold text-[9px] outline-none hover:bg-highlight/35 focus-visible:ring-1 focus-visible:ring-ring"
 												>
-													{p.mode === "exam" ? "EXAM" : "PRACTICE"}
+													{/* A letter in a narrow calendar, the word in a wide one */}
+													<span className="@4xl:hidden">{p.mode === "exam" ? "E" : "P"}</span>
+													<span className="hidden @4xl:inline">
+														{p.mode === "exam" ? "EXAM" : "PRACTICE"}
+													</span>
 												</button>
 												<button
 													type="button"

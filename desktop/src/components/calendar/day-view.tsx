@@ -45,8 +45,8 @@ export function DayView({
 	const onDay = history.filter(h => dayKey(new Date(startedAt(h))) === day);
 	const open = plans.filter(p => p.day === day && p.done === null);
 	return (
-		<div className="grid grid-cols-[272px_minmax(0,1fr)] items-start gap-6">
-			<div className="sticky top-0">
+		<div className="grid items-start gap-6 @3xl:grid-cols-[272px_minmax(0,1fr)]">
+			<div className="max-w-sm @3xl:sticky @3xl:top-0">
 				<MiniMonth
 					month={new Date(date.getFullYear(), date.getMonth(), 1)}
 					days={byDay(history)}
@@ -110,7 +110,7 @@ export function DayView({
 								<div className="truncate font-medium">{h.title}</div>
 								<div className="mt-0.5 flex items-center gap-2 text-caption text-muted-foreground">
 									<Badge>{h.mode === "exam" ? "Exam" : "Practice"}</Badge>
-									<span className="tabular-nums">
+									<span className="whitespace-nowrap tabular-nums">
 										{time(startedAt(h))} to {time(h.result.finished_at ?? startedAt(h))}
 									</span>
 								</div>

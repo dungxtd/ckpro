@@ -30,12 +30,12 @@ export function HistoryRoute() {
 	if (history === null) return <Loading fill label="Loading history…" />;
 	if (history.length === 0)
 		return (
-			<Screen title="History">
+			<Screen title="History" className="max-w-6xl">
 				<p className="text-muted-foreground text-sm">No attempts yet.</p>
 			</Screen>
 		);
 	return (
-		<Screen title="History">
+		<Screen title="History" className="max-w-6xl">
 			<DomainScores />
 			<h2 className="-mb-3 font-semibold">Attempts</h2>
 			<Table>
@@ -54,8 +54,11 @@ export function HistoryRoute() {
 				<TableBody>
 					{history.map(h => (
 						<TableRow key={h.attempt_id}>
-							<TableCell className="tabular-nums">
-								{new Date(h.result.started_at ?? 0).toLocaleString()}
+							<TableCell className="whitespace-nowrap tabular-nums">
+								{new Date(h.result.started_at ?? 0).toLocaleString(undefined, {
+									dateStyle: "medium",
+									timeStyle: "short",
+								})}
 							</TableCell>
 							<TableCell>{h.title}</TableCell>
 							<TableCell className="capitalize">{h.mode}</TableCell>

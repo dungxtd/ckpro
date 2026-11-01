@@ -173,11 +173,11 @@ export function CalendarRoute() {
 	return (
 		<Screen
 			title="Calendar"
-			className="max-w-6xl gap-4"
+			className="@container max-w-[1440px] gap-4"
 			actions={
-				<div className="flex items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2">
 					{run > 0 && (
-						<span className="mr-1 text-caption text-muted-foreground">
+						<span className="mr-1 whitespace-nowrap text-caption text-muted-foreground">
 							{run} day{run === 1 ? "" : "s"} in a row
 						</span>
 					)}
@@ -187,16 +187,19 @@ export function CalendarRoute() {
 						onChange={v => go({ view: v as View })}
 						options={VIEWS}
 					/>
-					<span className="ml-2 min-w-40 text-right font-semibold text-lead">{title}</span>
-					<IconButton variant="toolbar" size="sm" aria-label="Back" onClick={() => shift(-1)}>
-						<ChevronLeft />
-					</IconButton>
-					<Button size="push" variant="push" onClick={() => go({ day: today })}>
-						Today
-					</Button>
-					<IconButton variant="toolbar" size="sm" aria-label="Forward" onClick={() => shift(1)}>
-						<ChevronRight />
-					</IconButton>
+					{/* Where the calendar is and its arrows, kept together on one line */}
+					<span className="ml-2 flex items-center gap-2">
+						<span className="whitespace-nowrap font-semibold text-lead">{title}</span>
+						<IconButton variant="toolbar" size="sm" aria-label="Back" onClick={() => shift(-1)}>
+							<ChevronLeft />
+						</IconButton>
+						<Button size="push" variant="push" onClick={() => go({ day: today })}>
+							Today
+						</Button>
+						<IconButton variant="toolbar" size="sm" aria-label="Forward" onClick={() => shift(1)}>
+							<ChevronRight />
+						</IconButton>
+					</span>
 				</div>
 			}
 		>
