@@ -15,10 +15,8 @@ import {
 	studyFigures,
 	suggestion,
 	weakest,
-	weekRecap,
 	worked,
 } from "@/components/study/data";
-import { Recap } from "@/components/study/recap";
 import { addDays, dayKey, monday, parseDay } from "@/days";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
@@ -26,9 +24,9 @@ import { type ExamReadiness, examApi, type HistoryEntry, type PlanView } from "@
 
 /**
  * Home: where the preparation stands (as kubectl would print it), today's
- * session, the week in figures, the prep map, readiness per domain and this
- * week's plans. All of it from the attempts and the plans, without AI; read
- * again whenever an attempt is over
+ * session, the prep map, readiness per domain and this week's plans (the
+ * week in figures is the Calendar's). All of it from the attempts and the
+ * plans, without AI; read again whenever an attempt is over
  */
 export function HomeRoute() {
 	const target = useSettings(s => s.settings.target);
@@ -106,15 +104,6 @@ export function HomeRoute() {
 					suggested={suggestion(catalog, measured, certification)}
 				/>
 			</div>
-			<Recap
-				title={`Your week, ${weekStart.toLocaleDateString(undefined, { day: "numeric", month: "short" })} to ${addDays(weekStart, 6).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`}
-				recap={weekRecap(measured, weekStart)}
-				next={weak && { domain: weak.domain, percent: (weak.points * 100) / weak.max_points }}
-				action={{
-					label: "Plan next week",
-					to: `/calendar?view=week&day=${dayKey(addDays(weekStart, 7))}`,
-				}}
-			/>
 			{/* The map takes the room; Readiness beside it stays compact */}
 			<div className="grid gap-4 @3xl:grid-cols-[minmax(0,1fr)_18rem] @6xl:grid-cols-[minmax(0,1fr)_22rem]">
 				<PrepMap
