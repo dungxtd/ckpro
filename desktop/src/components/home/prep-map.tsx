@@ -130,7 +130,7 @@ export function PrepMap({
 				<>
 					{/* The figures beside the map, under it on a narrow card */}
 					<div className="flex flex-col gap-3 @sm:flex-row @sm:items-center @sm:gap-6">
-						<div ref={setArea} className="min-w-0 flex-1 overflow-hidden">
+						<div ref={setArea} className="min-w-0 flex-1 overflow-x-clip py-0.5 pr-1">
 							{squares}
 						</div>
 						<div className="grid w-44 shrink-0 grid-cols-2 gap-x-3 gap-y-1 [&>div]:px-0 [&>div]:py-1">
