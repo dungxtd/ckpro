@@ -1,9 +1,9 @@
 import { cn } from "@ckpro/ui/lib/utils";
-import { GripVertical, Plus, X } from "lucide-react";
+import { Flag, GripVertical, Plus, X } from "lucide-react";
 import { type DragEvent, useRef, useState } from "react";
 import { scoreOf, startedAt } from "@/components/study/data";
 import { dayKey, monthWeeks } from "@/days";
-import type { HistoryEntry, PlanView } from "@/tauri/api";
+import type { ExamTarget, HistoryEntry, PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 import { describe } from "./describe";
 import { DescribeCard } from "./describe-card";
@@ -24,7 +24,8 @@ export interface GridActions {
  * folding away): each day with its attempts (score, green when passed) and
  * its open plans, dragged by their grip to another day. + adds a plan
  * (Month: on the day, on hover; Week: under the day); a click elsewhere
- * opens the day; resting on a day describes it as kubectl would
+ * opens the day; resting on a day describes it as kubectl would. The exam
+ * day is flagged
  */
 export function Grid({
 	month,
@@ -32,6 +33,7 @@ export function Grid({
 	history,
 	plans,
 	today,
+	exam,
 	...actions
 }: {
 	month: Date;
@@ -40,6 +42,8 @@ export function Grid({
 	history: HistoryEntry[];
 	plans: PlanView[];
 	today: string;
+	/** The exam prepared for, flagged on its day */
+	exam: ExamTarget | null;
 } & GridActions) {
 	const [over, setOver] = useState<string | null>(null);
 	const dragged = useRef<PlanView | null>(null);
@@ -120,6 +124,7 @@ export function Grid({
 											"group/day flex min-w-0 cursor-pointer flex-col border-border p-1.5 outline-none transition-[min-height,background-color] duration-[380ms] not-first:border-l hover:bg-foreground/[0.03] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset motion-reduce:transition-none",
 											week ? "min-h-[420px]" : "min-h-24",
 											!week && day.getMonth() !== month.getMonth() && "text-muted-foreground/60",
+											k === exam?.date && "bg-highlight/[0.07]",
 											over === k && "bg-highlight/15 ring-2 ring-highlight ring-inset"
 										)}
 									>
@@ -153,6 +158,17 @@ export function Grid({
 												</ExamPicker>
 											)}
 										</div>
+										{k === exam?.date && (
+											<span
+												className={cn(
+													"mt-1 flex items-center gap-1 truncate rounded-md bg-highlight px-1.5 py-0.5 font-semibold text-highlight-foreground [&_svg]:size-3 [&_svg]:shrink-0",
+													week ? "text-callout" : "text-2xs"
+												)}
+											>
+												<Flag />
+												<span className="truncate">{exam.certification.toUpperCase()} exam</span>
+											</span>
+										)}
 										{attempts.map(h => (
 											<span
 												key={h.attempt_id}

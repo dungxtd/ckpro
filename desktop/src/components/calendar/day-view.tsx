@@ -1,11 +1,11 @@
 import { Badge } from "@ckpro/ui/components/badge";
 import { Button } from "@ckpro/ui/components/button";
 import { CardTitle } from "@ckpro/ui/components/card";
-import { Play, Plus } from "lucide-react";
+import { Flag, Play, Plus } from "lucide-react";
 import { scoreOf, startedAt } from "@/components/study/data";
 import { byDay, dayKey, parseDay } from "@/days";
 import { useExam } from "@/stores/exam";
-import type { HistoryEntry, PlanView } from "@/tauri/api";
+import type { ExamTarget, HistoryEntry, PlanView } from "@/tauri/api";
 import { describe } from "./describe";
 import { DescribeCard } from "./describe-card";
 import { ExamPicker } from "./exam-picker";
@@ -24,6 +24,7 @@ export function DayView({
 	history,
 	plans,
 	today,
+	exam,
 	onPick,
 	onShift,
 	onAdd,
@@ -34,6 +35,8 @@ export function DayView({
 	history: HistoryEntry[];
 	plans: PlanView[];
 	today: string;
+	/** The exam prepared for: its day flagged */
+	exam: ExamTarget | null;
 	onPick: (day: string) => void;
 	onShift: (by: number) => void;
 	onAdd: (day: string, examId: string) => void;
@@ -52,6 +55,7 @@ export function DayView({
 					days={byDay(history)}
 					planned={new Set(plans.filter(p => p.done === null).map(p => p.day))}
 					today={today}
+					exam={exam?.date ?? null}
 					picked={day}
 					onPick={onPick}
 					onShift={onShift}
@@ -66,6 +70,11 @@ export function DayView({
 						</Button>
 					</ExamPicker>
 				</div>
+				{day === exam?.date && (
+					<div className="flex items-center gap-2 rounded-xl bg-highlight px-4 py-3 font-semibold text-highlight-foreground [&_svg]:size-4">
+						<Flag /> {exam.certification.toUpperCase()} exam day
+					</div>
+				)}
 				<h3 className="font-semibold text-caption text-muted-foreground">
 					{day < today && open.length ? "Planned, missed" : "Planned"}
 				</h3>

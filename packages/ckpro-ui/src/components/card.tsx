@@ -44,10 +44,24 @@ export function CardHeader({ className, ...props }: React.ComponentProps<"div">)
 	);
 }
 
+/** A card's title: kept on one line, the description beside it wraps instead */
 export function CardTitle({ className, ...props }: React.ComponentProps<"h2">) {
-	return <h2 className={cn("font-semibold text-lead", className)} {...props} />;
+	return (
+		<h2
+			className={cn("shrink-0 whitespace-nowrap font-semibold text-lead", className)}
+			{...props}
+		/>
+	);
 }
 
 export function CardDescription({ className, ...props }: React.ComponentProps<"p">) {
-	return <p className={cn("text-caption text-muted-foreground", className)} {...props} />;
+	return (
+		<p
+			className={cn(
+				"text-caption text-muted-foreground [[data-slot=card-header]>&]:text-right",
+				className
+			)}
+			{...props}
+		/>
+	);
 }

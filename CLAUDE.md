@@ -28,7 +28,7 @@ Architecture: `docs/ARCHITECTURE.md`.
   desk, `assistant/` everything Claude (pane, composer, answers, sign-in),
   `text/` what the candidate reads (Markdown, click-to-copy values and code,
   documentation links), `shell/` the window's chrome (sidebar, title bar,
-  capsule), `study/` what Home and the Calendar share (figures, recap),
+  capsule), `study/` what Home and the Calendar share (figures),
   then one folder per screen (`home/`, `calendar/`, `catalog/`,
   `history/`, `environment/`, `settings/`, `activity/`). Shared across screens means the
   kit, not another screen's folder.

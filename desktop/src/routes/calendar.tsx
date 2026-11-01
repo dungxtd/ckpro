@@ -3,26 +3,18 @@ import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Loading } from "@ckpro/ui/components/loading";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
 import { Stat, StatGroup } from "@ckpro/ui/components/stat";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { DayView } from "@/components/calendar/day-view";
 import { Grid } from "@/components/calendar/grid";
 import { Screen } from "@/components/shell/screen";
-import { scoreOf, startedAt, weakest, weekRecap } from "@/components/study/data";
-import { Recap } from "@/components/study/recap";
+import { daysUntil, scoreOf, startedAt } from "@/components/study/data";
 import { addDays, dayKey, monday, monthWeeks, parseDay, streak } from "@/days";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
-import {
-	type ExamReadiness,
-	errorText,
-	examApi,
-	type HistoryEntry,
-	type Mode,
-	type PlanView,
-} from "@/tauri/api";
+import { errorText, examApi, type HistoryEntry, type Mode, type PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 
 type View = "month" | "week" | "day";
@@ -46,7 +38,6 @@ export function CalendarRoute() {
 	const idle = useExam(s => !s.state || s.state.phase === "idle");
 	const [history, setHistory] = useState<HistoryEntry[] | null>(null);
 	const [plans, setPlans] = useState<PlanView[]>([]);
-	const [readiness, setReadiness] = useState<ExamReadiness | null>(null);
 
 	const now = new Date();
 	const today = dayKey(now);
@@ -70,10 +61,6 @@ export function CalendarRoute() {
 		examApi.history().then(setHistory);
 		reload();
 	}, [idle, reload]);
-	useEffect(() => {
-		if (target && idle)
-			examApi.readiness(target.certification).then(setReadiness, () => setReadiness(null));
-	}, [target, idle]);
 
 	/** Do a change, read the plans again, and offer to undo it */
 	const change = async (
@@ -166,9 +153,6 @@ export function CalendarRoute() {
 			: view === "week"
 				? `Week of ${weekStart.toLocaleDateString(undefined, { day: "numeric", month: "long" })}`
 				: date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-	const weak = weakest(readiness);
-	const next = weak && { domain: weak.domain, percent: (weak.points * 100) / weak.max_points };
-	const lastMonth = new Date(date.getFullYear(), date.getMonth() - 1, 1);
 
 	return (
 		<Screen
@@ -176,6 +160,19 @@ export function CalendarRoute() {
 			className="@container max-w-[1440px] gap-4"
 			actions={
 				<div className="flex flex-wrap items-center gap-2">
+					{target && daysUntil(target.date, now) >= 0 && (
+						<Button
+							size="sm"
+							variant="ghost"
+							className="text-highlight"
+							onClick={() => go({ view: "day", day: target.date })}
+						>
+							<Flag />
+							{daysUntil(target.date, now) === 0
+								? `${target.certification.toUpperCase()} exam today`
+								: `${target.certification.toUpperCase()} exam in ${daysUntil(target.date, now)} days`}
+						</Button>
+					)}
 					{run > 0 && (
 						<span className="mr-1 whitespace-nowrap text-caption text-muted-foreground">
 							{run} day{run === 1 ? "" : "s"} in a row
@@ -223,38 +220,13 @@ export function CalendarRoute() {
 					</>
 				)}
 			</StatGroup>
-			{view === "week" && (
-				<Recap
-					title={`Your week, ${short(weekStart)} to ${short(addDays(weekStart, 6))}`}
-					recap={weekRecap(history, weekStart)}
-					next={next}
-					action={{
-						label: "Plan next week",
-						to: `/calendar?view=week&day=${dayKey(addDays(weekStart, 7))}`,
-					}}
-				/>
-			)}
-			{view === "month" && (
-				<Recap
-					title={`Last month, ${lastMonth.toLocaleDateString(undefined, { month: "long" })}`}
-					recap={weekRecap(
-						history,
-						lastMonth,
-						new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0).getDate()
-					)}
-					next={next}
-					action={{
-						label: "Plan next month",
-						to: `/calendar?view=month&day=${dayKey(new Date(date.getFullYear(), date.getMonth() + 1, 1))}`,
-					}}
-				/>
-			)}
 			{view === "day" ? (
 				<DayView
 					day={anchor}
 					history={history}
 					plans={plans}
 					today={today}
+					exam={target}
 					onPick={day => go({ day })}
 					onShift={by => go({ day: dayKey(new Date(date.getFullYear(), date.getMonth() + by, 1)) })}
 					onAdd={actions.onAdd}
@@ -268,6 +240,7 @@ export function CalendarRoute() {
 					history={history}
 					plans={plans}
 					today={today}
+					exam={target}
 					{...actions}
 				/>
 			)}
