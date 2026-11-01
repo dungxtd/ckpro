@@ -61,30 +61,6 @@ export function studyFigures(all: HistoryEntry[], today: Date) {
 	};
 }
 
-/** A stretch of days (a week by default) in a few figures: days studied,
- * attempts, the best, exams passed for the first time (worked attempts only) */
-export function weekRecap(all: HistoryEntry[], weekStart: Date, length = 7) {
-	const history = all.filter(worked);
-	const from = weekStart.getTime();
-	const to = addDays(weekStart, length).getTime();
-	const before = history.filter(h => startedAt(h) < from);
-	const week = history.filter(h => startedAt(h) >= from && startedAt(h) < to);
-	const passedBefore = new Set(before.filter(h => h.result.passed).map(h => h.exam_id));
-	const best = week.reduce<HistoryEntry | null>(
-		(b, h) => (!b || scoreOf(h) > scoreOf(b) ? h : b),
-		null
-	);
-	const firstPasses = [
-		...new Set(week.filter(h => h.result.passed && !passedBefore.has(h.exam_id)).map(h => h.title)),
-	];
-	return {
-		days: new Set(week.map(h => dayKey(new Date(startedAt(h))))).size,
-		attempts: week.length,
-		best: best && { title: best.title, score: scoreOf(best) },
-		firstPasses,
-	};
-}
-
 /** The weakest tested domain, by its share of points */
 export function weakest(readiness: ExamReadiness | null) {
 	const tested = (readiness?.domains ?? []).filter(d => d.max_points > 0);

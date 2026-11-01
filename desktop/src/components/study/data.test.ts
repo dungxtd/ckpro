@@ -12,7 +12,6 @@ import {
 	studyFigures,
 	suggestion,
 	weakest,
-	weekRecap,
 } from "./data";
 
 const at = (d: number, h = 10) => new Date(2026, 9, d, h).getTime();
@@ -97,16 +96,6 @@ describe("home figures", () => {
 		});
 	});
 
-	it("sums a week up, with the exams passed for the first time", () => {
-		const recap = weekRecap(history, new Date(2026, 9, 26));
-		expect(recap).toEqual({
-			days: 3,
-			attempts: 4,
-			best: { title: "Core", score: 94 },
-			firstPasses: ["Helm"],
-		});
-	});
-
 	it("names the weakest tested domain", () => {
 		expect(weakest(readiness)?.domain).toBe("storage");
 		expect(weakest(null)).toBeNull();
@@ -125,12 +114,6 @@ describe("home figures", () => {
 		const all = [...ended, ...history];
 		expect(studyFigures(all, new Date(2026, 9, 31)).attempts).toBe(5);
 		expect(bestByDay(all).has(dayKey(new Date(at(31))))).toBe(false);
-		expect(weekRecap(ended, new Date(2026, 9, 26))).toEqual({
-			days: 0,
-			attempts: 0,
-			best: null,
-			firstPasses: [],
-		});
 		expect(events(all, null)).toEqual([
 			{
 				type: "Warning",
