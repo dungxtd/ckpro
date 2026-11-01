@@ -3,6 +3,7 @@ import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Loading } from "@ckdry/ui/components/loading";
 import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
 import { Stat, StatGroup } from "@ckdry/ui/components/stat";
+import { morph } from "@ckdry/ui/lib/morph";
 import { cn } from "@ckdry/ui/lib/utils";
 import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -53,8 +54,20 @@ export function CalendarRoute() {
 	const weeks = monthWeeks(month);
 	const from = dayKey(weeks[0][0]);
 	const to = dayKey(weeks.at(-1)?.[6] ?? date);
-	const go = (next: { view?: View; day?: string }) =>
-		setParams({ view: next.view ?? view, day: next.day ?? anchor });
+	const go = (next: { view?: View; day?: string }) => {
+		const to = { view: next.view ?? view, day: next.day ?? anchor };
+		const change = () => setParams(to);
+		// Into the Day view and out of it the calendar moves as one: the month
+		// folds into the small month, the day's cell (a week's column too)
+		// opens into the day, and back
+		if (view === to.view || (view !== "day" && to.view !== "day")) return change();
+		morph(change, {
+			month: () => document.querySelector('[data-morph="calendar-month"]'),
+			day: () =>
+				document.querySelector(`[data-day="${to.day}"]`) ??
+				document.querySelector('[data-morph="calendar-day"]'),
+		});
+	};
 
 	const reload = useCallback(() => examApi.plans(from, to).then(setPlans), [from, to]);
 	useEffect(() => {

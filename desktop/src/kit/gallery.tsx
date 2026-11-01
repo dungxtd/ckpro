@@ -21,6 +21,7 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@ckdry/ui/components/dropdown-menu";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@ckdry/ui/components/hover-card";
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { Input } from "@ckdry/ui/components/input";
 import { Loading } from "@ckdry/ui/components/loading";
@@ -556,6 +557,25 @@ function Gallery() {
 							<CapsuleItem>Settings</CapsuleItem>
 						</Capsule>
 					</Row>
+				</Section>
+
+				<Section
+					title="HoverCard"
+					note="More about what the pointer rests on, in a card it can go onto: opens after a rest, scrolls and selects."
+				>
+					<HoverCard openDelay={300}>
+						<HoverCardTrigger asChild>
+							<span className="w-fit cursor-default rounded-md bg-muted px-2 py-1 text-callout">
+								Rest on this day
+							</span>
+						</HoverCardTrigger>
+						<HoverCardContent>
+							<Terminal className="w-72 shadow-[var(--shadow-float)]">
+								<Terminal.Muted>$ kubectl describe day 2026-11-02</Terminal.Muted>
+								{"\nAttempts:  <none>\nPlans:     <none>"}
+							</Terminal>
+						</HoverCardContent>
+					</HoverCard>
 				</Section>
 
 				<Section
