@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Fix a Deployment stuck on a missing image
+certifications:
+  cka: troubleshooting
+difficulty: easy
+estimate: 5m
+namespace: "{{ns}}"
+tags: [deployment, troubleshooting, image, rollout]
+vars:
+  ns: { pick: [shop-front, web-tier, frontend] }
+
+statement: |
+  The Deployment `web-app` in the namespace `{{ns}}` is not becoming ready.
+
+  Find out why and fix it so that all `2` replicas of `web-app` are available,
+  running the image `nginx:1.27`.
+
+  Do **not** delete the Deployment. When it is fixed, add the label
+  `fixed=true` to the Deployment `web-app` itself (its metadata, not the Pod
+  template).
+
+setup: |
+  kubectl create namespace {{ns}} --dry-run=client -o yaml | kubectl apply -f -
+  kubectl delete deployment web-app -n {{ns}} --ignore-not-found
+  cat <<'EOF' | kubectl apply -n {{ns}} -f -
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: web-app
+    labels:
+      app: web-app
+  spec:
+    replicas: 2
+    selector:
+      matchLabels:
+        app: web-app
+    template:
+      metadata:
+        labels:
+          app: web-app
+      spec:
+        containers:
+          - name: web
+            image: nginx:1.27-doesnotexist
+            ports:
+              - containerPort: 80
+  EOF
+
+checks:
+  - name: Deployment web-app uses image nginx:1.27
+    weight: 2
+    jsonpath: { resource: deployment/web-app, namespace: "{{ns}}", path: "{.spec.template.spec.containers[0].image}", equals: "nginx:1.27" }
+  - name: All 2 replicas of web-app are available
+    weight: 3
+    run: |
+      kubectl get deployment web-app -n {{ns}} -o json \
+        | jq -e '.spec.replicas == 2 and .status.availableReplicas == 2 and .status.updatedReplicas == 2 and (.status.unavailableReplicas // 0) == 0' >/dev/null \
+        || { echo "web-app does not have 2 updated, available replicas"; exit 1; }
+  - name: Deployment web-app is labelled fixed=true
+    weight: 1
+    jsonpath: { resource: deployment/web-app, namespace: "{{ns}}", path: "{.metadata.labels.fixed}", equals: "true" }
+
+hints:
+  - "`kubectl describe pod` shows ErrImagePull / ImagePullBackOff and the image it tried to pull."
+  - "`kubectl set image` changes a container image in place; `kubectl label` adds a label."
+
+solution:
+  explain: |
+    The Pods cannot start because the image tag `nginx:1.27-doesnotexist` does
+    not exist (ErrImagePull / ImagePullBackOff). Update the container image in
+    the existing Deployment, which rolls out new Pods, then label it.
+  run: |
+    kubectl set image deployment/web-app web=nginx:1.27 -n {{ns}}
+    kubectl rollout status deployment/web-app -n {{ns}} --timeout=180s
+    kubectl label deployment web-app fixed=true -n {{ns}} --overwrite
+
+references:
+  - https://kubernetes.io/docs/concepts/containers/images/
+  - https://kubernetes.io/docs/reference/kubectl/generated/kubectl_set/kubectl_set_image/
+  - https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/

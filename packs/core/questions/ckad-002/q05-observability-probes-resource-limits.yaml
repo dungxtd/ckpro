@@ -1,0 +1,265 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: "Observability - Probes & Resource Limits"
+certifications:
+  ckad: application-observability-maintenance
+difficulty: hard
+namespace: observability
+tags: [probes, liveness, readiness, resource-limits]
+
+statement: |
+  Create a Pod named `probes-pod` in the `observability` namespace using the image `nginx`. Configure the following probes:
+
+  1. Liveness probe: HTTP GET request to path `/healthz` on port `80`, with initialDelaySeconds=`10` and periodSeconds=`5`
+
+  2. Readiness probe: HTTP GET request to path `/` on port `80`, with initialDelaySeconds=`5` and periodSeconds=`3`
+
+  Also, configure the pod with resource requests of CPU=`100m` and memory=`128Mi`, and resource limits of CPU=`200m` and memory=`256Mi`.
+  Ensure the namespace exists before creating the pod.
+
+setup: |
+  # Delete the resources namespace if it exists
+  echo "Setting up environment for Question 5 (Resource Limits)..."
+  kubectl delete namespace resources --ignore-not-found=true
+
+  # Wait for deletion to complete
+  sleep 2
+
+  # Confirm environment is ready
+  echo "Environment ready for Question 5"
+  exit 0
+
+checks:
+  - name: Namespace is created
+    run: |
+      # Validate that the observability namespace exists
+      NS=$(kubectl get namespace observability -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$NS" == "observability" ]]; then
+          # Namespace exists
+          exit 0
+      else
+          # Namespace does not exist
+          echo "Namespace 'observability' does not exist"
+          exit 1
+      fi
+  - name: Pod is created with correct name and image
+    run: |
+      # Validate that the probes-pod exists with correct name and image
+      POD=$(kubectl get pod probes-pod -n observability -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$POD" == "probes-pod" ]]; then
+          # Pod exists, now check image
+          IMAGE=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].image}' 2>/dev/null)
+
+          if [[ "$IMAGE" == "nginx" ]]; then
+              # Pod has correct image
+              exit 0
+          else
+              echo "Pod 'probes-pod' does not use the correct image. Found: $IMAGE (expected: nginx)"
+              exit 1
+          fi
+      else
+          # Pod does not exist
+          echo "Pod 'probes-pod' does not exist in the 'observability' namespace"
+          exit 1
+      fi
+  - name: Liveness probe is configured correctly
+    weight: 2
+    run: |
+      # Validate that the liveness probe is configured correctly
+      POD=$(kubectl get pod probes-pod -n observability -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$POD" == "probes-pod" ]]; then
+          # Pod exists, now check liveness probe
+          # Check liveness probe type
+          LIVENESS_TYPE=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].livenessProbe.httpGet}' 2>/dev/null)
+
+          # Check liveness probe path
+          LIVENESS_PATH=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].livenessProbe.httpGet.path}' 2>/dev/null)
+
+          # Check liveness probe port
+          LIVENESS_PORT=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].livenessProbe.httpGet.port}' 2>/dev/null)
+
+          # Check liveness probe initialDelaySeconds
+          LIVENESS_DELAY=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].livenessProbe.initialDelaySeconds}' 2>/dev/null)
+
+          # Check liveness probe periodSeconds
+          LIVENESS_PERIOD=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].livenessProbe.periodSeconds}' 2>/dev/null)
+
+          if [[ "$LIVENESS_PATH" == "/healthz" && "$LIVENESS_PORT" == "80" && "$LIVENESS_DELAY" == "10" && "$LIVENESS_PERIOD" == "5" ]]; then
+              # Liveness probe is configured correctly
+              exit 0
+          else
+              echo "Liveness probe is not configured correctly."
+              echo "Found path: $LIVENESS_PATH (expected: /healthz)"
+              echo "Found port: $LIVENESS_PORT (expected: 80)"
+              echo "Found initialDelaySeconds: $LIVENESS_DELAY (expected: 10)"
+              echo "Found periodSeconds: $LIVENESS_PERIOD (expected: 5)"
+              exit 1
+          fi
+      else
+          # Pod does not exist
+          echo "Pod 'probes-pod' does not exist in the 'observability' namespace"
+          exit 1
+      fi
+  - name: Readiness probe is configured correctly
+    weight: 2
+    run: |
+      # Validate that the readiness probe is configured correctly
+      POD=$(kubectl get pod probes-pod -n observability -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$POD" == "probes-pod" ]]; then
+          # Pod exists, now check readiness probe
+          # Check readiness probe type
+          READINESS_TYPE=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].readinessProbe.httpGet}' 2>/dev/null)
+
+          # Check readiness probe path
+          READINESS_PATH=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].readinessProbe.httpGet.path}' 2>/dev/null)
+
+          # Check readiness probe port
+          READINESS_PORT=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].readinessProbe.httpGet.port}' 2>/dev/null)
+
+          # Check readiness probe initialDelaySeconds
+          READINESS_DELAY=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].readinessProbe.initialDelaySeconds}' 2>/dev/null)
+
+          # Check readiness probe periodSeconds
+          READINESS_PERIOD=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].readinessProbe.periodSeconds}' 2>/dev/null)
+
+          if [[ "$READINESS_PATH" == "/" && "$READINESS_PORT" == "80" && "$READINESS_DELAY" == "5" && "$READINESS_PERIOD" == "3" ]]; then
+              # Readiness probe is configured correctly
+              exit 0
+          else
+              echo "Readiness probe is not configured correctly."
+              echo "Found path: $READINESS_PATH (expected: /)"
+              echo "Found port: $READINESS_PORT (expected: 80)"
+              echo "Found initialDelaySeconds: $READINESS_DELAY (expected: 5)"
+              echo "Found periodSeconds: $READINESS_PERIOD (expected: 3)"
+              exit 1
+          fi
+      else
+          # Pod does not exist
+          echo "Pod 'probes-pod' does not exist in the 'observability' namespace"
+          exit 1
+      fi
+  - name: Resource limits and requests are configured correctly
+    weight: 2
+    run: |
+      # Validate that resource limits and requests are configured correctly
+      POD=$(kubectl get pod probes-pod -n observability -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$POD" == "probes-pod" ]]; then
+          # Pod exists, now check resource requests and limits
+          # Check CPU request
+          CPU_REQUEST=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].resources.requests.cpu}' 2>/dev/null)
+
+          # Check memory request
+          MEM_REQUEST=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].resources.requests.memory}' 2>/dev/null)
+
+          # Check CPU limit
+          CPU_LIMIT=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].resources.limits.cpu}' 2>/dev/null)
+
+          # Check memory limit
+          MEM_LIMIT=$(kubectl get pod probes-pod -n observability -o jsonpath='{.spec.containers[0].resources.limits.memory}' 2>/dev/null)
+
+          if [[ "$CPU_REQUEST" == "100m" && "$MEM_REQUEST" == "128Mi" && "$CPU_LIMIT" == "200m" && "$MEM_LIMIT" == "256Mi" ]]; then
+              # Resources are configured correctly
+              exit 0
+          else
+              echo "Resource limits and requests are not configured correctly."
+              echo "Found CPU request: $CPU_REQUEST (expected: 100m)"
+              echo "Found memory request: $MEM_REQUEST (expected: 128Mi)"
+              echo "Found CPU limit: $CPU_LIMIT (expected: 200m)"
+              echo "Found memory limit: $MEM_LIMIT (expected: 256Mi)"
+              exit 1
+          fi
+      else
+          # Pod does not exist
+          echo "Pod 'probes-pod' does not exist in the 'observability' namespace"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    Create a pod with liveness/readiness probes and resource limits:
+
+    ```bash
+    # Create namespace
+    kubectl create namespace observability
+
+    # Create pod with probes and resource limits
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: observability
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: probes-pod
+      namespace: observability
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 3
+    EOF
+    ```
+  run: |
+    # Create namespace
+    kubectl create namespace observability
+
+    # Create pod with probes and resource limits
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: observability
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: probes-pod
+      namespace: observability
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 3
+    EOF

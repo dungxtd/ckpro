@@ -1,0 +1,379 @@
+{
+  "$defs": {
+    "CanICheck": {
+      "additionalProperties": false,
+      "properties": {
+        "as": {
+          "description": "User or `system:serviceaccount:<ns>:<name>`",
+          "type": "string"
+        },
+        "expect": {
+          "default": true,
+          "type": "boolean"
+        },
+        "namespace": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resource": {
+          "type": "string"
+        },
+        "verb": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "as",
+        "verb",
+        "resource"
+      ],
+      "type": "object"
+    },
+    "Capability": {
+      "oneOf": [
+        {
+          "const": "container-runtime",
+          "description": "Build and run images on the candidate's machine (docker / podman)",
+          "type": "string"
+        }
+      ]
+    },
+    "Check": {
+      "description": "One graded step. `weight` is its share of the question's points.",
+      "oneOf": [
+        {
+          "description": "The resource exists (or, with `absent: true`, does not)",
+          "properties": {
+            "exists": {
+              "$ref": "#/$defs/ResourceRef"
+            }
+          },
+          "required": [
+            "exists"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A JSONPath on a resource matches",
+          "properties": {
+            "jsonpath": {
+              "$ref": "#/$defs/JsonpathCheck"
+            }
+          },
+          "required": [
+            "jsonpath"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A pod is Ready / a workload has all replicas available",
+          "properties": {
+            "ready": {
+              "$ref": "#/$defs/ResourceRef"
+            }
+          },
+          "required": [
+            "ready"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "`kubectl auth can-i` gives the expected answer",
+          "properties": {
+            "canI": {
+              "$ref": "#/$defs/CanICheck"
+            }
+          },
+          "required": [
+            "canI"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Any script: exit code 0 passes. Runs on the jumphost",
+          "properties": {
+            "run": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run"
+          ],
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "name": {
+          "description": "What is checked, shown in results (\"ServiceAccount cicd-token exists\")",
+          "type": "string"
+        },
+        "weight": {
+          "default": 1,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "Difficulty": {
+      "enum": [
+        "easy",
+        "medium",
+        "hard"
+      ],
+      "type": "string"
+    },
+    "Duration": {
+      "description": "A length like \"120m\", \"2h\" or \"90s\"",
+      "pattern": "^\\d+(s|m|h)$",
+      "type": "string"
+    },
+    "JsonpathCheck": {
+      "oneOf": [
+        {
+          "properties": {
+            "equals": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "equals"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "contains": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "contains"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Regular expression",
+          "properties": {
+            "matches": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "matches"
+          ],
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "namespace": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "kubectl JSONPath, e.g. `{.spec.replicas}`",
+          "type": "string"
+        },
+        "resource": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource",
+        "path"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "ResourceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "absent": {
+          "default": false,
+          "description": "For `exists`: pass when the resource is absent",
+          "type": "boolean"
+        },
+        "namespace": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resource": {
+          "description": "`kind/name`, e.g. `deployment/web`",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource"
+      ],
+      "type": "object"
+    },
+    "Solution": {
+      "additionalProperties": false,
+      "properties": {
+        "explain": {
+          "description": "Why this is the right approach, in Markdown",
+          "type": "string"
+        },
+        "run": {
+          "description": "Commands that solve the task on the jumphost",
+          "type": "string"
+        }
+      },
+      "required": [
+        "explain",
+        "run"
+      ],
+      "type": "object"
+    },
+    "Var": {
+      "additionalProperties": false,
+      "properties": {
+        "pick": {
+          "description": "One value is picked at random per attempt",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "pick"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One task. `{{var}}` placeholders in text and scripts are filled from `vars`.",
+  "properties": {
+    "certifications": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Certifications this question belongs to, each with the curriculum\ndomain it falls under there (domain names differ per certification)",
+      "type": "object"
+    },
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/Check"
+      },
+      "type": "array"
+    },
+    "cluster": {
+      "default": "k8s",
+      "description": "Cluster (kubeconfig context) the task is solved in",
+      "type": "string"
+    },
+    "difficulty": {
+      "$ref": "#/$defs/Difficulty",
+      "default": "medium"
+    },
+    "estimate": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Duration"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Suggested time, e.g. \"6m\""
+    },
+    "hints": {
+      "default": [],
+      "description": "Shown only in practice mode, one at a time",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "namespace": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "references": {
+      "default": [],
+      "description": "Documentation allowed in the exam (kubernetes.io/docs, ...)",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "requires": {
+      "default": [],
+      "description": "Capabilities the question needs beyond a cluster and the jumphost.\nQuestions needing one ckpro does not provide are left out of exams and\nverify runs.",
+      "items": {
+        "$ref": "#/$defs/Capability"
+      },
+      "type": "array"
+    },
+    "setup": {
+      "default": null,
+      "description": "Shell script run on the jumphost before the exam starts",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "solution": {
+      "$ref": "#/$defs/Solution",
+      "description": "Reference answer. `run` must make every check pass (`ckpro lab verify`)"
+    },
+    "statement": {
+      "description": "The task, in Markdown",
+      "type": "string"
+    },
+    "tags": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "title": {
+      "type": "string"
+    },
+    "vars": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Var"
+      },
+      "default": {},
+      "description": "Values picked once per attempt so answers cannot be memorised",
+      "type": "object"
+    },
+    "workers": {
+      "default": 1,
+      "description": "Worker nodes the task needs in that cluster",
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "title",
+    "certifications",
+    "statement",
+    "checks",
+    "solution"
+  ],
+  "title": "Question",
+  "type": "object"
+}

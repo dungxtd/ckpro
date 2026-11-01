@@ -1,0 +1,128 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Namespace and Pod Creation
+certifications:
+  cka: workloads-scheduling
+difficulty: easy
+namespace: app-team1
+tags: [pods, labels, namespaces]
+
+statement: |
+  Create a pod named `nginx-pod` using the `nginx:1.19` image.
+
+  Ensure the pod is created in the `app-team1` namespace and has the label `run=nginx-pod`.
+
+  Verify that the pod is in the Running state.
+
+setup: |
+  # Setup for Question 1: Create namespace and pod
+
+  # No specific setup needed as this is a creation task
+  # Just ensure the namespace doesn't exist already
+  kubectl delete namespace app-team1 --ignore-not-found=true
+
+  exit 0
+
+checks:
+  - name: Pod exists in correct namespace
+    weight: 2
+    run: |
+      # Validate if namespace app-team1 exists
+
+      NAMESPACE="app-team1"
+
+      if kubectl get namespace $NAMESPACE &> /dev/null; then
+          echo "✅ Namespace '$NAMESPACE' exists"
+          exit 0
+      else
+          echo "❌ Namespace '$NAMESPACE' not found"
+          exit 1
+      fi
+  - name: Pod has correct image
+    run: |
+      # Validate if nginx pod exists and is running in app-team1 namespace
+
+      NAMESPACE="app-team1"
+      POD_NAME="nginx-pod"
+      EXPECTED_IMAGE="nginx:1.19"
+
+      # Check if pod exists
+      if ! kubectl get pod $POD_NAME -n $NAMESPACE &> /dev/null; then
+          echo "❌ Pod '$POD_NAME' not found in namespace '$NAMESPACE'"
+          exit 1
+      fi
+
+      # Check if pod is running
+      POD_STATUS=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.status.phase}')
+      if [ "$POD_STATUS" != "Running" ]; then
+          echo "❌ Pod '$POD_NAME' exists but is not running (status: $POD_STATUS)"
+          exit 1
+      fi
+
+      # Check if correct image is used
+      POD_IMAGE=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].image}')
+      if [ "$POD_IMAGE" != "$EXPECTED_IMAGE" ]; then
+          echo "❌ Pod '$POD_NAME' is using incorrect image: $POD_IMAGE (expected: $EXPECTED_IMAGE)"
+          exit 1
+      fi
+
+      echo "✅ Pod '$POD_NAME' exists, is running, and using correct image in namespace '$NAMESPACE'"
+      exit 0
+  - name: Pod has correct status and configuration
+    weight: 2
+    run: |
+      # Validate pod status and readiness
+
+      NAMESPACE="app-team1"
+      POD_NAME="nginx-pod"
+
+      # Check if pod is ready
+      READY=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.status.containerStatuses[0].ready}')
+      if [ "$READY" != "true" ]; then
+          echo "❌ Pod '$POD_NAME' is not ready"
+          exit 1
+      fi
+
+      # Check if pod has restarted
+      RESTARTS=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.status.containerStatuses[0].restartCount}')
+      if [ "$RESTARTS" != "0" ]; then
+          echo "❌ Pod '$POD_NAME' has restarted $RESTARTS times"
+          exit 1
+      fi
+
+      # Check if pod is running on a valid node
+      NODE=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.nodeName}')
+      if [ -z "$NODE" ]; then
+          echo "❌ Pod '$POD_NAME' is not assigned to any node"
+          exit 1
+      fi
+
+      # Check if pod has the correct labels
+      LABELS=$(kubectl get pod $POD_NAME -n $NAMESPACE --show-labels)
+      if [[ ! "$LABELS" =~ "run=nginx-pod" ]]; then
+          echo "❌ Pod '$POD_NAME' missing expected labels"
+          exit 1
+      fi
+
+      echo "✅ Pod '$POD_NAME' has correct status and configuration"
+      exit 0
+
+solution:
+  explain: |
+    Create a namespace named `app-team1` and create a pod named `nginx-pod` with the following specifications:
+    - Image: nginx:1.19
+    - Namespace: app-team1
+    - Label: run=nginx-pod
+
+    ```yaml
+    # Create namespace
+    kubectl create namespace app-team1
+
+    # Create pod
+    kubectl run nginx-pod --image=nginx:1.19 -n app-team1 --labels=run=nginx-pod
+    ```
+  run: |
+    # Create namespace
+    kubectl create namespace app-team1
+
+    # Create pod
+    kubectl run nginx-pod --image=nginx:1.19 -n app-team1 --labels=run=nginx-pod

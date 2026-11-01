@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=../../schema/exam.schema.json
+title: CKA Practice Lab - Exam Scenario Pack
+description: Real exam-style scenarios covering RBAC, etcd backup/restore, node maintenance, networking, storage, and troubleshooting.
+certification: cka
+duration: 120m
+questions:
+  - core/cka/rbac-ci-token
+  - core/cka-003/q02-node-maintenance-cordon-drain
+  - core/cka-003/q03-etcd-backup-and-restore
+  - core/cka-003/q04-networkpolicy-restricting-cross-namespace-access
+  - core/cka-003/q05-named-container-port-and-nodeport-service
+  - core/cka-003/q06-scaling-a-deployment
+  - core/cka-003/q07-scheduling-with-nodeselector
+  - core/cka-003/q08-counting-ready-schedulable-nodes
+  - core/cka-003/q09-multi-container-pod
+  - core/cka-003/q10-persistentvolume-with-hostpath
+  - core/cka-003/q11-extracting-matching-log-lines
+  - core/cka-003/q12-adding-a-sidecar-container-to-tail-logs
+  - core/cka-003/q13-finding-the-top-cpu-consumer-via-metrics
+  - core/cka-003/q14-storageclass-pvc-and-volume-expansion
+  - core/cka-003/q15-ingress-routing-to-a-clusterip-service

@@ -1,0 +1,134 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Create a PersistentVolumeClaim named 'pvc-app' that requests 500Mi of storage with ReadWriteOnce access mode and uses the 'fast-storage' StorageClass
+certifications:
+  ckad: application-design-build
+difficulty: medium
+namespace: storage-test
+tags: [persistent-volume-claims, storage-class, access-modes]
+
+statement: |
+  An application team needs storage for their database.
+
+  Create a PersistentVolumeClaim named `pvc-app` in the `storage-test` namespace that will request storage from the previously created StorageClass.
+
+  The PVC should request exactly 500Mi of storage capacity and use the `ReadWriteOnce` access mode to ensure data consistency.
+
+  Make sure to specify the `fast-storage` StorageClass that you created earlier as the storage class for this claim.
+
+  This PVC will be used by a database application that requires persistent storage.
+
+setup: |
+  # Setup for Question 4: Create a PersistentVolumeClaim named 'pvc-app'
+
+  # Create the storage-test namespace if it doesn't exist already
+  if ! kubectl get namespace storage-test &> /dev/null; then
+      kubectl create namespace storage-test
+  fi
+
+  # Delete any existing PVC with the same name to ensure a clean state
+  kubectl delete pvc pvc-app -n storage-test --ignore-not-found=true
+
+  # Create the StorageClass if it doesn't exist (dependency for this question)
+  # if ! kubectl get storageclass fast-storage &> /dev/null; then
+  #     cat <<EOF | kubectl apply -f -
+  # apiVersion: storage.k8s.io/v1
+  # kind: StorageClass
+  # metadata:
+  #   name: fast-storage
+  # provisioner: kubernetes.io/no-provisioner
+  # volumeBindingMode: WaitForFirstConsumer
+  # EOF
+  #     echo "Created dependency: StorageClass 'fast-storage'"
+  # fi
+
+  echo "Setup complete for Question 4: Environment ready for creating PersistentVolumeClaim 'pvc-app'"
+  exit 0
+
+checks:
+  - name: PersistentVolumeClaim is created
+    weight: 2
+    run: |
+      # Validate if the PersistentVolumeClaim 'pvc-app' exists in the 'storage-test' namespace
+      if kubectl get pvc pvc-app -n storage-test &> /dev/null; then
+          echo "Success: PersistentVolumeClaim 'pvc-app' exists in namespace 'storage-test'"
+          exit 0
+      else
+          echo "Error: PersistentVolumeClaim 'pvc-app' does not exist in namespace 'storage-test'"
+          exit 1
+      fi
+  - name: PersistentVolumeClaim requests correct storage size
+    run: |
+      # Validate if the PersistentVolumeClaim 'pvc-app' in namespace 'storage-test' has the correct storage size (500Mi)
+      STORAGE_SIZE=$(kubectl get pvc pvc-app -n storage-test -o jsonpath='{.spec.resources.requests.storage}' 2>/dev/null)
+
+      if [ "$STORAGE_SIZE" = "500Mi" ]; then
+          echo "Success: PersistentVolumeClaim 'pvc-app' has the correct storage size (500Mi)"
+          exit 0
+      else
+          echo "Error: PersistentVolumeClaim 'pvc-app' does not have the correct storage size. Found: '$STORAGE_SIZE', Expected: '500Mi'"
+          exit 1
+      fi
+  - name: PersistentVolumeClaim has correct access mode
+    run: |
+      # Validate if PersistentVolumeClaim has correct access mode
+      ACCESS_MODE=$(kubectl get pvc pvc-app -n storage-test -o jsonpath='{.spec.accessModes[0]}' 2>/dev/null)
+
+      if [ "$ACCESS_MODE" = "ReadWriteOnce" ]; then
+          echo "Success: PersistentVolumeClaim 'pvc-app' has the correct access mode (ReadWriteOnce)"
+          exit 0
+      else
+          echo "Error: PersistentVolumeClaim 'pvc-app' does not have the correct access mode. Found: '$ACCESS_MODE', Expected: 'ReadWriteOnce'"
+          exit 1
+      fi
+  - name: PersistentVolumeClaim uses correct StorageClass
+    run: |
+      # Validate if PersistentVolumeClaim uses correct StorageClass
+      STORAGE_CLASS=$(kubectl get pvc pvc-app -n storage-test -o jsonpath='{.spec.storageClassName}' 2>/dev/null)
+
+      if [ "$STORAGE_CLASS" = "fast-storage" ]; then
+          echo "Success: PersistentVolumeClaim 'pvc-app' uses correct StorageClass (fast-storage)"
+          exit 0
+      else
+          echo "Error: PersistentVolumeClaim 'pvc-app' does not have the correct storage class. Found: '$STORAGE_CLASS', Expected: 'fast-storage'"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    ```yaml
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: pvc-app
+      namespace: storage-test
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 500Mi
+      storageClassName: fast-storage
+    ```
+
+    Save this as `pvc.yaml` and apply:
+
+    ```bash
+    kubectl apply -f pvc.yaml -n storage-test
+    ```
+  run: |
+    cat > pvc.yaml <<'MANIFEST'
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: pvc-app
+      namespace: storage-test
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 500Mi
+      storageClassName: fast-storage
+    MANIFEST
+
+    kubectl apply -f pvc.yaml -n storage-test

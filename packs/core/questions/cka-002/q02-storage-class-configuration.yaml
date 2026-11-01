@@ -1,0 +1,131 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Storage Class Configuration
+certifications:
+  cka: storage
+difficulty: hard
+namespace: storage-class
+tags: [storage, storage-classes]
+
+statement: |
+  Create a new StorageClass named `fast-local` with the following specifications:
+
+  - Provisioner: `rancher.io/local-path`
+  - VolumeBindingMode: `WaitForFirstConsumer`
+  - Set it as the `default` StorageClass
+
+  Note: Ensure any existing default StorageClass is no longer marked as default.
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace storage-class --dry-run=client -o yaml | kubectl apply -f -
+
+  # Create a dummy default storage class to test removal of default
+  kubectl create -f - <<EOF
+  apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    name: default-test
+    annotations:
+      storageclass.kubernetes.io/is-default-class: "true"
+  provisioner: rancher.io/local-path
+  EOF
+
+checks:
+  - name: StorageClass exists with correct specifications
+    weight: 2
+    run: |
+      set -e
+
+      # Check if StorageClass exists
+      kubectl get storageclass fast-local || {
+          echo "StorageClass fast-local not found"
+          exit 1
+      }
+
+      # Validate provisioner
+      PROVISIONER=$(kubectl get storageclass fast-local -o jsonpath='{.provisioner}')
+      if [[ "$PROVISIONER" != "rancher.io/local-path" ]]; then
+          echo "Incorrect provisioner. Expected 'rancher.io/local-path', got '$PROVISIONER'"
+          exit 1
+      fi
+
+      # Validate volumeBindingMode
+      BINDING_MODE=$(kubectl get storageclass fast-local -o jsonpath='{.volumeBindingMode}')
+      if [[ "$BINDING_MODE" != "WaitForFirstConsumer" ]]; then
+          echo "Incorrect volumeBindingMode. Expected 'WaitForFirstConsumer', got '$BINDING_MODE'"
+          exit 1
+      fi
+
+      echo "StorageClass validation successful"
+      exit 0
+  - name: StorageClass is set as default
+    weight: 2
+    run: |
+      set -e
+
+      # Check if StorageClass is marked as default
+      IS_DEFAULT=$(kubectl get storageclass fast-local -o jsonpath='{.metadata.annotations.storageclass\.kubernetes\.io/is-default-class}')
+      if [[ "$IS_DEFAULT" != "true" ]]; then
+          echo "StorageClass fast-local is not marked as default"
+          exit 1
+      fi
+
+      echo "Default StorageClass validation successful"
+      exit 0
+  - name: No other StorageClass is marked as default
+    run: |
+      set -e
+
+      # Count number of default StorageClasses
+      DEFAULT_COUNT=$(kubectl get storageclass -o jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}' | wc -w)
+
+      if [[ "$DEFAULT_COUNT" -ne 1 ]]; then
+          echo "Found $DEFAULT_COUNT default StorageClasses. Expected exactly 1"
+          exit 1
+      fi
+
+      # Verify the only default is our StorageClass
+      DEFAULT_SC=$(kubectl get storageclass -o jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}')
+      if [[ "$DEFAULT_SC" != "fast-local" ]]; then
+          echo "Wrong StorageClass is default. Expected 'fast-local', got '$DEFAULT_SC'"
+          exit 1
+      fi
+
+      echo "No other default StorageClass validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: fast-local
+      annotations:
+        storageclass.kubernetes.io/is-default-class: "true"
+    provisioner: rancher.io/local-path
+    volumeBindingMode: WaitForFirstConsumer
+    ```
+
+    Commands to remove default from other StorageClass:
+    ```bash
+    kubectl patch storageclass default-test -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
+    kubectl patch storageclass standard -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
+    ```
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: fast-local
+      annotations:
+        storageclass.kubernetes.io/is-default-class: "true"
+    provisioner: rancher.io/local-path
+    volumeBindingMode: WaitForFirstConsumer
+    MANIFEST
+
+    kubectl patch storageclass default-test -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
+    kubectl patch storageclass standard -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'

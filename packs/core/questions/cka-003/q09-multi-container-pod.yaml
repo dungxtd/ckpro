@@ -1,0 +1,101 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Multi-Container Pod
+certifications:
+  cka: workloads-scheduling
+difficulty: hard
+namespace: multi-container
+tags: [multi-container-pods]
+
+statement: |
+  Schedule a Pod as follows:
+
+  - Name: `kucc8`
+  - 2 containers, named and imaged as follows:
+    - `nginx` using image `nginx`
+    - `consul` using image `hashicorp/consul:1.15`
+
+setup: |
+  set -e
+
+  kubectl create namespace multi-container --dry-run=client -o yaml | kubectl apply -f -
+
+checks:
+  - name: Pod kucc8 has exactly 2 containers with the correct names/images
+    weight: 4
+    run: |
+      set -e
+
+      kubectl get pod kucc8 -n multi-container || {
+          echo "Pod kucc8 not found in namespace multi-container"
+          exit 1
+      }
+
+      POD=$(kubectl get pod kucc8 -n multi-container -o json)
+
+      COUNT=$(echo "$POD" | jq '.spec.containers | length')
+      if [[ "$COUNT" != "2" ]]; then
+          echo "Pod kucc8 does not have exactly 2 containers (got $COUNT)"
+          exit 1
+      fi
+
+      NGINX_IMAGE=$(echo "$POD" | jq -r '.spec.containers[] | select(.name=="nginx") | .image')
+      if [[ -z "$NGINX_IMAGE" || "$NGINX_IMAGE" != *"nginx"* ]]; then
+          echo "Container 'nginx' missing or not using nginx image (got '$NGINX_IMAGE')"
+          exit 1
+      fi
+
+      CONSUL_IMAGE=$(echo "$POD" | jq -r '.spec.containers[] | select(.name=="consul") | .image')
+      if [[ "$CONSUL_IMAGE" != "hashicorp/consul:1.15" ]]; then
+          echo "Container 'consul' missing or not using image hashicorp/consul:1.15 (got '$CONSUL_IMAGE')"
+          exit 1
+      fi
+
+      echo "kucc8 container validation successful"
+      exit 0
+  - name: Pod kucc8 is Running
+    weight: 3
+    run: |
+      set -e
+
+      PHASE=$(kubectl get pod kucc8 -n multi-container -o jsonpath='{.status.phase}' 2>/dev/null || true)
+      if [[ "$PHASE" == "Running" ]]; then
+          echo "Pod kucc8 is Running"
+          exit 0
+      fi
+
+      echo "Pod kucc8 is not Running (phase='$PHASE')"
+      exit 1
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: kucc8
+      namespace: multi-container
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+        - name: consul
+          image: hashicorp/consul:1.15
+    ```
+
+    ### Why this works
+    Multiple containers in the same Pod share the same network namespace and can share volumes; here they're just independent processes with no explicit inter-dependency, which is enough to satisfy the task. A specific image tag (`1.15`, not `latest`) is used for the `consul` container so the pull is deterministic and reproducible.
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: kucc8
+      namespace: multi-container
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+        - name: consul
+          image: hashicorp/consul:1.15
+    MANIFEST

@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../schema/pack.schema.json
+id: core
+title: ckpro core pack
+version: 0.1.0
+
+# Curriculum blueprints (Linux Foundation, 2025 curriculum; exams on Kubernetes v1.35)
+certifications:
+  cka:
+    title: Certified Kubernetes Administrator
+    kubernetes: "1.35"
+    passScore: 66
+    duration: 120m
+    domains:
+      troubleshooting: 30
+      cluster-architecture: 25
+      services-networking: 20
+      workloads-scheduling: 15
+      storage: 10
+    # Resources Allowed (docs.linuxfoundation.org/tc-docs/certification/certification-resources-allowed);
+    # kubernetes.io search is allowed, opening external results is not
+    resources:
+      - https://kubernetes.io/docs/
+      - https://kubernetes.io/blog/
+      - https://kubernetes.io/search/
+      - https://helm.sh/docs/
+      - https://gateway-api.sigs.k8s.io/
+  ckad:
+    title: Certified Kubernetes Application Developer
+    kubernetes: "1.35"
+    passScore: 66
+    duration: 120m
+    domains:
+      application-design-build: 20
+      application-deployment: 20
+      application-observability-maintenance: 15
+      application-environment-configuration-security: 25
+      services-networking: 20
+    # Resources Allowed (docs.linuxfoundation.org/tc-docs/certification/certification-resources-allowed);
+    # kubernetes.io search is allowed, opening external results is not
+    resources:
+      - https://kubernetes.io/docs/
+      - https://kubernetes.io/blog/
+      - https://kubernetes.io/search/
+      - https://helm.sh/docs/
+  cks:
+    title: Certified Kubernetes Security Specialist
+    kubernetes: "1.35"
+    passScore: 67
+    duration: 120m
+    domains:
+      cluster-setup: 15
+      cluster-hardening: 15
+      system-hardening: 10
+      minimize-microservice-vulnerabilities: 20
+      supply-chain-security: 20
+      monitoring-logging-runtime-security: 20
+    # Resources Allowed (docs.linuxfoundation.org/tc-docs/certification/certification-resources-allowed);
+    # kubernetes.io search is allowed, opening external results is not
+    resources:
+      - https://kubernetes.io/docs/
+      - https://kubernetes.io/blog/
+      - https://kubernetes.io/search/
+      - https://falco.org/docs/
+      - https://kubernetes-sigs.github.io/bom/cli-reference/
+      - https://etcd.io/docs/
+      - https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/
+      - https://docs.cilium.io/
+      - https://istio.io/latest/docs/

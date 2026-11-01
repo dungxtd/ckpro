@@ -1,0 +1,277 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Manual Storage Configuration
+certifications:
+  cka: storage
+difficulty: hard
+namespace: manual-storage
+tags: [storage, persistent-volumes, node-affinity]
+
+statement: |
+  Create a PersistentVolume named `manual-pv` with the following specifications:
+
+  - Storage: `1Gi`
+  - Access Mode: `ReadWriteOnce`
+  - Host Path: `/mnt/data`
+  - Node Affinity: Must run on node `{{worker1}}`
+
+  Then create a PersistentVolumeClaim named `manual-pvc` that binds to this PV.
+
+  Finally, create a Pod named `manual-pod` using the `busybox` image that mounts this PVC at `/data` and runs the command `sleep 3600`.
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace manual-storage --dry-run=client -o yaml | kubectl apply -f -
+
+  # Create the directory on the node (this assumes we have access to the node)
+  mkdir -p /mnt/data
+
+  # Label the node for identification
+  kubectl label node {{worker1}} kubernetes.io/hostname={{worker1}} --overwrite
+
+checks:
+  - name: PV exists with correct specifications
+    weight: 2
+    run: |
+      set -e
+
+      # Check if PV exists
+      kubectl get pv manual-pv || {
+          echo "PV manual-pv not found"
+          exit 1
+      }
+
+      # Validate storage size
+      STORAGE_SIZE=$(kubectl get pv manual-pv -o jsonpath='{.spec.capacity.storage}')
+      if [[ "$STORAGE_SIZE" != "1Gi" ]]; then
+          echo "Incorrect storage size. Expected '1Gi', got '$STORAGE_SIZE'"
+          exit 1
+      fi
+
+      # Validate access mode
+      ACCESS_MODE=$(kubectl get pv manual-pv -o jsonpath='{.spec.accessModes[0]}')
+      if [[ "$ACCESS_MODE" != "ReadWriteOnce" ]]; then
+          echo "Incorrect access mode. Expected 'ReadWriteOnce', got '$ACCESS_MODE'"
+          exit 1
+      fi
+
+      # Validate host path
+      HOST_PATH=$(kubectl get pv manual-pv -o jsonpath='{.spec.hostPath.path}')
+      if [[ "$HOST_PATH" != "/mnt/data" ]]; then
+          echo "Incorrect host path. Expected '/mnt/data', got '$HOST_PATH'"
+          exit 1
+      fi
+
+      # Validate node affinity
+      NODE_HOSTNAME=$(kubectl get pv manual-pv -o jsonpath='{.spec.nodeAffinity.required.nodeSelectorTerms[0].matchExpressions[?(@.key=="kubernetes.io/hostname")].values[0]}')
+      if [[ "$NODE_HOSTNAME" != "{{worker1}}" ]]; then
+          echo "Incorrect node affinity. Expected '{{worker1}}', got '$NODE_HOSTNAME'"
+          exit 1
+      fi
+
+      echo "PV validation successful"
+      exit 0
+  - name: PVC exists and is bound to PV
+    weight: 2
+    run: |
+      set -e
+
+      # Check if PVC exists
+      kubectl get pvc manual-pvc -n manual-storage || {
+          echo "PVC manual-pvc not found in namespace manual-storage"
+          exit 1
+      }
+
+      # Validate storage size
+      STORAGE_SIZE=$(kubectl get pvc manual-pvc -n manual-storage -o jsonpath='{.spec.resources.requests.storage}')
+      if [[ "$STORAGE_SIZE" != "1Gi" ]]; then
+          echo "Incorrect storage size. Expected '1Gi', got '$STORAGE_SIZE'"
+          exit 1
+      fi
+
+      # Validate access mode
+      ACCESS_MODE=$(kubectl get pvc manual-pvc -n manual-storage -o jsonpath='{.spec.accessModes[0]}')
+      if [[ "$ACCESS_MODE" != "ReadWriteOnce" ]]; then
+          echo "Incorrect access mode. Expected 'ReadWriteOnce', got '$ACCESS_MODE'"
+          exit 1
+      fi
+
+      # Check if PVC is bound
+      PVC_STATUS=$(kubectl get pvc manual-pvc -n manual-storage -o jsonpath='{.status.phase}')
+      if [[ "$PVC_STATUS" != "Bound" ]]; then
+          echo "PVC is not bound. Current status: $PVC_STATUS"
+          exit 1
+      fi
+
+      # Verify it's bound to the correct PV
+      BOUND_PV=$(kubectl get pvc manual-pvc -n manual-storage -o jsonpath='{.spec.volumeName}')
+      if [[ "$BOUND_PV" != "manual-pv" ]]; then
+          echo "PVC is bound to wrong PV. Expected 'manual-pv', got '$BOUND_PV'"
+          exit 1
+      fi
+
+      echo "PVC validation successful"
+      exit 0
+  - name: Pod exists, is running, and uses the PVC
+    run: |
+      set -e
+
+      # Check if pod exists
+      kubectl get pod manual-pod -n manual-storage || {
+          echo "Pod manual-pod not found in namespace manual-storage"
+          exit 1
+      }
+
+      # Check if pod is running
+      POD_STATUS=$(kubectl get pod manual-pod -n manual-storage -o jsonpath='{.status.phase}')
+      if [[ "$POD_STATUS" != "Running" ]]; then
+          echo "Pod is not in Running state. Current state: $POD_STATUS"
+          exit 1
+      fi
+
+      # Check if pod is using busybox image
+      POD_IMAGE=$(kubectl get pod manual-pod -n manual-storage -o jsonpath='{.spec.containers[0].image}')
+      if [[ "$POD_IMAGE" != *"busybox"* ]]; then
+          echo "Pod is not using busybox image. Current image: $POD_IMAGE"
+          exit 1
+      fi
+
+      # Check if volume is mounted correctly
+      MOUNT_PATH=$(kubectl get pod manual-pod -n manual-storage -o jsonpath='{.spec.containers[0].volumeMounts[0].mountPath}')
+      if [[ "$MOUNT_PATH" != "/data" ]]; then
+          echo "Volume not mounted at correct path. Expected '/data', got '$MOUNT_PATH'"
+          exit 1
+      fi
+
+      # Check if the correct PVC is used
+      VOLUME_PVC=$(kubectl get pod manual-pod -n manual-storage -o jsonpath='{.spec.volumes[0].persistentVolumeClaim.claimName}')
+      if [[ "$VOLUME_PVC" != "manual-pvc" ]]; then
+          echo "Pod is not using the correct PVC. Expected 'manual-pvc', got '$VOLUME_PVC'"
+          exit 1
+      fi
+
+      # Check if command is set correctly
+      POD_COMMAND=$(kubectl get pod manual-pod -n manual-storage -o jsonpath='{.spec.containers[0].command[0]}')
+      if [[ "$POD_COMMAND" != "sleep" ]]; then
+          echo "Pod command is not set to sleep"
+          exit 1
+      fi
+
+      POD_ARGS=$(kubectl get pod manual-pod -n manual-storage -o jsonpath='{.spec.containers[0].command[1]}')
+      if [[ "$POD_ARGS" != "3600" ]]; then
+          echo "Pod sleep duration is not set to 3600"
+          exit 1
+      fi
+
+      echo "Pod validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: manual-pv
+    spec:
+      capacity:
+        storage: 1Gi
+      accessModes:
+        - ReadWriteOnce
+      hostPath:
+        path: /mnt/data
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+              - "{{worker1}}"
+    ---
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: manual-pvc
+      namespace: manual-storage
+    spec:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: manual-pod
+      namespace: manual-storage
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ["sleep", "3600"]
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: manual-pvc
+    ```
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: manual-pv
+    spec:
+      capacity:
+        storage: 1Gi
+      accessModes:
+        - ReadWriteOnce
+      hostPath:
+        path: /mnt/data
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+              - "{{worker1}}"
+    ---
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: manual-pvc
+      namespace: manual-storage
+    spec:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: manual-pod
+      namespace: manual-storage
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ["sleep", "3600"]
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: manual-pvc
+    MANIFEST

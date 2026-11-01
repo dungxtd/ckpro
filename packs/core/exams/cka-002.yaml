@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../schema/exam.schema.json
+title: CKA Practice Lab - Advanced Administration
+description: Comprehensive lab covering advanced Kubernetes administration topics including storage, networking, security, and troubleshooting with focus on real-world scenarios, updated with the latest CKA exam curriculum changes.
+certification: cka
+duration: 120m
+questions:
+  - core/cka-002/q01-dynamic-pvc-and-pod
+  - core/cka-002/q02-storage-class-configuration
+  - core/cka-002/q03-manual-storage-configuration
+  - core/cka-002/q04-deployment-with-hpa
+  - core/cka-002/q05-node-affinity-configuration
+  - core/cka-002/q06-pod-security-policy
+  - core/cka-002/q07-node-taints-and-tolerations
+  - core/cka-002/q08-statefulset-and-headless-service
+  - core/cka-002/q09-dns-configuration-and-debugging
+  - core/cka-002/q10-basic-dns-service-discovery
+  - core/cka-002/q11-helm-chart-deployment
+  - core/cka-002/q12-kustomize-configuration
+  - core/cka-002/q13-gateway-api-configuration
+  - core/cka-002/q14-resource-limits-and-quotas
+  - core/cka-002/q15-horizontal-pod-autoscaling
+  - core/cka-002/q16-rbac-configuration
+  - core/cka-002/q17-network-policies
+  - core/cka-002/q18-rolling-updates
+  - core/cka-002/q19-pod-priority-and-anti-affinity
+  - core/cka-002/q20-troubleshooting-application

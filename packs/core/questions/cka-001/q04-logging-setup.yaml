@@ -1,0 +1,215 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Logging Setup
+certifications:
+  cka: troubleshooting
+difficulty: easy
+namespace: monitoring
+tags: [multi-container pods, volumes, logging]
+
+statement: |
+  Create a pod named `logger` in the `monitoring` namespace with two containers:
+
+  1. A `busybox` container that writes logs to `/var/log/app.log`
+  2. A `fluentd` container that reads logs from the same location
+
+  Use an `emptyDir` volume named `log-volume` to share logs between containers. Mount this volume at `/var/log` in both containers.
+
+  Ensure both containers are running.
+
+setup: |
+  # Setup for Question 4: Logging setup
+
+  # Create monitoring namespace if it doesn't exist
+  kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+  # Remove any existing pod with the same name
+  kubectl delete pod -n monitoring logger --ignore-not-found=true
+
+  # Pull required images in advance to speed up pod creation
+  kubectl run prefetch-busybox --image=busybox --restart=Never -n monitoring --dry-run=client -o yaml | kubectl apply -f -
+  kubectl run prefetch-fluentd --image=fluentd:v1.14 --restart=Never -n monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+  # Wait for prefetch pods to be created
+  sleep 5
+
+  # Clean up prefetch pods
+  kubectl delete pod -n monitoring prefetch-busybox --ignore-not-found=true
+  kubectl delete pod -n monitoring prefetch-fluentd --ignore-not-found=true
+
+  exit 0
+
+checks:
+  - name: Pod and containers exist
+    weight: 2
+    run: |
+      # Validate if logging pod exists with correct configuration
+
+      NAMESPACE="monitoring"
+      POD_NAME="logger"
+      EXPECTED_CONTAINERS=2
+
+      # Check if pod exists
+      if ! kubectl get pod $POD_NAME -n $NAMESPACE &> /dev/null; then
+          echo "❌ Pod '$POD_NAME' not found in namespace '$NAMESPACE'"
+          exit 1
+      fi
+
+      # Check if pod is running
+      POD_STATUS=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.status.phase}')
+      if [ "$POD_STATUS" != "Running" ]; then
+          echo "❌ Pod '$POD_NAME' exists but is not running (status: $POD_STATUS)"
+          exit 1
+      fi
+
+      # Check if pod has two containers
+      CONTAINER_COUNT=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[*].name}' | wc -w)
+      if [ "$CONTAINER_COUNT" -ne "$EXPECTED_CONTAINERS" ]; then
+          echo "❌ Pod '$POD_NAME' has incorrect number of containers: $CONTAINER_COUNT (expected: $EXPECTED_CONTAINERS)"
+          exit 1
+      fi
+
+      # Check if containers are using correct images
+      BUSYBOX_CONTAINER=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[?(@.image=="busybox")].name}')
+      FLUENTD_CONTAINER=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[?(@.image=="fluentd")].name}')
+
+      if [ -z "$BUSYBOX_CONTAINER" ] || [ -z "$FLUENTD_CONTAINER" ]; then
+          echo "❌ Pod '$POD_NAME' is missing required containers with correct images"
+          exit 1
+      fi
+
+      # Check if volume mount is configured
+      LOG_MOUNT=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.containers[0].volumeMounts[?(@.mountPath=="/var/log")].mountPath}')
+      if [ -z "$LOG_MOUNT" ]; then
+          echo "❌ Volume mount '/var/log' not configured in pod '$POD_NAME'"
+          exit 1
+      fi
+
+      # Check if emptyDir volume is used
+      VOLUME_TYPE=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.volumes[?(@.name=="log-volume")].emptyDir}')
+      if [ -z "$VOLUME_TYPE" ]; then
+          echo "❌ Pod '$POD_NAME' is not using emptyDir volume type"
+          exit 1
+      fi
+
+      echo "✅ Pod '$POD_NAME' exists with correct configuration and containers"
+      exit 0
+  - name: Logging functionality is working
+    weight: 3
+    run: |
+      # Validate logging functionality
+
+      NAMESPACE="monitoring"
+      POD_NAME="logger"
+
+      # Check if log file exists and is being written to
+      kubectl exec -n $NAMESPACE $POD_NAME -c busybox -- ls -l /var/log/app.log &> /dev/null
+      if [ $? -ne 0 ]; then
+          echo "❌ Log file /var/log/app.log does not exist"
+          exit 1
+      fi
+
+      # Check if log file has recent entries
+      LOG_ENTRIES=$(kubectl exec -n $NAMESPACE $POD_NAME -c busybox -- wc -l /var/log/app.log | awk '{print $1}')
+      if [ "$LOG_ENTRIES" -lt 1 ]; then
+          echo "❌ Log file has no entries"
+          exit 1
+      fi
+
+      # Check if fluentd container is running
+      FLUENTD_STATUS=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.status.containerStatuses[?(@.name=="fluentd")].state.running}')
+      if [ -z "$FLUENTD_STATUS" ]; then
+          echo "❌ Fluentd container is not running"
+          exit 1
+      fi
+
+      # Check if fluentd has correct configuration
+      FLUENTD_CONFIG=$(kubectl exec -n $NAMESPACE $POD_NAME -c fluentd -- cat /fluentd/etc/fluent.conf)
+      if [[ ! "$FLUENTD_CONFIG" =~ "source" ]] || [[ ! "$FLUENTD_CONFIG" =~ "match" ]]; then
+          echo "❌ Fluentd configuration is incomplete"
+          exit 1
+      fi
+
+      # Check if log volume is properly mounted
+      VOLUME_MOUNT=$(kubectl get pod $POD_NAME -n $NAMESPACE -o jsonpath='{.spec.volumes[?(@.name=="log-volume")].emptyDir}')
+      if [ -z "$VOLUME_MOUNT" ]; then
+          echo "❌ Log volume is not properly configured"
+          exit 1
+      fi
+
+      echo "✅ Logging configuration is correct and functional"
+      exit 0
+
+solution:
+  explain: |
+    Create a pod named `logger` in the monitoring namespace with the following specifications:
+    - Container 1: busybox (writes logs to /var/log/app.log)
+    - Container 2: fluentd (reads logs from the same location)
+    - Use emptyDir volume to share logs between containers
+
+    ```yaml
+    # Create monitoring namespace
+    kubectl create namespace monitoring
+
+    # Create pod
+    cat << EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: logger
+      namespace: monitoring
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ['/bin/sh', '-c']
+        args:
+        - while true; do
+            echo "$(date) - Application log entry" >> /var/log/app.log;
+            sleep 10;
+          done
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/log
+      - name: fluentd
+        image: fluentd
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/log
+      volumes:
+      - name: log-volume
+        emptyDir: {}
+    EOF
+    ```
+  run: |
+    # Create monitoring namespace
+    kubectl create namespace monitoring
+
+    # Create pod
+    cat << EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: logger
+      namespace: monitoring
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ['/bin/sh', '-c']
+        args:
+        - while true; do
+            echo "$(date) - Application log entry" >> /var/log/app.log;
+            sleep 10;
+          done
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/log
+      - name: fluentd
+        image: fluentd
+        volumeMounts:
+        - name: log-volume
+          mountPath: /var/log
+      volumes:
+      - name: log-volume
+        emptyDir: {}
+    EOF

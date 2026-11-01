@@ -1,0 +1,235 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: "Pod Design - Deployment & Service"
+certifications:
+  ckad: application-design-build
+difficulty: hard
+namespace: pod-design
+tags: [deployments, services, labels, selectors]
+
+statement: |
+  Create a Deployment in the `pod-design` namespace with the following specifications:
+  - Name: `frontend`
+  - Replicas: `3`
+  - Image: `nginx:1.19.0`
+  - Labels: `app=frontend, tier=frontend`
+  - Pod Labels: same as deployment labels
+
+  Then create a service `frontend-svc` that exposes the deployment on port `80`, targeting container port `80`, and is of type `ClusterIP`. Ensure the namespace exists before creating the resources.
+
+setup: |
+  # Delete the app-namespace namespace if it exists
+  echo "Setting up environment for Question 3 (Deployment)..."
+  kubectl delete namespace app-namespace --ignore-not-found=true
+
+  # Wait for deletion to complete
+  sleep 2
+
+  # Confirm environment is ready
+  echo "Environment ready for Question 3"
+  exit 0
+
+checks:
+  - name: Namespace is created
+    run: |
+      # Validate that the pod-design namespace exists
+      NS=$(kubectl get namespace pod-design -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$NS" == "pod-design" ]]; then
+          # Namespace exists
+          exit 0
+      else
+          # Namespace does not exist
+          echo "Namespace 'pod-design' does not exist"
+          exit 1
+      fi
+  - name: Deployment is created with correct specifications
+    weight: 3
+    run: |
+      # Validate that the frontend deployment exists
+      DEPLOYMENT=$(kubectl get deployment frontend -n pod-design -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$DEPLOYMENT" == "frontend" ]]; then
+          # Deployment exists, now check specs
+
+          # Check image
+          IMAGE=$(kubectl get deployment frontend -n pod-design -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)
+
+          # Check labels
+          APP_LABEL=$(kubectl get deployment frontend -n pod-design -o jsonpath='{.metadata.labels.app}' 2>/dev/null)
+          TIER_LABEL=$(kubectl get deployment frontend -n pod-design -o jsonpath='{.metadata.labels.tier}' 2>/dev/null)
+
+          # Check pod labels
+          POD_APP_LABEL=$(kubectl get deployment frontend -n pod-design -o jsonpath='{.spec.template.metadata.labels.app}' 2>/dev/null)
+          POD_TIER_LABEL=$(kubectl get deployment frontend -n pod-design -o jsonpath='{.spec.template.metadata.labels.tier}' 2>/dev/null)
+
+          if [[ "$IMAGE" == "nginx:1.19.0" &&
+                "$APP_LABEL" == "frontend" &&
+                "$TIER_LABEL" == "frontend" &&
+                "$POD_APP_LABEL" == "frontend" &&
+                "$POD_TIER_LABEL" == "frontend" ]]; then
+              # All specifications are correct
+              exit 0
+          else
+              echo "Deployment 'frontend' does not have correct specifications."
+              echo "Found image: $IMAGE (expected: nginx:1.19.0)"
+              echo "Found deployment app label: $APP_LABEL (expected: frontend)"
+              echo "Found deployment tier label: $TIER_LABEL (expected: frontend)"
+              echo "Found pod app label: $POD_APP_LABEL (expected: frontend)"
+              echo "Found pod tier label: $POD_TIER_LABEL (expected: frontend)"
+              exit 1
+          fi
+      else
+          # Deployment does not exist
+          echo "Deployment 'frontend' does not exist in the 'pod-design' namespace"
+          exit 1
+      fi
+  - name: Deployment has correct number of replicas
+    run: |
+      # Validate that the deployment has the correct number of replicas
+      REPLICAS=$(kubectl get deployment frontend -n pod-design -o jsonpath='{.spec.replicas}' 2>/dev/null)
+
+      if [[ "$REPLICAS" == "3" ]]; then
+          # Deployment has correct number of replicas
+          exit 0
+      else
+          # Deployment has incorrect number of replicas
+          echo "Deployment 'frontend' does not have correct number of replicas. Found: $REPLICAS (expected: 3)"
+          exit 1
+      fi
+  - name: Service is created correctly
+    weight: 2
+    run: |
+      # Validate that the frontend-svc service exists
+      SERVICE=$(kubectl get service frontend-svc -n pod-design -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$SERVICE" == "frontend-svc" ]]; then
+          # Service exists, now check specs
+          TYPE=$(kubectl get service frontend-svc -n pod-design -o jsonpath='{.spec.type}' 2>/dev/null)
+          PORT=$(kubectl get service frontend-svc -n pod-design -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+          TARGET_PORT=$(kubectl get service frontend-svc -n pod-design -o jsonpath='{.spec.ports[0].targetPort}' 2>/dev/null)
+          SELECTOR_APP=$(kubectl get service frontend-svc -n pod-design -o jsonpath='{.spec.selector.app}' 2>/dev/null)
+
+          if [[ "$TYPE" == "ClusterIP" && "$PORT" == "80" && "$TARGET_PORT" == "80" && "$SELECTOR_APP" == "frontend" ]]; then
+              # Service is configured correctly
+              exit 0
+          else
+              echo "Service 'frontend-svc' is not configured correctly."
+              echo "Found type: $TYPE (expected: ClusterIP)"
+              echo "Found port: $PORT (expected: 80)"
+              echo "Found target port: $TARGET_PORT (expected: 80)"
+              echo "Found selector app: $SELECTOR_APP (expected: frontend)"
+              exit 1
+          fi
+      else
+          # Service does not exist
+          echo "Service 'frontend-svc' does not exist in the 'pod-design' namespace"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    Create a deployment and a service:
+
+    ```bash
+    # Create namespace
+    kubectl create namespace pod-design
+
+    # Create deployment and service
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: pod-design
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: frontend
+      namespace: pod-design
+      labels:
+        app: frontend
+        tier: frontend
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: frontend
+          tier: frontend
+      template:
+        metadata:
+          labels:
+            app: frontend
+            tier: frontend
+        spec:
+          containers:
+          - name: nginx
+            image: nginx:1.19.0
+            ports:
+            - containerPort: 80
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: frontend-svc
+      namespace: pod-design
+    spec:
+      selector:
+        app: frontend
+        tier: frontend
+      ports:
+      - port: 80
+        targetPort: 80
+      type: ClusterIP
+    EOF
+    ```
+  run: |
+    # Create namespace
+    kubectl create namespace pod-design
+
+    # Create deployment and service
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: pod-design
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: frontend
+      namespace: pod-design
+      labels:
+        app: frontend
+        tier: frontend
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: frontend
+          tier: frontend
+      template:
+        metadata:
+          labels:
+            app: frontend
+            tier: frontend
+        spec:
+          containers:
+          - name: nginx
+            image: nginx:1.19.0
+            ports:
+            - containerPort: 80
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: frontend-svc
+      namespace: pod-design
+    spec:
+      selector:
+        app: frontend
+        tier: frontend
+      ports:
+      - port: 80
+        targetPort: 80
+      type: ClusterIP
+    EOF

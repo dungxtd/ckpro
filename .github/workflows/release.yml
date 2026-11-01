@@ -1,0 +1,125 @@
+# Builds the macOS app (arm64 and x86_64, one DMG each) for a version tag,
+# publishes the DMGs on this repo's GitHub Release, then points the Homebrew
+# cask in Casks/ at them:
+#   brew tap dungxtd/ckpro https://github.com/dungxtd/ckpro
+#   brew install --cask ckpro
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build only (no release, no cask bump)
+        type: boolean
+        default: true
+
+env:
+  # Public PostHog project key, baked into the interface at build time
+  VITE_POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: aarch64-apple-darwin, arch: arm64, label: macos-arm64 }
+          - { target: x86_64-apple-darwin, arch: x86_64, label: macos-x64 }
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/sync-version-from-tag
+
+      - uses: ./.github/actions/setup-build-env
+        with:
+          rust-target: ${{ matrix.target }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the app
+        working-directory: desktop
+        env:
+          MACOSX_DEPLOYMENT_TARGET: '11.0'
+          # Source maps go to PostHog once per release (the interface is the
+          # same on both architectures), then are removed from the bundle
+          POSTHOG_CLI_API_KEY: ${{ matrix.arch == 'arm64' && inputs.dry_run != true && secrets.POSTHOG_CLI_API_KEY || '' }}
+          POSTHOG_CLI_PROJECT_ID: ${{ secrets.POSTHOG_CLI_PROJECT_ID }}
+          POSTHOG_CLI_HOST: https://us.posthog.com
+        run: pnpm run build --target ${{ matrix.target }} --bundles app,dmg
+
+      - name: Collect the DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _artifacts
+          for f in desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg; do
+            cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f")"
+          done
+          ls -la _artifacts
+
+      - name: Keep the DMG with the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: ckpro-${{ matrix.label }}
+          path: _artifacts/*.dmg
+          retention-days: 7
+
+      - name: Publish to the GitHub Release
+        if: ${{ inputs.dry_run != true }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Created by the first leg; the other uploads beside it
+          scripts/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag || true
+          gh release upload "$GITHUB_REF_NAME" _artifacts/*.dmg --clobber
+
+  cask:
+    needs: build-macos
+    if: ${{ inputs.dry_run != true }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Point the cask at this release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dmg
+          gh release download "$GITHUB_REF_NAME" --pattern '*.dmg' --dir dmg
+          ARM_SHA=$(shasum -a 256 dmg/*_macos-arm64_*.dmg | awk '{print $1}')
+          INTEL_SHA=$(shasum -a 256 dmg/*_macos-x64_*.dmg | awk '{print $1}')
+          # Each sha256 line belongs to the on_arm or on_intel block above it
+          awk -v ver="$VERSION" -v arm="$ARM_SHA" -v intel="$INTEL_SHA" '
+            /^  version /  { print "  version \"" ver "\""; next }
+            /on_arm do/    { blk = "arm" }
+            /on_intel do/  { blk = "intel" }
+            /^    sha256 / { print "    sha256 \"" (blk == "arm" ? arm : intel) "\""; next }
+            { print }
+          ' Casks/ckpro.rb > Casks/ckpro.rb.tmp
+          mv Casks/ckpro.rb.tmp Casks/ckpro.rb
+          cat Casks/ckpro.rb
+          if git diff --quiet Casks/ckpro.rb; then
+            echo "Cask already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(cask): point to ${GITHUB_REF_NAME}"
+          git pull --rebase origin main
+          git push origin main

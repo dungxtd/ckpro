@@ -1,0 +1,216 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: "Create a NetworkPolicy named 'allow-traffic' in namespace 'networking' that allows traffic to pods with label 'app=web' only from pods with label 'tier=frontend' on port 80"
+certifications:
+  ckad: services-networking
+difficulty: medium
+namespace: networking
+tags: [network-policies, pod-security, network-security, labels]
+
+statement: |
+  To enhance security through network segmentation, implement a network policy for a web application.
+
+  Create a NetworkPolicy named `allow-traffic` in namespace `networking` that allows incoming traffic only from pods with the label `tier=frontend` to pods with the label `app=web` on TCP port `80`.
+
+  All other incoming traffic to these pods should be denied.
+
+  This implements the principle of least privilege at the network level, ensuring that the web application can only be accessed by authorized frontend components.
+
+setup: |
+  # Setup for Question 16: Create a NetworkPolicy
+
+  # Create the networking namespace if it doesn't exist already
+  if ! kubectl get namespace networking &> /dev/null; then
+      kubectl create namespace networking
+  fi
+
+  # Delete any existing NetworkPolicy with the same name
+  kubectl delete networkpolicy allow-traffic -n networking --ignore-not-found=true
+
+  # Create pods with the required labels for testing the network policy
+  kubectl delete pod -l app=web -n networking --ignore-not-found=true
+  kubectl delete pod -l tier=frontend -n networking --ignore-not-found=true
+
+  # Create a web pod with label app=web
+  cat <<EOF | kubectl apply -f -
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: web-pod
+    namespace: networking
+    labels:
+      app: web
+  spec:
+    containers:
+    - name: nginx
+      image: nginx
+      ports:
+      - containerPort: 80
+  EOF
+
+  # Create a frontend pod with label tier=frontend
+  cat <<EOF | kubectl apply -f -
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: frontend-pod
+    namespace: networking
+    labels:
+      tier: frontend
+  spec:
+    containers:
+    - name: busybox
+      image: busybox
+      command: ["sleep", "3600"]
+  EOF
+
+  # Create a pod with no relevant labels for testing isolation
+  cat <<EOF | kubectl apply -f -
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: other-pod
+    namespace: networking
+    labels:
+      tier: other
+  spec:
+    containers:
+    - name: busybox
+      image: busybox
+      command: ["sleep", "3600"]
+  EOF
+
+  echo "Setup complete for Question 16: Created pods with necessary labels for NetworkPolicy testing"
+  exit 0
+
+checks:
+  - name: NetworkPolicy is created
+    weight: 2
+    run: |
+      # Validate if the NetworkPolicy 'allow-traffic' exists in the 'networking' namespace
+      if kubectl get networkpolicy allow-traffic -n networking &> /dev/null; then
+          echo "Success: NetworkPolicy 'allow-traffic' exists in namespace 'networking'"
+          exit 0
+      else
+          echo "Error: NetworkPolicy 'allow-traffic' does not exist in namespace 'networking'"
+          exit 1
+      fi
+  - name: NetworkPolicy has correct pod selector
+    weight: 2
+    run: |
+      # Validate that NetworkPolicy 'allow-traffic' has correct pod selector: app=web
+
+      NAMESPACE="networking"
+      POLICY_NAME="allow-traffic"
+      EXPECTED_KEY="app"
+      EXPECTED_VALUE="web"
+
+      # Check if the NetworkPolicy exists
+      if ! kubectl get networkpolicy "$POLICY_NAME" -n "$NAMESPACE" > /dev/null 2>&1; then
+        echo "❌ NetworkPolicy '$POLICY_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Fetch the podSelector key and value
+      ACTUAL_KEY=$(kubectl get networkpolicy "$POLICY_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.podSelector.matchLabels}" | grep -o '"[^"]*":' | tr -d '"':)
+      ACTUAL_VALUE=$(kubectl get networkpolicy "$POLICY_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.podSelector.matchLabels.$EXPECTED_KEY}")
+
+      # Validate key and value
+      if [ "$ACTUAL_KEY" != "$EXPECTED_KEY" ] || [ "$ACTUAL_VALUE" != "$EXPECTED_VALUE" ]; then
+        echo "❌ NetworkPolicy '$POLICY_NAME' has incorrect podSelector"
+        echo "Expected: $EXPECTED_KEY=$EXPECTED_VALUE"
+        echo "Found: $ACTUAL_KEY=$ACTUAL_VALUE"
+        exit 1
+      fi
+
+      # Success
+      echo "✅ NetworkPolicy '$POLICY_NAME' has correct podSelector: $EXPECTED_KEY=$EXPECTED_VALUE"
+      exit 0
+  - name: NetworkPolicy has correct ingress rules
+    run: |
+      # Validate that NetworkPolicy 'allow-traffic' has correct ingress rules:
+      # from pods with label tier=frontend and allows TCP on port 80
+
+      NAMESPACE="networking"
+      POLICY_NAME="allow-traffic"
+      EXPECTED_FROM_KEY="tier"
+      EXPECTED_FROM_VALUE="frontend"
+      EXPECTED_PROTOCOL="TCP"
+      EXPECTED_PORT="80"
+
+      # Check if the NetworkPolicy exists
+      if ! kubectl get networkpolicy "$POLICY_NAME" -n "$NAMESPACE" > /dev/null 2>&1; then
+        echo "❌ NetworkPolicy '$POLICY_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Validate podSelector in ingress.from
+      ACTUAL_FROM_VALUE=$(kubectl get networkpolicy "$POLICY_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.ingress[0].from[0].podSelector.matchLabels.$EXPECTED_FROM_KEY}")
+      if [ "$ACTUAL_FROM_VALUE" != "$EXPECTED_FROM_VALUE" ]; then
+        echo "❌ Ingress rule does not match expected podSelector: $EXPECTED_FROM_KEY=$EXPECTED_FROM_VALUE"
+        echo "Found: $EXPECTED_FROM_KEY=$ACTUAL_FROM_VALUE"
+        exit 1
+      fi
+
+      # Validate port and protocol
+      ACTUAL_PORT=$(kubectl get networkpolicy "$POLICY_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.ingress[0].ports[0].port}")
+      ACTUAL_PROTOCOL=$(kubectl get networkpolicy "$POLICY_NAME" -n "$NAMESPACE" -o jsonpath="{.spec.ingress[0].ports[0].protocol}")
+
+      if [ "$ACTUAL_PORT" != "$EXPECTED_PORT" ] || [ "$ACTUAL_PROTOCOL" != "$EXPECTED_PROTOCOL" ]; then
+        echo "❌ Ingress rule does not allow expected port/protocol"
+        echo "Expected: $EXPECTED_PROTOCOL $EXPECTED_PORT"
+        echo "Found:    $ACTUAL_PROTOCOL $ACTUAL_PORT"
+        exit 1
+      fi
+
+      # Success!
+      echo "✅ NetworkPolicy '$POLICY_NAME' has correct ingress rules: from pods with label '$EXPECTED_FROM_KEY=$EXPECTED_FROM_VALUE', allowing $EXPECTED_PROTOCOL on port $EXPECTED_PORT"
+      exit 0
+
+solution:
+  explain: |
+    ```yaml
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-traffic
+      namespace: networking
+    spec:
+      podSelector:
+        matchLabels:
+          app: web
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              tier: frontend
+        ports:
+        - protocol: TCP
+          port: 80
+    ```
+
+    Save as `network-policy.yaml` and apply:
+    ```bash
+    kubectl apply -f network-policy.yaml
+    ```
+  run: |
+    cat > network-policy.yaml <<'MANIFEST'
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-traffic
+      namespace: networking
+    spec:
+      podSelector:
+        matchLabels:
+          app: web
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              tier: frontend
+        ports:
+        - protocol: TCP
+          port: 80
+    MANIFEST
+
+    kubectl apply -f network-policy.yaml

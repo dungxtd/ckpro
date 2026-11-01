@@ -1,0 +1,57 @@
+# Publishes the exam images (node, jumphost, desktop) to GHCR, for amd64 and
+# arm64, so the app pulls them like kind pulls its node image instead of
+# building them on every machine.
+#
+# What to publish comes from desktop/src-tauri/resources/images.json
+# (`ckpro images`; a test keeps it in step with the app). Tags are hashes of
+# each image's files and build args, so only changed images are built, and an
+# app release always finds the images it expects.
+name: images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - desktop/src-tauri/resources/**
+      - .github/workflows/images.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the images not published yet
+        working-directory: desktop/src-tauri/resources
+        run: |
+          jq -c '.[]' images.json | while read -r entry; do
+            name=$(jq -r .name <<<"$entry")
+            image=$(jq -r .image <<<"$entry")
+            if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
+              echo "::notice::$image is published already"
+              continue
+            fi
+            args=$(jq -r '.args | to_entries[] | "--build-arg=\(.key)=\(.value)"' <<<"$entry")
+            echo "::group::$image"
+            # shellcheck disable=SC2086
+            docker buildx build "$name" \
+              --platform linux/amd64,linux/arm64 \
+              --label com.docker.compose.project=ckpro \
+              --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+              $args \
+              --tag "$image" \
+              --push
+            echo "::endgroup::"
+          done

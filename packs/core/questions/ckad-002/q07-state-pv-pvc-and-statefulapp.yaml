@@ -1,0 +1,330 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: State - PV, PVC, and StatefulApp
+certifications:
+  ckad: application-design-build
+difficulty: hard
+namespace: state
+tags: [persistent-volumes, persistent-volume-claims, volumes, environment-variables]
+
+statement: |
+  Set up persistent storage for a database application in the `state` namespace:
+
+  1. Create a PersistentVolume named `db-pv` with storage capacity of `1Gi`, access mode `ReadWriteOnce`, hostPath type pointing to `/mnt/data`, and reclaim policy `Retain`
+  2. Create a PersistentVolumeClaim named `db-pvc` that requests `500Mi` storage with access mode `ReadWriteOnce`
+  3. Create a Pod named `db-pod` using the `mysql:5.7` image that mounts the PVC at `/var/lib/mysql`
+  4. Set the following environment variables for the pod:
+  `MYSQL_ROOT_PASSWORD=rootpassword`,
+  `MYSQL_DATABASE=mydb`,
+  `MYSQL_USER=myuser`,
+  `MYSQL_PASSWORD=mypassword`
+
+  Ensure the namespace exists before creating the resources.
+
+setup: |
+  # Delete the persistence namespace if it exists
+  echo "Setting up environment for Question 7 (Persistent Volume Claims)..."
+  kubectl delete namespace persistence --ignore-not-found=true
+
+  # Wait for deletion to complete
+  sleep 2
+
+  # Confirm environment is ready
+  echo "Environment ready for Question 7"
+  exit 0
+
+checks:
+  - name: Namespace is created
+    run: |
+      # Validate that the state namespace exists
+      NS=$(kubectl get namespace state -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$NS" == "state" ]]; then
+          # Namespace exists
+          exit 0
+      else
+          # Namespace does not exist
+          echo "Namespace 'state' does not exist"
+          exit 1
+      fi
+  - name: PersistentVolume is created correctly
+    weight: 2
+    run: |
+      # Validate that the db-pv PersistentVolume exists
+      PV=$(kubectl get pv db-pv -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$PV" == "db-pv" ]]; then
+          # PV exists, now check specs
+
+          # Check capacity
+          CAPACITY=$(kubectl get pv db-pv -o jsonpath='{.spec.capacity.storage}' 2>/dev/null)
+
+          # Check access mode
+          ACCESS_MODE=$(kubectl get pv db-pv -o jsonpath='{.spec.accessModes[0]}' 2>/dev/null)
+
+          # Check host path
+          HOST_PATH=$(kubectl get pv db-pv -o jsonpath='{.spec.hostPath.path}' 2>/dev/null)
+
+          # Check reclaim policy
+          RECLAIM_POLICY=$(kubectl get pv db-pv -o jsonpath='{.spec.persistentVolumeReclaimPolicy}' 2>/dev/null)
+
+          if [[ "$CAPACITY" == "1Gi" &&
+                "$ACCESS_MODE" == "ReadWriteOnce" &&
+                "$HOST_PATH" == "/mnt/data" &&
+                "$RECLAIM_POLICY" == "Retain" ]]; then
+              # PV is configured correctly
+              exit 0
+          else
+              echo "PersistentVolume 'db-pv' is not configured correctly."
+              echo "Found capacity: $CAPACITY (expected: 1Gi)"
+              echo "Found access mode: $ACCESS_MODE (expected: ReadWriteOnce)"
+              echo "Found host path: $HOST_PATH (expected: /mnt/data)"
+              echo "Found reclaim policy: $RECLAIM_POLICY (expected: Retain)"
+              exit 1
+          fi
+      else
+          # PV does not exist
+          echo "PersistentVolume 'db-pv' does not exist"
+          exit 1
+      fi
+  - name: PersistentVolumeClaim is created correctly
+    weight: 2
+    run: |
+      # Validate that the db-pvc PersistentVolumeClaim exists
+      PVC=$(kubectl get pvc db-pvc -n state -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$PVC" == "db-pvc" ]]; then
+          # PVC exists, now check specs
+
+          # Check access mode
+          ACCESS_MODE=$(kubectl get pvc db-pvc -n state -o jsonpath='{.spec.accessModes[0]}' 2>/dev/null)
+
+          # Check requested storage
+          STORAGE=$(kubectl get pvc db-pvc -n state -o jsonpath='{.spec.resources.requests.storage}' 2>/dev/null)
+
+          if [[ "$ACCESS_MODE" == "ReadWriteOnce" && "$STORAGE" == "500Mi" ]]; then
+              # PVC is configured correctly
+              exit 0
+          else
+              echo "PersistentVolumeClaim 'db-pvc' is not configured correctly."
+              echo "Found access mode: $ACCESS_MODE (expected: ReadWriteOnce)"
+              echo "Found requested storage: $STORAGE (expected: 500Mi)"
+              exit 1
+          fi
+      else
+          # PVC does not exist
+          echo "PersistentVolumeClaim 'db-pvc' does not exist in the 'state' namespace"
+          exit 1
+      fi
+  - name: Pod is created with correct image
+    weight: 2
+    run: |
+      # Validate that the db-pod exists with correct image
+      POD=$(kubectl get pod db-pod -n state -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$POD" == "db-pod" ]]; then
+          # Pod exists, now check image
+          IMAGE=$(kubectl get pod db-pod -n state -o jsonpath='{.spec.containers[0].image}' 2>/dev/null)
+
+          if [[ "$IMAGE" == "mysql:5.7" ]]; then
+              # Pod has correct image
+              exit 0
+          else
+              echo "Pod 'db-pod' does not use the correct image. Found: $IMAGE (expected: mysql:5.7)"
+              exit 1
+          fi
+      else
+          # Pod does not exist
+          echo "Pod 'db-pod' does not exist in the 'state' namespace"
+          exit 1
+      fi
+  - name: Pod mounts the PVC correctly
+    weight: 2
+    run: |
+      # Validate that the pod mounts the PVC correctly
+      POD=$(kubectl get pod db-pod -n state -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$POD" == "db-pod" ]]; then
+          # Pod exists, now check if it mounts the PVC
+          # First check if the pod has a volume with the PVC
+          PVC_VOLUME=$(kubectl get pod db-pod -n state -o jsonpath='{.spec.volumes[?(@.persistentVolumeClaim.claimName=="db-pvc")].persistentVolumeClaim.claimName}' 2>/dev/null)
+
+          # Then check if the volume is mounted at the correct path
+          MOUNT_PATH=$(kubectl get pod db-pod -n state -o jsonpath='{.spec.containers[0].volumeMounts[0].mountPath}' 2>/dev/null)
+
+          if [[ "$PVC_VOLUME" == "db-pvc" && "$MOUNT_PATH" == "/var/lib/mysql" ]]; then
+              # Pod mounts the PVC correctly
+              exit 0
+          else
+              echo "Pod 'db-pod' does not mount PVC 'db-pvc' correctly at '/var/lib/mysql'"
+              echo "Found PVC volume: $PVC_VOLUME"
+              echo "Found mount path: $MOUNT_PATH"
+              exit 1
+          fi
+      else
+          # Pod does not exist
+          echo "Pod 'db-pod' does not exist in the 'state' namespace"
+          exit 1
+      fi
+  - name: Pod has correct environment variables
+    run: |
+      # Validate that the pod has correct environment variables
+      POD=$(kubectl get pod db-pod -n state -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$POD" == "db-pod" ]]; then
+          # Pod exists, now check environment variables
+
+          # Get environment variables
+          ROOT_PASSWORD=$(kubectl get pod db-pod -n state -o jsonpath='{.spec.containers[0].env[?(@.name=="MYSQL_ROOT_PASSWORD")].value}' 2>/dev/null)
+          DATABASE=$(kubectl get pod db-pod -n state -o jsonpath='{.spec.containers[0].env[?(@.name=="MYSQL_DATABASE")].value}' 2>/dev/null)
+          USER=$(kubectl get pod db-pod -n state -o jsonpath='{.spec.containers[0].env[?(@.name=="MYSQL_USER")].value}' 2>/dev/null)
+          PASSWORD=$(kubectl get pod db-pod -n state -o jsonpath='{.spec.containers[0].env[?(@.name=="MYSQL_PASSWORD")].value}' 2>/dev/null)
+
+          if [[ "$ROOT_PASSWORD" == "rootpassword" &&
+                "$DATABASE" == "mydb" &&
+                "$USER" == "myuser" &&
+                "$PASSWORD" == "mypassword" ]]; then
+              # Pod has correct environment variables
+              exit 0
+          else
+              echo "Pod 'db-pod' does not have correct environment variables."
+              echo "Found MYSQL_ROOT_PASSWORD: $ROOT_PASSWORD (expected: rootpassword)"
+              echo "Found MYSQL_DATABASE: $DATABASE (expected: mydb)"
+              echo "Found MYSQL_USER: $USER (expected: myuser)"
+              echo "Found MYSQL_PASSWORD: $PASSWORD (expected: mypassword)"
+              exit 1
+          fi
+      else
+          # Pod does not exist
+          echo "Pod 'db-pod' does not exist in the 'state' namespace"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    Set up persistent storage for MySQL:
+
+    ```bash
+    # Create namespace
+    kubectl create namespace state
+
+    # Create PV, PVC, and MySQL pod
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: state
+    ---
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: db-pv
+    spec:
+      capacity:
+        storage: 1Gi
+      accessModes:
+        - ReadWriteOnce
+      persistentVolumeReclaimPolicy: Retain
+      hostPath:
+        path: /mnt/data
+    ---
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: db-pvc
+      namespace: state
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 500Mi
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: db-pod
+      namespace: state
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:5.7
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: rootpassword
+        - name: MYSQL_DATABASE
+          value: mydb
+        - name: MYSQL_USER
+          value: myuser
+        - name: MYSQL_PASSWORD
+          value: mypassword
+        volumeMounts:
+        - name: mysql-storage
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-storage
+        persistentVolumeClaim:
+          claimName: db-pvc
+    EOF
+    ```
+  run: |
+    # Create namespace
+    kubectl create namespace state
+
+    # Create PV, PVC, and MySQL pod
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: state
+    ---
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: db-pv
+    spec:
+      capacity:
+        storage: 1Gi
+      accessModes:
+        - ReadWriteOnce
+      persistentVolumeReclaimPolicy: Retain
+      hostPath:
+        path: /mnt/data
+    ---
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: db-pvc
+      namespace: state
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 500Mi
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: db-pod
+      namespace: state
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:5.7
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: rootpassword
+        - name: MYSQL_DATABASE
+          value: mydb
+        - name: MYSQL_USER
+          value: myuser
+        - name: MYSQL_PASSWORD
+          value: mypassword
+        volumeMounts:
+        - name: mysql-storage
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-storage
+        persistentVolumeClaim:
+          claimName: db-pvc
+    EOF

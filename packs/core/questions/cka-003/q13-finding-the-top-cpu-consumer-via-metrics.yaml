@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Finding the Top CPU Consumer via Metrics
+certifications:
+  cka: troubleshooting
+difficulty: hard
+namespace: monitoring
+tags: [metrics-server, kubectl-top, resource-monitoring]
+
+statement: |
+  Several Pods labeled `name=overloaded-cpu` are running in the `monitoring` namespace, each consuming a different amount of CPU.
+
+  Find the Pod (among those labeled `name=overloaded-cpu`) that is consuming the most CPU (via `kubectl top pod`), and write just its name to `/tmp/exam/top-cpu-pod.txt` (the file already exists, currently empty).
+
+setup: |
+  set -e
+
+  kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+  # Enable metrics-server if not present
+  kubectl get deployment metrics-server -n kube-system || {
+    kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+    kubectl wait --for=condition=available --timeout=180s deployment/metrics-server -n kube-system
+  }
+
+  # Three pods with the same label but deliberately different CPU load, so
+  # `kubectl top pod` values differ meaningfully once metrics populate.
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: overloaded-cpu-low
+    namespace: monitoring
+    labels:
+      name: overloaded-cpu
+  spec:
+    containers:
+      - name: burner
+        image: busybox:1.36
+        command: ["sh", "-c", "yes > /dev/null & sleep 3600"]
+        resources:
+          requests:
+            cpu: 50m
+          limits:
+            cpu: 200m
+  ---
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: overloaded-cpu-medium
+    namespace: monitoring
+    labels:
+      name: overloaded-cpu
+  spec:
+    containers:
+      - name: burner
+        image: busybox:1.36
+        command: ["sh", "-c", "yes > /dev/null & yes > /dev/null & sleep 3600"]
+        resources:
+          requests:
+            cpu: 50m
+          limits:
+            cpu: 400m
+  ---
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: overloaded-cpu-high
+    namespace: monitoring
+    labels:
+      name: overloaded-cpu
+  spec:
+    containers:
+      - name: burner
+        image: busybox:1.36
+        command: ["sh", "-c", "yes > /dev/null & yes > /dev/null & yes > /dev/null & yes > /dev/null & sleep 3600"]
+        resources:
+          requests:
+            cpu: 50m
+          limits:
+            cpu: 800m
+  EOF
+
+  mkdir -p /tmp/exam
+  touch /tmp/exam/top-cpu-pod.txt
+
+  echo "Waiting for overloaded-cpu pods to be running..."
+  kubectl wait --for=condition=Ready --timeout=120s pod -l name=overloaded-cpu -n monitoring || {
+    echo "WARNING: not all overloaded-cpu pods ready in time, continuing anyway"
+  }
+
+checks:
+  - name: top-cpu-pod.txt contains the name of the pod with the highest CPU usage
+    weight: 6
+    run: |
+      set -e
+
+      FILE=/tmp/exam/top-cpu-pod.txt
+
+      if [[ ! -f "$FILE" ]]; then
+          echo "File $FILE does not exist"
+          exit 1
+      fi
+
+      # Compute the max ourselves rather than trust the direction of `--sort-by`, since
+      # that flag's ordering isn't consistent across kubectl versions.
+      EXPECTED=""
+      TOP_OUTPUT=$(kubectl top pod -n monitoring -l name=overloaded-cpu --no-headers 2>/dev/null || true)
+      if [[ -n "$TOP_OUTPUT" ]]; then
+          EXPECTED=$(echo "$TOP_OUTPUT" | awk '{
+              cpu=$2; gsub(/m$/, "", cpu);
+              if (cpu+0 > max) { max = cpu+0; name = $1 }
+          } END { print name }')
+      fi
+
+      if [[ -z "$EXPECTED" ]]; then
+          echo "Could not obtain 'kubectl top pod' metrics for namespace monitoring"
+          exit 1
+      fi
+
+      ACTUAL=$(tr -d '[:space:]' < "$FILE")
+      if [[ "$ACTUAL" != "$EXPECTED" ]]; then
+          echo "Incorrect top CPU pod. Expected '$EXPECTED', file contains '$ACTUAL'"
+          exit 1
+      fi
+
+      echo "top-cpu-pod.txt validation successful ($ACTUAL)"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```bash
+    kubectl top pod -n monitoring -l name=overloaded-cpu --no-headers \
+      | sort -k2 -h -r | head -1 | awk '{print $1}' > /tmp/exam/top-cpu-pod.txt
+    ```
+
+    ### Why this works
+    `kubectl top pod` reads live usage data from `metrics-server` (installed in the setup step, same as `cka/002`'s HPA question). Sorting by the CPU column (`sort -k2 -h -r` handles the `m`/no-suffix millicore notation reasonably) and taking the first row identifies the highest consumer. Metrics can take 30-60 seconds to populate after pods start, so allow a short retry window if the command initially returns nothing.
+  run: |
+    kubectl top pod -n monitoring -l name=overloaded-cpu --no-headers \
+      | sort -k2 -h -r | head -1 | awk '{print $1}' > /tmp/exam/top-cpu-pod.txt

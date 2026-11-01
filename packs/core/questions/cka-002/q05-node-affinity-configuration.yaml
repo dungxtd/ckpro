@@ -1,0 +1,186 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Node Affinity Configuration
+certifications:
+  cka: workloads-scheduling
+difficulty: hard
+workers: 2
+namespace: scheduling
+tags: [scheduling, node-affinity, deployments]
+
+statement: |
+  Create a deployment named `app-scheduling` with `3` replicas using the `nginx` image that must only run on node `{{worker2}}` using node affinity (not node selector).
+
+  Requirements:
+  - Use `requiredDuringSchedulingIgnoredDuringExecution`
+  - Match the node by its hostname
+  - Label the target node with `disk=ssd` before creating the deployment
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace scheduling --dry-run=client -o yaml | kubectl apply -f -
+
+  # Ensure the target node exists and is labeled with hostname
+  kubectl label node {{worker2}} kubernetes.io/hostname={{worker2}} --overwrite
+
+checks:
+  - name: Node is correctly labeled
+    run: |
+      set -e
+
+      # Check if node exists
+      kubectl get node {{worker2}} || {
+          echo "Node {{worker2}} not found"
+          exit 1
+      }
+
+      # Check if node has the required label
+      LABEL_VALUE=$(kubectl get node {{worker2}} -o jsonpath='{.metadata.labels.disk}')
+      if [[ "$LABEL_VALUE" != "ssd" ]]; then
+          echo "Node {{worker2}} does not have the correct label. Expected disk=ssd, got disk=$LABEL_VALUE"
+          exit 1
+      fi
+
+      echo "Node label validation successful"
+      exit 0
+  - name: Deployment exists with correct node affinity
+    weight: 2
+    run: |
+      set -e
+
+      # Check if deployment exists
+      kubectl get deployment app-scheduling -n scheduling || {
+          echo "Deployment app-scheduling not found in namespace scheduling"
+          exit 1
+      }
+
+      # Check replicas
+      REPLICAS=$(kubectl get deployment app-scheduling -n scheduling -o jsonpath='{.spec.replicas}')
+      if [[ "$REPLICAS" != "3" ]]; then
+          echo "Incorrect number of replicas. Expected 3, got $REPLICAS"
+          exit 1
+      fi
+
+      # Check if using node affinity (not node selector)
+      NODE_SELECTOR=$(kubectl get deployment app-scheduling -n scheduling -o jsonpath='{.spec.template.spec.nodeSelector}')
+      if [[ -n "$NODE_SELECTOR" ]]; then
+          echo "Deployment is using nodeSelector instead of nodeAffinity"
+          exit 1
+      fi
+
+      # Check node affinity configuration
+      AFFINITY_TYPE=$(kubectl get deployment app-scheduling -n scheduling -o jsonpath='{.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution}')
+      if [[ -z "$AFFINITY_TYPE" ]]; then
+          echo "Deployment is not using requiredDuringSchedulingIgnoredDuringExecution"
+          exit 1
+      fi
+
+      # Check affinity rule
+      AFFINITY_KEY=$(kubectl get deployment app-scheduling -n scheduling -o jsonpath='{.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key}')
+      AFFINITY_VALUE=$(kubectl get deployment app-scheduling -n scheduling -o jsonpath='{.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]}')
+
+      if [[ "$AFFINITY_KEY" != "disk" ]] || [[ "$AFFINITY_VALUE" != "ssd" ]]; then
+          echo "Incorrect node affinity configuration. Expected disk=ssd"
+          exit 1
+      fi
+
+      echo "Node affinity validation successful"
+      exit 0
+  - name: All pods are running on the correct node
+    weight: 2
+    run: |
+      set -e
+
+      # Check if all pods are running
+      READY_PODS=$(kubectl get deployment app-scheduling -n scheduling -o jsonpath='{.status.readyReplicas}')
+      if [[ "$READY_PODS" != "3" ]]; then
+          echo "Not all pods are ready. Expected 3, got $READY_PODS"
+          exit 1
+      fi
+
+      # Get all pods
+      PODS=$(kubectl get pods -n scheduling -l app=app-scheduling -o jsonpath='{.items[*].metadata.name}')
+
+      # Check each pod's node placement
+      for POD in $PODS; do
+          NODE=$(kubectl get pod $POD -n scheduling -o jsonpath='{.spec.nodeName}')
+          if [[ "$NODE" != "{{worker2}}" ]]; then
+              echo "Pod $POD is running on wrong node. Expected {{worker2}}, got $NODE"
+              exit 1
+          fi
+      done
+
+      echo "Pod placement validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```bash
+    # Label the node
+    kubectl label node {{worker2}} disk=ssd
+    ```
+
+    ```yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: app-scheduling
+      namespace: scheduling
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: app-scheduling
+      template:
+        metadata:
+          labels:
+            app: app-scheduling
+        spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: disk
+                    operator: In
+                    values:
+                    - ssd
+          containers:
+          - name: nginx
+            image: nginx
+    ```
+  run: |
+    # Label the node
+    kubectl label node {{worker2}} disk=ssd
+
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: app-scheduling
+      namespace: scheduling
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: app-scheduling
+      template:
+        metadata:
+          labels:
+            app: app-scheduling
+        spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: disk
+                    operator: In
+                    values:
+                    - ssd
+          containers:
+          - name: nginx
+            image: nginx
+    MANIFEST

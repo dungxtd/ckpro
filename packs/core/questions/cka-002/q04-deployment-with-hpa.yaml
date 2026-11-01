@@ -1,0 +1,264 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Deployment with HPA
+certifications:
+  cka: workloads-scheduling
+difficulty: hard
+namespace: scaling
+tags: [autoscaling, deployments, resource-management]
+
+statement: |
+  Create a Deployment named `scaling-app` with the following specifications:
+
+  - Image: `nginx`
+  - Initial replicas: `2`
+  - Resource requests: CPU: `200m`, Memory: `256Mi`
+  - Resource limits: CPU: `500m`, Memory: `512Mi`
+
+  Then create a `HorizontalPodAutoscaler` for this deployment:
+  - Use apiVersion: `autoscaling/v1`
+  - Min replicas: `2`
+  - Max replicas: `5`
+  - Target CPU utilization: `70%`
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace scaling --dry-run=client -o yaml | kubectl apply -f -
+
+  # Enable metrics-server if not present
+  kubectl get deployment metrics-server -n kube-system || {
+    kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+    # Wait for metrics-server to be ready
+    kubectl wait --for=condition=available --timeout=180s deployment/metrics-server -n kube-system
+  }
+
+checks:
+  - name: Deployment exists with correct specifications
+    weight: 2
+    run: |
+      set -e
+
+      # Check if deployment exists
+      kubectl get deployment scaling-app -n scaling || {
+          echo "Deployment scaling-app not found in namespace scaling"
+          exit 1
+      }
+
+      # Check replicas
+      REPLICAS=$(kubectl get deployment scaling-app -n scaling -o jsonpath='{.spec.replicas}')
+      if [[ "$REPLICAS" != "2" ]]; then
+          echo "Incorrect number of replicas. Expected 2, got $REPLICAS"
+          exit 1
+      fi
+
+      # Check image
+      IMAGE=$(kubectl get deployment scaling-app -n scaling -o jsonpath='{.spec.template.spec.containers[0].image}')
+      if [[ "$IMAGE" != *"nginx"* ]]; then
+          echo "Incorrect image. Expected nginx, got $IMAGE"
+          exit 1
+      fi
+
+      # Check resource requests
+      CPU_REQUEST=$(kubectl get deployment scaling-app -n scaling -o jsonpath='{.spec.template.spec.containers[0].resources.requests.cpu}')
+      if [[ "$CPU_REQUEST" != "200m" ]]; then
+          echo "Incorrect CPU request. Expected 200m, got $CPU_REQUEST"
+          exit 1
+      fi
+
+      MEM_REQUEST=$(kubectl get deployment scaling-app -n scaling -o jsonpath='{.spec.template.spec.containers[0].resources.requests.memory}')
+      if [[ "$MEM_REQUEST" != "256Mi" ]]; then
+          echo "Incorrect memory request. Expected 256Mi, got $MEM_REQUEST"
+          exit 1
+      fi
+
+      # Check resource limits
+      CPU_LIMIT=$(kubectl get deployment scaling-app -n scaling -o jsonpath='{.spec.template.spec.containers[0].resources.limits.cpu}')
+      if [[ "$CPU_LIMIT" != "500m" ]]; then
+          echo "Incorrect CPU limit. Expected 500m, got $CPU_LIMIT"
+          exit 1
+      fi
+
+      MEM_LIMIT=$(kubectl get deployment scaling-app -n scaling -o jsonpath='{.spec.template.spec.containers[0].resources.limits.memory}')
+      if [[ "$MEM_LIMIT" != "512Mi" ]]; then
+          echo "Incorrect memory limit. Expected 512Mi, got $MEM_LIMIT"
+          exit 1
+      fi
+
+      echo "Deployment validation successful"
+      exit 0
+  - name: HPA exists with correct specifications
+    weight: 2
+    run: |
+      set -e
+
+      # Check if HPA exists
+      kubectl get hpa -n scaling scaling-app || {
+          echo "HorizontalPodAutoscaler scaling-app not found in namespace scaling"
+          exit 1
+      }
+
+      # Check min replicas
+      MIN_REPLICAS=$(kubectl get hpa -n scaling scaling-app -o jsonpath='{.spec.minReplicas}')
+      if [[ "$MIN_REPLICAS" != "2" ]]; then
+          echo "Incorrect minimum replicas. Expected 2, got $MIN_REPLICAS"
+          exit 1
+      fi
+
+      # Check max replicas
+      MAX_REPLICAS=$(kubectl get hpa -n scaling scaling-app -o jsonpath='{.spec.maxReplicas}')
+      if [[ "$MAX_REPLICAS" != "5" ]]; then
+          echo "Incorrect maximum replicas. Expected 5, got $MAX_REPLICAS"
+          exit 1
+      fi
+
+      # Check target CPU utilization
+      TARGET_CPU=$(kubectl get hpa -n scaling scaling-app -o jsonpath='{.spec.metrics[0].resource.target.averageUtilization}')
+      if [[ "$TARGET_CPU" != "70" ]]; then
+          echo "Incorrect target CPU utilization. Expected 70, got $TARGET_CPU"
+          exit 1
+      fi
+
+      # Check if HPA is targeting the correct deployment
+      TARGET_REF=$(kubectl get hpa -n scaling scaling-app -o jsonpath='{.spec.scaleTargetRef.name}')
+      if [[ "$TARGET_REF" != "scaling-app" ]]; then
+          echo "HPA is not targeting the correct deployment. Expected scaling-app, got $TARGET_REF"
+          exit 1
+      fi
+
+      echo "HPA validation successful"
+      exit 0
+  - name: Deployment has correct resource configurations
+    run: |
+      set -e
+
+      # Check if pods are running
+      READY_PODS=$(kubectl get deployment scaling-app -n scaling -o jsonpath='{.status.readyReplicas}')
+      if [[ "$READY_PODS" != "2" ]]; then
+          echo "Not all pods are ready. Expected 2, got $READY_PODS"
+          exit 1
+      fi
+
+      # Get pod names
+      PODS=$(kubectl get pods -n scaling -l app=scaling-app -o jsonpath='{.items[*].metadata.name}')
+
+      # Check each pod's resource configuration
+      for POD in $PODS; do
+          # Check CPU request
+          CPU_REQUEST=$(kubectl get pod $POD -n scaling -o jsonpath='{.spec.containers[0].resources.requests.cpu}')
+          if [[ "$CPU_REQUEST" != "200m" ]]; then
+              echo "Pod $POD has incorrect CPU request. Expected 200m, got $CPU_REQUEST"
+              exit 1
+          fi
+
+          # Check memory request
+          MEM_REQUEST=$(kubectl get pod $POD -n scaling -o jsonpath='{.spec.containers[0].resources.requests.memory}')
+          if [[ "$MEM_REQUEST" != "256Mi" ]]; then
+              echo "Pod $POD has incorrect memory request. Expected 256Mi, got $MEM_REQUEST"
+              exit 1
+          fi
+
+          # Check CPU limit
+          CPU_LIMIT=$(kubectl get pod $POD -n scaling -o jsonpath='{.spec.containers[0].resources.limits.cpu}')
+          if [[ "$CPU_LIMIT" != "500m" ]]; then
+              echo "Pod $POD has incorrect CPU limit. Expected 500m, got $CPU_LIMIT"
+              exit 1
+          fi
+
+          # Check memory limit
+          MEM_LIMIT=$(kubectl get pod $POD -n scaling -o jsonpath='{.spec.containers[0].resources.limits.memory}')
+          if [[ "$MEM_LIMIT" != "512Mi" ]]; then
+              echo "Pod $POD has incorrect memory limit. Expected 512Mi, got $MEM_LIMIT"
+              exit 1
+          fi
+      done
+
+      echo "Resource configuration validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: scaling-app
+      namespace: scaling
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: scaling-app
+      template:
+        metadata:
+          labels:
+            app: scaling-app
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+            resources:
+              requests:
+                cpu: 200m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+    ---
+    apiVersion: autoscaling/v1
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: scaling-app
+      namespace: scaling
+    spec:
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: scaling-app
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+    ```
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: scaling-app
+      namespace: scaling
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: scaling-app
+      template:
+        metadata:
+          labels:
+            app: scaling-app
+        spec:
+          containers:
+          - name: nginx
+            image: nginx
+            resources:
+              requests:
+                cpu: 200m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+    ---
+    apiVersion: autoscaling/v1
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: scaling-app
+      namespace: scaling
+    spec:
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: scaling-app
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+    MANIFEST

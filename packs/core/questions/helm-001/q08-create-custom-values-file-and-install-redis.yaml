@@ -1,0 +1,171 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Create Custom Values File and Install Redis
+certifications:
+  cka: cluster-architecture
+  ckad: application-deployment
+difficulty: medium
+namespace: default
+tags: [helm, values files, advanced installation]
+
+statement: |
+  Create a new values file at `/tmp/exam/q8/redis-values.yaml` for a Redis installation with the following configurations:
+
+  - Password: "password123"
+  - Persistence enabled
+  - Resource limits: 256Mi memory and 100m CPU
+
+  Then install the Bitnami Redis chart using this values file, with the release name `cache-db` in the `default` namespace.
+
+setup: |
+  # Setup environment for Question 8 - Create Values File for Redis
+
+  # Create necessary directories
+  mkdir -p /tmp/exam/q8
+
+  # No other specific setup needed for this question
+  # The student needs to create a values file at /tmp/exam/q8/redis-values.yaml
+  # with specific configuration for Redis installation
+  # Then install the Bitnami Redis chart with release name cache-db
+
+  echo "Environment setup complete for Question 8"
+  exit 0
+
+checks:
+  - name: Values file created correctly
+    weight: 2
+    run: |
+      # Validate script for Question 8, Step 1: Check if values file is created correctly
+
+      # Check if the values file exists
+      if [ ! -f /tmp/exam/q8/redis-values.yaml ]; then
+        echo "❌ Values file does not exist at /tmp/exam/q8/redis-values.yaml"
+        exit 1
+      fi
+
+      # Check if the file has content
+      if [ ! -s /tmp/exam/q8/redis-values.yaml ]; then
+        echo "❌ Values file exists but is empty"
+        exit 1
+      fi
+
+      # Check for password configuration
+      if ! grep -q "password.*password123" /tmp/exam/q8/redis-values.yaml; then
+        echo "❌ Values file does not set the password to 'password123'"
+        echo "File content:"
+        cat /tmp/exam/q8/redis-values.yaml
+        exit 1
+      fi
+
+      # Check for persistence enabled
+      if ! grep -A3 "persistence" /tmp/exam/q8/redis-values.yaml | grep -Eq "enabled: *true"; then
+        echo "❌ Values file does not enable persistence"
+        echo "File content:"
+        cat /tmp/exam/q8/redis-values.yaml
+        exit 1
+      fi
+
+      # Check for resource limits
+      if ! grep -q "memory.*256Mi" /tmp/exam/q8/redis-values.yaml || ! grep -q "cpu.*100m" /tmp/exam/q8/redis-values.yaml; then
+        echo "❌ Values file does not set correct resource limits"
+        echo "Expected memory: 256Mi and cpu: 100m"
+        echo "File content:"
+        cat /tmp/exam/q8/redis-values.yaml
+        exit 1
+      fi
+
+      echo "✅ Values file is created correctly with all required configurations"
+      echo "File content:"
+      cat /tmp/exam/q8/redis-values.yaml
+      exit 0
+  - name: Redis chart installed with correct values
+    weight: 2
+    run: |
+      # Validate script for Question 8, Step 2: Check if Redis chart is installed with correct values
+
+      # Check if helm command is available
+      if ! command -v helm &> /dev/null; then
+        echo "❌ Helm command not found in PATH"
+        exit 1
+      fi
+
+      # Check if the release exists
+      release_info=$(helm list -n default -f "cache-db" 2>&1)
+
+      if [ $? -ne 0 ] || ! echo "$release_info" | grep -q "cache-db"; then
+        echo "❌ Release 'cache-db' not found in namespace 'default'"
+        echo "Current releases:"
+        helm list -n default
+        exit 1
+      fi
+
+      # Check if it's using the Redis chart
+      chart=$(helm list -n default -f "cache-db" -o json | jq -r '.[0].chart')
+      if [[ "$chart" != *"redis"* ]]; then
+        echo "❌ Release 'cache-db' is not using a Redis chart (chart: $chart)"
+        exit 1
+      fi
+
+      # Check if the values were applied correctly
+      # 1. Check password
+      password_set=$(helm get values cache-db -n default -o json | jq -r '.password // empty')
+      if [ -z "$password_set" ] || [ "$password_set" != "password123" ]; then
+        echo "❌ Redis password is not set to 'password123'"
+        exit 1
+      fi
+
+      # 2. Check persistence
+      persistence_enabled=$(helm get values cache-db -n default -o json | jq -r '.persistence.enabled // empty')
+      if [ "$persistence_enabled" != "true" ]; then
+        echo "❌ Redis persistence is not enabled"
+        exit 1
+      fi
+
+      # 3. Check resources
+      memory_limit=$(helm get values cache-db -n default -o json | jq -r '.resources.limits.memory // empty')
+      cpu_limit=$(helm get values cache-db -n default -o json | jq -r '.resources.limits.cpu // empty')
+
+      if [ "$memory_limit" != "256Mi" ] || [ "$cpu_limit" != "100m" ]; then
+        echo "❌ Redis resource limits are not set correctly"
+        echo "Expected memory: 256Mi, found: $memory_limit"
+        echo "Expected cpu: 100m, found: $cpu_limit"
+        exit 1
+      fi
+
+      echo "✅ Redis chart is installed with correct values"
+      echo "Release information:"
+      echo "$release_info"
+      exit 0
+
+solution:
+  explain: |
+    First, create the values file for Redis:
+
+    ```bash
+    cat > /tmp/exam/q8/redis-values.yaml << EOF
+    password: "password123"
+    persistence:
+      enabled: true
+    resources:
+      limits:
+        memory: 256Mi
+        cpu: 100m
+    EOF
+    ```
+
+    Then install Redis using the values file:
+
+    ```bash
+    helm install cache-db bitnami/redis -f /tmp/exam/q8/redis-values.yaml
+    ```
+  run: |
+    cat > /tmp/exam/q8/redis-values.yaml << EOF
+    password: "password123"
+    persistence:
+      enabled: true
+    resources:
+      limits:
+        memory: 256Mi
+        cpu: 100m
+    EOF
+
+    helm install cache-db bitnami/redis -f /tmp/exam/q8/redis-values.yaml

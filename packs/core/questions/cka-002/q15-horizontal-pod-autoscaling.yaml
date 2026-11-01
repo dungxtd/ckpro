@@ -1,0 +1,267 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Horizontal Pod Autoscaling
+certifications:
+  cka: workloads-scheduling
+difficulty: hard
+namespace: monitoring
+tags: [monitoring, resource-management, autoscaling]
+
+statement: |
+  Create a deployment named `resource-consumer` with 3 replicas that:
+
+  1. Uses the image `gcr.io/kubernetes-e2e-test-images/resource-consumer:1.5`
+  2. Sets resource requests:
+     - CPU: `100m`
+     - Memory: `128Mi`
+  3. Sets resource limits:
+     - CPU: `200m`
+     - Memory: `256Mi`
+  4. Create a `HorizontalPodAutoscaler` for this deployment:
+     - Min replicas: `3`
+     - Max replicas: `6`
+     - Target CPU utilization: `50%`
+
+  Note: metrics-server is already installed in the cluster.
+
+setup: |
+  set -e
+
+  # Create namespace
+  kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+  # Pre-pull the resource consumer image to speed up deployment
+  kubectl run pull-resource-consumer --image=gcr.io/kubernetes-e2e-test-images/resource-consumer:1.5 -n monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+  # Wait for the pull pod to complete
+  sleep 10
+
+  # Clean up the pull pod
+  kubectl delete pod pull-resource-consumer -n monitoring 2>/dev/null || true
+
+checks:
+  - name: Deployment exists with correct resource configuration
+    weight: 3
+    run: |
+      set -e
+
+      # Check if deployment exists
+      kubectl get deployment resource-consumer -n monitoring || {
+          echo "Deployment resource-consumer not found in namespace monitoring"
+          exit 1
+      }
+
+      # Check replicas
+      REPLICAS=$(kubectl get deployment resource-consumer -n monitoring -o jsonpath='{.spec.replicas}')
+      if [[ "$REPLICAS" != "3" ]]; then
+          echo "Incorrect number of replicas. Expected 3, got $REPLICAS"
+          exit 1
+      fi
+
+      # Check image
+      IMAGE=$(kubectl get deployment resource-consumer -n monitoring -o jsonpath='{.spec.template.spec.containers[0].image}')
+      if [[ "$IMAGE" != "gcr.io/kubernetes-e2e-test-images/resource-consumer:1.5" ]]; then
+          echo "Incorrect image. Expected gcr.io/kubernetes-e2e-test-images/resource-consumer:1.5, got $IMAGE"
+          exit 1
+      fi
+
+      # Check resource requests
+      CPU_REQUEST=$(kubectl get deployment resource-consumer -n monitoring -o jsonpath='{.spec.template.spec.containers[0].resources.requests.cpu}')
+      if [[ "$CPU_REQUEST" != "100m" ]]; then
+          echo "Incorrect CPU request. Expected 100m, got $CPU_REQUEST"
+          exit 1
+      fi
+
+      MEM_REQUEST=$(kubectl get deployment resource-consumer -n monitoring -o jsonpath='{.spec.template.spec.containers[0].resources.requests.memory}')
+      if [[ "$MEM_REQUEST" != "128Mi" ]]; then
+          echo "Incorrect memory request. Expected 128Mi, got $MEM_REQUEST"
+          exit 1
+      fi
+
+      # Check resource limits
+      CPU_LIMIT=$(kubectl get deployment resource-consumer -n monitoring -o jsonpath='{.spec.template.spec.containers[0].resources.limits.cpu}')
+      if [[ "$CPU_LIMIT" != "200m" ]]; then
+          echo "Incorrect CPU limit. Expected 200m, got $CPU_LIMIT"
+          exit 1
+      fi
+
+      MEM_LIMIT=$(kubectl get deployment resource-consumer -n monitoring -o jsonpath='{.spec.template.spec.containers[0].resources.limits.memory}')
+      if [[ "$MEM_LIMIT" != "256Mi" ]]; then
+          echo "Incorrect memory limit. Expected 256Mi, got $MEM_LIMIT"
+          exit 1
+      fi
+
+      echo "Deployment validation successful"
+      exit 0
+  - name: HPA is configured correctly
+    weight: 2
+    run: |
+      set -e
+
+      # Check if HPA exists
+      kubectl get hpa -n monitoring resource-consumer || {
+          echo "HorizontalPodAutoscaler resource-consumer not found in namespace monitoring"
+          exit 1
+      }
+
+      # Check min replicas
+      MIN_REPLICAS=$(kubectl get hpa -n monitoring resource-consumer -o jsonpath='{.spec.minReplicas}')
+      if [[ "$MIN_REPLICAS" != "3" ]]; then
+          echo "Incorrect minimum replicas. Expected 3, got $MIN_REPLICAS"
+          exit 1
+      fi
+
+      # Check max replicas
+      MAX_REPLICAS=$(kubectl get hpa -n monitoring resource-consumer -o jsonpath='{.spec.maxReplicas}')
+      if [[ "$MAX_REPLICAS" != "6" ]]; then
+          echo "Incorrect maximum replicas. Expected 6, got $MAX_REPLICAS"
+          exit 1
+      fi
+
+      # Check target CPU utilization
+      TARGET_CPU=$(kubectl get hpa resource-consumer -n monitoring -o jsonpath='{.spec.metrics[0].resource.target.averageUtilization}')
+      if [[ "$TARGET_CPU" != "50" ]]; then
+          echo "Incorrect target CPU utilization. Expected 50, got $TARGET_CPU"
+          exit 1
+      fi
+
+      # Check if HPA is targeting the correct deployment
+      TARGET_REF=$(kubectl get hpa -n monitoring resource-consumer -o jsonpath='{.spec.scaleTargetRef.name}')
+      if [[ "$TARGET_REF" != "resource-consumer" ]]; then
+          echo "HPA is not targeting the correct deployment. Expected resource-consumer, got $TARGET_REF"
+          exit 1
+      fi
+
+      echo "HPA validation successful"
+      exit 0
+  - name: Pods are running and ready
+    run: |
+      set -e
+
+      # Check if pods are running
+      READY_PODS=$(kubectl get deployment resource-consumer -n monitoring -o jsonpath='{.status.readyReplicas}')
+      if [[ "$READY_PODS" != "3" ]]; then
+          echo "Not all pods are ready. Expected 3, got $READY_PODS"
+          exit 1
+      fi
+
+      # Get all pods
+      PODS=$(kubectl get pods -n monitoring -l app=resource-consumer -o jsonpath='{.items[*].metadata.name}')
+
+      # Check each pod's configuration
+      for POD in $PODS; do
+          # Check if pod is running
+          POD_STATUS=$(kubectl get pod $POD -n monitoring -o jsonpath='{.status.phase}')
+          if [[ "$POD_STATUS" != "Running" ]]; then
+              echo "Pod $POD is not running. Current status: $POD_STATUS"
+              exit 1
+          fi
+
+          # Check resource requests
+          CPU_REQUEST=$(kubectl get pod $POD -n monitoring -o jsonpath='{.spec.containers[0].resources.requests.cpu}')
+          if [[ "$CPU_REQUEST" != "100m" ]]; then
+              echo "Pod $POD has incorrect CPU request. Expected 100m, got $CPU_REQUEST"
+              exit 1
+          fi
+
+          MEM_REQUEST=$(kubectl get pod $POD -n monitoring -o jsonpath='{.spec.containers[0].resources.requests.memory}')
+          if [[ "$MEM_REQUEST" != "128Mi" ]]; then
+              echo "Pod $POD has incorrect memory request. Expected 128Mi, got $MEM_REQUEST"
+              exit 1
+          fi
+
+          # Check if metrics are being collected
+          kubectl top pod $POD -n monitoring > /dev/null || {
+              echo "Unable to get metrics for pod $POD"
+              exit 1
+          }
+      done
+
+      echo "Pods validation successful"
+      exit 0
+
+solution:
+  explain: |
+    ### Solution
+    ```yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: resource-consumer
+      namespace: monitoring
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: resource-consumer
+      template:
+        metadata:
+          labels:
+            app: resource-consumer
+        spec:
+          containers:
+          - name: resource-consumer
+            image: gcr.io/kubernetes-e2e-test-images/resource-consumer:1.5
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+    ---
+    apiVersion: autoscaling/v1
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: resource-consumer
+      namespace: monitoring
+    spec:
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: resource-consumer
+      minReplicas: 3
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 50
+    ```
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: resource-consumer
+      namespace: monitoring
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: resource-consumer
+      template:
+        metadata:
+          labels:
+            app: resource-consumer
+        spec:
+          containers:
+          - name: resource-consumer
+            image: gcr.io/kubernetes-e2e-test-images/resource-consumer:1.5
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+    ---
+    apiVersion: autoscaling/v1
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: resource-consumer
+      namespace: monitoring
+    spec:
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: resource-consumer
+      minReplicas: 3
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 50
+    MANIFEST

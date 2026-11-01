@@ -1,0 +1,5 @@
+/* Greybird gives labels in unfocused windows a light background, and has no
+   rule for desktop icons: whenever another window had focus (clicking it,
+   dragging it), every desktop icon looked selected. Keep them as they are */
+XfdesktopIconView.view:backdrop { background: transparent; color: #fcfcfc; }
+XfdesktopIconView.view .label:backdrop { background: transparent; color: #fcfcfc; text-shadow: 1px 1px 2px black; }

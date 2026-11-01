@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: List All Helm Releases
+certifications:
+  cka: cluster-architecture
+  ckad: application-deployment
+difficulty: medium
+namespace: default
+tags: [helm, release management]
+
+statement: |
+  List all Helm releases across all namespaces.
+
+  Save the output to a file at `/tmp/exam/q5/releases.txt`.
+
+setup: |
+  # Setup environment for Question 5 - List Helm Releases
+
+  # Create necessary directories
+  mkdir -p /tmp/exam/q5
+
+  # No other setup needed for this question
+  # The student needs to list all Helm releases across all namespaces
+  # and save the output to /tmp/exam/q5/releases.txt
+
+  echo "Environment setup complete for Question 5"
+  exit 0
+
+checks:
+  - name: Releases list is saved correctly
+    weight: 4
+    run: |
+      # Validate script for Question 5, Step 1: Check if releases list is saved correctly
+
+      # Check if the releases file exists
+      if [ ! -f /tmp/exam/q5/releases.txt ]; then
+        echo "❌ Releases list file does not exist at /tmp/exam/q5/releases.txt"
+        exit 1
+      fi
+
+      # Check if the file has content
+      if [ ! -s /tmp/exam/q5/releases.txt ]; then
+        echo "❌ Releases list file exists but is empty"
+        exit 1
+      fi
+
+      # Get current releases to compare
+      current_releases=$(helm list -A 2>/dev/null)
+
+      # Check if the file contains Helm release information
+      if ! grep -q "NAME\|NAMESPACE\|REVISION\|STATUS" /tmp/exam/q5/releases.txt; then
+        echo "❌ Releases list file does not appear to be from helm list command"
+        echo "Expected headers like 'NAME', 'NAMESPACE', 'REVISION', 'STATUS'"
+        echo "File content:"
+        cat /tmp/exam/q5/releases.txt
+        exit 1
+      fi
+
+      # Check if the file contains the web-server release we created in Q4
+      if ! grep -q "web-server" /tmp/exam/q5/releases.txt; then
+        echo "❌ Releases list file does not contain the 'web-server' release"
+        echo "File content:"
+        cat /tmp/exam/q5/releases.txt
+        exit 1
+      fi
+
+      # Check if the command was run with -A flag to show all namespaces
+      # This is a bit lenient as it just checks if there are entries from
+      # namespaces other than default, if they exist
+      if [ $(helm list -A | grep -v "default" | wc -l) -gt 0 ]; then
+        if ! grep -v "default" /tmp/exam/q5/releases.txt > /dev/null; then
+          echo "❌ Releases list does not include releases from all namespaces"
+          echo "File content might not have been generated with 'helm list -A'"
+          exit 1
+        fi
+      fi
+
+      echo "✅ Helm releases list is correctly saved"
+      echo "Sample content:"
+      head -5 /tmp/exam/q5/releases.txt
+      exit 0
+
+solution:
+  explain: |
+    ```bash
+    # List all releases across all namespaces
+    helm list -A > /tmp/exam/q5/releases.txt
+    ```
+  run: |
+    # List all releases across all namespaces
+    helm list -A > /tmp/exam/q5/releases.txt

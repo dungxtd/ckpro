@@ -1,0 +1,251 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Network Policies for Backend Services
+certifications:
+  cks: cluster-setup
+difficulty: hard
+namespace: network-security
+tags: [network policies, ingress, egress]
+
+statement: |
+  Create a NetworkPolicy named `secure-backend` in the `network-security` namespace that restricts access to pods with label `app=backend` to only allow ingress traffic from pods with label `app=frontend` on port 8080.
+
+  Additionally, ensure that these backend pods can only make egress connections to pods with label `app=database` on port 5432.
+
+setup: |
+  # Setup for Question 1: Network Policies for Backend Services
+
+  # Create namespace if it doesn't exist
+  kubectl create namespace network-security 2>/dev/null || true
+
+  # Create sample pods to demonstrate the need for the network policy
+  # Create a frontend pod
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: frontend
+    namespace: network-security
+    labels:
+      app: frontend
+  spec:
+    containers:
+    - name: nginx
+      image: nginx
+      ports:
+      - containerPort: 80
+  EOF
+
+  # Create a backend pod
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: backend
+    namespace: network-security
+    labels:
+      app: backend
+  spec:
+    containers:
+    - name: nginx
+      image: nginx
+      ports:
+      - containerPort: 8080
+  EOF
+
+  # Create a database pod
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: database
+    namespace: network-security
+    labels:
+      app: database
+  spec:
+    containers:
+    - name: postgres
+      image: postgres:13
+      env:
+      - name: POSTGRES_PASSWORD
+        value: "password"
+      ports:
+      - containerPort: 5432
+  EOF
+
+  # Create a test pod
+  kubectl apply -f - <<EOF
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: test-pod
+    namespace: network-security
+    labels:
+      app: test
+  spec:
+    containers:
+    - name: busybox
+      image: busybox
+      command: ["sleep", "3600"]
+  EOF
+
+  echo "Setup completed for Question 1"
+  exit 0
+
+checks:
+  - name: NetworkPolicy exists
+    weight: 2
+    run: |
+      # Validate that the NetworkPolicy exists
+
+      POLICY_NAME="secure-backend"
+      NAMESPACE="network-security"
+
+      kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -eq 0 ]; then
+        echo "✅ NetworkPolicy '$POLICY_NAME' exists in namespace '$NAMESPACE'"
+        exit 0
+      else
+        echo "❌ NetworkPolicy '$POLICY_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+  - name: NetworkPolicy has correct ingress rules
+    weight: 2
+    run: |
+      # Validate that the NetworkPolicy has correct ingress rules
+
+      POLICY_NAME="secure-backend"
+      NAMESPACE="network-security"
+
+      # Check if policy exists
+      kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ NetworkPolicy '$POLICY_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check for podSelector with app=backend
+      BACKEND_SELECTOR=$(kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE -o jsonpath='{.spec.podSelector.matchLabels.app}')
+      if [ "$BACKEND_SELECTOR" != "backend" ]; then
+        echo "❌ NetworkPolicy does not select pods with label app=backend"
+        exit 1
+      fi
+
+      # Check for ingress rule with podSelector app=frontend
+      FRONTEND_SELECTOR=$(kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE -o jsonpath='{.spec.ingress[0].from[0].podSelector.matchLabels.app}')
+      if [ "$FRONTEND_SELECTOR" != "frontend" ]; then
+        echo "❌ NetworkPolicy does not allow ingress from pods with label app=frontend"
+        exit 1
+      fi
+
+      # Check for port 8080
+      PORT=$(kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE -o jsonpath='{.spec.ingress[0].ports[0].port}')
+      if [ "$PORT" != "8080" ]; then
+        echo "❌ NetworkPolicy does not specify port 8080"
+        exit 1
+      fi
+
+      echo "✅ NetworkPolicy has correct ingress rules"
+      exit 0
+  - name: NetworkPolicy has correct egress rules
+    run: |
+      # Validate that the NetworkPolicy has correct egress rules
+
+      POLICY_NAME="secure-backend"
+      NAMESPACE="network-security"
+
+      # Check if policy exists
+      kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE &> /dev/null
+      if [ $? -ne 0 ]; then
+        echo "❌ NetworkPolicy '$POLICY_NAME' not found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      # Check if egress is in policyTypes
+      POLICY_TYPES=$(kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE -o jsonpath='{.spec.policyTypes}')
+      if [[ "$POLICY_TYPES" != *"Egress"* ]]; then
+        echo "❌ NetworkPolicy does not include Egress in policyTypes"
+        exit 1
+      fi
+
+      # Check for egress rule with podSelector app=database
+      DATABASE_SELECTOR=$(kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE -o jsonpath='{.spec.egress[0].to[0].podSelector.matchLabels.app}')
+      if [ "$DATABASE_SELECTOR" != "database" ]; then
+        echo "❌ NetworkPolicy does not restrict egress to pods with label app=database"
+        exit 1
+      fi
+
+      # Check for port 5432
+      PORT=$(kubectl get networkpolicy $POLICY_NAME -n $NAMESPACE -o jsonpath='{.spec.egress[0].ports[0].port}')
+      if [ "$PORT" != "5432" ]; then
+        echo "❌ NetworkPolicy does not specify port 5432 for egress"
+        exit 1
+      fi
+
+      echo "✅ NetworkPolicy has correct egress rules"
+      exit 0
+
+solution:
+  explain: |
+    Create a NetworkPolicy that restricts access to backend pods and controls their egress:
+
+    ```yaml
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: secure-backend
+      namespace: network-security
+    spec:
+      podSelector:
+        matchLabels:
+          app: backend
+      policyTypes:
+      - Ingress
+      - Egress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+        ports:
+        - port: 8080
+      egress:
+      - to:
+        - podSelector:
+            matchLabels:
+              app: database
+        ports:
+        - port: 5432
+    ```
+
+    This NetworkPolicy ensures:
+    - Only pods with label `app=frontend` can access backend pods on port 8080
+    - Backend pods can only communicate with pods labeled `app=database` on port 5432
+  run: |
+    kubectl apply -f - <<'MANIFEST'
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: secure-backend
+      namespace: network-security
+    spec:
+      podSelector:
+        matchLabels:
+          app: backend
+      policyTypes:
+      - Ingress
+      - Egress
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+        ports:
+        - port: 8080
+      egress:
+      - to:
+        - podSelector:
+            matchLabels:
+              app: database
+        ports:
+        - port: 5432
+    MANIFEST

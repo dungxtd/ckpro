@@ -1,0 +1,199 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Deploy the Bitnami Nginx chart in the 'web' namespace using Helm
+certifications:
+  ckad: application-deployment
+difficulty: medium
+namespace: cluster-admin
+tags: [helm, package-management, nginx, services]
+
+statement: |
+  Deploy the Bitnami Nginx chart in the `web` namespace using Helm.
+
+  First, add the Bitnami repository (`https://charts.bitnami.com/bitnami`) if not already present.
+
+  Then, deploy the `Bitnami` `nginx` chart with exactly `2` replicas to ensure high availability.
+
+  Verify the deployment is successful by checking that pods are running and the service is correctly configured.
+
+setup: |
+  # Setup for Question 14: Install Helm and deploy Bitnami Nginx
+
+  # Create the web namespace if it doesn't exist already
+  if ! kubectl get namespace web &> /dev/null; then
+      kubectl create namespace web
+  fi
+
+  # Delete any existing helm installations of nginx
+  if command -v helm &> /dev/null; then
+      helm uninstall nginx -n web --ignore-not-found
+  fi
+
+  echo "Setup complete for Question 14: Environment ready for installing Helm and deploying Bitnami Nginx"
+  echo "Note: The candidate should add the Bitnami repo if not already present: helm repo add bitnami https://charts.bitnami.com/bitnami"
+  exit 0
+
+checks:
+  - name: Bitnami repository is added
+    weight: 2
+    run: |
+      # Validate that the Bitnami repository is added to Helm
+
+      # Check if the Bitnami repository is added
+      BITNAMI_REPO=$(helm repo list 2>/dev/null | grep -i bitnami)
+      if [ $? -ne 0 ] || [ -z "$BITNAMI_REPO" ]; then
+        echo "❌ Bitnami repository is not added to Helm"
+        exit 1
+      fi
+
+      # Extract the URL from the repo list
+      REPO_URL=$(echo "$BITNAMI_REPO" | awk '{print $2}')
+
+      # Check if the URL is correct
+      if [[ ! "$REPO_URL" =~ "charts.bitnami.com/bitnami" ]]; then
+        echo "❌ Bitnami repository URL is incorrect: $REPO_URL"
+        exit 1
+      fi
+
+      echo "✅ Bitnami repository is properly configured with URL: $REPO_URL"
+
+      # Check if repo is up to date
+      LAST_UPDATE=$(helm repo list 2>/dev/null | grep -i bitnami | awk '{print $3}')
+      if [ -n "$LAST_UPDATE" ]; then
+        echo "ℹ️  Last repository update: $LAST_UPDATE"
+      fi
+
+      exit 0
+  - name: Bitnami Nginx is deployed with correct configuration
+    weight: 3
+    run: |
+      # Validate that Bitnami Nginx is deployed with 2 replicas and LoadBalancer service type in namespace 'web'
+
+      NAMESPACE="web"
+      RELEASE_NAME="nginx"  # Default release name, can also check for any Nginx release
+
+      # Check if the namespace exists
+      kubectl get namespace $NAMESPACE > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+        echo "❌ Namespace '$NAMESPACE' not found"
+        exit 1
+      fi
+
+      # Check if there's any nginx deployment from Helm in the namespace
+      HELM_RELEASE=$(helm list -n $NAMESPACE 2>/dev/null | grep -i nginx | wc -l)
+      if [ $HELM_RELEASE -eq 0 ]; then
+        echo "❌ No Nginx Helm release found in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      echo "✅ Nginx Helm release found in namespace '$NAMESPACE'"
+
+      # Find the deployment name (may vary based on release name)
+      DEPLOYMENT_NAME=$(kubectl get deployments -n $NAMESPACE -l "app.kubernetes.io/name=nginx" -o name 2>/dev/null || kubectl get deployments -n $NAMESPACE -l "app=nginx" -o name 2>/dev/null)
+
+      if [ -z "$DEPLOYMENT_NAME" ]; then
+        echo "❌ Cannot find Nginx deployment in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      DEPLOYMENT_NAME=$(echo $DEPLOYMENT_NAME | sed 's|deployment.apps/||')
+      echo "✅ Found Nginx deployment: $DEPLOYMENT_NAME"
+
+      # Check replicas count
+      REPLICAS=$(kubectl get deployment $DEPLOYMENT_NAME -n $NAMESPACE -o jsonpath='{.spec.replicas}' 2>/dev/null)
+
+      if [ -z "$REPLICAS" ]; then
+        echo "❌ Cannot get replica count for deployment '$DEPLOYMENT_NAME'"
+        exit 1
+      fi
+
+      if [ "$REPLICAS" -ne 2 ]; then
+        echo "❌ Deployment '$DEPLOYMENT_NAME' has $REPLICAS replicas, but 2 were required"
+        exit 1
+      fi
+
+      echo "✅ Deployment has correct number of replicas: $REPLICAS"
+
+      # Check service type
+      SERVICE_NAME=$(kubectl get services -n $NAMESPACE -l "app.kubernetes.io/name=nginx" -o name 2>/dev/null || kubectl get services -n $NAMESPACE -l "app=nginx" -o name 2>/dev/null)
+
+      if [ -z "$SERVICE_NAME" ]; then
+        echo "❌ Cannot find Nginx service in namespace '$NAMESPACE'"
+        exit 1
+      fi
+
+      SERVICE_NAME=$(echo $SERVICE_NAME | sed 's|service/||')
+      SERVICE_TYPE=$(kubectl get service $SERVICE_NAME -n $NAMESPACE -o jsonpath='{.spec.type}' 2>/dev/null)
+
+      if [ -z "$SERVICE_TYPE" ]; then
+        echo "❌ Cannot get service type for service '$SERVICE_NAME'"
+        exit 1
+      fi
+
+      if [ "$SERVICE_TYPE" != "LoadBalancer" ]; then
+        echo "❌ Service '$SERVICE_NAME' is of type '$SERVICE_TYPE', but 'LoadBalancer' was required"
+        exit 1
+      fi
+
+      echo "✅ Service has correct type: $SERVICE_TYPE"
+
+      # Check if pods are running
+      RUNNING_PODS=$(kubectl get pods -n $NAMESPACE -l "app.kubernetes.io/name=nginx" -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' 2>/dev/null | wc -w)
+
+      if [ -z "$RUNNING_PODS" ] || [ "$RUNNING_PODS" -eq 0 ]; then
+        # Try another common label
+        RUNNING_PODS=$(kubectl get pods -n $NAMESPACE -l "app=nginx" -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' 2>/dev/null | wc -w)
+      fi
+
+      if [ -z "$RUNNING_PODS" ] || [ "$RUNNING_PODS" -lt "$REPLICAS" ]; then
+        echo "❌ Not all Nginx pods are running (running: $RUNNING_PODS, expected: $REPLICAS)"
+        exit 1
+      fi
+
+      echo "✅ All $RUNNING_PODS Nginx pods are running"
+      echo "✅ Bitnami Nginx has been successfully deployed with 2 replicas and LoadBalancer service"
+      exit 0
+
+solution:
+  explain: |
+    ```bash
+    # Create the namespace if it doesn't exist
+    kubectl create namespace web
+
+    # Add the Bitnami charts repository
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+
+    # Update Helm repositories
+    helm repo update
+
+    # Install Bitnami's Nginx chart with 2 replicas
+    helm install nginx bitnami/nginx --namespace web --set replicaCount=2
+
+    # Verify the deployment
+    kubectl get pods -n web
+    kubectl get svc -n web
+    ```
+
+    You can inspect the installation and configuration:
+    ```bash
+    helm list -n web
+    kubectl get deployment -n web
+    ```
+  run: |
+    # Create the namespace if it doesn't exist
+    kubectl create namespace web
+
+    # Add the Bitnami charts repository
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+
+    # Update Helm repositories
+    helm repo update
+
+    # Install Bitnami's Nginx chart with 2 replicas
+    helm install nginx bitnami/nginx --namespace web --set replicaCount=2
+
+    # Verify the deployment
+    kubectl get pods -n web
+    kubectl get svc -n web
+
+    helm list -n web
+    kubectl get deployment -n web

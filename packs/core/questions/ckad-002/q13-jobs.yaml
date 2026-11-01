@@ -1,0 +1,171 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Jobs
+certifications:
+  ckad: application-design-build
+difficulty: hard
+namespace: jobs
+tags: [jobs, restart-policy, backoff-limit]
+
+statement: |
+  Create a Job named `data-processor` in the `jobs` namespace with the following specifications:
+
+  1. Use image `busybox`
+  2. Command: `['sh', '-c', 'for i in $(seq 1 5); do echo Processing item $i; sleep 2; done']`
+  3. Set restart policy to `Never`
+  4. Set backoff limit to `4`
+  5. Set active deadline seconds to `30`
+
+  Ensure the namespace exists before creating the job.
+
+setup: |
+  # Delete the jobs namespace if it exists
+  echo "Setting up environment for Question 13 (Jobs)..."
+  kubectl delete namespace jobs --ignore-not-found=true
+
+  # Wait for deletion to complete
+  sleep 2
+
+  # Confirm environment is ready
+  echo "Environment ready for Question 13"
+  exit 0
+
+checks:
+  - name: Namespace is created
+    run: |
+      # Validate that the jobs namespace exists
+      NS=$(kubectl get namespace jobs -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$NS" == "jobs" ]]; then
+          # Namespace exists
+          exit 0
+      else
+          # Namespace does not exist
+          echo "Namespace 'jobs' does not exist"
+          exit 1
+      fi
+  - name: Job is created with correct specifications
+    weight: 3
+    run: |
+      # Validate that the data-processor job exists
+      JOB=$(kubectl get job data-processor -n jobs -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+      if [[ "$JOB" == "data-processor" ]]; then
+          echo "✅ Job 'data-processor' exists in namespace 'jobs'."
+
+          # Check image
+          IMAGE=$(kubectl get job data-processor -n jobs -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)
+
+          # Get full command string
+          COMMAND=$(kubectl get job data-processor -n jobs -o jsonpath='{.spec.template.spec.containers[0].command[*]}' 2>/dev/null)
+
+          # Use relaxed matching instead of strict string comparison
+          if [[ "$IMAGE" == "busybox" && "$COMMAND" == *"Processing item"* && "$COMMAND" == *"sleep 2"* ]]; then
+              echo "✅ Job has the correct image and command logic."
+              exit 0
+          else
+              echo "❌ Job 'data-processor' does not have correct specifications."
+              echo "   ➤ Found image: $IMAGE (expected: busybox)"
+              echo "   ➤ Found command: $COMMAND"
+              echo "   ➤ Expected command to include: 'Processing item' and 'sleep 2'"
+              exit 1
+          fi
+      else
+          echo "❌ Job 'data-processor' does not exist in the 'jobs' namespace."
+          exit 1
+      fi
+  - name: Job has correct restart policy and backoff limit
+    weight: 2
+    run: |
+      # Validate that the job has correct restart policy and backoff limit
+      # Check restart policy
+      RESTART_POLICY=$(kubectl get job data-processor -n jobs -o jsonpath='{.spec.template.spec.restartPolicy}' 2>/dev/null)
+
+      # Check backoff limit
+      BACKOFF_LIMIT=$(kubectl get job data-processor -n jobs -o jsonpath='{.spec.backoffLimit}' 2>/dev/null)
+
+      if [[ "$RESTART_POLICY" == "Never" ]]; then
+          # Restart policy is correct
+          if [[ "$BACKOFF_LIMIT" == "4" ]]; then
+              # Backoff limit is correct
+              exit 0
+          else
+              echo "Job 'data-processor' does not have correct backoff limit. Found: $BACKOFF_LIMIT (expected: 4)"
+              exit 1
+          fi
+      else
+          echo "Job 'data-processor' does not have correct restart policy. Found: $RESTART_POLICY (expected: Never)"
+          exit 1
+      fi
+  - name: Job has correct active deadline seconds
+    weight: 2
+    run: |
+      # Validate that the job has correct active deadline seconds
+      ACTIVE_DEADLINE_SECONDS=$(kubectl get job data-processor -n jobs -o jsonpath='{.spec.activeDeadlineSeconds}' 2>/dev/null)
+
+      if [[ "$ACTIVE_DEADLINE_SECONDS" == "30" ]]; then
+          # Active deadline seconds is correct
+          exit 0
+      else
+          echo "Job 'data-processor' does not have correct active deadline seconds. Found: $ACTIVE_DEADLINE_SECONDS (expected: 30)"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    Create a Job with specific configurations:
+
+    ```bash
+    # Create namespace
+    kubectl create namespace jobs
+
+    # Create Job
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: jobs
+    ---
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: data-processor
+      namespace: jobs
+    spec:
+      backoffLimit: 4
+      activeDeadlineSeconds: 30
+      template:
+        spec:
+          containers:
+          - name: processor
+            image: busybox
+            command: ['sh', '-c', 'for i in $(seq 1 5); do echo Processing item $i; sleep 2; done']
+          restartPolicy: Never
+    EOF
+    ```
+  run: |
+    # Create namespace
+    kubectl create namespace jobs
+
+    # Create Job
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: jobs
+    ---
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: data-processor
+      namespace: jobs
+    spec:
+      backoffLimit: 4
+      activeDeadlineSeconds: 30
+      template:
+        spec:
+          containers:
+          - name: processor
+            image: busybox
+            command: ['sh', '-c', 'for i in $(seq 1 5); do echo Processing item $i; sleep 2; done']
+          restartPolicy: Never
+    EOF

@@ -1,0 +1,218 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Docker Basics
+certifications:
+  ckad: application-design-build
+difficulty: hard
+namespace: docker-basics
+tags: [docker, images, containers]
+requires: [container-runtime]  # needs docker/podman on the jumphost
+
+statement: |
+  Create a simple Docker image and run it:
+
+  1. Create a file `/tmp/Dockerfile` with these contents:
+  `
+  FROM nginx:alpine
+  COPY index.html /usr/share/nginx/html/
+  EXPOSE 80
+  `
+
+  2. Create a file `/tmp/index.html` with this content:
+  `
+  <!DOCTYPE html>
+  <html>
+  <body>
+  <h1>Hello from CKAD Docker Question!</h1>
+  </body>
+  </html>
+  `
+
+  3. Build the Docker image with tag `my-nginx:v1`
+
+  4. Run a container from this image with name `my-web` and publish port 80 to 8080 on the host
+
+  Note: You'll need to use the Docker command line tools for this task.
+
+setup: |
+  # Make sure Docker is available
+  which docker > /dev/null 2>&1
+  if [[ $? -ne 0 ]]; then
+    echo "Docker is not available on this system"
+    exit 1
+  fi
+
+  # Create directory for working files if it doesn't exist
+  mkdir -p /tmp
+
+  # Clean up any existing resources that might conflict
+  docker stop my-web > /dev/null 2>&1
+  docker rm my-web > /dev/null 2>&1
+  docker rmi my-nginx:v1 > /dev/null 2>&1
+  rm -f /tmp/Dockerfile /tmp/index.html > /dev/null 2>&1
+
+  echo "Setup complete for Question 12"
+  exit 0
+
+checks:
+  - name: Dockerfile exists with correct content
+    run: |
+      # Check if the Dockerfile exists
+      if [[ ! -f "/tmp/Dockerfile" ]]; then
+        echo "❌ File '/tmp/Dockerfile' not found"
+        exit 1
+      fi
+
+      # Check if the Dockerfile contains necessary elements
+      if ! grep -q "FROM.*nginx:alpine" /tmp/Dockerfile; then
+        echo "❌ Dockerfile should use 'nginx:alpine' as base image"
+        exit 1
+      fi
+
+      if ! grep -q "COPY.*index.html" /tmp/Dockerfile; then
+        echo "❌ Dockerfile should copy 'index.html' file"
+        exit 1
+      fi
+
+      if ! grep -q "EXPOSE.*80" /tmp/Dockerfile; then
+        echo "❌ Dockerfile should expose port 80"
+        exit 1
+      fi
+
+      echo "✅ Dockerfile exists with correct content"
+      exit 0
+  - name: index.html exists with proper content
+    run: |
+      # Check if the index.html exists
+      if [[ ! -f "/tmp/index.html" ]]; then
+        echo "❌ File '/tmp/index.html' not found"
+        exit 1
+      fi
+
+      # Check if the HTML contains necessary content
+      if ! grep -q "Hello from CKAD Docker Question" /tmp/index.html; then
+        echo "❌ HTML file should contain 'Hello from CKAD Docker Question'"
+        exit 1
+      fi
+
+      # Check basic HTML structure
+      if ! grep -q "<!DOCTYPE html>" /tmp/index.html; then
+        echo "❌ HTML file should have DOCTYPE declaration"
+        exit 1
+      fi
+
+      if ! grep -q "<html>" /tmp/index.html; then
+        echo "❌ HTML file should contain <html> tag"
+        exit 1
+      fi
+
+      if ! grep -q "<body>" /tmp/index.html; then
+        echo "❌ HTML file should contain <body> tag"
+        exit 1
+      fi
+
+      echo "✅ index.html exists with correct content"
+      exit 0
+  - name: Docker image is built correctly
+    weight: 2
+    run: |
+      # Check if the Docker image exists
+      docker image inspect my-nginx:v1 &> /dev/null
+      if [[ $? -ne 0 ]]; then
+        echo "❌ Docker image 'my-nginx:v1' not found"
+        exit 1
+      fi
+
+      #Docker image is built correctly
+      echo "✅ Docker image 'my-nginx:v1' has been built correctly with all required elements"
+      exit 0
+  - name: Container is running properly
+    weight: 2
+    run: |
+      # Check if the container exists
+      docker container inspect my-web > /dev/null 2>&1
+      if [[ $? -ne 0 ]]; then
+        echo "❌ Container 'my-web' not found"
+        exit 1
+      fi
+
+      # Check if the container is running
+      CONTAINER_STATE=$(docker container inspect my-web --format '{{.State.Status}}')
+      if [[ "$CONTAINER_STATE" != "running" ]]; then
+        echo "❌ Container 'my-web' is not running (current state: $CONTAINER_STATE)"
+        exit 1
+      fi
+
+      # Check if the container is using the correct image
+      CONTAINER_IMAGE=$(docker container inspect my-web --format '{{.Config.Image}}')
+      if [[ "$CONTAINER_IMAGE" != "my-nginx:v1" ]]; then
+        echo "❌ Container should use 'my-nginx:v1' image (current image: $CONTAINER_IMAGE)"
+        exit 1
+      fi
+
+      # Check if port 80 is published to 8080
+      PORT_MAPPING=$(docker container inspect my-web --format '{{json .HostConfig.PortBindings}}' | grep -o "8080")
+      if [[ -z "$PORT_MAPPING" ]]; then
+        echo "❌ Container should publish port 80 to port 8080 on the host"
+        exit 1
+      fi
+
+      echo "✅ Container 'my-web' is running properly"
+      exit 0
+
+solution:
+  explain: |
+    Create a simple Docker image and run it:
+
+    ```bash
+    # Create the Dockerfile
+    cat > /tmp/Dockerfile << 'EOF'
+    FROM nginx:alpine
+    COPY index.html /usr/share/nginx/html/
+    EXPOSE 80
+    EOF
+
+    # Create the HTML file
+    cat > /tmp/index.html << 'EOF'
+    <!DOCTYPE html>
+    <html>
+    <body>
+    <h1>Hello from CKAD Docker Question!</h1>
+    </body>
+    </html>
+    EOF
+
+    # Build the Docker image
+    docker build -t my-nginx:v1 -f /tmp/Dockerfile /tmp
+
+    # Run the container
+    docker run -d --name my-web -p 8080:80 my-nginx:v1
+
+    # Verify the container is running
+    docker ps | grep my-web
+    ```
+  run: |
+    # Create the Dockerfile
+    cat > /tmp/Dockerfile << 'EOF'
+    FROM nginx:alpine
+    COPY index.html /usr/share/nginx/html/
+    EXPOSE 80
+    EOF
+
+    # Create the HTML file
+    cat > /tmp/index.html << 'EOF'
+    <!DOCTYPE html>
+    <html>
+    <body>
+    <h1>Hello from CKAD Docker Question!</h1>
+    </body>
+    </html>
+    EOF
+
+    # Build the Docker image
+    docker build -t my-nginx:v1 -f /tmp/Dockerfile /tmp
+
+    # Run the container
+    docker run -d --name my-web -p 8080:80 my-nginx:v1
+
+    # Verify the container is running
+    docker ps | grep my-web

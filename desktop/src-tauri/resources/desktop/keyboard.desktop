@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Virtual Keyboard
+Comment=On-screen keyboard for keys that do not reach the desktop
+Exec=onboard
+Icon=input-keyboard
+StartupNotify=false

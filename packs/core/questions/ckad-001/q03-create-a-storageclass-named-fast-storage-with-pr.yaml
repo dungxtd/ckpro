@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=../../../schema/question.schema.json
+title: Create a StorageClass named 'fast-storage' with provisioner 'kubernetes.io/no-provisioner' and volumeBindingMode 'WaitForFirstConsumer'
+certifications:
+  ckad: application-design-build
+difficulty: medium
+namespace: storage-test
+tags: [storage-class, provisioners, volume-binding]
+
+statement: |
+  As part of optimizing storage resources in the cluster, create a StorageClass named `fast-storage` that will dynamically provision storage resources.
+
+  Use the provisioner `kubernetes.io/no-provisioner` for this local storage class.
+
+  Set the volumeBindingMode to `WaitForFirstConsumer` to delay volume binding until a pod using the PVC is created.
+
+  This storage class will be used for applications that require optimized local storage performance.
+
+setup: |
+  # Setup for Question 3: Create a StorageClass named 'fast-storage'
+
+  # Delete any existing StorageClass with the same name to ensure a clean state
+  kubectl delete storageclass slow-storage --ignore-not-found=true
+
+  echo "Setup complete for Question 3: Environment ready for creating StorageClass 'fast-storage'"
+  exit 0
+
+checks:
+  - name: StorageClass is created
+    weight: 2
+    run: |
+      # Validate if the StorageClass 'fast-storage' exists
+      if kubectl get storageclass fast-storage &> /dev/null; then
+          echo "Success: StorageClass 'fast-storage' exists"
+          exit 0
+      else
+          echo "Error: StorageClass 'fast-storage' does not exist"
+          exit 1
+      fi
+  - name: StorageClass has correct provisioner
+    run: |
+      # Validate if the StorageClass 'fast-storage' has the correct provisioner
+      PROVISIONER=$(kubectl get storageclass fast-storage -o jsonpath='{.provisioner}' 2>/dev/null)
+
+      if [ "$PROVISIONER" = "kubernetes.io/no-provisioner" ]; then
+          echo "Success: StorageClass 'fast-storage' has the correct provisioner (kubernetes.io/no-provisioner)"
+          exit 0
+      else
+          echo "Error: StorageClass 'fast-storage' does not have the correct provisioner. Found: '$PROVISIONER', Expected: 'kubernetes.io/no-provisioner'"
+          exit 1
+      fi
+  - name: StorageClass has correct volumeBindingMode
+    weight: 2
+    run: |
+      # Validate if the StorageClass 'slow-storage' has the correct volumeBindingMode
+      BINDING_MODE=$(kubectl get storageclass fast-storage -o jsonpath='{.volumeBindingMode}' 2>/dev/null)
+
+      if [ "$BINDING_MODE" = "WaitForFirstConsumer" ]; then
+          echo "Success: StorageClass 'fast-storage' has the correct volumeBindingMode (WaitForFirstConsumer)"
+          exit 0
+      else
+          echo "Error: StorageClass 'fast-storage' does not have the correct volumeBindingMode. Found: '$BINDING_MODE', Expected: 'WaitForFirstConsumer'"
+          exit 1
+      fi
+
+solution:
+  explain: |
+    ```yaml
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: fast-storage
+    provisioner: kubernetes.io/no-provisioner
+    volumeBindingMode: WaitForFirstConsumer
+    ```
+
+    Save this as `storage-class.yaml` and apply:
+
+    ```bash
+    kubectl apply -f storage-class.yaml
+    ```
+  run: |
+    cat > storage-class.yaml <<'MANIFEST'
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: fast-storage
+    provisioner: kubernetes.io/no-provisioner
+    volumeBindingMode: WaitForFirstConsumer
+    MANIFEST
+
+    kubectl apply -f storage-class.yaml

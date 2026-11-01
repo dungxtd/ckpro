@@ -1,0 +1,30 @@
+name: Set up Node + Rust + caches
+description: For the app's release builds. Node 24, Rust stable with the target, pnpm and Rust caches.
+
+inputs:
+  rust-target:
+    description: Rust target triple (e.g. aarch64-apple-darwin)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v5
+      with:
+        node-version: 24
+        cache: pnpm
+
+    - name: Install Rust stable + target
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ inputs.rust-target }}
+
+    - name: Rust cache
+      uses: swatinem/rust-cache@v2
+      with:
+        workspaces: desktop/src-tauri -> target
+        key: ${{ inputs.rust-target }}
