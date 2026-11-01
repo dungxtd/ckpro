@@ -62,6 +62,9 @@
 	--capsule: rgb(250 250 250 / 0.72);
 	--capsule-edge: rgb(0 0 0 / 0.12);
 	--capsule-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
+	/* A terminal's ground: dark in both themes, as terminals are */
+	--terminal: #0d0d0e;
+	--terminal-foreground: #d4d4d4;
 }
 
 [data-theme="dark"] {
@@ -143,6 +146,8 @@
 	--color-sidebar-hover: var(--sidebar-hover);
 	--color-capsule: var(--capsule);
 	--color-capsule-edge: var(--capsule-edge);
+	--color-terminal: var(--terminal);
+	--color-terminal-foreground: var(--terminal-foreground);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
 }

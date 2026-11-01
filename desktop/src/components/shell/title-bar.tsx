@@ -72,25 +72,23 @@ export function TitleBar({
 				>
 					<PanelLeft />
 				</IconButton>
-				{arrangeScreens(layout).map(({ path, label }) =>
-					path === "/" ? (
-						<DropdownMenu key={path}>
-							<DropdownMenuTrigger asChild>
-								<CapsuleItem current={pathname === path}>
-									{label}
-									<ChevronDown />
-								</CapsuleItem>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="center">
-								<ExamMenuItems />
-							</DropdownMenuContent>
-						</DropdownMenu>
-					) : (
-						<CapsuleItem key={path} current={pathname === path} onClick={() => navigate(path)}>
-							{label}
+				{arrangeScreens(layout).map(({ path, label }) => (
+					<CapsuleItem key={path} current={pathname === path} onClick={() => navigate(path)}>
+						{label}
+					</CapsuleItem>
+				))}
+				{/* The exams, which the sidebar lists, as a menu */}
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<CapsuleItem current={pathname === "/exams"}>
+							Exams
+							<ChevronDown />
 						</CapsuleItem>
-					)
-				)}
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="center">
+						<ExamMenuItems />
+					</DropdownMenuContent>
+				</DropdownMenu>
 				<CapsuleItem
 					current={pathname.startsWith("/settings")}
 					onClick={() => navigate("/settings")}

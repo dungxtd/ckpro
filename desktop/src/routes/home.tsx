@@ -1,0 +1,113 @@
+import { Loading } from "@ckdry/ui/components/loading";
+import { useEffect, useState } from "react";
+import {
+	bestByDay,
+	daysUntil,
+	events,
+	startedAt,
+	studyFigures,
+	weakest,
+	weekRecap,
+} from "@/components/home/data";
+import { PrepMap } from "@/components/home/prep-map";
+import { Readiness } from "@/components/home/readiness";
+import { Recap } from "@/components/home/recap";
+import { StatusTerminal } from "@/components/home/status-terminal";
+import { TargetDialog } from "@/components/home/target-dialog";
+import { Today } from "@/components/home/today";
+import { Week } from "@/components/home/week";
+import { Screen } from "@/components/shell/screen";
+import { addDays, dayKey, monday, parseDay } from "@/days";
+import { useExam } from "@/stores/exam";
+import { useSettings } from "@/stores/settings";
+import { type ExamReadiness, examApi, type HistoryEntry, type PlanView } from "@/tauri/api";
+
+/**
+ * Home: where the preparation stands (as kubectl would print it), today's
+ * session, the week in figures, the prep map, readiness per domain and this
+ * week's plans. All of it from the attempts and the plans, without AI; read
+ * again whenever an attempt is over
+ */
+export function HomeRoute() {
+	const target = useSettings(s => s.settings.target);
+	const catalog = useExam(s => s.catalog);
+	const idle = useExam(s => !s.state || s.state.phase === "idle");
+	const [history, setHistory] = useState<HistoryEntry[] | null>(null);
+	const [plans, setPlans] = useState<PlanView[]>([]);
+	const [readiness, setReadiness] = useState<ExamReadiness | null>(null);
+	const [editing, setEditing] = useState(false);
+
+	const now = new Date();
+	const today = dayKey(now);
+	const weekStart = monday(now);
+	const certifications = [...new Set(catalog.map(e => e.certification))];
+	// The certification measured: the target's, else the latest attempt's
+	const certification =
+		target?.certification ??
+		(history?.[0] && catalog.find(e => e.id === history[0].exam_id)?.certification) ??
+		null;
+
+	// Read again whenever an attempt is over (and for a new week)
+	const week = dayKey(weekStart);
+	useEffect(() => {
+		if (!idle) return;
+		examApi.history().then(setHistory);
+		examApi.plans(week, dayKey(addDays(parseDay(week), 6))).then(setPlans);
+	}, [idle, week]);
+	useEffect(() => {
+		if (certification && idle)
+			examApi.readiness(certification).then(setReadiness, () => setReadiness(null));
+	}, [certification, idle]);
+
+	if (history === null) return <Loading fill label="Reading your attempts…" />;
+	const measured = certification
+		? history.filter(h => catalog.find(e => e.id === h.exam_id)?.certification === certification)
+		: history;
+	const weak = weakest(readiness);
+	const first = measured.at(-1);
+	const start = target
+		? parseDay(target.started)
+		: first
+			? new Date(startedAt(first))
+			: addDays(now, -70);
+	return (
+		<Screen
+			title="Home"
+			actions={
+				<span className="text-callout text-muted-foreground">
+					{now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+				</span>
+			}
+			className="max-w-5xl gap-4"
+		>
+			<div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-4">
+				<StatusTerminal
+					target={target}
+					days={target ? daysUntil(target.date, now) : null}
+					readiness={readiness}
+					events={events(measured, readiness)}
+					onChangeTarget={() => setEditing(true)}
+				/>
+				<Today plans={plans.filter(p => p.day === today)} today={today} />
+			</div>
+			<Recap
+				recap={weekRecap(measured, weekStart)}
+				weekStart={weekStart}
+				next={weak && { domain: weak.domain, percent: (weak.points * 100) / weak.max_points }}
+			/>
+			<div className="grid grid-cols-2 gap-4">
+				<PrepMap
+					start={start}
+					end={target ? parseDay(target.date) : now}
+					exam={target?.date ?? null}
+					best={bestByDay(measured)}
+					pass={readiness?.pass_score ?? 66}
+					figures={studyFigures(measured, now)}
+				/>
+				{readiness && <Readiness readiness={readiness} />}
+			</div>
+			<Week plans={plans} weekStart={weekStart} restDays={target?.rest_days ?? []} />
+			<TargetDialog open={editing} onOpenChange={setEditing} certifications={certifications} />
+		</Screen>
+	);
+}

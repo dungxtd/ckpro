@@ -150,8 +150,8 @@ export function AppSidebar({
 												label={label}
 												current={pathname === path}
 												onClick={() => navigate(path)}
-												// Edited: the same row, its eye (not Exams, the home
-												// screen: always there) and grip added
+												// Edited: the same row, its eye (not Home, which is
+												// always there) and grip added
 												trailing={
 													editing ? (
 														<>

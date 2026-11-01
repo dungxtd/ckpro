@@ -1,0 +1,87 @@
+import { Button } from "@ckdry/ui/components/button";
+import { Card } from "@ckdry/ui/components/card";
+import { cn } from "@ckdry/ui/lib/utils";
+import { Check, Play } from "lucide-react";
+import { useNavigate } from "react-router";
+import { useExam } from "@/stores/exam";
+import type { PlanView } from "@/tauri/api";
+import { shortTitle } from "@/titles";
+
+/**
+ * Today's session: the exams planned for today, done ones ticked with their
+ * score; Continue starts the next one. Nothing planned: a way to plan today
+ */
+export function Today({ plans, today }: { plans: PlanView[]; today: string }) {
+	const start = useExam(s => s.start);
+	const navigate = useNavigate();
+	const done = plans.filter(p => p.done !== null).length;
+	const next = plans.find(p => p.done === null);
+	const share = plans.length ? (done * 100) / plans.length : 0;
+	return (
+		<Card padding="lg" className="flex flex-col gap-3">
+			<div className="flex items-center gap-4">
+				<div
+					className="grid size-20 shrink-0 place-items-center rounded-full"
+					style={{ background: `conic-gradient(var(--success) 0 ${share}%, var(--muted) 0)` }}
+				>
+					<div className="grid size-16 place-items-center rounded-full bg-card font-bold text-lg tabular-nums">
+						{done}/{plans.length}
+					</div>
+				</div>
+				<div className="min-w-0 flex-1">
+					<div className="font-semibold text-lead">Today</div>
+					<div className="text-caption text-muted-foreground">
+						{plans.length ? `${done} of ${plans.length} done` : "Nothing planned for today"}
+					</div>
+					{next ? (
+						<Button size="sm" className="mt-2" onClick={() => start(next.exam_id, next.mode)}>
+							<Play /> Continue: {shortTitle(next.title)}
+						</Button>
+					) : (
+						!plans.length && (
+							<Button
+								size="push"
+								variant="push"
+								className="mt-2"
+								onClick={() => navigate(`/calendar?view=day&day=${today}`)}
+							>
+								Plan today
+							</Button>
+						)
+					)}
+				</div>
+			</div>
+			{plans.map(p => (
+				<div key={p.id} className="flex items-center gap-3 border-border border-t pt-2.5">
+					<span
+						className={cn(
+							"grid size-[18px] shrink-0 place-items-center rounded-full",
+							p.done !== null ? "bg-success text-black" : "ring-2 ring-muted-foreground ring-inset"
+						)}
+					>
+						{p.done !== null && <Check className="size-3" strokeWidth={3} />}
+					</span>
+					<div className="min-w-0 flex-1">
+						<div
+							className={cn(
+								"truncate text-callout",
+								p.done !== null && "text-muted-foreground line-through"
+							)}
+						>
+							{p.title}
+						</div>
+						<div className="text-2xs text-muted-foreground">
+							{p.mode === "exam" ? "Exam" : "Practice"}
+							{p.done !== null && `, ${Math.round(p.done)}%`}
+						</div>
+					</div>
+					{p.done === null && (
+						<Button size="push" variant="push" onClick={() => start(p.exam_id, p.mode)}>
+							<Play /> Start
+						</Button>
+					)}
+				</div>
+			))}
+		</Card>
+	);
+}

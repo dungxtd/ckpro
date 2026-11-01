@@ -37,7 +37,8 @@ import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import { useAssistantEnabled, useSidebarLayout } from "@/stores/settings";
 import { type ExamSort, type ExamSummary, errorText, examApi } from "@/tauri/api";
-import { memoryFit, shortTitle, useExamStats, useSelection } from "./exams";
+import { shortTitle } from "@/titles";
+import { memoryFit, useExamStats, useSelection } from "./exams";
 import { arrange, moved, pinned, SORTS, stepped, toggled } from "./layout";
 
 /** Docker's memory when it is up */
@@ -89,7 +90,7 @@ export function ExamList({
 	const [layout, setLayout] = useSidebarLayout();
 	const { exam: shown, generating, select, generate } = useSelection();
 	const navigate = useNavigate();
-	const onExams = useLocation().pathname === "/";
+	const onExams = useLocation().pathname === "/exams";
 	const [deleting, setDeleting] = useState<ExamSummary | null>(null);
 	const q = query.trim().toLowerCase();
 	const matches = (e: ExamSummary) => e.title.toLowerCase().includes(q);
@@ -147,7 +148,7 @@ export function ExamList({
 		try {
 			await examApi.delete(exam.id);
 			setLayout({ pinned: toggled(layout.pinned, exam.id, false) });
-			if (shown?.id === exam.id) navigate("/");
+			if (shown?.id === exam.id) navigate("/exams");
 			await loadCatalog();
 			toast.success(`${exam.title} deleted`);
 		} catch (e) {
@@ -329,7 +330,7 @@ export function ExamMenuItems() {
 	const assistant = useAssistantEnabled();
 	const [layout] = useSidebarLayout();
 	const { exam: shown, generating, select, generate } = useSelection();
-	const onExams = useLocation().pathname === "/";
+	const onExams = useLocation().pathname === "/exams";
 	const top = pinned(catalog, layout);
 	return (
 		<>

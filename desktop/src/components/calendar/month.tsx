@@ -2,9 +2,9 @@ import { Badge } from "@ckdry/ui/components/badge";
 import { IconButton } from "@ckdry/ui/components/icon-button";
 import { cn } from "@ckdry/ui/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { shortTitle } from "@/components/catalog/exams";
+import { dayKey, monthWeeks } from "@/days";
 import type { HistoryEntry } from "@/tauri/api";
-import { dayKey, monthWeeks } from "./days";
+import { shortTitle } from "@/titles";
 
 const WEEKDAYS = monthWeeks(new Date(2026, 9, 1))[0].map(d =>
 	d.toLocaleDateString(undefined, { weekday: "short" })

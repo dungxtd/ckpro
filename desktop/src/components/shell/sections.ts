@@ -1,9 +1,9 @@
-import { CalendarDays, Container, History, LayoutList } from "lucide-react";
+import { CalendarDays, Container, History, House } from "lucide-react";
 import type { SidebarLayout } from "@/tauri/api";
 
 /** The app's screens, in the sidebar and the capsule (Settings apart, at the end) */
 export const SECTIONS = [
-	{ path: "/", label: "Exams", icon: LayoutList },
+	{ path: "/", label: "Home", icon: House },
 	{ path: "/history", label: "History", icon: History },
 	{ path: "/calendar", label: "Calendar", icon: CalendarDays },
 	{ path: "/environment", label: "Environment", icon: Container },
@@ -19,7 +19,7 @@ export const SETTINGS_PARTS: Record<string, string> = {
 /**
  * The screens as the sidebar lists them: in the order the candidate dragged
  * them (the rest after, as they come), hidden ones left out unless
- * `withHidden`. Exams, the home screen, is never hidden
+ * `withHidden`. Home is never hidden
  */
 export function arrangeScreens(layout: SidebarLayout, withHidden = false) {
 	const rank = (path: string, i: number) => {
@@ -35,6 +35,7 @@ export function arrangeScreens(layout: SidebarLayout, withHidden = false) {
 /** A screen's name, for the title bar once its own title has scrolled away */
 export function screenTitle(path: string) {
 	if (path === "/settings") return "Settings";
+	if (path === "/exams") return "Exams";
 	const part = path.match(/^\/settings\/(\w+)$/)?.[1];
 	if (part) return SETTINGS_PARTS[part];
 	return SECTIONS.find(s => s.path === path)?.label;

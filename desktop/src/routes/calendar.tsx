@@ -5,9 +5,9 @@ import { Stat, StatGroup } from "@ckdry/ui/components/stat";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
-import { byDay, dayKey, monthKey, parseMonth, streak } from "@/components/calendar/days";
 import { DayAttempts, MiniMonth, Month } from "@/components/calendar/month";
 import { Screen } from "@/components/shell/screen";
+import { byDay, dayKey, monthKey, parseMonth, streak } from "@/days";
 import { examApi, type HistoryEntry } from "@/tauri/api";
 
 /**

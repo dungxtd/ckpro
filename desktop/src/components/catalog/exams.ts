@@ -7,11 +7,6 @@ import { arrange, type ExamStats, examStats, pinned } from "./layout";
 
 export const gb = (mb: number) => (mb / 1024).toFixed(1);
 
-/** An exam's name where its certification shows already (its heading, a
- * calendar day): without the certification and "Practice Lab" */
-export const shortTitle = (title: string) =>
-	title.replace(/^CK(A|AD|S)\s+/i, "").replace(/^Practice Lab\s*-\s*/i, "");
-
 /**
  * How an exam fits Docker's memory (`dockerMb`, when Docker is up). Clearly
  * too small whatever runs; the exact check (running clusters counted)
@@ -29,8 +24,8 @@ export function memoryFit(exam: ExamSummary, dockerMb: number | null): Fit {
 const GENERATE = "generate";
 
 /**
- * What the Exams screen shows, kept in the URL (`/?exam=<id>`, or
- * `/?exam=generate`): the exam picked (the first one until one is), or the
+ * What the Exams screen shows, kept in the URL (`/exams?exam=<id>`, or
+ * `/exams?exam=generate`): the exam picked (the first one until one is), or the
  * generator
  */
 export function useSelection() {
@@ -49,8 +44,8 @@ export function useSelection() {
 	return {
 		exam,
 		generating,
-		select: (id: string) => navigate(`/?exam=${encodeURIComponent(id)}`),
-		generate: () => navigate(`/?exam=${GENERATE}`),
+		select: (id: string) => navigate(`/exams?exam=${encodeURIComponent(id)}`),
+		generate: () => navigate(`/exams?exam=${GENERATE}`),
 	};
 }
 

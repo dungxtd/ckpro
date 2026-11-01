@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ExamSummary } from "@/tauri/api";
-import { memoryFit, shortTitle } from "./exams";
+import { shortTitle } from "@/titles";
+import { memoryFit } from "./exams";
 
 const exam = (id: string, certification: string, title = id): ExamSummary => ({
 	id,

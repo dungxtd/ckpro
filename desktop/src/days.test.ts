@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { byDay, dayKey, monthWeeks, parseMonth, streak } from "@/days";
 import type { HistoryEntry } from "@/tauri/api";
-import { byDay, dayKey, monthWeeks, parseMonth, streak } from "./days";
 
 const at = (y: number, m: number, d: number, h = 10) => new Date(y, m - 1, d, h).getTime();
 const entry = (id: string, started: number | null): HistoryEntry => ({
