@@ -105,7 +105,7 @@ export function TitleBar({
 					<Search />
 				</IconButton>
 			</Capsule>
-			<ActivityChip />
+			<ActivityChip compact={folded} />
 		</div>
 	);
 }

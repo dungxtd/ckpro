@@ -13,9 +13,10 @@ const FAILED_SHOWN_MS = 5 * 60_000;
 /**
  * Top-bar status while something runs in the background (clusters starting
  * after the app reopened, a cluster being created…), or just failed. Opens
- * its progress and log.
+ * its progress and log. `compact` beside the capsule, which takes the
+ * middle of the bar: the icon alone, its words for assistive technology
  */
-export function ActivityChip() {
+export function ActivityChip({ compact = false }: { compact?: boolean }) {
 	const list = useActivityList();
 	const running = list.filter(a => a.status === "running");
 	const [now, setNow] = useState(Date.now);
@@ -38,10 +39,12 @@ export function ActivityChip() {
 	if (!shown) return null;
 
 	const isFailed = shown.status === "failed";
+	const words = isFailed ? `Failed: ${shown.title}` : shown.title;
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
 				<Chip
+					title={compact ? words : undefined}
 					className={cn(
 						"ml-auto max-w-80",
 						isFailed &&
@@ -50,7 +53,7 @@ export function ActivityChip() {
 					count={running.length > 1 ? running.length : undefined}
 				>
 					<ActivityStatusIcon status={shown.status} className="size-3.5 text-current" />
-					<span className="truncate">{isFailed ? `Failed: ${shown.title}` : shown.title}</span>
+					<span className={compact ? "sr-only" : "truncate"}>{words}</span>
 				</Chip>
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-[28rem]">

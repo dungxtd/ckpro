@@ -79,6 +79,7 @@ export function HomeRoute() {
 		: first
 			? new Date(startedAt(first))
 			: addDays(now, -70);
+	const end = target ? parseDay(target.date) : now;
 	return (
 		<Screen
 			title="Home"
@@ -114,10 +115,11 @@ export function HomeRoute() {
 					to: `/calendar?view=week&day=${dayKey(addDays(weekStart, 7))}`,
 				}}
 			/>
-			<div className="grid gap-4 @3xl:grid-cols-2 @6xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+			{/* The map takes the room; Readiness beside it stays compact */}
+			<div className="grid gap-4 @3xl:grid-cols-[minmax(0,1fr)_18rem] @6xl:grid-cols-[minmax(0,1fr)_22rem]">
 				<PrepMap
 					start={start}
-					end={target ? parseDay(target.date) : now}
+					end={end}
 					exam={target?.date ?? null}
 					best={bestByDay(measured)}
 					pass={readiness?.pass_score ?? 66}

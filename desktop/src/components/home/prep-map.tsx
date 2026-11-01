@@ -17,8 +17,7 @@ const LEVELS = [
 const WEEKDAYS = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
 /** A week's column (a 12px square and its gap), and the weekday names before them */
 const COLUMN = 15;
-const LABELS = 30;
-
+const LABELS = 34;
 /** An element's width, followed as it changes */
 function useWidth(element: HTMLElement | null) {
 	const [width, setWidth] = useState(0);
@@ -70,7 +69,8 @@ export function PrepMap({
 				))}
 			</div>
 			{weeks.map(week => (
-				<div key={dayKey(week[0])} className="grid grid-rows-[12px_repeat(7,12px)] gap-[3px]">
+				// A week is 12px wide whatever its month's name: the name runs over the next weeks
+				<div key={dayKey(week[0])} className="grid w-3 grid-rows-[12px_repeat(7,12px)] gap-[3px]">
 					<span className="whitespace-nowrap text-[9px] text-muted-foreground leading-3">
 						{week[0].getDate() <= 7
 							? week[0].toLocaleDateString(undefined, { month: "short" })
@@ -130,7 +130,7 @@ export function PrepMap({
 				<>
 					{/* The figures beside the map, under it on a narrow card */}
 					<div className="flex flex-col gap-3 @sm:flex-row @sm:items-center @sm:gap-6">
-						<div ref={setArea} className="min-w-0 flex-1">
+						<div ref={setArea} className="min-w-0 flex-1 overflow-hidden">
 							{squares}
 						</div>
 						<div className="grid w-44 shrink-0 grid-cols-2 gap-x-3 gap-y-1 [&>div]:px-0 [&>div]:py-1">

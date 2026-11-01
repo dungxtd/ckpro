@@ -42,8 +42,12 @@ export function Today({
 						{plans.length ? `${done} of ${plans.length} done` : "Nothing planned for today"}
 					</CardDescription>
 					{next ? (
-						<Button size="sm" className="mt-2" onClick={() => start(next.exam_id, next.mode)}>
-							<Play /> Continue: {shortTitle(next.title)}
+						<Button
+							size="sm"
+							className="mt-2 max-w-full"
+							onClick={() => start(next.exam_id, next.mode)}
+						>
+							<Play /> <span className="truncate">Continue: {shortTitle(next.title)}</span>
 						</Button>
 					) : (
 						!plans.length && (
