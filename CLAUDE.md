@@ -28,8 +28,9 @@ Architecture: `docs/ARCHITECTURE.md`.
   desk, `assistant/` everything Claude (pane, composer, answers, sign-in),
   `text/` what the candidate reads (Markdown, click-to-copy values and code,
   documentation links), `shell/` the window's chrome (sidebar, title bar,
-  capsule), then one folder per screen (`catalog/`, `history/`,
-  `environment/`, `settings/`, `activity/`). Shared across screens means the
+  capsule), `study/` what Home and the Calendar share (figures, recap),
+  then one folder per screen (`home/`, `calendar/`, `catalog/`,
+  `history/`, `environment/`, `settings/`, `activity/`). Shared across screens means the
   kit, not another screen's folder.
 
 - **The kit first.** `@ckdry/ui` (`@ckdry/ui/components/<name>`) owns every
@@ -37,7 +38,7 @@ Architecture: `docs/ARCHITECTURE.md`.
   `SegmentedControl`, `Stepper`, `Select`, `Switch`, `Popover` with the
   `menu` classes, `DropdownMenu` (submenus), `Dialog`/`AlertDialog`,
   `ConfirmDialog`, `Tooltip`, `Truncated`, `Card`, `Alert`, `CodeBlock`,
-  `Badge`, `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Spinner`, `Loading`. A hand-rolled control or a class
+  `Badge`, `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal`, `Spinner`, `Loading`. A hand-rolled control or a class
   string used twice becomes a kit component or variant.
 - **The design system, live**: `desktop/kit.html` (`pnpm exec vite`, then
   `/kit.html`). New components and variants go there.

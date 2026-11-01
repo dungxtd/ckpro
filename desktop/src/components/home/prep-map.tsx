@@ -2,8 +2,8 @@ import { Card } from "@ckdry/ui/components/card";
 import { Stat } from "@ckdry/ui/components/stat";
 import { cn } from "@ckdry/ui/lib/utils";
 import { Flag } from "lucide-react";
+import { level, mapWeeks } from "@/components/study/data";
 import { dayKey } from "@/days";
-import { level, mapWeeks } from "./data";
 
 const LEVELS = [
 	"bg-foreground/[0.07]",

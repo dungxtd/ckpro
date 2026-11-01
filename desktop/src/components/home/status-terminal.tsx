@@ -1,7 +1,7 @@
 import { Button } from "@ckdry/ui/components/button";
 import { Terminal } from "@ckdry/ui/components/terminal";
+import type { Event } from "@/components/study/data";
 import type { ExamReadiness, ExamTarget } from "@/tauri/api";
-import type { Event } from "./data";
 
 const pad = (s: string | number, n: number) => String(s).padEnd(n, " ");
 

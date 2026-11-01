@@ -1,5 +1,12 @@
 import { Loading } from "@ckdry/ui/components/loading";
 import { useEffect, useState } from "react";
+import { PrepMap } from "@/components/home/prep-map";
+import { Readiness } from "@/components/home/readiness";
+import { StatusTerminal } from "@/components/home/status-terminal";
+import { TargetDialog } from "@/components/home/target-dialog";
+import { Today } from "@/components/home/today";
+import { Week } from "@/components/home/week";
+import { Screen } from "@/components/shell/screen";
 import {
 	bestByDay,
 	daysUntil,
@@ -8,15 +15,8 @@ import {
 	studyFigures,
 	weakest,
 	weekRecap,
-} from "@/components/home/data";
-import { PrepMap } from "@/components/home/prep-map";
-import { Readiness } from "@/components/home/readiness";
-import { Recap } from "@/components/home/recap";
-import { StatusTerminal } from "@/components/home/status-terminal";
-import { TargetDialog } from "@/components/home/target-dialog";
-import { Today } from "@/components/home/today";
-import { Week } from "@/components/home/week";
-import { Screen } from "@/components/shell/screen";
+} from "@/components/study/data";
+import { Recap } from "@/components/study/recap";
 import { addDays, dayKey, monday, parseDay } from "@/days";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
@@ -91,9 +91,13 @@ export function HomeRoute() {
 				<Today plans={plans.filter(p => p.day === today)} today={today} />
 			</div>
 			<Recap
+				title={`Your week, ${weekStart.toLocaleDateString(undefined, { day: "numeric", month: "short" })} to ${addDays(weekStart, 6).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`}
 				recap={weekRecap(measured, weekStart)}
-				weekStart={weekStart}
 				next={weak && { domain: weak.domain, percent: (weak.points * 100) / weak.max_points }}
+				action={{
+					label: "Plan next week",
+					to: `/calendar?view=week&day=${dayKey(addDays(weekStart, 7))}`,
+				}}
 			/>
 			<div className="grid grid-cols-2 gap-4">
 				<PrepMap

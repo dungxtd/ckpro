@@ -42,10 +42,11 @@ export function studyFigures(history: HistoryEntry[], today: Date) {
 	};
 }
 
-/** A week in a few figures: days studied, attempts, the best, exams passed for the first time */
-export function weekRecap(history: HistoryEntry[], weekStart: Date) {
+/** A stretch of days (a week by default) in a few figures: days studied,
+ * attempts, the best, exams passed for the first time */
+export function weekRecap(history: HistoryEntry[], weekStart: Date, length = 7) {
 	const from = weekStart.getTime();
-	const to = addDays(weekStart, 7).getTime();
+	const to = addDays(weekStart, length).getTime();
 	const before = history.filter(h => startedAt(h) < from);
 	const week = history.filter(h => startedAt(h) >= from && startedAt(h) < to);
 	const passedBefore = new Set(before.filter(h => h.result.passed).map(h => h.exam_id));

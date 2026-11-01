@@ -69,6 +69,7 @@ import {
 	TableRow,
 } from "@ckdry/ui/components/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ckdry/ui/components/tabs";
+import { Terminal } from "@ckdry/ui/components/terminal";
 import { Textarea } from "@ckdry/ui/components/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/tooltip";
 import { Truncated } from "@ckdry/ui/components/truncated";
@@ -549,6 +550,22 @@ function Gallery() {
 						<Stat icon={<Info />} value="60 min" label="time" />
 						<Stat value="66%" label="to pass" />
 					</StatGroup>
+				</Section>
+
+				<Section
+					title="Terminal"
+					note="Text as a terminal shows it: dark in both themes, tones for its parts."
+				>
+					<Terminal>
+						<Terminal.Muted>$ kubectl get exam cka</Terminal.Muted>
+						{"\nNAME   DATE        PREDICTED  STATUS\ncka    2026-12-15  "}
+						<Terminal.Ok>71%</Terminal.Ok>
+						{"        "}
+						<Terminal.Ok>OnTrack</Terminal.Ok>
+						{"\n"}
+						<Terminal.Warn>Warning</Terminal.Warn>
+						{"  BelowPass  storage 58%"}
+					</Terminal>
 				</Section>
 
 				<Section title="Tabs" note="Sections of one page with a sidebar.">
