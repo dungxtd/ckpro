@@ -77,6 +77,7 @@ pub async fn repair_cluster(activities: State<'_, Arc<Activities>>, name: String
 // --- exams -----------------------------------------------------------------
 
 use crate::lab::checks::CheckResult;
+use crate::lab::exam::plan::{ExamReadiness, PlanView};
 use crate::lab::exam::{ExamState, ExamSummary, Exams, HistoryEntry, Mode};
 use crate::lab::model::Solution;
 
@@ -84,6 +85,48 @@ use crate::lab::model::Solution;
 #[specta::specta]
 pub fn list_exams(exams: State<'_, Arc<Exams>>) -> Vec<ExamSummary> {
     exams.catalog()
+}
+
+/// The plans from `from` to `to` (YYYY-MM-DD, both included); `offset_minutes`
+/// east of UTC places attempts on the candidate's own days.
+#[tauri::command]
+#[specta::specta]
+pub fn plans_between(
+    exams: State<'_, Arc<Exams>>,
+    from: String,
+    to: String,
+    offset_minutes: i32,
+) -> AppResult<Vec<PlanView>> {
+    exams.plans_between(&from, &to, offset_minutes)
+}
+
+/// Plan an exam on a day; returns the plan's id.
+#[tauri::command]
+#[specta::specta]
+pub fn plan_add(exams: State<'_, Arc<Exams>>, day: String, exam_id: String, mode: Mode) -> AppResult<i32> {
+    exams.plan_add(&day, &exam_id, mode)
+}
+
+/// Move a plan to another day, or take it the other way.
+#[tauri::command]
+#[specta::specta]
+pub fn plan_update(exams: State<'_, Arc<Exams>>, id: i32, day: Option<String>, mode: Option<Mode>) -> AppResult<()> {
+    exams.plan_update(id, day, mode)
+}
+
+/// Remove a plan.
+#[tauri::command]
+#[specta::specta]
+pub fn plan_remove(exams: State<'_, Arc<Exams>>, id: i32) -> AppResult<()> {
+    exams.plan_remove(id)
+}
+
+/// How ready the candidate is for a certification: per domain, and the
+/// predicted score.
+#[tauri::command]
+#[specta::specta]
+pub fn readiness(exams: State<'_, Arc<Exams>>, certification: String) -> AppResult<ExamReadiness> {
+    exams.readiness(&certification, crate::runtime::activity::now_ms())
 }
 
 /// Delete one of the candidate's own exams (generated questions) and its questions.

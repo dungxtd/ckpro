@@ -26,6 +26,7 @@ use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 
 pub mod draw;
+pub mod plan;
 mod grade;
 pub mod insights;
 

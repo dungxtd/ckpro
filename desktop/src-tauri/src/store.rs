@@ -100,6 +100,16 @@ const MIGRATIONS: &[&str] = &["
     DELETE FROM coach_message WHERE attempt_id = 'study-plan';
     DELETE FROM coach_session WHERE attempt_id = 'study-plan';
     DELETE FROM coach_current WHERE attempt_id = 'study-plan';
+", "
+    -- Exams the candidate plans to take on a day (YYYY-MM-DD, their own time)
+    CREATE TABLE plan (
+        id INTEGER PRIMARY KEY,
+        day TEXT NOT NULL,
+        exam_id TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+    );
+    CREATE INDEX plan_day ON plan (day);
 "];
 
 /// A coach session read back: question, session, title, messages
@@ -142,6 +152,32 @@ pub struct Settings {
     pub sidebar: SidebarLayout,
     /// Light or dark, or as macOS is
     pub theme: Theme,
+    /// The exam the candidate prepares for, and when
+    pub target: Option<ExamTarget>,
+}
+
+/// The real exam the candidate aims at
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct ExamTarget {
+    pub certification: String,
+    /// The exam day, YYYY-MM-DD
+    pub date: String,
+    /// The day the preparation started (the target was set), YYYY-MM-DD
+    pub started: String,
+    /// Days of the week kept free, 0 Monday to 6 Sunday
+    #[serde(default)]
+    pub rest_days: Vec<u8>,
+}
+
+/// An exam planned for a day, as kept
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct StoredPlan {
+    pub id: i32,
+    /// YYYY-MM-DD, in the candidate's own time
+    pub day: String,
+    pub exam_id: String,
+    /// "exam" or "practice"
+    pub mode: String,
 }
 
 /// The app's appearance
@@ -210,6 +246,7 @@ impl Default for Settings {
             sidebar_folded: false,
             sidebar: SidebarLayout::default(),
             theme: Theme::Dark,
+            target: None,
         }
     }
 }
@@ -328,6 +365,49 @@ impl Store {
         let mut query = conn.prepare("SELECT entry FROM history ORDER BY finished_at DESC").map_err(db)?;
         let rows = query.query_map([], |r| r.get::<_, String>(0)).map_err(db)?;
         Ok(rows.flatten().filter_map(|json| serde_json::from_str(&json).ok()).collect())
+    }
+
+    /// Plans from `from` to `to` (YYYY-MM-DD, both included), by day then as added
+    pub fn plans(&self, from: &str, to: &str) -> AppResult<Vec<StoredPlan>> {
+        let conn = self.conn();
+        let mut query = conn
+            .prepare("SELECT id, day, exam_id, mode FROM plan WHERE day >= ?1 AND day <= ?2 ORDER BY day, id")
+            .map_err(db)?;
+        let rows = query
+            .query_map(params![from, to], |r| {
+                Ok(StoredPlan { id: r.get(0)?, day: r.get(1)?, exam_id: r.get(2)?, mode: r.get(3)? })
+            })
+            .map_err(db)?;
+        Ok(rows.flatten().collect())
+    }
+
+    /// Plan an exam on a day; returns its id
+    pub fn add_plan(&self, day: &str, exam_id: &str, mode: &str) -> AppResult<i32> {
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO plan (day, exam_id, mode, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params![day, exam_id, mode, crate::runtime::activity::now_ms() as i64],
+        )
+        .map_err(db)?;
+        // Plans stay few: an id fits an i32 (what the interface can hold)
+        Ok(conn.last_insert_rowid() as i32)
+    }
+
+    /// Move a plan to another day, or take it another way; nothing when it is gone
+    pub fn update_plan(&self, id: i32, day: Option<&str>, mode: Option<&str>) -> AppResult<()> {
+        let conn = self.conn();
+        if let Some(day) = day {
+            conn.execute("UPDATE plan SET day = ?1 WHERE id = ?2", params![day, id]).map_err(db)?;
+        }
+        if let Some(mode) = mode {
+            conn.execute("UPDATE plan SET mode = ?1 WHERE id = ?2", params![mode, id]).map_err(db)?;
+        }
+        Ok(())
+    }
+
+    pub fn remove_plan(&self, id: i32) -> AppResult<()> {
+        self.conn().execute("DELETE FROM plan WHERE id = ?1", params![id]).map_err(db)?;
+        Ok(())
     }
 
     /// The session a question's pane shows: the one picked, else the latest
@@ -667,6 +747,12 @@ mod tests {
                 sort: [("ckad".to_string(), ExamSort::Score)].into(),
             },
             theme: Theme::System,
+            target: Some(ExamTarget {
+                certification: "cka".into(),
+                date: "2026-12-15".into(),
+                started: "2026-10-06".into(),
+                rest_days: vec![4],
+            }),
         };
         store.save_settings(&settings).unwrap();
         assert_eq!(store.settings().unwrap(), settings);
@@ -750,5 +836,20 @@ mod tests {
         assert_eq!(store.history::<serde_json::Value>().unwrap().len(), 1);
         assert!(!dir.join("attempt.json").exists() && !dir.join("history").exists());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn plans_are_kept_by_day() {
+        let store = Store::in_memory().unwrap();
+        let a = store.add_plan("2026-11-05", "cka-002", "exam").unwrap();
+        let b = store.add_plan("2026-11-03", "cka-001", "practice").unwrap();
+        store.add_plan("2026-12-01", "cks-001", "practice").unwrap();
+        let days = |from, to| store.plans(from, to).unwrap().into_iter().map(|p| (p.day, p.exam_id)).collect::<Vec<_>>();
+        assert_eq!(days("2026-11-01", "2026-11-30"), [("2026-11-03".into(), "cka-001".into()), ("2026-11-05".into(), "cka-002".into())]);
+        store.update_plan(a, Some("2026-11-02"), Some("practice")).unwrap();
+        store.remove_plan(b).unwrap();
+        let left = store.plans("2026-11-01", "2026-11-30").unwrap();
+        assert_eq!(left.len(), 1);
+        assert_eq!((left[0].day.as_str(), left[0].mode.as_str()), ("2026-11-02", "practice"));
     }
 }

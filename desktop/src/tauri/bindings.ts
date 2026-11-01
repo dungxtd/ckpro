@@ -21,6 +21,22 @@ export const commands = {
 	listExams: () => __TAURI_INVOKE<ExamSummary[]>("list_exams"),
 	/**  Delete one of the candidate's own exams (generated questions) and its questions. */
 	deleteExam: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_exam", { id })),
+	/**
+	 *  The plans from `from` to `to` (YYYY-MM-DD, both included); `offset_minutes`
+	 *  east of UTC places attempts on the candidate's own days.
+	 */
+	plansBetween: (from: string, to: string, offsetMinutes: number) => typedError<PlanView_Serialize[], AppError>(__TAURI_INVOKE("plans_between", { from, to, offsetMinutes })),
+	/**  Plan an exam on a day; returns the plan's id. */
+	planAdd: (day: string, examId: string, mode: Mode) => typedError<number, AppError>(__TAURI_INVOKE("plan_add", { day, examId, mode })),
+	/**  Move a plan to another day, or take it the other way. */
+	planUpdate: (id: number, day: string | null, mode: Mode | null) => typedError<null, AppError>(__TAURI_INVOKE("plan_update", { id, day, mode })),
+	/**  Remove a plan. */
+	planRemove: (id: number) => typedError<null, AppError>(__TAURI_INVOKE("plan_remove", { id })),
+	/**
+	 *  How ready the candidate is for a certification: per domain, and the
+	 *  predicted score.
+	 */
+	readiness: (certification: string) => typedError<ExamReadiness_Serialize, AppError>(__TAURI_INVOKE("readiness", { certification })),
 	/**  Current attempt; later changes arrive as `ExamChanged` events. */
 	examState: () => __TAURI_INVOKE<ExamState_Serialize>("exam_state"),
 	/**
@@ -529,6 +545,48 @@ export type ExamChanged_Deserialize = ExamState_Deserialize;
 /**  Pushed to the UI on every exam state change. */
 export type ExamChanged_Serialize = ExamState_Serialize;
 
+/**
+ *  How ready the candidate is for a certification: per domain over recent
+ *  attempts, and the score that predicts, weighted as on the exam
+ */
+export type ExamReadiness = ExamReadiness_Serialize | ExamReadiness_Deserialize;
+
+/**
+ *  How ready the candidate is for a certification: per domain over recent
+ *  attempts, and the score that predicts, weighted as on the exam
+ */
+export type ExamReadiness_Deserialize = {
+	certification: string,
+	title: string,
+	pass_score: number,
+	/**  Weighted by the domains with results; none before any attempt */
+	predicted?: number | null,
+	/**  Share of the exam's weight the results cover, in percent */
+	coverage: number,
+	/**  The days the results come from (30), or 0 for all time */
+	window_days: number,
+	/**  Heaviest domain first */
+	domains: DomainStat[],
+};
+
+/**
+ *  How ready the candidate is for a certification: per domain over recent
+ *  attempts, and the score that predicts, weighted as on the exam
+ */
+export type ExamReadiness_Serialize = {
+	certification: string,
+	title: string,
+	pass_score: number,
+	/**  Weighted by the domains with results; none before any attempt */
+	predicted: number | null,
+	/**  Share of the exam's weight the results cover, in percent */
+	coverage: number,
+	/**  The days the results come from (30), or 0 for all time */
+	window_days: number,
+	/**  Heaviest domain first */
+	domains: DomainStat[],
+};
+
 export type ExamResult = ExamResult_Serialize | ExamResult_Deserialize;
 
 export type ExamResult_Deserialize = {
@@ -628,6 +686,31 @@ export type ExamSummary = {
 	clusters: string[],
 	/**  The candidate's own (generated questions): it may be deleted */
 	custom: boolean,
+};
+
+/**  The real exam the candidate aims at */
+export type ExamTarget = ExamTarget_Serialize | ExamTarget_Deserialize;
+
+/**  The real exam the candidate aims at */
+export type ExamTarget_Deserialize = {
+	certification: string,
+	/**  The exam day, YYYY-MM-DD */
+	date: string,
+	/**  The day the preparation started (the target was set), YYYY-MM-DD */
+	started: string,
+	/**  Days of the week kept free, 0 Monday to 6 Sunday */
+	rest_days?: number[],
+};
+
+/**  The real exam the candidate aims at */
+export type ExamTarget_Serialize = {
+	certification: string,
+	/**  The exam day, YYYY-MM-DD */
+	date: string,
+	/**  The day the preparation started (the target was set), YYYY-MM-DD */
+	started: string,
+	/**  Days of the week kept free, 0 Monday to 6 Sunday */
+	rest_days: number[],
 };
 
 /**  What to generate */
@@ -738,6 +821,35 @@ export type PermissionOption = {
 	id: string,
 	name: string,
 	kind: string,
+};
+
+/**  An exam planned for a day, and whether it was taken */
+export type PlanView = PlanView_Serialize | PlanView_Deserialize;
+
+/**  An exam planned for a day, and whether it was taken */
+export type PlanView_Deserialize = {
+	id: number,
+	/**  YYYY-MM-DD */
+	day: string,
+	exam_id: string,
+	title: string,
+	certification: string,
+	mode: Mode,
+	/**  Taken that day (any mode): the best score of that day's attempts */
+	done?: number | null,
+};
+
+/**  An exam planned for a day, and whether it was taken */
+export type PlanView_Serialize = {
+	id: number,
+	/**  YYYY-MM-DD */
+	day: string,
+	exam_id: string,
+	title: string,
+	certification: string,
+	mode: Mode,
+	/**  Taken that day (any mode): the best score of that day's attempts */
+	done: number | null,
 };
 
 /**
@@ -875,6 +987,8 @@ export type Settings_Deserialize = {
 	sidebar?: SidebarLayout_Deserialize,
 	/**  Light or dark, or as macOS is */
 	theme?: Theme,
+	/**  The exam the candidate prepares for, and when */
+	target?: ExamTarget_Deserialize | null,
 };
 
 /**  The exam desk's display settings */
@@ -903,6 +1017,8 @@ export type Settings_Serialize = {
 	sidebar: SidebarLayout_Serialize,
 	/**  Light or dark, or as macOS is */
 	theme: Theme,
+	/**  The exam the candidate prepares for, and when */
+	target: ExamTarget_Serialize | null,
 };
 
 export type Severity = "error" | "warning";

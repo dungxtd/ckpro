@@ -40,6 +40,7 @@ export const useSettings = create<SettingsStore>()(
 				sort: {},
 			},
 			theme: "dark",
+			target: null,
 		},
 		loaded: false,
 		error: null,
