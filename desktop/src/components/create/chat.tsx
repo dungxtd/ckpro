@@ -48,7 +48,7 @@ export function Chat() {
 
 	return (
 		<section className="flex min-h-0 min-w-0 flex-col">
-			<header className="flex items-center gap-2 border-border border-b px-5 py-2.5">
+			<header className="flex h-14 shrink-0 items-center gap-2 border-border border-b px-5">
 				<ClaudeIcon className="size-4 shrink-0 text-claude" />
 				<h2 className="min-w-0 flex-1 truncate font-semibold text-callout">{title}</h2>
 				<Popover>
@@ -155,8 +155,8 @@ export function Chat() {
 					<SignInDialog open={signingIn} onOpenChange={setSigningIn} />
 				</div>
 			) : (
-				<div className="border-border border-t px-5 py-3">
-					<div className="mx-auto flex max-w-3xl items-end gap-2 rounded-xl border border-border bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring/50">
+				<div className="flex min-h-[5.75rem] shrink-0 flex-col justify-center border-border border-t px-5 py-3">
+					<div className="mx-auto flex w-full max-w-3xl items-end gap-2 rounded-xl border border-border bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring/50">
 						<Textarea
 							variant="bare"
 							rows={2}

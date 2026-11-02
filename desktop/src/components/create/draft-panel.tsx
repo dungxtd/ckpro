@@ -41,8 +41,9 @@ export function DraftPanel() {
 
 	return (
 		<aside className="flex min-h-0 flex-col border-border border-t bg-foreground/[0.015] @3xl:border-t-0 @3xl:border-l">
-			<div className="flex flex-col gap-1 border-border border-b px-4 py-3">
-				<div className="flex items-baseline justify-between gap-3">
+			{/* As tall as the conversation's header, so their lines meet */}
+			<div className="flex h-14 shrink-0 items-center border-border border-b px-4">
+				<div className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
 					<h2 className="truncate font-semibold text-lead">{draft?.title || "Draft exam"}</h2>
 					{items.length > 0 && (
 						<Button
@@ -63,7 +64,6 @@ export function DraftPanel() {
 						</span>
 					)}
 				</div>
-				<ClusterChip />
 			</div>
 
 			<div
@@ -89,7 +89,9 @@ export function DraftPanel() {
 				)}
 			</div>
 
-			<div className="flex flex-col gap-2 border-border border-t px-4 py-3">
+			{/* As tall as the composer at rest, so their lines meet; the cluster
+			    with what is done on it */}
+			<div className="flex min-h-[5.75rem] shrink-0 flex-col justify-center gap-2 border-border border-t px-4 py-3">
 				{draft?.saved ? (
 					<Button
 						size="push"
@@ -106,7 +108,10 @@ export function DraftPanel() {
 								cluster before saving
 							</span>
 						)}
-						<div className="flex justify-end gap-2">
+						<div className="flex items-center gap-2">
+							<div className="mr-auto min-w-0">
+								<ClusterChip />
+							</div>
 							{unproven.length > 0 && (
 								<Button
 									size="push"

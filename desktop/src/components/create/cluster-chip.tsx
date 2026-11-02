@@ -19,13 +19,13 @@ export function ClusterChip() {
 			{workspace.state === "preparing" && (
 				<>
 					<Spinner size="inline" className="size-3.5" />
-					<span className="truncate">Making the verify cluster…</span>
+					<span className="truncate">Making cluster…</span>
 				</>
 			)}
 			{workspace.state === "ready" && (
 				<>
 					<StatusDot tone="ok" />
-					<span className="truncate">Verify cluster ready</span>
+					<span className="truncate">Cluster ready</span>
 				</>
 			)}
 			{workspace.state === "failed" && (
@@ -33,13 +33,13 @@ export function ClusterChip() {
 					<TooltipTrigger asChild>
 						<span className="flex min-w-0 items-center gap-2 text-destructive">
 							<StatusDot tone="error" />
-							<span className="truncate">No verify cluster</span>
+							<span className="truncate">No cluster</span>
 						</span>
 					</TooltipTrigger>
 					<TooltipContent className="max-w-80 whitespace-normal">{workspace.reason}</TooltipContent>
 				</Tooltip>
 			)}
-			{workspace.state === "off" && <span className="truncate">No verify cluster</span>}
+			{workspace.state === "off" && <span className="truncate">No cluster</span>}
 			{workspace.state === "preparing" || workspace.state === "ready" ? (
 				<IconButton
 					variant="toolbar"
