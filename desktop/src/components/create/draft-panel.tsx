@@ -52,6 +52,7 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 			    conversation's header so their lines meet; in the bar, its menu here */}
 			<div className="flex h-14 shrink-0 items-center gap-2 border-border border-b px-4">
 				<DraftSummary className="min-w-0 flex-1" />
+				{bar && !draft?.saved && <ClusterChip short />}
 				{bar && items.length > 0 && (
 					<Button
 						size="push"
@@ -88,9 +89,14 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 				)}
 			</div>
 
-			{/* As tall as the composer at rest, so their lines meet; the cluster
-			    with what is done on it */}
-			<div className="flex min-h-[5.75rem] shrink-0 flex-col justify-center gap-2 border-border border-t px-4 py-3">
+			{/* As tall as the composer at rest, so their lines meet (in the bar, as
+			    tall as it needs); the steps: prove, then save */}
+			<div
+				className={cn(
+					"flex shrink-0 flex-col justify-center gap-2 border-border border-t px-4 py-3",
+					!bar && "min-h-[5.75rem]"
+				)}
+			>
 				{draft?.saved ? (
 					<Button
 						size="push"
@@ -107,10 +113,7 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 								cluster before saving
 							</span>
 						)}
-						<div className="flex items-center gap-2">
-							<div className="mr-auto min-w-0">
-								<ClusterChip />
-							</div>
+						<div className="flex items-center justify-end gap-2">
 							{unproven.length > 0 && (
 								<Button
 									size="push"
