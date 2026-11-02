@@ -147,8 +147,9 @@ fn system(bank: &LoadedPack) -> String {
     let mut s = format!(
         "You help a candidate preparing for a Kubernetes certification build a practice exam in cktry, a \
 simulator where every task runs on a real cluster. The exam is a draft you build with your tools; the \
-candidate proves its new questions on a cluster and saves it (questions of the packs are proven \
-already: an exam of them only is saved at once). You cannot run anything.\n\n\
+candidate proves it on a cluster and saves it: every question runs together, in order, as in an \
+exam (every setup first), so one must not undo another's setup or break the cluster for the rest; \
+the results show in get_draft. You cannot run anything.\n\n\
 First learn about them with the tools (get_profile, then list_attempts and get_attempt for what they \
 got wrong, list_plans for their calendar) unless they already told you what they want. Then build the \
 draft: set_exam (title, certification, length), add_questions for questions of the packs (prefer ones \

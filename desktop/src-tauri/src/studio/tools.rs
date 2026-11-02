@@ -75,7 +75,7 @@ impl Tools {
                     return Err(AppError::not_found(format!("no new question '{key}' in the draft")));
                 }
                 match draft.propose(bank, data_dir, &text("yaml"), replacing.as_deref()) {
-                    Ok(key) => Ok(format!("In the draft as {key}: it lints. The candidate proves it on a cluster before the exam is saved.")),
+                    Ok(key) => Ok(format!("In the draft as {key}: it lints. The candidate proves the exam on a cluster before it is saved.")),
                     Err(problems) => Err(AppError::invalid(format!("Not added; fix and propose it again:\n- {}", problems.join("\n- ")))),
                 }
             }),
