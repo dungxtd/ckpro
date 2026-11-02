@@ -18,6 +18,7 @@ import { useNavigate } from "react-router";
 import { useStudio } from "@/stores/studio";
 import type { DraftItem } from "@/tauri/api";
 import { ClusterChip } from "./cluster-chip";
+import { DraftMenu, DraftSummary } from "./draft-header";
 
 const named = (domain: string) => domain.replaceAll("-", " ");
 
@@ -47,29 +48,21 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 				bar && "border-border border-t bg-foreground/[0.015]"
 			)}
 		>
-			{/* As tall as the conversation's header, so their lines meet */}
-			<div className="flex h-14 shrink-0 items-center border-border border-b px-4">
-				<div className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
-					<h2 className="truncate font-semibold text-lead" title={draft?.title || undefined}>
-						{draft?.title || "Draft exam"}
-					</h2>
-					{bar && items.length > 0 && (
-						<Button
-							size="push"
-							variant="push"
-							aria-expanded={unfolded}
-							onClick={() => setUnfolded(u => !u)}
-						>
-							Questions {unfolded ? "▴" : "▾"}
-						</Button>
-					)}
-					{draft?.certification && (
-						<span className="shrink-0 text-caption text-muted-foreground">
-							{items.length} question{items.length === 1 ? "" : "s"}
-							{draft.duration_minutes ? ` · ${draft.duration_minutes} min` : ""}
-						</span>
-					)}
-				</div>
+			{/* Under the inspector's strip (its label and menu), as tall as the
+			    conversation's header so their lines meet; in the bar, its menu here */}
+			<div className="flex h-14 shrink-0 items-center gap-2 border-border border-b px-4">
+				<DraftSummary className="min-w-0 flex-1" />
+				{bar && items.length > 0 && (
+					<Button
+						size="push"
+						variant="push"
+						aria-expanded={unfolded}
+						onClick={() => setUnfolded(u => !u)}
+					>
+						Questions {unfolded ? "▴" : "▾"}
+					</Button>
+				)}
+				{bar && <DraftMenu />}
 			</div>
 
 			<div

@@ -183,7 +183,10 @@ impl Tools {
             .filter_map(|(id, q)| {
                 let d = q.value.certifications.get(certification)?;
                 (domain.is_none_or(|x| x == d) && q.value.runnable())
-                    .then(|| json!({ "id": id, "title": q.value.title, "domain": d, "difficulty": q.value.difficulty }))
+                    .then(|| json!({
+                        "id": id, "title": q.value.title, "domain": d, "difficulty": q.value.difficulty,
+                        "minutes": q.value.estimate.as_ref().and_then(|e| e.seconds()).map(|s| s.div_ceil(60)),
+                    }))
             })
             .collect();
         if list.is_empty() && !bank.pack.certifications.contains_key(certification) {
@@ -217,7 +220,7 @@ pub fn list() -> Value {
         { "name": "get_attempt", "description": "One attempt: each question's points and the checks that failed (what they got wrong).", "inputSchema": id("An attempt id from list_attempts"), "annotations": read },
         { "name": "list_exams", "description": "The exams in ckpro: bundled ones and the candidate's own (custom).", "inputSchema": none, "annotations": read },
         { "name": "get_exam", "description": "An exam's questions.", "inputSchema": id("An exam id from list_exams"), "annotations": read },
-        { "name": "list_questions", "description": "The questions of a certification (optionally one domain): id, title, domain, difficulty.", "inputSchema": { "type": "object", "properties": { "certification": { "type": "string" }, "domain": { "type": "string" } }, "required": ["certification"] }, "annotations": read },
+        { "name": "list_questions", "description": "The questions of a certification (optionally one domain): id, title, domain, difficulty, suggested minutes.", "inputSchema": { "type": "object", "properties": { "certification": { "type": "string" }, "domain": { "type": "string" } }, "required": ["certification"] }, "annotations": read },
         { "name": "read_question", "description": "A question's YAML: its statement, setup, checks and solution.", "inputSchema": id("A question id"), "annotations": read },
         { "name": "list_plans", "description": "The exams they planned on days between two YYYY-MM-DD days (their calendar), and the score when done.", "inputSchema": { "type": "object", "properties": { "from": { "type": "string" }, "to": { "type": "string" } }, "required": ["from", "to"] }, "annotations": read },
         { "name": "get_draft", "description": "The exam being built in this conversation.", "inputSchema": none, "annotations": read },

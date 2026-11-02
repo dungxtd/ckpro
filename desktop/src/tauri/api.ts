@@ -261,6 +261,9 @@ export const studioApi = {
 	/** Take a question out of the draft */
 	removeItem: (session: number, id: string) =>
 		unwrap(commands.studioRemove(session, id)) as Promise<ExamDraft>,
+	/** The candidate's changes to the draft: a title, a length, or every question out */
+	edit: (session: number, title: string | null, duration: number | null, clear: boolean) =>
+		unwrap(commands.studioEdit(session, title, duration, clear)) as Promise<ExamDraft>,
 	/** Prove the new questions on the verify cluster (their scripts run there) */
 	verify: (session: number) => unwrap(commands.studioVerify(session)) as Promise<ExamDraft>,
 	/** Save the draft as an exam; its id */

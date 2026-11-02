@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { Chat } from "@/components/create/chat";
+import { DraftStrip } from "@/components/create/draft-header";
 import { DraftPanel } from "@/components/create/draft-panel";
 import { Inspector, useInspectorFits } from "@/components/shell/inspector";
 import { useStudio } from "@/stores/studio";
@@ -31,7 +32,7 @@ export function CreateRoute() {
 	return fits ? (
 		<>
 			<Chat />
-			<Inspector>
+			<Inspector top={<DraftStrip />}>
 				<DraftPanel />
 			</Inspector>
 		</>

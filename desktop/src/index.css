@@ -7,6 +7,13 @@
 	--color-exam-concept: #38bdf8;
 	/* Claude's own colour, where its mark stands for the assistant */
 	--color-claude: #d97757;
+	/* A certification's domains, heaviest first, where they are told apart
+	   (Create's coverage) */
+	--color-domain-1: #ff6b6b;
+	--color-domain-2: #4dabf7;
+	--color-domain-3: #51cf66;
+	--color-domain-4: #fcc419;
+	--color-domain-5: #b197fc;
 	/* Windows' close button under the pointer (shell/window-controls.tsx) */
 	--color-window-close: #c42b1c;
 	/* Around the exam desktop's picture while it connects or letterboxes

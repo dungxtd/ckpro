@@ -35,6 +35,11 @@ export const commands = {
 	/**  Take a question out of the draft (by id, or a new one's key) */
 	studioRemove: (session: number, id: string) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_remove", { session, id })),
 	/**
+	 *  The candidate's changes to the draft: its title, its length, or every
+	 *  question out
+	 */
+	studioEdit: (session: number, title: string | null, durationMinutes: number | null, clear: boolean) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_edit", { session, title, durationMinutes, clear })),
+	/**
 	 *  Prove the draft's new questions on the verify cluster (the candidate's
 	 *  go: their scripts run there); the draft with their results
 	 */
@@ -537,23 +542,32 @@ export type DomainStat = {
 	questions: number,
 };
 
+export type DomainWeight = {
+	domain: string,
+	weight: number,
+};
+
 export type DraftItem = DraftItem_Serialize | DraftItem_Deserialize;
 
 export type DraftItem_Deserialize = 
 /**  A question of the packs, by id (its title and domain as added) */
-{ kind: "existing"; id: string; title?: string; domain?: string } | 
+{ kind: "existing"; id: string; title?: string; domain?: string; 
+/**  Its suggested time, in minutes */
+minutes?: number | null } | 
 /**  A question Claude wrote for this exam */
 {
 	kind: "new",
-} & NewQuestion;
+} & NewQuestion_Deserialize;
 
 export type DraftItem_Serialize = 
 /**  A question of the packs, by id (its title and domain as added) */
-{ kind: "existing"; id: string; title: string; domain: string } | 
+{ kind: "existing"; id: string; title: string; domain: string; 
+/**  Its suggested time, in minutes */
+minutes: number | null } | 
 /**  A question Claude wrote for this exam */
 {
 	kind: "new",
-} & NewQuestion;
+} & NewQuestion_Serialize;
 
 export type DraftStatus = 
 /**  It lints: to be proven on a cluster */
@@ -593,6 +607,11 @@ export type ExamDraft_Deserialize = {
 	certification?: string,
 	duration_minutes?: number | null,
 	items?: DraftItem_Deserialize[],
+	/**
+	 *  The certification's domains and their weight in the real exam
+	 *  (percent), heaviest first: what the exam's coverage is measured against
+	 */
+	domains?: DomainWeight[],
 	/**  The exam it was saved as */
 	saved?: string | null,
 };
@@ -603,6 +622,11 @@ export type ExamDraft_Serialize = {
 	certification: string,
 	duration_minutes: number | null,
 	items: DraftItem_Serialize[],
+	/**
+	 *  The certification's domains and their weight in the real exam
+	 *  (percent), heaviest first: what the exam's coverage is measured against
+	 */
+	domains: DomainWeight[],
 	/**  The exam it was saved as */
 	saved: string | null,
 };
@@ -838,13 +862,29 @@ export type ModelOption_Serialize = {
 	description: string | null,
 };
 
-export type NewQuestion = {
+export type NewQuestion = NewQuestion_Serialize | NewQuestion_Deserialize;
+
+export type NewQuestion_Deserialize = {
 	/**  Its name in the draft (`n1`, `n2`…), until it is saved */
 	key: string,
 	title: string,
 	/**  Its domain in the draft's certification */
 	domain: string,
 	yaml: string,
+	/**  Its suggested time, in minutes */
+	minutes?: number | null,
+	status: DraftStatus,
+};
+
+export type NewQuestion_Serialize = {
+	/**  Its name in the draft (`n1`, `n2`…), until it is saved */
+	key: string,
+	title: string,
+	/**  Its domain in the draft's certification */
+	domain: string,
+	yaml: string,
+	/**  Its suggested time, in minutes */
+	minutes: number | null,
 	status: DraftStatus,
 };
 
