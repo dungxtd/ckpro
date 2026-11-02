@@ -4,9 +4,12 @@ import { ConfirmDialog } from "@ckpro/ui/components/confirm-dialog";
 import { IconButton } from "@ckpro/ui/components/icon-button";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
 import { Separator } from "@ckpro/ui/components/separator";
+import { mac } from "@ckpro/ui/lib/platform";
+import { cn } from "@ckpro/ui/lib/utils";
 import { BookOpen, Flag, LogOut, Monitor, PanelRight, X } from "lucide-react";
 import { DesktopMenu, type DesktopMenuProps } from "@/components/exam/desktop-menu";
 import { Timer } from "@/components/exam/timer";
+import { WindowControls } from "@/components/shell/window-controls";
 import type { Attempt } from "@/tauri/api";
 
 export type DeskView = "desktop" | "readme";
@@ -49,10 +52,14 @@ export function TopBar({
 	const practice = attempt.mode === "practice";
 	return (
 		// Labels give way to icons as the window narrows (container queries);
-		// it starts after the window's buttons and moves the window
+		// it moves the window, and has the window's buttons: macOS's float at
+		// its start, Windows' are drawn at its end
 		<header
 			data-tauri-drag-region
-			className="@container flex h-12 shrink-0 select-none items-center gap-3 border-border border-b pr-3 pl-20"
+			className={cn(
+				"@container flex h-12 shrink-0 select-none items-center gap-3 border-border border-b pr-3",
+				mac ? "pl-20" : "pl-3"
+			)}
 		>
 			<Timer startedAt={startedAt} endsAt={endsAt} />
 			<div className="flex min-w-0 flex-1 items-center gap-2">
@@ -126,6 +133,7 @@ export function TopBar({
 					</IconButton>
 				</>
 			)}
+			{!mac && <WindowControls />}
 		</header>
 	);
 }
