@@ -104,6 +104,7 @@ impl Workspace {
                 match made {
                     Ok(()) => {
                         if current {
+                            tracing::info!("the Create screen's verify cluster is ready");
                             this.set(&mut inner, WorkspaceState::Ready);
                         }
                         false
@@ -115,6 +116,9 @@ impl Workspace {
                                 AppError::Cancelled { .. } => WorkspaceState::Off,
                                 e => WorkspaceState::Failed { reason: e.to_string() },
                             };
+                            if let WorkspaceState::Failed { reason } = &state {
+                                tracing::warn!(reason, "the Create screen's verify cluster could not be made");
+                            }
                             this.set(&mut inner, state);
                         }
                         true
