@@ -4,6 +4,7 @@ import { Spinner } from "@cktry/ui/components/spinner";
 import { StatusDot } from "@cktry/ui/components/status-dot";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@cktry/ui/components/tooltip";
 import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useStudio } from "@/stores/studio";
 
 /**
@@ -13,13 +14,23 @@ import { useStudio } from "@/stores/studio";
  */
 export function ClusterChip() {
 	const workspace = useStudio(s => s.workspace);
+	// Making one takes a minute or so: how long so far, so it never looks stuck
+	const [since, setSince] = useState<number | null>(null);
+	const [now, setNow] = useState(Date.now());
+	useEffect(() => {
+		if (workspace.state !== "preparing") return setSince(null);
+		setSince(Date.now());
+		const tick = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(tick);
+	}, [workspace.state]);
+	const seconds = since === null ? 0 : Math.max(0, Math.round((now - since) / 1000));
 	const { prepare, release } = useStudio.getState();
 	return (
 		<div className="flex min-w-0 items-center gap-2 text-caption text-muted-foreground">
 			{workspace.state === "preparing" && (
 				<>
 					<Spinner size="inline" className="size-3.5" />
-					<span className="truncate">Making cluster…</span>
+					<span className="truncate tabular-nums">Making cluster… {seconds}s</span>
 				</>
 			)}
 			{workspace.state === "ready" && (
