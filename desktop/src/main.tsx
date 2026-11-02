@@ -2,6 +2,7 @@ import { Alert } from "@ckpro/ui/components/alert";
 import { Button } from "@ckpro/ui/components/button";
 import { Loading } from "@ckpro/ui/components/loading";
 import { Toaster } from "@ckpro/ui/components/sonner";
+import { useElementSize } from "@ckpro/ui/hooks/use-element-size";
 import { mac } from "@ckpro/ui/lib/platform";
 import { cn } from "@ckpro/ui/lib/utils";
 import { CircleAlert } from "lucide-react";
@@ -19,6 +20,11 @@ import {
 import { toast } from "sonner";
 import { pageView, setAnalytics, track } from "@/analytics";
 import { AppSidebar } from "@/components/shell/app-sidebar";
+import {
+	INSPECTOR_FROM_PX,
+	InspectorProvider,
+	useInspectorSlot,
+} from "@/components/shell/inspector";
 import { useMorphSurface } from "@/components/shell/morph-surface";
 import { screenTitle } from "@/components/shell/sections";
 import { TitleBar } from "@/components/shell/title-bar";
@@ -65,6 +71,9 @@ function Layout() {
 		window.addEventListener("keydown", keys);
 		return () => window.removeEventListener("keydown", keys);
 	}, [navigate, update]);
+	// An inspector when the content and it have room together
+	const [area, { width }] = useElementSize<HTMLDivElement>();
+	const inspector = useInspectorSlot(width >= INSPECTOR_FROM_PX);
 	if (busy) return null;
 	return (
 		// The sidebar slides away and the content widens into its place; the
@@ -93,32 +102,38 @@ function Layout() {
 					onFold={() => update({ sidebar_folded: true })}
 				/>
 			</div>
-			<div className="flex min-h-0 min-w-0 flex-col">
-				<TitleBar
-					capsuleRef={surface.capsule}
-					folded={folded}
-					title={scrolled ? screenTitle(pathname) : undefined}
-					onUnfold={() => update({ sidebar_folded: false })}
-					onSearch={() => {
-						setSearching(true);
-						update({ sidebar_folded: false });
-					}}
-				/>
-				<main
-					ref={main}
-					// Room kept for the scrollbar: a screen that grows past the window does not shift
-					className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]"
-					onScroll={e => setScrolled(e.currentTarget.scrollTop > 48)}
-				>
-					{/* Each screen fades in as it opens */}
-					<div
-						key={pathname}
-						className="h-full fade-in-0 animate-in duration-200 motion-reduce:animate-none"
-					>
-						<Outlet />
+			{/* The content, and beside it a screen's inspector (as tall as the window) */}
+			<InspectorProvider value={inspector.slot}>
+				<div ref={area} className="flex min-h-0 min-w-0">
+					<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+						<TitleBar
+							capsuleRef={surface.capsule}
+							folded={folded}
+							title={scrolled ? screenTitle(pathname) : undefined}
+							onUnfold={() => update({ sidebar_folded: false })}
+							onSearch={() => {
+								setSearching(true);
+								update({ sidebar_folded: false });
+							}}
+						/>
+						<main
+							ref={main}
+							// Room kept for the scrollbar: a screen that grows past the window does not shift
+							className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]"
+							onScroll={e => setScrolled(e.currentTarget.scrollTop > 48)}
+						>
+							{/* Each screen fades in as it opens */}
+							<div
+								key={pathname}
+								className="h-full fade-in-0 animate-in duration-200 motion-reduce:animate-none"
+							>
+								<Outlet />
+							</div>
+						</main>
 					</div>
-				</main>
-			</div>
+					<div ref={inspector.ref} className="flex h-full shrink-0" />
+				</div>
+			</InspectorProvider>
 		</div>
 	);
 }

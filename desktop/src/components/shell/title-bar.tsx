@@ -12,6 +12,7 @@ import type * as React from "react";
 import { useLocation, useNavigate } from "react-router";
 import { ActivityChip } from "@/components/activity/activity-chip";
 import { ExamMenuItems } from "@/components/catalog/exam-list";
+import { useInspectorShown } from "@/components/shell/inspector";
 import { WindowControls } from "@/components/shell/window-controls";
 import { SHORTCUTS } from "@/shortcuts";
 import { useAssistantEnabled, useSidebarLayout } from "@/stores/settings";
@@ -40,6 +41,7 @@ export function TitleBar({
 	const navigate = useNavigate();
 	const [layout] = useSidebarLayout();
 	const assistant = useAssistantEnabled();
+	const inspecting = useInspectorShown();
 	return (
 		<div
 			data-tauri-drag-region
@@ -110,7 +112,8 @@ export function TitleBar({
 				</IconButton>
 			</Capsule>
 			<ActivityChip compact={folded} />
-			{!mac && <WindowControls />}
+			{/* Windows' buttons at the window's corner: the inspector's, when one shows */}
+			{!mac && !inspecting && <WindowControls />}
 		</div>
 	);
 }
