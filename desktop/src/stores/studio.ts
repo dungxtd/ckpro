@@ -51,6 +51,11 @@ interface StudioStore {
 	verify: () => Promise<void>;
 	/** Save the draft as an exam; its id */
 	save: () => Promise<string | null>;
+	/** The candidate's changes: a title, a length, or every question out */
+	edit: (change: { title?: string; duration?: number; clear?: boolean }) => Promise<void>;
+	/** The title is being edited (the summary's field, or the menu's Rename) */
+	renaming: boolean;
+	setRenaming: (renaming: boolean) => void;
 }
 
 export const useStudio = create<StudioStore>()((set, get) => {
@@ -69,6 +74,8 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		tool: null,
 		verifying: false,
 		error: null,
+		renaming: false,
+		setRenaming: renaming => set({ renaming }),
 
 		enter: async () => {
 			const stops = [
@@ -184,6 +191,22 @@ export const useStudio = create<StudioStore>()((set, get) => {
 			if (session === null) return;
 			try {
 				set({ draft: await studioApi.removeItem(session, id) });
+			} catch (e) {
+				failed(e);
+			}
+		},
+		edit: async change => {
+			const { session } = get();
+			if (session === null) return;
+			try {
+				set({
+					draft: await studioApi.edit(
+						session,
+						change.title ?? null,
+						change.duration ?? null,
+						!!change.clear
+					),
+				});
 			} catch (e) {
 				failed(e);
 			}

@@ -69,6 +69,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::studio_rename,
         commands::studio_delete,
         commands::studio_remove,
+        commands::studio_edit,
         commands::studio_verify,
         commands::studio_save,
         commands::env_retry,

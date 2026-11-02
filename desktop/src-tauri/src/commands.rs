@@ -637,6 +637,23 @@ pub fn studio_remove(store: State<'_, Arc<Store>>, session: i32, id: String) -> 
     Ok(draft)
 }
 
+/// The candidate's changes to the draft: its title, its length, or every
+/// question out
+#[tauri::command]
+#[specta::specta]
+pub fn studio_edit(
+    store: State<'_, Arc<Store>>,
+    session: i32,
+    title: Option<String>,
+    duration_minutes: Option<u32>,
+    clear: bool,
+) -> AppResult<crate::studio::draft::ExamDraft> {
+    let mut draft = crate::studio::draft::ExamDraft::load(&store, session)?;
+    draft.edit(title.as_deref(), duration_minutes, clear);
+    draft.save(&store, session)?;
+    Ok(draft)
+}
+
 /// Prove the draft's new questions on the verify cluster (the candidate's
 /// go: their scripts run there); the draft with their results
 #[tauri::command]
