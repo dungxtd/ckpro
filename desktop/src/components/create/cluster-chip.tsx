@@ -10,9 +10,9 @@ import { useStudio } from "@/stores/studio";
 /**
  * The verify cluster new questions are proven on: made as the screen opens,
  * so proving starts at once. × stops making it or removes it (its memory
- * back); Prepare makes it again
+ * back); Prepare makes it again. `short`: its words cut, for a narrow bar
  */
-export function ClusterChip() {
+export function ClusterChip({ short = false }: { short?: boolean }) {
 	const workspace = useStudio(s => s.workspace);
 	// Making one takes a minute or so: how long so far, so it never looks stuck
 	const [since, setSince] = useState<number | null>(null);
@@ -27,17 +27,34 @@ export function ClusterChip() {
 	const { prepare, release } = useStudio.getState();
 	return (
 		<div className="flex min-w-0 items-center gap-2 text-caption text-muted-foreground">
-			{workspace.state === "preparing" && (
-				<>
-					<Spinner size="inline" className="size-3.5" />
-					<span className="truncate tabular-nums">Making cluster… {seconds}s</span>
-				</>
-			)}
-			{workspace.state === "ready" && (
-				<>
-					<StatusDot tone="ok" />
-					<span className="truncate">Cluster ready</span>
-				</>
+			{(workspace.state === "preparing" || workspace.state === "ready") && (
+				<span className="flex h-6 min-w-0 items-center gap-1.5 rounded-full border border-border pr-0.5 pl-2.5">
+					{workspace.state === "preparing" ? (
+						<>
+							<Spinner size="inline" className="size-3.5" />
+							<span className="truncate tabular-nums">
+								{short ? "Making" : "Making cluster"}… {seconds}s
+							</span>
+						</>
+					) : (
+						<>
+							<StatusDot tone="ok" />
+							<span className="truncate">{short ? "Ready" : "Cluster ready"}</span>
+						</>
+					)}
+					<IconButton
+						variant="toolbar"
+						size="xs"
+						aria-label={
+							workspace.state === "ready"
+								? "Remove the verify cluster"
+								: "Stop making the verify cluster"
+						}
+						onClick={release}
+					>
+						<X />
+					</IconButton>
+				</span>
 			)}
 			{workspace.state === "failed" && (
 				<Tooltip>
@@ -51,20 +68,7 @@ export function ClusterChip() {
 				</Tooltip>
 			)}
 			{workspace.state === "off" && <span className="truncate">No cluster</span>}
-			{workspace.state === "preparing" || workspace.state === "ready" ? (
-				<IconButton
-					variant="toolbar"
-					size="xs"
-					aria-label={
-						workspace.state === "ready"
-							? "Remove the verify cluster"
-							: "Stop making the verify cluster"
-					}
-					onClick={release}
-				>
-					<X />
-				</IconButton>
-			) : (
+			{(workspace.state === "off" || workspace.state === "failed") && (
 				<Button size="push" variant="push" onClick={prepare}>
 					{workspace.state === "failed" ? "Retry" : "Prepare"}
 				</Button>

@@ -20,21 +20,25 @@ import { Ellipsis, Pencil } from "lucide-react";
 import { useState } from "react";
 import { useStudio } from "@/stores/studio";
 import type { ExamDraft } from "@/tauri/api";
+import { ClusterChip } from "./cluster-chip";
 
 /** A domain's colour, by its rank in the exam's weights (tokens: index.css) */
 const DOMAIN = ["bg-domain-1", "bg-domain-2", "bg-domain-3", "bg-domain-4", "bg-domain-5"];
 const named = (domain: string) => domain.replaceAll("-", " ");
 const LENGTHS = [30, 45, 60, 90, 120];
 
-/** The draft's top strip: what it is, and what can be done to it */
+/**
+ * The draft's top strip: what it is, the verify cluster its questions are
+ * proven on, and what can be done to it
+ */
 export function DraftStrip() {
 	const draft = useStudio(s => s.draft);
-	if (!draft) return null;
 	return (
 		<>
-			<span className="flex-1 font-bold text-2xs text-muted-foreground tracking-wide">
-				{draft.saved ? "SAVED EXAM" : "DRAFT EXAM"}
+			<span className="flex-1 truncate font-bold text-2xs text-muted-foreground tracking-wide">
+				{draft?.saved ? "SAVED EXAM" : "DRAFT EXAM"}
 			</span>
+			{!draft?.saved && <ClusterChip />}
 			<DraftMenu />
 		</>
 	);
