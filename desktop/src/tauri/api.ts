@@ -10,12 +10,11 @@ import {
 	type CoachContext,
 	type CoachEvent,
 	commands,
-	type Draft,
 	type EnvState,
+	type ExamDraft_Serialize,
 	type ExamReadiness_Serialize,
 	type ExamState_Serialize,
 	events,
-	type GenerateRequest,
 	type Mode,
 	type ModelChoice,
 	type PlanView_Serialize,
@@ -23,6 +22,8 @@ import {
 	type Settings_Serialize,
 	type SignInEvent,
 	type SignInMethod,
+	type StudioConversation_Serialize,
+	type WorkspaceState,
 } from "./bindings";
 
 /** What the generated command functions resolve to. */
@@ -45,6 +46,13 @@ export type Account = Account_Serialize;
 export type { SignInMethod };
 /** The assistant's agent settings */
 export type AgentSettings = AgentSettings_Serialize;
+
+/** The exam a Create conversation builds */
+export type ExamDraft = ExamDraft_Serialize;
+export type DraftItem = ExamDraft["items"][number];
+/** A Create conversation, opened */
+export type StudioConversation = StudioConversation_Serialize;
+export type { WorkspaceState };
 
 /** A long operation as the app sends it */
 export type Activity = Activity_Serialize;
@@ -69,15 +77,10 @@ export type {
 	CoachStatus,
 	CoachTranscript,
 	ContextUsage,
-	Difficulty,
 	DomainStat,
-	Draft,
 	EnvState,
 	ExamSort,
 	ExamSummary,
-	Generated,
-	GenerateRequest,
-	GeneratorTarget,
 	HistoryEntry,
 	Issue,
 	Mode,
@@ -88,6 +91,7 @@ export type {
 	Provider,
 	RuntimeInfo,
 	Solution,
+	StudioSessionRow,
 	StudyStats,
 	Theme,
 } from "./bindings";
@@ -232,15 +236,35 @@ export const coachApi = {
 	runtime: () => unwrap(commands.coachRuntime()),
 };
 
-export const generatorApi = {
-	/** Certifications and domains the generator writes for */
-	targets: () => commands.generatorTargets(),
-	/** Write a question, prove it on a cluster, keep it in "My questions"
-	 * (progress as an activity). Each draft that lints comes to `onDraft`
-	 * and waits for `review` before its scripts run */
-	generate: (request: GenerateRequest, onDraft: (draft: Draft) => void) =>
-		unwrap(commands.generateQuestion(request, channel(onDraft))),
-	review: (approve: boolean) => unwrap(commands.generateReview(approve)),
+export const studioApi = {
+	/** Where the Create screen's verify cluster stands; changes come to `onState` */
+	state: () => commands.studioState(),
+	onState: (on: (state: WorkspaceState) => void) =>
+		events.studioChanged.listen(event => on(event.payload)),
+	/** The screen opened: make its verify cluster unless it is there */
+	prepare: () => unwrap(commands.studioPrepare()),
+	/** Stop making it, or remove it */
+	release: () => commands.studioRelease(),
+	/** The screen was left: it goes after a while */
+	leave: () => commands.studioLeave(),
+	sessions: () => unwrap(commands.studioSessions()),
+	create: () => unwrap(commands.studioNew()) as Promise<StudioConversation>,
+	open: (session: number) => unwrap(commands.studioOpen(session)) as Promise<StudioConversation>,
+	/** Say something; `onEvent` gets the answer as it is written and the tools Claude uses */
+	ask: (session: number, text: string, model: ModelChoice, onEvent: (event: CoachEvent) => void) =>
+		unwrap(commands.studioAsk(session, text, model, channel<CoachEvent>(onEvent))),
+	/** Claude changed a conversation's draft */
+	onDraft: (on: (session: number, draft: ExamDraft) => void) =>
+		events.studioDraft.listen(event => on(event.payload.session, event.payload.draft as ExamDraft)),
+	rename: (session: number, title: string) => unwrap(commands.studioRename(session, title)),
+	remove: (session: number) => unwrap(commands.studioDelete(session)),
+	/** Take a question out of the draft */
+	removeItem: (session: number, id: string) =>
+		unwrap(commands.studioRemove(session, id)) as Promise<ExamDraft>,
+	/** Prove the new questions on the verify cluster (their scripts run there) */
+	verify: (session: number) => unwrap(commands.studioVerify(session)) as Promise<ExamDraft>,
+	/** Save the draft as an exam; its id */
+	save: (session: number) => unwrap(commands.studioSave(session)),
 };
 
 export const agentApi = {

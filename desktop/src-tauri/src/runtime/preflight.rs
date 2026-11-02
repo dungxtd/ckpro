@@ -96,17 +96,23 @@ fn in_use_mb(state: &EnvState, except: &[String]) -> u32 {
 /// what Docker has left: the reason when it does not, before anything is
 /// created. Its own `clusters`, if they run, are replaced by it: not counted
 pub fn exam_fits(state: &EnvState, needed_mb: u32, clusters: &[String]) -> Result<(), String> {
+    fits(state, "This exam", needed_mb, clusters)
+}
+
+/// Whether `what` (a sentence's subject: "This exam") needing `needed_mb`
+/// fits in what Docker has left, but `clusters`: the reason when it does not
+pub fn fits(state: &EnvState, what: &str, needed_mb: u32, clusters: &[String]) -> Result<(), String> {
     let DockerState::Up { cpus, memory_mb, .. } = state.docker else {
         return Err("Docker is not running. Start OrbStack or Docker Desktop.".into());
     };
     if cpus < 2 {
-        return Err(format!("This exam needs at least 2 CPUs for Docker; it has {cpus}."));
+        return Err(format!("{what} needs at least 2 CPUs for Docker; it has {cpus}."));
     }
     let in_use = in_use_mb(state, clusters);
     let free = memory_mb.saturating_sub(in_use);
     if free < needed_mb {
         return Err(format!(
-            "This exam needs at least {:.1} GB of memory; Docker has {:.1} GB free ({:.1} GB in all, ~{:.1} GB used by running clusters). Raise the memory limit in OrbStack or Docker Desktop, or delete a cluster.",
+            "{what} needs at least {:.1} GB of memory; Docker has {:.1} GB free ({:.1} GB in all, ~{:.1} GB used by running clusters). Raise the memory limit in OrbStack or Docker Desktop, or delete a cluster.",
             gb(needed_mb),
             gb(free),
             gb(memory_mb),

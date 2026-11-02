@@ -34,33 +34,14 @@ impl Server {
 
     /// The reply to a message; none for notifications
     pub async fn handle(&self, message: &Value) -> Option<Value> {
-        let id = message.get("id")?.clone();
-        let params = message.get("params").cloned().unwrap_or(Value::Null);
-        let result = match message["method"].as_str().unwrap_or_default() {
-            "initialize" => Ok(initialize(&params)),
-            "ping" => Ok(json!({})),
-            "tools/list" => Ok(json!({ "tools": tools() })),
-            "tools/call" => Ok(self.call(&params).await),
-            method => Err(json!({ "code": -32601, "message": format!("{method} is not supported") })),
-        };
-        Some(match result {
-            Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
-            Err(error) => json!({ "jsonrpc": "2.0", "id": id, "error": error }),
+        answer(message, tools(), |name, args| async move {
+            match name.as_str() {
+                "check_my_work" => self.check_my_work().await,
+                "run_command" => self.run_command(args["command"].as_str().unwrap_or_default(), args["timeout_seconds"].as_u64()).await,
+                name => Err(AppError::invalid(format!("no tool named {name}"))),
+            }
         })
-    }
-
-    /// A tool's result: its text, or the reason it failed as a tool error
-    async fn call(&self, params: &Value) -> Value {
-        let args = &params["arguments"];
-        let result = match params["name"].as_str().unwrap_or_default() {
-            "check_my_work" => self.check_my_work().await,
-            "run_command" => self.run_command(args["command"].as_str().unwrap_or_default(), args["timeout_seconds"].as_u64()).await,
-            name => Err(AppError::invalid(format!("no tool named {name}"))),
-        };
-        match result {
-            Ok(text) => json!({ "content": [{ "type": "text", "text": text }] }),
-            Err(e) => json!({ "content": [{ "type": "text", "text": e.to_string() }], "isError": true }),
-        }
+        .await
     }
 
     /// The session's question in the running practice attempt
@@ -118,6 +99,35 @@ impl Server {
         let (exit, output) = checks::run_script_tail(&docker, host, &question.cluster, command, secs, Some(OUTPUT_MAX_BYTES)).await?;
         Ok(format!("{}\n[exit code {exit}]", tail(&output, OUTPUT_MAX_BYTES)))
     }
+}
+
+/// The reply to an MCP message (none for notifications), for a server
+/// offering `tools` (`tools/list`) and running them with `call` (a tool's
+/// name and arguments, to its text or why it failed: a tool error)
+pub async fn answer<F, Fut>(message: &Value, tools: Value, call: F) -> Option<Value>
+where
+    F: FnOnce(String, Value) -> Fut,
+    Fut: std::future::Future<Output = AppResult<String>>,
+{
+    let id = message.get("id")?.clone();
+    let params = message.get("params").cloned().unwrap_or(Value::Null);
+    let result = match message["method"].as_str().unwrap_or_default() {
+        "initialize" => Ok(initialize(&params)),
+        "ping" => Ok(json!({})),
+        "tools/list" => Ok(json!({ "tools": tools })),
+        "tools/call" => {
+            let name = params["name"].as_str().unwrap_or_default().to_string();
+            Ok(match call(name, params["arguments"].clone()).await {
+                Ok(text) => json!({ "content": [{ "type": "text", "text": text }] }),
+                Err(e) => json!({ "content": [{ "type": "text", "text": e.to_string() }], "isError": true }),
+            })
+        }
+        method => Err(json!({ "code": -32601, "message": format!("{method} is not supported") })),
+    };
+    Some(match result {
+        Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
+        Err(error) => json!({ "jsonrpc": "2.0", "id": id, "error": error }),
+    })
 }
 
 fn initialize(params: &Value) -> Value {

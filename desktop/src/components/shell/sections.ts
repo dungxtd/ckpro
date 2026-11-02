@@ -1,13 +1,18 @@
 import { CalendarDays, Container, History, House } from "lucide-react";
+import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import type { SidebarLayout } from "@/tauri/api";
 
 /** The app's screens, in the sidebar and the capsule (Settings apart, at the end) */
 export const SECTIONS = [
 	{ path: "/", label: "Home", icon: House },
-	{ path: "/history", label: "History", icon: History },
 	{ path: "/calendar", label: "Calendar", icon: CalendarDays },
+	{ path: "/create", label: "Create", icon: ClaudeIcon },
+	{ path: "/history", label: "History", icon: History },
 	{ path: "/environment", label: "Environment", icon: Container },
 ];
+
+/** Screens there only with the assistant on (AI is optional) */
+const ASSISTANT_SCREENS = ["/create"];
 
 /** Settings' own pages, under /settings/<part> */
 export const SETTINGS_PARTS: Record<string, string> = {
@@ -19,9 +24,12 @@ export const SETTINGS_PARTS: Record<string, string> = {
 /**
  * The screens as the sidebar lists them: in the order the candidate dragged
  * them (the rest after, as they come), hidden ones left out unless
- * `withHidden`. Home is never hidden
+ * `withHidden`, the assistant's only with `assistant`. Home is never hidden
  */
-export function arrangeScreens(layout: SidebarLayout, withHidden = false) {
+export function arrangeScreens(
+	layout: SidebarLayout,
+	{ withHidden = false, assistant = true } = {}
+) {
 	const rank = (path: string, i: number) => {
 		const at = layout.screens.indexOf(path);
 		return at >= 0 ? at : layout.screens.length + i;
@@ -29,6 +37,7 @@ export function arrangeScreens(layout: SidebarLayout, withHidden = false) {
 	return SECTIONS.map((s, i) => [s, rank(s.path, i)] as const)
 		.sort((a, b) => a[1] - b[1])
 		.map(([s]) => s)
+		.filter(s => assistant || !ASSISTANT_SCREENS.includes(s.path))
 		.filter(s => withHidden || s.path === "/" || !layout.hidden_screens.includes(s.path));
 }
 

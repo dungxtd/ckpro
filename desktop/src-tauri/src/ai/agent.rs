@@ -550,7 +550,7 @@ mod tests {
     async fn agent_asks_then_runs_ckpro_tools() {
         let agent = Agent::new();
         let store = std::sync::Arc::new(crate::store::Store::in_memory().unwrap());
-        let server = crate::ai::mcp_http::McpHttp::start(store).await.unwrap();
+        let server = crate::ai::mcp_http::McpHttp::start(store, None).await.unwrap();
         let tools = json!([server.server_for("core/none")]);
         let session = agent.new_session_with("You run what the user asks with your tools, then say what happened in one sentence.", "haiku", tools).await.unwrap();
         let asked = std::sync::Mutex::new(Vec::new());

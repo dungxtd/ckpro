@@ -20,13 +20,9 @@ export function memoryFit(exam: ExamSummary, dockerMb: number | null): Fit {
 	return dockerMb < exam.memory_mb ? "slower" : "fits";
 }
 
-/** The Exams screen's other view, beside an exam: the question generator */
-const GENERATE = "generate";
-
 /**
- * What the Exams screen shows, kept in the URL (`/exams?exam=<id>`, or
- * `/exams?exam=generate`): the exam picked (the first one until one is), or the
- * generator
+ * What the Exams screen shows, kept in the URL (`/exams?exam=<id>`): the
+ * exam picked (the first one until one is)
  */
 export function useSelection() {
 	const [params] = useSearchParams();
@@ -35,7 +31,6 @@ export function useSelection() {
 	const [layout] = useSidebarLayout();
 	const stats = useExamStats(s => s.stats);
 	const picked = params.get("exam");
-	const generating = picked === GENERATE;
 	const shown = [
 		...pinned(catalog, layout),
 		...arrange(catalog, layout, false, stats).flatMap(g => g.exams),
@@ -43,9 +38,7 @@ export function useSelection() {
 	const exam = catalog.find(e => e.id === picked) ?? shown[0] ?? catalog[0] ?? null;
 	return {
 		exam,
-		generating,
 		select: (id: string) => navigate(`/exams?exam=${encodeURIComponent(id)}`),
-		generate: () => navigate(`/exams?exam=${GENERATE}`),
 	};
 }
 

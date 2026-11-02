@@ -4,15 +4,12 @@ import { Loading } from "@ckpro/ui/components/loading";
 import { useEffect, useState } from "react";
 import { ExamDetail } from "@/components/catalog/exam-detail";
 import { useSelection } from "@/components/catalog/exams";
-import { GenerateCard } from "@/components/catalog/generate-card";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
-import { useAssistantEnabled } from "@/stores/settings";
 import { envApi } from "@/tauri/api";
 
-/** The exam picked in the sidebar (the first until one is), or the question generator */
+/** The exam picked in the sidebar (the first until one is) */
 export function CatalogRoute() {
-	const assistant = useAssistantEnabled();
 	const { catalog, loadCatalog, pendingReplace, start, cancelReplace, error } = useExam();
 	// Live, not a remembered error: it clears itself when Docker is back
 	const docker = useEnvironment(s => s.env?.docker);
@@ -21,7 +18,7 @@ export function CatalogRoute() {
 	useEffect(() => {
 		loadCatalog().finally(() => setLoaded(true));
 	}, [loadCatalog]);
-	const { exam, generating } = useSelection();
+	const { exam } = useSelection();
 
 	return (
 		<div className="mx-auto flex max-w-3xl flex-col gap-6 px-8 pt-2 pb-10">
@@ -49,9 +46,7 @@ export function CatalogRoute() {
 			)}
 			{docker?.state === "connecting" && <Alert>Connecting to Docker…</Alert>}
 			{error && <Alert variant="destructive">{error}</Alert>}
-			{generating && assistant ? (
-				<GenerateCard onGenerated={loadCatalog} />
-			) : exam ? (
+			{exam ? (
 				// Each exam fades in, its description folded again
 				<div key={exam.id} className="fade-in-0 animate-in duration-200 motion-reduce:animate-none">
 					<ExamDetail exam={exam} dockerMb={docker?.state === "up" ? docker.memory_mb : null} />

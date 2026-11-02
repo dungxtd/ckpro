@@ -1,9 +1,11 @@
 //! The MCP server the assistant's agent sessions reach: their tools, served
 //! by the app itself over HTTP (Streamable HTTP, JSON replies). Only the
-//! app's loopback, and only with this run's token; the session's question is
-//! in the path.
+//! app's loopback, and only with this run's token. The path says whose:
+//! `/mcp/<question>` a practice question's session, `/studio/<conversation>`
+//! a Create conversation (`studio::tools`).
 
 use super::mcp::Server;
+use crate::studio::tools::Tools as Studio;
 use crate::error::{AppError, AppResult};
 use crate::store::Store;
 use http_body_util::{BodyExt, Full, Limited};
@@ -19,13 +21,17 @@ pub struct McpHttp {
     token: String,
 }
 
+/// What a request reaches: the store (a question's tools), the Create
+/// conversations' tools, and the token it must carry
+type Context = Arc<(Arc<Store>, Option<Arc<Studio>>, String)>;
+
 impl McpHttp {
     /// Listen on a free loopback port until the app quits
-    pub async fn start(store: Arc<Store>) -> AppResult<Self> {
+    pub async fn start(store: Arc<Store>, studio: Option<Arc<Studio>>) -> AppResult<Self> {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.map_err(|e| AppError::io("starting the MCP server", e))?;
         let port = listener.local_addr().map_err(|e| AppError::io("starting the MCP server", e))?.port();
         let token: String = (0..32).map(|_| format!("{:02x}", rand::random::<u8>())).collect();
-        let context: Context = Arc::new((store, token.clone()));
+        let context: Context = Arc::new((store, studio, token.clone()));
         tokio::spawn(async move {
             // A few sessions at a time; a client that never sends its request
             // does not hold a connection for long
@@ -58,6 +64,16 @@ impl McpHttp {
         Ok(Self { port, token })
     }
 
+    /// The `mcpServers` entry that gives a Create conversation its tools
+    pub fn server_for_studio(&self, session: i32) -> serde_json::Value {
+        serde_json::json!({
+            "type": "http",
+            "name": "ckpro",
+            "url": format!("http://127.0.0.1:{}/studio/{session}", self.port),
+            "headers": [{ "name": "Authorization", "value": format!("Bearer {}", self.token) }],
+        })
+    }
+
     /// The `mcpServers` entry that gives an agent session the tools for
     /// `question`
     pub fn server_for(&self, question: &str) -> serde_json::Value {
@@ -73,10 +89,9 @@ impl McpHttp {
 /// Connections served at once
 const MAX_CONNECTIONS: usize = 16;
 
-type Context = Arc<(Arc<Store>, String)>;
 
 async fn handle(context: Context, request: Request<Incoming>) -> Result<Response<Full<Bytes>>, std::convert::Infallible> {
-    let (store, token) = &*context;
+    let (store, studio, token) = &*context;
     let reply = |status: StatusCode, body: &str| {
         let mut response = Response::new(Full::new(Bytes::from(body.to_string())));
         *response.status_mut() = status;
@@ -90,7 +105,12 @@ async fn handle(context: Context, request: Request<Incoming>) -> Result<Response
     if !authorized {
         return Ok(reply(StatusCode::UNAUTHORIZED, ""));
     }
-    let Some(question) = request.uri().path().strip_prefix("/mcp/").and_then(unhex) else {
+    let path = request.uri().path();
+    let whose = if let Some(question) = path.strip_prefix("/mcp/").and_then(unhex) {
+        Whose::Question(question)
+    } else if let Some((session, studio)) = path.strip_prefix("/studio/").and_then(|s| s.parse().ok()).zip(studio.clone()) {
+        Whose::Studio(session, studio)
+    } else {
         return Ok(reply(StatusCode::NOT_FOUND, ""));
     };
     // JSON replies only: no server-sent stream to open
@@ -103,8 +123,11 @@ async fn handle(context: Context, request: Request<Incoming>) -> Result<Response
     let Ok(message) = serde_json::from_slice::<serde_json::Value>(&body.to_bytes()) else {
         return Ok(reply(StatusCode::BAD_REQUEST, ""));
     };
-    let server = Server::new(store.clone(), question);
-    Ok(match server.handle(&message).await {
+    let answer = match whose {
+        Whose::Question(question) => Server::new(store.clone(), question).handle(&message).await,
+        Whose::Studio(session, studio) => studio.handle(session, &message).await,
+    };
+    Ok(match answer {
         Some(answer) => {
             let mut response = reply(StatusCode::OK, &answer.to_string());
             response.headers_mut().insert(hyper::header::CONTENT_TYPE, hyper::header::HeaderValue::from_static("application/json"));
@@ -113,6 +136,12 @@ async fn handle(context: Context, request: Request<Incoming>) -> Result<Response
         // A notification or a response: accepted, nothing to say
         None => reply(StatusCode::ACCEPTED, ""),
     })
+}
+
+/// Whose tools a request is for
+enum Whose {
+    Question(String),
+    Studio(i32, Arc<Studio>),
 }
 
 fn hex(text: &str) -> String {
@@ -139,7 +168,7 @@ mod tests {
     /// Over real HTTP (curl): the tools answer with this run's token only
     #[tokio::test]
     async fn the_tools_answer_this_runs_token_only() {
-        let server = McpHttp::start(Arc::new(Store::in_memory().unwrap())).await.unwrap();
+        let server = McpHttp::start(Arc::new(Store::in_memory().unwrap()), None).await.unwrap();
         let entry = server.server_for("core/cka-001/q01-namespace-and-pod-creation");
         let url = entry["url"].as_str().unwrap().to_string();
         let token = entry["headers"][0]["value"].as_str().unwrap().to_string();

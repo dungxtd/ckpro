@@ -202,6 +202,7 @@ function App() {
 							<Route path="/exams" element={<CatalogRoute />} />
 							<Route path="/history" element={<HistoryRoute />} />
 							<Route path="/calendar" element={<CalendarRoute />} />
+							<Route path="/create" element={<CreateRoute />} />
 							<Route path="/environment" element={<EnvironmentRoute />} />
 							<Route path="/settings" element={<SettingsRoute />} />
 							<Route path="/settings/:part" element={<SettingsRoute />} />
@@ -257,6 +258,7 @@ function screen<T extends string>(load: () => Promise<Record<T, () => ReactNode>
 }
 const ExamRoute = screen(() => import("@/routes/exam"), "ExamRoute");
 const HistoryRoute = screen(() => import("@/routes/history"), "HistoryRoute");
+const CreateRoute = screen(() => import("@/routes/create"), "CreateRoute");
 const HomeRoute = screen(() => import("@/routes/home"), "HomeRoute");
 const CalendarRoute = screen(() => import("@/routes/calendar"), "CalendarRoute");
 const EnvironmentRoute = screen(() => import("@/routes/environment"), "EnvironmentRoute");
