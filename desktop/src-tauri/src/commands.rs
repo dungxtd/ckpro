@@ -10,6 +10,7 @@ use crate::runtime::activity::Activities;
 use crate::store::{Progress, Settings, Store};
 use crate::runtime::model::{Env, EnvState};
 use crate::runtime::preflight;
+use crate::studio::workspace::{self, Workspace, WorkspaceState};
 use std::sync::Arc;
 use tauri::State;
 use tauri::ipc::Channel;
@@ -157,7 +158,6 @@ use crate::ai::account::{Account, SignInEvent, SignInMethod};
 use crate::ai::agent::{ModelOption, RuntimeInfo};
 use crate::ai::policy::AgentSettings;
 use crate::ai::{Coach, CoachContext, CoachModels, ModelChoice, CoachEvent, CoachReply, CoachHistory, CoachSession, CoachStatus, CoachTranscript};
-use crate::ai::generate::{self, Draft, GenerateRequest, Generated, GeneratorTarget};
 use crate::lab::exam::StudyStats;
 
 /// Whether the coach can run (Node.js for the adapter found).
@@ -341,38 +341,6 @@ pub fn open_in_browser(url: String) -> AppResult<()> {
     Ok(())
 }
 
-/// What the question generator can write for.
-#[tauri::command]
-#[specta::specta]
-pub fn generator_targets(exams: State<'_, Arc<Exams>>) -> Vec<GeneratorTarget> {
-    generate::targets(&exams.bank())
-}
-
-/// Generate a question, prove it on a cluster and keep it in "My questions"
-/// (progress as an activity). Not during an exam.
-#[tauri::command]
-#[specta::specta]
-pub async fn generate_question(
-    coach: State<'_, Coach>,
-    exams: State<'_, Arc<Exams>>,
-    infra: State<'_, Arc<Infra>>,
-    activities: State<'_, Arc<Activities>>,
-    request: GenerateRequest,
-    drafts: Channel<Draft>,
-) -> AppResult<Generated> {
-    coach.generate(&exams, &infra, &activities, &crate::data_dir(), &request, |draft| {
-        let _ = drafts.send(draft);
-    })
-    .await
-}
-
-/// The candidate's answer to the generated draft: run it on a cluster, or discard it.
-#[tauri::command]
-#[specta::specta]
-pub fn generate_review(coach: State<'_, Coach>, approve: bool) -> AppResult<()> {
-    coach.review(approve)
-}
-
 /// The Claude login the assistant answers as.
 #[tauri::command]
 #[specta::specta]
@@ -486,10 +454,13 @@ pub async fn start_exam(
     exams: State<'_, Arc<Exams>>,
     env: State<'_, Arc<Env>>,
     coach: State<'_, Coach>,
+    workspace: State<'_, Arc<Workspace>>,
     id: String,
     mode: Mode,
     replace: bool,
 ) -> AppResult<()> {
+    // The Create screen's verify cluster gives its memory to the exam
+    workspace.release();
     // Before anything is created: this machine can run it
     if let Some(summary) = exams.catalog().into_iter().find(|e| e.id == id) {
         preflight::exam_fits(&env.snapshot(), summary.minimum_mb, &summary.clusters).map_err(AppError::invalid)?;
@@ -554,4 +525,141 @@ fn no_exam(exams: &Exams) -> AppResult<()> {
 #[specta::specta]
 pub fn telemetry_configure(on: bool, key: String, host: String, distinct_id: String, session_id: Option<String>) {
     crate::telemetry::configure(on, key, host, distinct_id, session_id);
+}
+
+/// Where the Create screen's verify cluster stands; changes arrive as `StudioChanged`
+#[tauri::command]
+#[specta::specta]
+pub fn studio_state(workspace: State<'_, Arc<Workspace>>) -> WorkspaceState {
+    workspace.state()
+}
+
+/// The Create screen opened: its verify cluster is made unless it is there
+/// (refused during an exam, which needs the memory and has no assistant)
+#[tauri::command]
+#[specta::specta]
+pub fn studio_prepare(
+    workspace: State<'_, Arc<Workspace>>,
+    exams: State<'_, Arc<Exams>>,
+    infra: State<'_, Arc<Infra>>,
+    env: State<'_, Arc<Env>>,
+) -> AppResult<()> {
+    no_exam(&exams)?;
+    let fits = preflight::fits(&env.snapshot(), "The verify cluster", workspace::RUN_MB, &[]);
+    workspace.prepare(infra.inner().clone(), fits);
+    Ok(())
+}
+
+/// Stop making the Create screen's verify cluster, or remove it
+#[tauri::command]
+#[specta::specta]
+pub fn studio_release(workspace: State<'_, Arc<Workspace>>) {
+    workspace.release();
+}
+
+/// The Create screen was left: its verify cluster goes after a while
+#[tauri::command]
+#[specta::specta]
+pub fn studio_leave(workspace: State<'_, Arc<Workspace>>) {
+    workspace.leave();
+}
+
+/// A Create conversation, opened: its messages and draft exam
+#[derive(Clone, Debug, serde::Serialize, specta::Type)]
+pub struct StudioConversation {
+    pub id: i32,
+    pub messages: Vec<crate::store::CoachMessage>,
+    pub draft: crate::studio::draft::ExamDraft,
+}
+
+/// The Create conversations, latest first
+#[tauri::command]
+#[specta::specta]
+pub fn studio_sessions(store: State<'_, Arc<Store>>) -> AppResult<Vec<crate::store::StudioSessionRow>> {
+    store.studio_sessions()
+}
+
+/// A new Create conversation
+#[tauri::command]
+#[specta::specta]
+pub fn studio_new(store: State<'_, Arc<Store>>) -> AppResult<StudioConversation> {
+    let id = store.studio_new()?;
+    Ok(StudioConversation { id, messages: Vec::new(), draft: Default::default() })
+}
+
+/// A Create conversation, with its messages and draft
+#[tauri::command]
+#[specta::specta]
+pub fn studio_open(store: State<'_, Arc<Store>>, session: i32) -> AppResult<StudioConversation> {
+    Ok(StudioConversation { id: session, messages: store.studio_messages(session)?, draft: crate::studio::draft::ExamDraft::load(&store, session)? })
+}
+
+/// Say something in a Create conversation; the answer streams as it is
+/// written (and Claude's tool uses), the draft's changes arrive as `StudioDraft`
+#[tauri::command]
+#[specta::specta]
+pub async fn studio_ask(
+    coach: State<'_, Coach>,
+    exams: State<'_, Arc<Exams>>,
+    store: State<'_, Arc<Store>>,
+    session: i32,
+    text: String,
+    model: ModelChoice,
+    events: Channel<CoachEvent>,
+) -> AppResult<CoachReply> {
+    coach
+        .studio_ask(&exams, &store, session, &text, &model.model, &model.effort, |e| {
+            let _ = events.send(e);
+        })
+        .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn studio_rename(store: State<'_, Arc<Store>>, session: i32, title: String) -> AppResult<()> {
+    store.studio_rename(session, &title)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn studio_delete(coach: State<'_, Coach>, store: State<'_, Arc<Store>>, session: i32) -> AppResult<()> {
+    coach.studio_forget(session).await;
+    store.studio_delete(session)
+}
+
+/// Take a question out of the draft (by id, or a new one's key)
+#[tauri::command]
+#[specta::specta]
+pub fn studio_remove(store: State<'_, Arc<Store>>, session: i32, id: String) -> AppResult<crate::studio::draft::ExamDraft> {
+    let mut draft = crate::studio::draft::ExamDraft::load(&store, session)?;
+    draft.remove(&id);
+    draft.save(&store, session)?;
+    Ok(draft)
+}
+
+/// Prove the draft's new questions on the verify cluster (the candidate's
+/// go: their scripts run there); the draft with their results
+#[tauri::command]
+#[specta::specta]
+pub async fn studio_verify(
+    store: State<'_, Arc<Store>>,
+    exams: State<'_, Arc<Exams>>,
+    workspace: State<'_, Arc<Workspace>>,
+    activities: State<'_, Arc<Activities>>,
+    infra: State<'_, Arc<Infra>>,
+    env: State<'_, Arc<Env>>,
+    session: i32,
+) -> AppResult<crate::studio::draft::ExamDraft> {
+    no_exam(&exams)?;
+    let take = || {
+        workspace.take(infra.inner().clone(), || preflight::fits(&env.snapshot(), "The verify cluster", workspace::RUN_MB, &[]))
+    };
+    crate::studio::verify(&store, &exams, &workspace, &activities, &crate::data_dir(), session, take).await
+}
+
+/// Save the draft as the candidate's exam; its id
+#[tauri::command]
+#[specta::specta]
+pub fn studio_save(store: State<'_, Arc<Store>>, exams: State<'_, Arc<Exams>>, session: i32) -> AppResult<String> {
+    crate::studio::save(&store, &exams, &crate::data_dir(), session)
 }

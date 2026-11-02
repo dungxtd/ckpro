@@ -8,6 +8,7 @@ mod lab;
 mod observability;
 mod runtime;
 mod store;
+mod studio;
 mod sync;
 mod telemetry;
 
@@ -36,6 +37,17 @@ pub struct ActivityLog {
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct GuardNotice(String);
 
+/// The Create screen's verify cluster changed.
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct StudioChanged(studio::workspace::WorkspaceState);
+
+/// Claude changed a Create conversation's draft exam.
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct StudioDraft {
+    pub session: i32,
+    pub draft: studio::draft::ExamDraft,
+}
+
 /// Pushed to the UI on every environment change.
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct EnvChanged(EnvState);
@@ -43,9 +55,22 @@ pub struct EnvChanged(EnvState);
 /// Typed IPC: debug builds regenerate `desktop/src/tauri/bindings.ts`.
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ActivityChanged, ActivityLog, GuardNotice])
+        .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ActivityChanged, ActivityLog, GuardNotice, StudioChanged, StudioDraft])
         .commands(tauri_specta::collect_commands![
         commands::env_state,
+        commands::studio_state,
+        commands::studio_prepare,
+        commands::studio_release,
+        commands::studio_leave,
+        commands::studio_sessions,
+        commands::studio_new,
+        commands::studio_open,
+        commands::studio_ask,
+        commands::studio_rename,
+        commands::studio_delete,
+        commands::studio_remove,
+        commands::studio_verify,
+        commands::studio_save,
         commands::env_retry,
         commands::env_watch_nodes,
         commands::delete_cluster,
@@ -87,9 +112,6 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::coach_efforts,
         commands::study_stats,
         commands::open_in_browser,
-        commands::generator_targets,
-        commands::generate_question,
-        commands::generate_review,
         commands::activities,
         commands::exam_progress,
         commands::save_exam_progress,
@@ -195,6 +217,10 @@ pub fn run() {
             let kind = Arc::new(cluster::kind::Kind::new(data_dir.clone()));
             let infra = Arc::new(runtime::infra::Infra::new(data_dir.clone()));
             app.manage(infra.clone());
+            let studio = app.handle().clone();
+            app.manage(studio::workspace::Workspace::new(data_dir.clone(), move |state| {
+                let _ = StudioChanged(state.clone()).emit(&studio);
+            }));
             app.manage(Arc::new(runtime::jumphost::Jumphost::app(&data_dir)));
             let (changed, line) = (app.handle().clone(), app.handle().clone());
             let activities = runtime::activity::Activities::new(
@@ -245,8 +271,12 @@ pub fn run() {
             // The agent sessions' tools, served to the agent on the loopback
             {
                 let (handle, store) = (app.handle().clone(), store.clone());
+                let drafts = app.handle().clone();
+                let studio = Arc::new(studio::tools::Tools::new(exams.clone(), store.clone(), data_dir.clone(), move |session, draft| {
+                    let _ = StudioDraft { session, draft: draft.clone() }.emit(&drafts);
+                }));
                 tauri::async_runtime::spawn(async move {
-                    match ai::mcp_http::McpHttp::start(store).await {
+                    match ai::mcp_http::McpHttp::start(store, Some(studio)).await {
                         Ok(server) => handle.state::<ai::Coach>().serve_tools(server),
                         Err(e) => tracing::warn!(error = %e, "the agent's tools are unavailable"),
                     }
@@ -271,6 +301,8 @@ pub fn run() {
                 app.state::<Arc<runtime::guard::Guard>>().suspend();
                 // Clusters stop until the next start
                 runtime::reconcile::on_exit(&app.state::<Arc<cluster::kind::Kind>>());
+                // The Create screen's verify cluster goes
+                app.state::<Arc<studio::workspace::Workspace>>().on_exit();
             }
         });
 }

@@ -17,7 +17,8 @@ use crate::runtime::jumphost::{self, Jumphost, Placement};
 use crate::runtime::{docker, infra::Infra};
 use serde::Serialize;
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use tokio_util::sync::CancellationToken;
 use std::time::{Duration, Instant};
 
 #[derive(Serialize)]
@@ -41,57 +42,127 @@ pub async fn verify(
     keep: bool,
     log: Log<'_>,
 ) -> AppResult<Vec<Report>> {
-    let run = format!("{:04x}", rand::random::<u16>());
-    let run_dir = data_dir.join("runs").join(&run);
-    let kind = Kind::scoped(data_dir.to_path_buf(), run_dir.join("kind"));
-    let jumphost = Jumphost::for_run(data_dir, &run);
-    // Marks the run as in use; `sweep_stale` cleans up after a run whose
-    // process is gone, `keep` ones excepted
-    std::fs::create_dir_all(&run_dir).map_err(|e| AppError::io("creating run dir", e))?;
-    std::fs::write(run_dir.join("pid"), std::process::id().to_string()).map_err(|e| AppError::io("creating run dir", e))?;
-
     // One cluster per logical name, as large as its most demanding question
-    let mut topology: BTreeMap<String, u8> = BTreeMap::new();
+    let mut topology = Topology::new();
     for id in ids {
         let q = &pack.questions.get(id).ok_or_else(|| AppError::not_found(format!("no question '{id}'")))?.value;
         let workers = topology.entry(q.cluster.clone()).or_default();
         *workers = (*workers).max(q.workers);
     }
-    let placement: Placement = topology.keys().map(|c| (c.clone(), format!("{c}-v{run}"))).collect();
-    let questions: Vec<(String, Question)> = ids
-        .iter()
-        .map(|id| {
-            let q = &pack.questions[id].value;
-            (id.clone(), render::render(q, &render::pick(q, true), &placement[&q.cluster]))
-        })
-        .collect();
-
-    let docker = docker::connect().await?;
+    let run = Run::new(data_dir)?;
     let result = async {
-        for (logical, workers) in &topology {
-            let physical = &placement[logical];
-            log(format!("[{run}] creating cluster {logical} ({physical}) with {workers} workers"));
-            lifecycle::create(&kind, infra, physical, *workers, log, &Default::default()).await?;
-        }
-        jumphost.ensure(&docker, log).await?;
-        jumphost.refresh_access(&docker, &kind, &placement).await?;
-        run_questions(&docker, &jumphost.name, &questions, &run, log).await
+        run.start(infra, &topology, &CancellationToken::new(), log).await?;
+        run.check(pack, ids, log).await
     }
     .await;
-
     if keep {
-        let _ = std::fs::write(run_dir.join("keep"), "");
-        log(format!("[{run}] kept clusters {:?} and {}", placement.values().collect::<Vec<_>>(), jumphost.name));
+        run.keep(log);
     } else {
-        for physical in placement.values() {
-            if let Err(e) = lifecycle::delete(&kind, physical, log).await {
-                log(format!("[{run}] could not delete cluster {physical}: {e}"));
-            }
-        }
-        let _ = jumphost.remove(&docker).await;
-        let _ = std::fs::remove_dir_all(&run_dir);
+        run.finish(log).await;
     }
     result
+}
+
+/// Clusters by logical name, with their worker count
+pub type Topology = BTreeMap<String, u8>;
+
+/// A verify run: its clusters (`<logical>-v<run>`) and jumphost, made once
+/// and checked against as many times as wanted, then finished. Its directory
+/// (with the process's pid) marks it in use until then, so `sweep_stale`
+/// leaves it alone
+pub struct Run {
+    id: String,
+    dir: PathBuf,
+    kind: Kind,
+    jumphost: Jumphost,
+    placement: std::sync::Mutex<Placement>,
+}
+
+impl Run {
+    pub fn new(data_dir: &Path) -> AppResult<Self> {
+        let id = format!("{:04x}", rand::random::<u16>());
+        let dir = data_dir.join("runs").join(&id);
+        std::fs::create_dir_all(&dir).map_err(|e| AppError::io("creating run dir", e))?;
+        std::fs::write(dir.join("pid"), std::process::id().to_string()).map_err(|e| AppError::io("creating run dir", e))?;
+        Ok(Self {
+            kind: Kind::scoped(data_dir.to_path_buf(), dir.join("kind")),
+            jumphost: Jumphost::for_run(data_dir, &id),
+            id,
+            dir,
+            placement: Default::default(),
+        })
+    }
+
+    /// Make the clusters of `topology` and the run's jumphost; stops (and
+    /// removes the cluster being made) when `cancel` fires
+    pub async fn start(&self, infra: &Infra, topology: &Topology, cancel: &CancellationToken, log: Log<'_>) -> AppResult<()> {
+        let placement: Placement = topology.keys().map(|c| (c.clone(), format!("{c}-v{}", self.id))).collect();
+        *self.placement.lock().unwrap_or_else(|e| e.into_inner()) = placement.clone();
+        let docker = docker::connect().await?;
+        for (logical, workers) in topology {
+            let physical = &placement[logical];
+            log(format!("[{}] creating cluster {logical} ({physical}) with {workers} workers", self.id));
+            lifecycle::create(&self.kind, infra, physical, *workers, log, cancel).await?;
+        }
+        self.jumphost.ensure(&docker, log).await?;
+        self.jumphost.refresh_access(&docker, &self.kind, &placement).await
+    }
+
+    /// Run `ids` on the run's clusters: every setup, then per question the
+    /// checks before and after its solution
+    pub async fn check(&self, pack: &LoadedPack, ids: &[String], log: Log<'_>) -> AppResult<Vec<Report>> {
+        let placement = self.placement.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let mut questions = Vec::new();
+        for id in ids {
+            let q = &pack.questions.get(id).ok_or_else(|| AppError::not_found(format!("no question '{id}'")))?.value;
+            let physical = placement
+                .get(&q.cluster)
+                .ok_or_else(|| AppError::invalid(format!("'{id}' needs cluster {}, which this run does not have", q.cluster)))?;
+            questions.push((id.clone(), render::render(q, &render::pick(q, true), physical)));
+        }
+        let docker = docker::connect().await?;
+        run_questions(&docker, &self.jumphost.name, &questions, &self.id, log).await
+    }
+
+    /// Leave the clusters and jumphost for inspection
+    pub fn keep(&self, log: Log<'_>) {
+        let _ = std::fs::write(self.dir.join("keep"), "");
+        let placement = self.placement.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        log(format!("[{}] kept clusters {:?} and {}", self.id, placement.values().collect::<Vec<_>>(), self.jumphost.name));
+    }
+
+    /// Remove the clusters' nodes and the jumphost with a detached `docker rm`
+    /// (the app quits); the next `sweep_stale` takes the run's files
+    pub fn remove_detached(&self) {
+        let placement = self.placement.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let script = "{ for c in \"$@\"; do docker ps -aq --filter label=io.x-k8s.kind.cluster=$c; done; echo \"$JUMPHOST\"; } | xargs docker rm -f -v >/dev/null 2>&1";
+        let spawned = std::process::Command::new("sh")
+            .args(["-c", script, "sh"])
+            .args(placement.values())
+            .env("JUMPHOST", &self.jumphost.name)
+            .env("PATH", docker::cli_path())
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+        if let Err(e) = spawned {
+            tracing::warn!(error = %e, "removing a verify run on exit");
+        }
+    }
+
+    /// Remove the clusters, the jumphost and the run's files
+    pub async fn finish(&self, log: Log<'_>) {
+        let placement = self.placement.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        for physical in placement.values() {
+            if let Err(e) = lifecycle::delete(&self.kind, physical, log).await {
+                log(format!("[{}] could not delete cluster {physical}: {e}", self.id));
+            }
+        }
+        if let Ok(docker) = docker::connect().await {
+            let _ = self.jumphost.remove(&docker).await;
+        }
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
 }
 
 /// Remove what verify runs left behind when their process was killed or

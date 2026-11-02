@@ -53,27 +53,6 @@ pub struct Draft {
     pub yaml: String,
 }
 
-/// A certification the generator can write for, with its domains
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-pub struct GeneratorTarget {
-    pub certification: String,
-    pub title: String,
-    /// Domain and its weight in percent, heaviest first
-    pub domains: Vec<(String, u32)>,
-}
-
-pub fn targets(bank: &LoadedPack) -> Vec<GeneratorTarget> {
-    bank.pack
-        .certifications
-        .iter()
-        .map(|(id, c)| {
-            let mut domains: Vec<(String, u32)> = c.domains.iter().map(|(d, w)| (d.clone(), *w)).collect();
-            domains.sort_by(|a, b| b.1.cmp(&a.1));
-            GeneratorTarget { certification: id.clone(), title: c.title.clone(), domains }
-        })
-        .collect()
-}
-
 /// Generate a question for `bank` and keep it once proven (the caller reloads
 /// the bank to show it). `review` gets each draft that lints; its answer
 /// says whether the scripts may run (no, or none: it is discarded)
@@ -180,7 +159,7 @@ pub async fn generate(
     op.end(result)
 }
 
-fn lint_errors(staging: &LoadedPack, path: &Path) -> Vec<String> {
+pub(crate) fn lint_errors(staging: &LoadedPack, path: &Path) -> Vec<String> {
     lint::lint(staging)
         .into_iter()
         .filter(|f| f.level == Level::Error && Path::new(&f.file).file_stem() == path.file_stem())
@@ -191,25 +170,29 @@ fn lint_errors(staging: &LoadedPack, path: &Path) -> Vec<String> {
 /// A pack of just the new question, with the bundled certifications, to lint
 /// and verify it alone
 fn staging(bank: &LoadedPack, data_dir: &Path, id: &str, path: &Path, question: Question) -> LoadedPack {
+    staging_of(bank, data_dir, [(id.to_string(), path.to_path_buf(), question)])
+}
+
+/// A pack of new `questions` (id, path, question), with the bundled
+/// certifications, to lint and verify them without the rest
+pub(crate) fn staging_of(
+    bank: &LoadedPack,
+    data_dir: &Path,
+    questions: impl IntoIterator<Item = (String, std::path::PathBuf, Question)>,
+) -> LoadedPack {
     let mut pack = bank.pack.clone();
     pack.id = mine::PACK_ID.into();
     LoadedPack {
         root: mine::root(data_dir),
         pack,
-        questions: BTreeMap::from([(id.to_string(), Loaded { path: path.to_path_buf(), value: question })]),
+        questions: questions.into_iter().map(|(id, path, value)| (id, Loaded { path, value })).collect(),
         exams: BTreeMap::new(),
     }
 }
 
-fn system(bank: &LoadedPack, request: &GenerateRequest) -> String {
-    let schema = crate::lab::schemas()
-        .into_iter()
-        .find(|(name, _)| *name == "question.schema.json")
-        .map(|(_, s)| serde_json::to_string(&s).unwrap_or_default())
-        .unwrap_or_default();
-    let mut s = String::from(
-        "You write exam tasks for cktry, a Kubernetes certification simulator, in its question format \
-(YAML, the JSON schema below). A question is a task on a real kind cluster: `setup` (bash, run once \
+/// What a question is and the rules it is proven against (enforced on a
+/// cluster), for whoever writes one: the generator, Create with Claude
+pub(crate) const RULES: &str = "A question is a task on a real kind cluster: `setup` (bash, run once \
 before the exam) prepares the starting state, `checks` (bash, each exits 0 when that part is solved) \
 grade it, and `solution.run` (bash) solves it.\n\n\
 Rules, all enforced by running it on a cluster:\n\
@@ -224,11 +207,25 @@ setup starts with a clean slate (`kubectl delete ... --ignore-not-found`).\n\
 - Images: small public ones with pinned tags (nginx:1.27, busybox:1.36, redis:7.4, httpd:2.4).\n\
 - The statement is what the candidate reads, like the real exam: precise names, namespaces and \
 values; Markdown with `code` for names. Add 1-3 `hints` and `solution.explain` (why, plus the docs \
-page). `references`: kubernetes.io/docs pages only.\n\
+page). `references`: kubernetes.io/docs pages only.\n";
+
+/// The question format's JSON schema, as text
+pub(crate) fn question_schema() -> String {
+    crate::lab::schemas()
+        .into_iter()
+        .find(|(name, _)| *name == "question.schema.json")
+        .map(|(_, s)| serde_json::to_string(&s).unwrap_or_default())
+        .unwrap_or_default()
+}
+
+fn system(bank: &LoadedPack, request: &GenerateRequest) -> String {
+    let mut s = format!(
+        "You write exam tasks for cktry, a Kubernetes certification simulator, in its question format \
+(YAML, the JSON schema below). {RULES}\
 - Leave out `cluster` and `workers` unless the task needs more than one worker node.\n\n\
-Answer with the question YAML only, in one ```yaml block.\n\n",
+Answer with the question YAML only, in one ```yaml block.\n\n"
     );
-    let _ = writeln!(s, "JSON schema of a question:\n```json\n{schema}\n```\n");
+    let _ = writeln!(s, "JSON schema of a question:\n```json\n{}\n```\n", question_schema());
     // Two real questions of the domain, as the house style
     let mut examples: Vec<&Loaded<Question>> = bank
         .questions

@@ -12,6 +12,7 @@ pub mod mcp;
 pub mod mcp_http;
 pub mod policy;
 mod prompt;
+mod studio;
 
 use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};
@@ -29,7 +30,6 @@ use tokio_util::sync::CancellationToken;
 /// candidate picks among what the agent lists (`Coach::models`)
 pub const DEFAULT_MODEL: &str = "sonnet";
 /// Writing a question that has to pass on a cluster needs the most capable one
-const GENERATOR_MODEL: &str = "opus";
 /// Names a session from its first question: the quick model, and how
 const TITLE_MODEL: &str = "haiku";
 
@@ -156,9 +156,6 @@ pub struct Coach {
     active: std::sync::atomic::AtomicUsize,
     /// Something was asked since the adapter started: it stays up longer
     asked: std::sync::atomic::AtomicBool,
-    /// A generated question waiting for the candidate's review: where the
-    /// answer goes
-    reviewing: Mutex<Option<tokio::sync::oneshot::Sender<bool>>>,
     /// The login as last read, and when: reading it starts the adapter
     account: Mutex<Option<(account::Account, std::time::Instant)>>,
 }
@@ -194,7 +191,6 @@ impl Coach {
             enabled: std::sync::atomic::AtomicBool::new(true),
             signing_in: Default::default(),
             account: Default::default(),
-            reviewing: Default::default(),
             active: Default::default(),
             asked: Default::default(),
         }
@@ -621,50 +617,6 @@ impl Coach {
         let subject = exams.coach_subject(question_id, false)?;
         self.forget_session(&subject.attempt_id, question_id).await;
         store.clear_coach_messages(&subject.attempt_id, question_id)
-    }
-
-    /// Generate a question and prove it; stopped by `cancel` while the model writes
-    pub async fn generate(
-        &self,
-        exams: &Exams,
-        infra: &crate::runtime::infra::Infra,
-        activities: &std::sync::Arc<crate::runtime::activity::Activities>,
-        data_dir: &std::path::Path,
-        request: &generate::GenerateRequest,
-        on_draft: impl Fn(generate::Draft),
-    ) -> AppResult<generate::Generated> {
-        if exams.exam_in_progress() {
-            return Err(AppError::invalid("the coach is not available during an exam"));
-        }
-        self.require_enabled()?;
-        let _busy = self.busy();
-        let bank = exams.bank();
-        let cancel = self.start();
-        // Each draft waits for the candidate's answer (`review`)
-        let review = |draft: generate::Draft| {
-            let (answer, answered) = tokio::sync::oneshot::channel();
-            *self.reviewing.locked() = Some(answer);
-            on_draft(draft);
-            answered
-        };
-        let generated =
-            generate::generate(&self.agent, GENERATOR_MODEL, &bank, infra, activities, data_dir, request, &cancel, review).await;
-        self.reviewing.locked().take();
-        let generated = generated?;
-        // The catalog shows it from now on
-        exams.reload_mine(data_dir);
-        Ok(generated)
-    }
-
-    /// The candidate read the generated draft: let its scripts run, or not
-    pub fn review(&self, approve: bool) -> AppResult<()> {
-        let answer = self
-            .reviewing
-            .locked()
-            .take()
-            .ok_or_else(|| AppError::not_found("no generated question is waiting for review"))?;
-        let _ = answer.send(approve);
-        Ok(())
     }
 
     /// Stop the adapter once unused for a while (nothing being answered or
