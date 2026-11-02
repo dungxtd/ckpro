@@ -1,6 +1,6 @@
 # Architecture
 
-CK --dry-run (`ckpro`) is a Tauri v2 app: a Rust core that owns the
+CK Try (`ckpro`) is a Tauri v2 app: a Rust core that owns the
 environment and the exam, and a React 19 interface that shows its state.
 Everything runs in the host's Docker engine; the app keeps its state in one
 SQLite database in its data directory.

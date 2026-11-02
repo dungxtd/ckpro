@@ -13,7 +13,7 @@ cask "ckpro" do
     url "https://github.com/dungxtd/ckpro/releases/download/v#{version}/ckpro_macos-x64_ckpro_#{version}_x64.dmg"
   end
 
-  name "CK --dry-run"
+  name "CK Try"
   desc "Practice the CKA, CKAD and CKS exams on local Kubernetes clusters"
   homepage "https://github.com/dungxtd/ckpro"
 

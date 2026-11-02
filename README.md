@@ -1,4 +1,4 @@
-# CK --dry-run
+# CK Try
 
 A desktop app for practising the CKA, CKAD and CKS exams on real Kubernetes
 clusters, in an environment laid out like the exam itself.

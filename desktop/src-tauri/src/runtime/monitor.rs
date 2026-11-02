@@ -72,6 +72,8 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
         tracing::info!("connected to docker");
 
         if !reconciled {
+            // The containers left under the app's former name go first
+            crate::former::remove_containers(&docker).await;
             reconcile::on_startup(&docker, &kind, &activities, &resuming).await;
             // Exams start without building anything
             tauri::async_runtime::spawn(prepare_images(docker.clone(), infra.clone(), activities.clone()));
