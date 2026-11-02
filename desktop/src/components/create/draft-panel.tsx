@@ -11,6 +11,7 @@ import {
 } from "@cktry/ui/components/dialog";
 import { IconButton } from "@cktry/ui/components/icon-button";
 import { Placeholder } from "@cktry/ui/components/placeholder";
+import { cn } from "@cktry/ui/lib/utils";
 import { X } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -31,16 +32,29 @@ export function DraftPanel() {
 	const { removeItem, verify, save } = useStudio.getState();
 	const navigate = useNavigate();
 	const [reviewing, setReviewing] = useState(false);
+	// On a narrow window the questions fold under the draft's bar
+	const [unfolded, setUnfolded] = useState(false);
 	const items = draft?.items ?? [];
 	const fresh = items.flatMap(i => (i.kind === "new" ? [i] : []));
 	const unproven = fresh.filter(q => q.status.state !== "proven");
 	const ready = workspace.state === "ready";
 
 	return (
-		<aside className="flex min-h-0 flex-col border-border border-l bg-foreground/[0.015]">
+		<aside className="flex min-h-0 flex-col border-border border-t bg-foreground/[0.015] @3xl:border-t-0 @3xl:border-l">
 			<div className="flex flex-col gap-1 border-border border-b px-4 py-3">
 				<div className="flex items-baseline justify-between gap-3">
 					<h2 className="truncate font-semibold text-lead">{draft?.title || "Draft exam"}</h2>
+					{items.length > 0 && (
+						<Button
+							size="push"
+							variant="push"
+							className="@3xl:hidden"
+							aria-expanded={unfolded}
+							onClick={() => setUnfolded(u => !u)}
+						>
+							Questions {unfolded ? "▴" : "▾"}
+						</Button>
+					)}
 					{draft?.certification && (
 						<span className="shrink-0 text-caption text-muted-foreground">
 							{draft.certification.toUpperCase()}
@@ -52,7 +66,13 @@ export function DraftPanel() {
 				<ClusterChip />
 			</div>
 
-			<div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 py-3">
+			<div
+				className={cn(
+					"min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 py-3 @3xl:flex",
+					// Narrow: folded, or a part of the height when opened
+					unfolded ? "flex max-h-[45vh] @3xl:max-h-none" : "hidden"
+				)}
+			>
 				{items.length === 0 ? (
 					<Placeholder
 						className="my-auto"
