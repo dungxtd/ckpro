@@ -95,44 +95,47 @@ export function Chat() {
 				</IconButton>
 			</header>
 
-			<div ref={list} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
-				{messages.length === 0 && (
-					<div className="m-auto flex max-w-md flex-col items-center gap-3 text-center">
-						<ClaudeIcon className="size-7 text-claude" />
-						<p className="font-semibold text-lead">What exam do you want?</p>
-						<p className="text-callout text-muted-foreground">
-							Claude reads your target, your attempts and what you got wrong, your plans and the
-							exams here, and builds an exam beside. New questions are proven on a cluster before
-							you save.
-						</p>
-						<div className="mt-1 flex flex-col gap-1.5">
-							{STARTERS.map(s => (
-								<Button key={s} size="push" variant="push" onClick={() => submit(s)}>
-									{s}
-								</Button>
-							))}
+			{/* A readable line however wide the window */}
+			<div ref={list} className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+				<div className="mx-auto flex min-h-full max-w-3xl flex-col gap-3">
+					{messages.length === 0 && (
+						<div className="m-auto flex max-w-md flex-col items-center gap-3 text-center">
+							<ClaudeIcon className="size-7 text-claude" />
+							<p className="font-semibold text-lead">What exam do you want?</p>
+							<p className="text-callout text-muted-foreground">
+								Claude reads your target, your attempts and what you got wrong, your plans and the
+								exams here, and builds an exam beside. New questions are proven on a cluster before
+								you save.
+							</p>
+							<div className="mt-1 flex flex-col gap-1.5">
+								{STARTERS.map(s => (
+									<Button key={s} size="push" variant="push" onClick={() => submit(s)}>
+										{s}
+									</Button>
+								))}
+							</div>
 						</div>
-					</div>
-				)}
-				{messages.map((m, i) =>
-					m.role === "user" ? (
-						// biome-ignore lint/suspicious/noArrayIndexKey: messages only grow
-						<UserMessage key={i}>{m.text}</UserMessage>
-					) : (
-						// biome-ignore lint/suspicious/noArrayIndexKey: messages only grow
-						<div key={i} className="flex gap-2.5">
-							<ClaudeIcon className="mt-1 size-4 shrink-0 text-claude" />
-							{m.text ? (
-								<Answer>{m.text}</Answer>
-							) : (
-								<span className="flex items-center gap-2 text-callout text-muted-foreground">
-									<Spinner size="inline" className="size-3.5" /> Thinking…
-								</span>
-							)}
-						</div>
-					)
-				)}
-				{error && <Alert variant="destructive">{error}</Alert>}
+					)}
+					{messages.map((m, i) =>
+						m.role === "user" ? (
+							// biome-ignore lint/suspicious/noArrayIndexKey: messages only grow
+							<UserMessage key={i}>{m.text}</UserMessage>
+						) : (
+							// biome-ignore lint/suspicious/noArrayIndexKey: messages only grow
+							<div key={i} className="flex gap-2.5">
+								<ClaudeIcon className="mt-1 size-4 shrink-0 text-claude" />
+								{m.text ? (
+									<Answer>{m.text}</Answer>
+								) : (
+									<span className="flex items-center gap-2 text-callout text-muted-foreground">
+										<Spinner size="inline" className="size-3.5" /> Thinking…
+									</span>
+								)}
+							</div>
+						)
+					)}
+					{error && <Alert variant="destructive">{error}</Alert>}
+				</div>
 			</div>
 
 			{tool && (
@@ -153,7 +156,7 @@ export function Chat() {
 				</div>
 			) : (
 				<div className="border-border border-t px-5 py-3">
-					<div className="flex items-end gap-2 rounded-xl border border-border bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring/50">
+					<div className="mx-auto flex max-w-3xl items-end gap-2 rounded-xl border border-border bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring/50">
 						<Textarea
 							variant="bare"
 							rows={2}
