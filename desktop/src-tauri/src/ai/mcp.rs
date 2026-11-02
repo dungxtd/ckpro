@@ -126,7 +126,7 @@ fn initialize(params: &Value) -> Value {
     json!({
         "protocolVersion": version,
         "capabilities": { "tools": {} },
-        "serverInfo": { "name": "cktry", "title": "cktry", "version": env!("CARGO_PKG_VERSION") },
+        "serverInfo": { "name": "cktry", "title": "CKtry", "version": env!("CARGO_PKG_VERSION") },
     })
 }
 

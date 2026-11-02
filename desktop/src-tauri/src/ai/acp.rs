@@ -189,7 +189,7 @@ impl Connection {
                     "protocolVersion": PROTOCOL_VERSION,
                     // Read-only: no file system, no terminal
                     "clientCapabilities": {},
-                    "clientInfo": { "name": "cktry", "title": "cktry", "version": env!("CARGO_PKG_VERSION") },
+                    "clientInfo": { "name": "cktry", "title": "CKtry", "version": env!("CARGO_PKG_VERSION") },
                 }),
             )
             .await?;

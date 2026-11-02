@@ -1,4 +1,4 @@
-# CK Try (cktry)
+# CKtry (`cktry`)
 
 Tauri v2 desktop app for practising the CKA/CKAD/CKS exams on local kind
 clusters: Rust core in `desktop/src-tauri`, React 19 interface in
