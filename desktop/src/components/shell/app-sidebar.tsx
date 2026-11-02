@@ -16,6 +16,7 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { ExamList } from "@/components/catalog/exam-list";
 import { moved, toggled } from "@/components/catalog/layout";
+import { SHORTCUTS } from "@/shortcuts";
 import { useSidebarLayout } from "@/stores/settings";
 import { arrangeScreens } from "./sections";
 import { SidebarMenu } from "./sidebar-menu";
@@ -105,7 +106,7 @@ export function AppSidebar({
 								<IconButton
 									variant="toolbar"
 									size="bar"
-									aria-label="Hide sidebar (⌃⌘S)"
+									aria-label={`Hide sidebar (${SHORTCUTS.sidebar.label})`}
 									onClick={onFold}
 								>
 									<PanelLeft />
