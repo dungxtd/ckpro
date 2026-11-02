@@ -5,27 +5,27 @@ cask "cktry" do
 
   on_arm do
     sha256 "0000000000000000000000000000000000000000000000000000000000000000"
-    url "https://github.com/dungxtd/cktry/releases/download/v#{version}/cktry_macos-arm64_cktry_#{version}_aarch64.dmg"
+    url "https://github.com/dungxtd/cktry/releases/download/v#{version}/cktry_macos-arm64_CKtry_#{version}_aarch64.dmg"
   end
 
   on_intel do
     sha256 "0000000000000000000000000000000000000000000000000000000000000000"
-    url "https://github.com/dungxtd/cktry/releases/download/v#{version}/cktry_macos-x64_cktry_#{version}_x64.dmg"
+    url "https://github.com/dungxtd/cktry/releases/download/v#{version}/cktry_macos-x64_CKtry_#{version}_x64.dmg"
   end
 
-  name "CK Try"
+  name "CKtry"
   desc "Practice the CKA, CKAD and CKS exams on local Kubernetes clusters"
   homepage "https://github.com/dungxtd/cktry"
 
   depends_on macos: :big_sur
 
-  app "cktry.app"
+  app "CKtry.app"
 
   # Ad-hoc signed (no Developer ID or notarization yet): Gatekeeper would
   # refuse it as damaged on first open, so the quarantine flag goes on install
   postflight do
     system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/cktry.app"]
+                   args: ["-dr", "com.apple.quarantine", "#{appdir}/CKtry.app"]
   end
 
   # The app's database, kubeconfigs and logs; its Docker containers stay
