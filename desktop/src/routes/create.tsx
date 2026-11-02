@@ -2,15 +2,18 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 import { Chat } from "@/components/create/chat";
 import { DraftPanel } from "@/components/create/draft-panel";
+import { Inspector, useInspectorFits } from "@/components/shell/inspector";
 import { useStudio } from "@/stores/studio";
 
 /**
- * Create with Claude: a conversation (left) building an exam (right) from
- * everything the app knows. Opening it makes the verify cluster new questions
- * are proven on; leaving keeps it a while (back soon, it is ready) and says
- * so, with a way to remove it at once
+ * Create with Claude: a conversation building an exam from everything the
+ * app knows, the exam in the window's inspector (as tall as the window,
+ * like the sidebar), or a bar under the chat on a narrow window. Opening
+ * it makes the verify cluster new questions are proven on; leaving keeps it
+ * a while (back soon, it is ready) and says so, with a way to remove it at once
  */
 export function CreateRoute() {
+	const fits = useInspectorFits();
 	useEffect(() => {
 		const { enter } = useStudio.getState();
 		const stop = enter();
@@ -25,14 +28,17 @@ export function CreateRoute() {
 		};
 	}, []);
 
-	return (
-		// The draft beside the chat on a wide window; on a narrow one the chat
-		// takes the height and the draft folds into a bar under it
-		<div className="@container h-full min-h-0">
-			<div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] @3xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)] @3xl:grid-rows-1">
-				<Chat />
+	return fits ? (
+		<>
+			<Chat />
+			<Inspector>
 				<DraftPanel />
-			</div>
+			</Inspector>
+		</>
+	) : (
+		<div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto]">
+			<Chat />
+			<DraftPanel bar />
 		</div>
 	);
 }
