@@ -1,14 +1,14 @@
-import { Button } from "@ckdry/ui/components/button";
-import { IconButton } from "@ckdry/ui/components/icon-button";
-import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
+import { Button } from "@cktry/ui/components/button";
+import { IconButton } from "@cktry/ui/components/icon-button";
+import { SegmentedControl } from "@cktry/ui/components/segmented-control";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@ckdry/ui/components/select";
-import { cn } from "@ckdry/ui/lib/utils";
+} from "@cktry/ui/components/select";
+import { cn } from "@cktry/ui/lib/utils";
 import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";

@@ -271,7 +271,7 @@ impl Agent {
 
     /// The working directory sessions are given: empty, nothing to read
     fn session_cwd(&self) -> String {
-        let dir = std::env::temp_dir().join("ckdry-agent");
+        let dir = std::env::temp_dir().join("cktry-agent");
         let _ = std::fs::create_dir_all(&dir);
         dir.display().to_string()
     }
@@ -542,12 +542,12 @@ impl Agent {
 mod tests {
     use super::*;
 
-    /// The real adapter with ckdry's agent tools, served as the app serves
+    /// The real adapter with cktry's agent tools, served as the app serves
     /// them (needs Node and a Claude login): it asks before running a
     /// command, runs it once allowed, and reports the call
     #[tokio::test]
     #[ignore]
-    async fn agent_asks_then_runs_ckdry_tools() {
+    async fn agent_asks_then_runs_cktry_tools() {
         let agent = Agent::new();
         let store = std::sync::Arc::new(crate::store::Store::in_memory().unwrap());
         let server = crate::ai::mcp_http::McpHttp::start(store).await.unwrap();

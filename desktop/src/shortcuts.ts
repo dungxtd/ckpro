@@ -1,4 +1,4 @@
-import { command, mac } from "@ckdry/ui/lib/platform";
+import { command, mac } from "@cktry/ui/lib/platform";
 
 interface Keys {
 	key: string;

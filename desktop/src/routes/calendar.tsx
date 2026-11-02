@@ -1,10 +1,10 @@
-import { Button } from "@ckdry/ui/components/button";
-import { IconButton } from "@ckdry/ui/components/icon-button";
-import { Loading } from "@ckdry/ui/components/loading";
-import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
-import { Stat, StatGroup } from "@ckdry/ui/components/stat";
-import { morph } from "@ckdry/ui/lib/morph";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Button } from "@cktry/ui/components/button";
+import { IconButton } from "@cktry/ui/components/icon-button";
+import { Loading } from "@cktry/ui/components/loading";
+import { SegmentedControl } from "@cktry/ui/components/segmented-control";
+import { Stat, StatGroup } from "@cktry/ui/components/stat";
+import { morph } from "@cktry/ui/lib/morph";
+import { cn } from "@cktry/ui/lib/utils";
 import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";

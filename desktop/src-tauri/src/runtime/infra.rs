@@ -21,11 +21,11 @@ const KIND_NODE_BASE: &str = "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d167
 /// the app pulls from here like kind pulls its node image
 pub const REGISTRY: &str = "ghcr.io/dungxtd";
 
-/// An image of ckdry's: pulled from `REGISTRY`, or built here when it is not
+/// An image of cktry's: pulled from `REGISTRY`, or built here when it is not
 /// published (development, offline). Its tag is a hash of everything it is
 /// built from, so a change makes a new image (and the old one is dropped).
 pub struct Image {
-    /// Its directory under `resources/`, and its package name `ckdry-<name>`
+    /// Its directory under `resources/`, and its package name `cktry-<name>`
     pub name: &'static str,
     /// (name in the build context, content); the first is the Dockerfile
     files: &'static [(&'static str, &'static [u8])],
@@ -47,13 +47,13 @@ impl Image {
     }
 
     pub fn repository(&self) -> String {
-        format!("{REGISTRY}/ckdry-{}", self.name)
+        format!("{REGISTRY}/cktry-{}", self.name)
     }
 }
 
 pub const IMAGES: [&Image; 3] = [&NODE_IMAGE, &JUMPHOST_IMAGE, &DESKTOP_IMAGE];
 
-/// What CI builds and publishes (`ckdry images`, `resources/images.json`)
+/// What CI builds and publishes (`cktry images`, `resources/images.json`)
 pub fn manifest() -> serde_json::Value {
     IMAGES
         .iter()
@@ -114,7 +114,7 @@ pub const DESKTOP_IMAGE: Image = Image {
 /// Pull-through cache for every upstream, in one container and one volume.
 /// A registry proxies a single upstream, so it runs one registry process per
 /// upstream, each on its own port and its own directory in the volume.
-pub const MIRROR: &str = "ckdry-mirror";
+pub const MIRROR: &str = "cktry-mirror";
 const MIRROR_IMAGE: &str = "registry:2";
 /// (port, upstream, registry host)
 const UPSTREAMS: [(u16, &str, &str); 4] = [
@@ -142,7 +142,7 @@ impl Infra {
         let mut missing = Vec::new();
         for image in IMAGES {
             if docker.inspect_image(&image.tag()).await.is_err() {
-                missing.push(format!("ckdry-{}", image.name));
+                missing.push(format!("cktry-{}", image.name));
             }
         }
         missing
@@ -180,7 +180,7 @@ impl Infra {
             let dir = self.certs_dir().join(host);
             std::fs::create_dir_all(&dir).map_err(|e| AppError::io("writing registry config", e))?;
             let toml = format!(
-                "# Pull through the ckdry cache; containerd falls back to the upstream\n\
+                "# Pull through the cktry cache; containerd falls back to the upstream\n\
                  server = \"{upstream}\"\n\n[host.\"http://{MIRROR}:{port}\"]\n  capabilities = [\"pull\", \"resolve\"]\n"
             );
             std::fs::write(dir.join("hosts.toml"), toml).map_err(|e| AppError::io("writing registry config", e))?;
@@ -241,7 +241,7 @@ async fn remove_older(docker: &Docker, current: &str, log: &(dyn Fn(String) + Sy
     }
 }
 
-/// Drop ckdry images left without a tag (a rebuild under the same tag), a few
+/// Drop cktry images left without a tag (a rebuild under the same tag), a few
 /// GB each time otherwise.
 async fn remove_untagged(docker: &Docker, log: &(dyn Fn(String) + Sync)) {
     let filters = HashMap::from([
@@ -256,7 +256,7 @@ async fn remove_untagged(docker: &Docker, log: &(dyn Fn(String) + Sync)) {
         .await
         && let Some(bytes) = pruned.space_reclaimed.filter(|b| *b > 0)
     {
-        log(format!("Removed old ckdry image layers ({} MB)", bytes / 1_000_000));
+        log(format!("Removed old cktry image layers ({} MB)", bytes / 1_000_000));
     }
 }
 
@@ -405,6 +405,6 @@ mod tests {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/images.json");
         let committed: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_default()).unwrap_or_default();
-        assert_eq!(committed, manifest(), "stale resources/images.json: run `ckdry images > desktop/src-tauri/resources/images.json`");
+        assert_eq!(committed, manifest(), "stale resources/images.json: run `cktry images > desktop/src-tauri/resources/images.json`");
     }
 }

@@ -1,4 +1,4 @@
-//! `ckdry lab verify`: prove a pack grades correctly. Each run is isolated:
+//! `cktry lab verify`: prove a pack grades correctly. Each run is isolated:
 //! its own kind clusters (`<logical>-v<run>`), kubeconfigs and jumphost, so
 //! runs go in parallel and never touch the app's exam clusters.
 //!
@@ -108,7 +108,7 @@ pub async fn sweep_stale(data_dir: &Path, log: Log<'_>) {
                 .is_some_and(process_alive)
     };
 
-    // The runs ckdry left a trace of (their directory, their task host): a
+    // The runs cktry left a trace of (their directory, their task host): a
     // kind cluster only looks like a run's by its name, and may be the user's
     let docker = docker::connect().await.ok();
     let mut jumphosts = Vec::new();

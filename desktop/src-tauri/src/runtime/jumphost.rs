@@ -1,4 +1,4 @@
-//! The candidate's machine. The app has one (`ckdry-jumphost`); every
+//! The candidate's machine. The app has one (`cktry-jumphost`); every
 //! `lab verify` run gets its own, so runs never share files or kubeconfigs.
 //!
 //! Its kubeconfig has a context per cluster under the cluster's *logical*
@@ -27,13 +27,13 @@ pub fn app_placement(kind: &Kind) -> Placement {
     kind.owned_clusters().into_iter().map(|c| (c.clone(), c)).collect()
 }
 
-pub const APP_NAME: &str = "ckdry-jumphost";
-/// A verify run's jumphost is `ckdry-jumphost-<run>`
-pub const RUN_PREFIX: &str = "ckdry-jumphost-";
+pub const APP_NAME: &str = "cktry-jumphost";
+/// A verify run's jumphost is `cktry-jumphost-<run>`
+pub const RUN_PREFIX: &str = "cktry-jumphost-";
 
 pub struct Jumphost {
     pub name: String,
-    /// Mounted read-write at /root/.ckdry (`kubectl config use-context` writes)
+    /// Mounted read-write at /root/.cktry (`kubectl config use-context` writes)
     dir: PathBuf,
 }
 
@@ -50,7 +50,7 @@ impl Jumphost {
 
     /// Where etcd client certs for a logical cluster are, on the jumphost
     pub fn etcd_certs(cluster: &str) -> String {
-        format!("/root/.ckdry/etcd/{cluster}")
+        format!("/root/.cktry/etcd/{cluster}")
     }
 
     pub async fn ensure(&self, docker: &Docker, log: Log<'_>) -> AppResult<()> {
@@ -80,7 +80,7 @@ impl Jumphost {
             hostname: Some("jumphost".into()),
             labels: Some(compose_labels(&self.name).into_iter().collect()),
             host_config: Some(HostConfig {
-                binds: Some(vec![format!("{source}:/root/.ckdry")]),
+                binds: Some(vec![format!("{source}:/root/.cktry")]),
                 network_mode: Some(NETWORK.into()),
                 restart_policy: Some(RestartPolicy {
                     name: Some(RestartPolicyNameEnum::UNLESS_STOPPED),

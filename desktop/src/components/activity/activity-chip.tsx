@@ -1,6 +1,6 @@
-import { Chip } from "@ckdry/ui/components/chip";
-import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Chip } from "@cktry/ui/components/chip";
+import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
+import { cn } from "@cktry/ui/lib/utils";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { ActivityProgress } from "@/components/activity/activity-progress";

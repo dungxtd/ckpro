@@ -1,6 +1,6 @@
 # Architecture
 
-CK --dry-run (`ckdry`) is a Tauri v2 app: a Rust core that owns the
+CK Try (`cktry`) is a Tauri v2 app: a Rust core that owns the
 environment and the exam, and a React 19 interface that shows its state.
 Everything runs in the host's Docker engine; the app keeps its state in one
 SQLite database in its data directory.
@@ -22,9 +22,9 @@ desktop/
     store.rs              SQLite (migrations, settings, history, sessions)
     e2e.rs                end-to-end tests on Docker (opt-in)
     commands.rs           the commands the interface calls
-    cli.rs                `ckdry lab …`, `ckdry images`
+    cli.rs                `cktry lab …`, `cktry images`
   src-tauri/resources/    images: desktop, task host (jumphost), nodes
-packages/ckdry-ui/        the UI kit (Radix, cva); live at desktop/kit.html
+packages/cktry-ui/        the UI kit (Radix, cva); live at desktop/kit.html
 packs/core/               the question bank (YAML) and its JSON Schemas
 ```
 
@@ -56,8 +56,8 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 
 ## Exam engine (`lab/`)
 
-- A pack is YAML validated against generated JSON Schemas (`ckdry lab lint`);
-  every question is proven on real clusters (`ckdry lab verify`): its checks
+- A pack is YAML validated against generated JSON Schemas (`cktry lab lint`);
+  every question is proven on real clusters (`cktry lab verify`): its checks
   fail after setup and pass after the solution.
 - `exam/` draws an attempt (random draws favour unseen and unsolved
   questions), prepares clusters, task host and desktop, runs the timer,
@@ -100,7 +100,7 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 
 ## Interface
 
-- One rule for controls: the kit first (`@ckdry/ui`); a pattern used twice
+- One rule for controls: the kit first (`@cktry/ui`); a pattern used twice
   becomes a kit component or variant.
 - State comes from Rust events (exam, environment, activities); the
   interface never polls.

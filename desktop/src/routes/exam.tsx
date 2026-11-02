@@ -1,6 +1,6 @@
-import { Button } from "@ckdry/ui/components/button";
-import { Card } from "@ckdry/ui/components/card";
-import { Loading } from "@ckdry/ui/components/loading";
+import { Button } from "@cktry/ui/components/button";
+import { Card } from "@cktry/ui/components/card";
+import { Loading } from "@cktry/ui/components/loading";
 import { Navigate } from "react-router";
 import { useShallow } from "zustand/react/shallow";
 import { ActivityPage } from "@/components/activity/activity-progress";
@@ -51,7 +51,7 @@ function ExamPhase() {
 				<ActivityPage
 					id={state.activity}
 					subtitle={state.attempt.title}
-					note="ckdry was closed during this exam. Its clusters and desktop are starting again; the exam timer kept running."
+					note="cktry was closed during this exam. Its clusters and desktop are starting again; the exam timer kept running."
 				/>
 			);
 		case "running":

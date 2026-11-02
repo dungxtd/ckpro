@@ -1,5 +1,5 @@
 //! A minimal Agent Client Protocol (ACP v1) client:
-//! JSON-RPC 2.0, one message per line, over the agent's stdin/stdout. ckdry
+//! JSON-RPC 2.0, one message per line, over the agent's stdin/stdout. cktry
 //! offers no file system or terminal (commands run through its own MCP tool,
 //! on the task host), and answers the agent's other requests with "method not
 //! found". Session updates and permission requests go to whoever follows that
@@ -189,7 +189,7 @@ impl Connection {
                     "protocolVersion": PROTOCOL_VERSION,
                     // Read-only: no file system, no terminal
                     "clientCapabilities": {},
-                    "clientInfo": { "name": "ckdry", "title": "ckdry", "version": env!("CARGO_PKG_VERSION") },
+                    "clientInfo": { "name": "cktry", "title": "cktry", "version": env!("CARGO_PKG_VERSION") },
                 }),
             )
             .await?;

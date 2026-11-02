@@ -1,5 +1,5 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/tooltip";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@cktry/ui/components/tooltip";
+import { cn } from "@cktry/ui/lib/utils";
 import { Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 

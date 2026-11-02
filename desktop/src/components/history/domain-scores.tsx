@@ -1,6 +1,6 @@
-import { Badge } from "@ckdry/ui/components/badge";
-import { Progress } from "@ckdry/ui/components/progress";
-import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
+import { Badge } from "@cktry/ui/components/badge";
+import { Progress } from "@cktry/ui/components/progress";
+import { SegmentedControl } from "@cktry/ui/components/segmented-control";
 import {
 	Table,
 	TableBody,
@@ -8,7 +8,7 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@ckdry/ui/components/table";
+} from "@cktry/ui/components/table";
 import { useEffect, useState } from "react";
 import { scoreTone } from "@/components/study/data";
 import { type DomainStat, examApi, type StudyStats } from "@/tauri/api";

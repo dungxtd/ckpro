@@ -1,5 +1,5 @@
-import { Loading } from "@ckdry/ui/components/loading";
-import { useDismissSurface } from "@ckdry/ui/components/popover";
+import { Loading } from "@cktry/ui/components/loading";
+import { useDismissSurface } from "@cktry/ui/components/popover";
 import RFB from "@novnc/novnc";
 import { useEffect, useRef, useState } from "react";
 import { connectClipboard } from "@/components/exam/desktop-clipboard";

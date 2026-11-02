@@ -1,8 +1,8 @@
-import { Card, CardDescription, CardHeader, CardTitle } from "@ckdry/ui/components/card";
-import { Placeholder } from "@ckdry/ui/components/placeholder";
-import { Stat } from "@ckdry/ui/components/stat";
-import { useElementSize } from "@ckdry/ui/hooks/use-element-size";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Card, CardDescription, CardHeader, CardTitle } from "@cktry/ui/components/card";
+import { Placeholder } from "@cktry/ui/components/placeholder";
+import { Stat } from "@cktry/ui/components/stat";
+import { useElementSize } from "@cktry/ui/hooks/use-element-size";
+import { cn } from "@cktry/ui/lib/utils";
 import { Flag } from "lucide-react";
 import { level, MAP_WEEKS, mapWeeks } from "@/components/study/data";
 import { dayKey } from "@/days";

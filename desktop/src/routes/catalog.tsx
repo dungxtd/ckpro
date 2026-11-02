@@ -1,6 +1,6 @@
-import { Alert } from "@ckdry/ui/components/alert";
-import { Button } from "@ckdry/ui/components/button";
-import { Loading } from "@ckdry/ui/components/loading";
+import { Alert } from "@cktry/ui/components/alert";
+import { Button } from "@cktry/ui/components/button";
+import { Loading } from "@cktry/ui/components/loading";
 import { useEffect, useState } from "react";
 import { ExamDetail } from "@/components/catalog/exam-detail";
 import { useSelection } from "@/components/catalog/exams";
@@ -39,7 +39,7 @@ export function CatalogRoute() {
 			{docker?.state === "down" && (
 				<Alert variant="warning" className="items-center">
 					<span className="flex-1">
-						<strong>Docker is not running.</strong> Start OrbStack or Docker Desktop: ckdry connects
+						<strong>Docker is not running.</strong> Start OrbStack or Docker Desktop: cktry connects
 						as soon as it is up.
 					</span>
 					<Button size="push" variant="push" onClick={() => envApi.retry()}>

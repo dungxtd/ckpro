@@ -4,7 +4,7 @@ import {
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@ckdry/ui/components/select";
+} from "@cktry/ui/components/select";
 import { SunMoon } from "lucide-react";
 import { Group, Row } from "@/components/settings/layout";
 import { useSettings } from "@/stores/settings";

@@ -318,7 +318,7 @@
     },
     "requires": {
       "default": [],
-      "description": "Capabilities the question needs beyond a cluster and the jumphost.\nQuestions needing one ckdry does not provide are left out of exams and\nverify runs.",
+      "description": "Capabilities the question needs beyond a cluster and the jumphost.\nQuestions needing one cktry does not provide are left out of exams and\nverify runs.",
       "items": {
         "$ref": "#/$defs/Capability"
       },
@@ -334,7 +334,7 @@
     },
     "solution": {
       "$ref": "#/$defs/Solution",
-      "description": "Reference answer. `run` must make every check pass (`ckdry lab verify`)"
+      "description": "Reference answer. `run` must make every check pass (`cktry lab verify`)"
     },
     "statement": {
       "description": "The task, in Markdown",

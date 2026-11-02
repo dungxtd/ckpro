@@ -1,4 +1,4 @@
-import { Loading } from "@ckdry/ui/components/loading";
+import { Loading } from "@cktry/ui/components/loading";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { PrepMap } from "@/components/home/prep-map";

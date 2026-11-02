@@ -1,4 +1,4 @@
-import { Alert } from "@ckdry/ui/components/alert";
+import { Alert } from "@cktry/ui/components/alert";
 import { CircleAlert, TriangleAlert } from "lucide-react";
 import type { Issue } from "@/tauri/api";
 

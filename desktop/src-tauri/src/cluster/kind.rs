@@ -40,10 +40,10 @@ impl Kind {
             .collect()
     }
 
-    /// Every kind cluster on this machine, managed by ckdry or not (a run
+    /// Every kind cluster on this machine, managed by cktry or not (a run
     /// interrupted before kind wrote its kubeconfig leaves one unmanaged).
     pub async fn all_clusters(&self) -> AppResult<Vec<String>> {
-        // kind execs in the nodes (docker exec): ckdry's own, not outside access
+        // kind execs in the nodes (docker exec): cktry's own, not outside access
         let _own = crate::runtime::guard::own_operation();
         let output = Command::new(self.binary().await?)
             .args(["get", "clusters"])
@@ -92,7 +92,7 @@ impl Kind {
     }
 
     /// PATH for kind: a `docker` shim first, then the real CLI. kind has no
-    /// option to label its node containers, so the shim adds the ckdry compose
+    /// option to label its node containers, so the shim adds the cktry compose
     /// labels to every `docker run`; all other commands go straight through.
     fn kind_path(&self) -> AppResult<String> {
         let real = docker::cli().ok_or_else(|| AppError::DockerUnavailable {
@@ -106,7 +106,7 @@ impl Kind {
             .collect();
         let script = format!(
             "#!/bin/sh\n\
-             # Written by ckdry: label kind's node containers as part of the ckdry compose project\n\
+             # Written by cktry: label kind's node containers as part of the cktry compose project\n\
              if [ \"$1\" = run ]; then\n\
              \x20 shift\n\
              \x20 name=node prev=\n\
@@ -136,7 +136,7 @@ impl Kind {
     /// Run kind, handing every output line to `log`.
     async fn run(&self, args: &[&str], log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         let kind = self.binary().await?;
-        // kind execs in the nodes (docker exec): ckdry's own, not outside access
+        // kind execs in the nodes (docker exec): cktry's own, not outside access
         let _own = crate::runtime::guard::own_operation();
         let mut child = Command::new(&kind)
             .args(args)
@@ -203,7 +203,7 @@ impl Kind {
     /// kubeconfig that reaches the API server from inside the `kind` network
     /// (`https://<name>-control-plane:6443`), for the jumphost.
     pub async fn internal_kubeconfig(&self, name: &str) -> AppResult<String> {
-        // kind execs in the nodes (docker exec): ckdry's own, not outside access
+        // kind execs in the nodes (docker exec): cktry's own, not outside access
         let _own = crate::runtime::guard::own_operation();
         let output = Command::new(self.binary().await?)
             .args(["get", "kubeconfig", "--internal", "--name", name])

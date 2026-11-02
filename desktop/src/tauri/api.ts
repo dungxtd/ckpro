@@ -266,7 +266,7 @@ export const examApi = {
 	/** Calls `onChange` with every new exam state; returns the unsubscribe. */
 	subscribe: async (onChange: (state: ExamState) => void) =>
 		events.examChanged.listen(event => onChange(event.payload as ExamState)),
-	/** Something changed the attempt's environment outside ckdry (the guard) */
+	/** Something changed the attempt's environment outside cktry (the guard) */
 	onGuardNotice: async (onNotice: (message: string) => void) =>
 		events.guardNotice.listen(event => onNotice(event.payload)),
 	start: (id: string, mode: Mode, replace: boolean) =>

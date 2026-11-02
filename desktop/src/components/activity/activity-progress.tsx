@@ -1,10 +1,10 @@
-import { Alert } from "@ckdry/ui/components/alert";
-import { Button } from "@ckdry/ui/components/button";
-import { Card } from "@ckdry/ui/components/card";
-import { CodeBlock } from "@ckdry/ui/components/code-block";
-import { Progress } from "@ckdry/ui/components/progress";
-import { Spinner } from "@ckdry/ui/components/spinner";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Alert } from "@cktry/ui/components/alert";
+import { Button } from "@cktry/ui/components/button";
+import { Card } from "@cktry/ui/components/card";
+import { CodeBlock } from "@cktry/ui/components/code-block";
+import { Progress } from "@cktry/ui/components/progress";
+import { Spinner } from "@cktry/ui/components/spinner";
+import { cn } from "@cktry/ui/lib/utils";
 import { Check, ChevronDown, ChevronRight, Circle, Copy, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";

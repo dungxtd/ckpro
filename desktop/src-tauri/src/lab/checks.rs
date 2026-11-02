@@ -225,7 +225,7 @@ mod tests {
 
     /// The script with a stand-in kubectl that prints `value`
     fn run(script: &str, value: &str) -> (bool, String) {
-        let dir = std::env::temp_dir().join(format!("ckdry-checks-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("cktry-checks-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let kubectl = dir.join("kubectl");
         std::fs::write(&kubectl, format!("#!/bin/sh\nprintf '%s' {}\n", quote(value))).unwrap();
@@ -243,7 +243,7 @@ mod tests {
     fn messages_are_text_never_code() {
         let check = |expect| JsonpathCheck {
             resource: "deploy/web".into(),
-            namespace: Some("team-$(touch /tmp/ckdry-pwned)".into()),
+            namespace: Some("team-$(touch /tmp/cktry-pwned)".into()),
             path: "{.metadata.labels.`id`}".into(),
             expect,
         };
@@ -254,6 +254,6 @@ mod tests {
         assert_eq!(said, "{.metadata.labels.`id`}: expected 'a'b', got 'x$(id)'");
         let (_, said) = run(&jsonpath(&check(Expectation::Contains("\"q\"".into()))), "v");
         assert_eq!(said, "{.metadata.labels.`id`}: expected to contain '\"q\"', got 'v'");
-        assert!(!std::path::Path::new("/tmp/ckdry-pwned").exists());
+        assert!(!std::path::Path::new("/tmp/cktry-pwned").exists());
     }
 }

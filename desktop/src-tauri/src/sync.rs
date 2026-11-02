@@ -1,5 +1,5 @@
 //! Locks that keep working after a panic: a thread that panicked while
-//! holding one leaves the data as it was, and ckdry goes on with it rather
+//! holding one leaves the data as it was, and cktry goes on with it rather
 //! than failing every later caller.
 
 use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};

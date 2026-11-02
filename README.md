@@ -1,4 +1,4 @@
-# CK --dry-run
+# CK Try
 
 A desktop app for practising the CKA, CKAD and CKS exams on real Kubernetes
 clusters, in an environment laid out like the exam itself.
@@ -26,8 +26,8 @@ the cluster.
 ## Install
 
 ```bash
-brew tap dungxtd/ckdry https://github.com/dungxtd/ckdry
-brew install --cask ckdry
+brew tap dungxtd/cktry https://github.com/dungxtd/cktry
+brew install --cask cktry
 ```
 
 ## Requirements

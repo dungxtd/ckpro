@@ -1,6 +1,6 @@
 //! The Claude login the assistant runs on, read and changed with the Claude
 //! CLI (`--cli auth ...` through the adapter).
-//! The login itself stays the CLI's (keychain or `~/.claude`): ckdry keeps no
+//! The login itself stays the CLI's (keychain or `~/.claude`): cktry keeps no
 //! credentials.
 
 use super::agent::Agent;

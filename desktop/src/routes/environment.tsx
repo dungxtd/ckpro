@@ -1,8 +1,8 @@
-import { Alert } from "@ckdry/ui/components/alert";
-import { Badge } from "@ckdry/ui/components/badge";
-import { Button } from "@ckdry/ui/components/button";
-import { Loading } from "@ckdry/ui/components/loading";
-import { StatusDot } from "@ckdry/ui/components/status-dot";
+import { Alert } from "@cktry/ui/components/alert";
+import { Badge } from "@cktry/ui/components/badge";
+import { Button } from "@cktry/ui/components/button";
+import { Loading } from "@cktry/ui/components/loading";
+import { StatusDot } from "@cktry/ui/components/status-dot";
 import { useEffect } from "react";
 import { useLocation } from "react-router";
 import { ActivityList } from "@/components/activity/activity-list";
@@ -41,7 +41,7 @@ function DockerStatus({ docker }: { docker: EnvState["docker"] }) {
 	}
 }
 
-/** Live view of what ckdry runs: Docker, the clusters, what it is doing. */
+/** Live view of what cktry runs: Docker, the clusters, what it is doing. */
 export function EnvironmentRoute() {
 	const env = useEnvironment(s => s.env);
 	const error = useEnvironment(s => s.error);

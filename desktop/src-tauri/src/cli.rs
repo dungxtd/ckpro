@@ -1,4 +1,4 @@
-//! `ckdry <command>`: the same binary as the app, run headless. Used by lab
+//! `cktry <command>`: the same binary as the app, run headless. Used by lab
 //! authors, CI and AI agents (Claude Code) to check their work.
 
 use crate::lab::{lint, load, verify};
@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 #[derive(Parser)]
-#[command(name = "ckdry", version, about = "ckdry: Kubernetes exam practice")]
+#[command(name = "cktry", version, about = "cktry: Kubernetes exam practice")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -189,7 +189,7 @@ fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: boo
     };
     findings.extend(lint::lint(&pack));
     if findings.iter().any(|f| f.level == load::Level::Error) {
-        eprintln!("the pack has lint errors; run `ckdry lab lint` first");
+        eprintln!("the pack has lint errors; run `cktry lab lint` first");
         return ExitCode::FAILURE;
     }
     // Ids may omit the pack prefix
@@ -219,7 +219,7 @@ fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: boo
             runs.push(("questions".into(), loose));
         }
     }
-    // Questions needing what ckdry cannot offer yet are skipped, not failed
+    // Questions needing what cktry cannot offer yet are skipped, not failed
     for (label, ids) in &mut runs {
         ids.retain(|id| match pack.questions.get(id) {
             Some(q) if !q.value.runnable() => {

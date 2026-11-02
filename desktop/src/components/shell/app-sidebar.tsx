@@ -1,16 +1,16 @@
-import { Button } from "@ckdry/ui/components/button";
+import { Button } from "@cktry/ui/components/button";
 import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
-} from "@ckdry/ui/components/context-menu";
-import { IconButton } from "@ckdry/ui/components/icon-button";
-import { Input } from "@ckdry/ui/components/input";
-import { Sidebar, SidebarEye, SidebarGrip, SidebarItem } from "@ckdry/ui/components/sidebar";
-import { useDragOrder } from "@ckdry/ui/hooks/use-drag-order";
-import { cn } from "@ckdry/ui/lib/utils";
+} from "@cktry/ui/components/context-menu";
+import { IconButton } from "@cktry/ui/components/icon-button";
+import { Input } from "@cktry/ui/components/input";
+import { Sidebar, SidebarEye, SidebarGrip, SidebarItem } from "@cktry/ui/components/sidebar";
+import { useDragOrder } from "@cktry/ui/hooks/use-drag-order";
+import { cn } from "@cktry/ui/lib/utils";
 import { PanelLeft, Search, Settings } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";

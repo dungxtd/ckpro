@@ -1,7 +1,7 @@
-import { Button } from "@ckdry/ui/components/button";
-import { Card, CardDescription, CardTitle } from "@ckdry/ui/components/card";
-import { ProgressRing } from "@ckdry/ui/components/progress";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Button } from "@cktry/ui/components/button";
+import { Card, CardDescription, CardTitle } from "@cktry/ui/components/card";
+import { ProgressRing } from "@cktry/ui/components/progress";
+import { cn } from "@cktry/ui/lib/utils";
 import { Check, Play } from "lucide-react";
 import { useNavigate } from "react-router";
 import type { suggestion } from "@/components/study/data";

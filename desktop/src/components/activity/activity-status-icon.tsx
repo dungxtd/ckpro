@@ -1,5 +1,5 @@
-import { Spinner } from "@ckdry/ui/components/spinner";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Spinner } from "@cktry/ui/components/spinner";
+import { cn } from "@cktry/ui/lib/utils";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import type { Activity } from "@/tauri/api";
 

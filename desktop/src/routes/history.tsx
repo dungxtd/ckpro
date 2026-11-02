@@ -1,6 +1,6 @@
-import { Badge } from "@ckdry/ui/components/badge";
-import { IconButton } from "@ckdry/ui/components/icon-button";
-import { Loading } from "@ckdry/ui/components/loading";
+import { Badge } from "@cktry/ui/components/badge";
+import { IconButton } from "@cktry/ui/components/icon-button";
+import { Loading } from "@cktry/ui/components/loading";
 import {
 	Table,
 	TableBody,
@@ -8,7 +8,7 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@ckdry/ui/components/table";
+} from "@cktry/ui/components/table";
 import { History } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AttemptChats } from "@/components/history/attempt-chats";

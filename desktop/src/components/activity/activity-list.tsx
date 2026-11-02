@@ -1,6 +1,6 @@
-import { Card } from "@ckdry/ui/components/card";
-import { Disclosure } from "@ckdry/ui/components/disclosure";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Card } from "@cktry/ui/components/card";
+import { Disclosure } from "@cktry/ui/components/disclosure";
+import { cn } from "@cktry/ui/lib/utils";
 import { useState } from "react";
 import { ActivityProgress, clock } from "@/components/activity/activity-progress";
 import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";

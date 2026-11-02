@@ -1,6 +1,6 @@
-import { Alert } from "@ckdry/ui/components/alert";
-import { Button } from "@ckdry/ui/components/button";
-import { CodeBlock } from "@ckdry/ui/components/code-block";
+import { Alert } from "@cktry/ui/components/alert";
+import { Button } from "@cktry/ui/components/button";
+import { CodeBlock } from "@cktry/ui/components/code-block";
 import {
 	Dialog,
 	DialogContent,
@@ -8,9 +8,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@ckdry/ui/components/dialog";
-import { Input } from "@ckdry/ui/components/input";
-import { Spinner } from "@ckdry/ui/components/spinner";
+} from "@cktry/ui/components/dialog";
+import { Input } from "@cktry/ui/components/input";
+import { Spinner } from "@cktry/ui/components/spinner";
 import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";

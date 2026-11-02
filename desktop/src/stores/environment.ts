@@ -58,6 +58,6 @@ export const useEnvironment = create<EnvironmentState & EnvironmentActions>()(
 				}
 			},
 		})),
-		{ name: "ckdry-environment", enabled: import.meta.env.DEV }
+		{ name: "cktry-environment", enabled: import.meta.env.DEV }
 	)
 );

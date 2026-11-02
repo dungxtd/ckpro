@@ -1,6 +1,6 @@
-import { Badge } from "@ckdry/ui/components/badge";
-import { Button } from "@ckdry/ui/components/button";
-import { CardTitle } from "@ckdry/ui/components/card";
+import { Badge } from "@cktry/ui/components/badge";
+import { Button } from "@cktry/ui/components/button";
+import { CardTitle } from "@cktry/ui/components/card";
 import { Flag, Play, Plus } from "lucide-react";
 import { scoreOf, startedAt } from "@/components/study/data";
 import { byDay, dayKey, parseDay } from "@/days";

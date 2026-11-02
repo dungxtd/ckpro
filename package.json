@@ -1,13 +1,13 @@
 {
-  "name": "ckdry",
+  "name": "cktry",
   "version": "0.1.0",
   "private": true,
-  "description": "ckdry - Kubernetes exam practice app monorepo",
+  "description": "cktry - Kubernetes exam practice app monorepo",
   "packageManager": "pnpm@12.11.2",
   "scripts": {
-    "dev": "pnpm --filter ckdry-desktop dev",
-    "build": "pnpm --filter ckdry-desktop build",
-    "typecheck": "pnpm --filter ckdry-desktop typecheck",
+    "dev": "pnpm --filter cktry-desktop dev",
+    "build": "pnpm --filter cktry-desktop build",
+    "typecheck": "pnpm --filter cktry-desktop typecheck",
     "format": "biome check . --write",
     "format-check": "biome check ."
   },

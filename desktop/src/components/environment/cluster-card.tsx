@@ -1,7 +1,7 @@
-import { Button } from "@ckdry/ui/components/button";
-import { Card } from "@ckdry/ui/components/card";
-import { ConfirmDialog } from "@ckdry/ui/components/confirm-dialog";
-import { StatusDot } from "@ckdry/ui/components/status-dot";
+import { Button } from "@cktry/ui/components/button";
+import { Card } from "@cktry/ui/components/card";
+import { ConfirmDialog } from "@cktry/ui/components/confirm-dialog";
+import { StatusDot } from "@cktry/ui/components/status-dot";
 import { nodeStatus } from "@/components/environment/node-status";
 import { useEnvironment } from "@/stores/environment";
 import type { ClusterState } from "@/tauri/api";

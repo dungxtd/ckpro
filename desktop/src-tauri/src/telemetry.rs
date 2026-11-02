@@ -118,7 +118,7 @@ impl<S: Subscriber> tracing_subscriber::Layer<S> for Layer {
     fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
         let meta = event.metadata();
         let level = *meta.level();
-        if level > Level::WARN || !meta.target().starts_with("ckdry") {
+        if level > Level::WARN || !meta.target().starts_with("cktry") {
             return;
         }
         let mut text = Text::default();
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn an_exception_says_what_and_where() {
-        let e = exception("Logged", "saving exam history: disk full", "warning", "ckdry_lib::lab::exam");
+        let e = exception("Logged", "saving exam history: disk full", "warning", "cktry_lib::lab::exam");
         assert_eq!(e["event"], "$exception");
         assert_eq!(e["properties"]["$exception_list"][0]["value"], "saving exam history: disk full");
         assert_eq!(e["properties"]["$exception_list"][0]["mechanism"]["handled"], true);

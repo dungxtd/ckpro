@@ -1,5 +1,5 @@
 //! Everything the app keeps between runs, in one SQLite database
-//! (`ckdry.db` in the data directory): the running attempt, the candidate's
+//! (`cktry.db` in the data directory): the running attempt, the candidate's
 //! progress through it, exam history and UI settings. Rust owns it; the UI
 //! reads and writes through commands.
 
@@ -822,7 +822,7 @@ mod tests {
 
     #[test]
     fn imports_the_files_earlier_versions_wrote() {
-        let dir = std::env::temp_dir().join(format!("ckdry-store-import-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("cktry-store-import-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("history")).unwrap();
         std::fs::write(dir.join("attempt.json"), r#"{"state":{"phase":"running"},"questions":[]}"#).unwrap();
         std::fs::write(

@@ -1,4 +1,4 @@
-import { cn } from "@ckdry/ui/lib/utils";
+import { cn } from "@cktry/ui/lib/utils";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Minus, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";

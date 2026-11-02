@@ -229,7 +229,7 @@ pub struct Exams {
     busy: tokio::sync::Mutex<()>,
     publish: Box<dyn Fn(&ExamState) + Send + Sync>,
     activities: Arc<Activities>,
-    /// Keeps the running attempt's environment as ckdry set it up
+    /// Keeps the running attempt's environment as cktry set it up
     guard: Arc<Guard>,
 }
 
@@ -329,7 +329,7 @@ impl Exams {
             let session = self.session.locked().clone();
             self.allowed_docs(&attempt.certification, &session)
         };
-        // ckdry's own: the guard does not report the old one going away
+        // cktry's own: the guard does not report the old one going away
         self.guard.expect(&self.desktop);
         let docker = docker::connect().await?;
         desktop::start(&docker, &self.desktop, &allowed, &attempt.clusters, &self.jumphost.name).await
@@ -371,7 +371,7 @@ impl Exams {
             match op.end(this.resume(&attempt, id).await) {
                 Ok(()) => match ends_at {
                     Some(ends_at) if ends_at <= now_ms() => {
-                        this.grade_and_finish(attempt, started_at, Some("Time ran out while ckdry was closed".into())).await
+                        this.grade_and_finish(attempt, started_at, Some("Time ran out while cktry was closed".into())).await
                     }
                     _ => {
                         let attempt_id = attempt.id.clone();
@@ -412,7 +412,7 @@ impl Exams {
         let existing = self.kind.all_clusters().await?;
         if let Some(gone) = attempt.clusters.iter().find(|c| !existing.contains(c)) {
             return Err(AppError::cluster(format!(
-                "cluster {gone} no longer exists (removed while ckdry was closed): close this exam and start it again"
+                "cluster {gone} no longer exists (removed while cktry was closed): close this exam and start it again"
             )));
         }
         let mut step = 0;
@@ -606,7 +606,7 @@ impl Exams {
 
         let docker = docker::connect().await?;
         // Built when the app started; waits here if that is still running
-        next(Some("Built when ckdry starts; waits for that build if it is still running".into()));
+        next(Some("Built when cktry starts; waits for that build if it is still running".into()));
         self.infra.ensure(&docker, &log).await?;
         for (name, workers) in clusters {
             if replacing.contains(name) {

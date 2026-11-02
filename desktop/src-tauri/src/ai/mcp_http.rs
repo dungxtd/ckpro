@@ -63,7 +63,7 @@ impl McpHttp {
     pub fn server_for(&self, question: &str) -> serde_json::Value {
         serde_json::json!({
             "type": "http",
-            "name": "ckdry",
+            "name": "cktry",
             "url": format!("http://127.0.0.1:{}/mcp/{}", self.port, hex(question)),
             "headers": [{ "name": "Authorization", "value": format!("Bearer {}", self.token) }],
         })

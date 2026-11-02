@@ -1,8 +1,8 @@
-import { IconButton } from "@ckdry/ui/components/icon-button";
-import { menu, menuRow } from "@ckdry/ui/components/menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
-import { Stepper } from "@ckdry/ui/components/stepper";
-import { cn } from "@ckdry/ui/lib/utils";
+import { IconButton } from "@cktry/ui/components/icon-button";
+import { menu, menuRow } from "@cktry/ui/components/menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
+import { Stepper } from "@cktry/ui/components/stepper";
+import { cn } from "@cktry/ui/lib/utils";
 import { Check, RotateCcw, Settings } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";

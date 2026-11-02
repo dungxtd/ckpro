@@ -3,7 +3,7 @@
 # building them on every machine.
 #
 # What to publish comes from desktop/src-tauri/resources/images.json
-# (`ckdry images`; a test keeps it in step with the app). Tags are hashes of
+# (`cktry images`; a test keeps it in step with the app). Tags are hashes of
 # each image's files and build args, so only changed images are built, and an
 # app release always finds the images it expects.
 name: images
@@ -48,7 +48,7 @@ jobs:
             # shellcheck disable=SC2086
             docker buildx build "$name" \
               --platform linux/amd64,linux/arm64 \
-              --label com.docker.compose.project=ckdry \
+              --label com.docker.compose.project=cktry \
               --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
               $args \
               --tag "$image" \

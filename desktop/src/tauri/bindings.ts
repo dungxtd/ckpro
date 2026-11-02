@@ -740,7 +740,7 @@ export type GeneratorTarget = {
 	domains: ([string, number])[],
 };
 
-/**  Something changed the running attempt's environment outside ckdry. */
+/**  Something changed the running attempt's environment outside cktry. */
 export type GuardNotice = string;
 
 /**  History entry, one JSON file per finished attempt. */

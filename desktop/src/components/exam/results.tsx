@@ -1,17 +1,17 @@
-import { Alert } from "@ckdry/ui/components/alert";
-import { Badge } from "@ckdry/ui/components/badge";
-import { Button } from "@ckdry/ui/components/button";
-import { Card } from "@ckdry/ui/components/card";
-import { ConfirmDialog } from "@ckdry/ui/components/confirm-dialog";
-import { Separator } from "@ckdry/ui/components/separator";
+import { Alert } from "@cktry/ui/components/alert";
+import { Badge } from "@cktry/ui/components/badge";
+import { Button } from "@cktry/ui/components/button";
+import { Card } from "@cktry/ui/components/card";
+import { ConfirmDialog } from "@cktry/ui/components/confirm-dialog";
+import { Separator } from "@cktry/ui/components/separator";
 import {
 	Sheet,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
-} from "@ckdry/ui/components/sheet";
-import { cn } from "@ckdry/ui/lib/utils";
+} from "@cktry/ui/components/sheet";
+import { cn } from "@cktry/ui/lib/utils";
 import { ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { AssistantPane } from "@/components/assistant/assistant-pane";
