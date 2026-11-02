@@ -14,6 +14,8 @@ const APP_ID: &str = "dev.ckdry.app";
 const DATABASE: &str = "ckdry.db";
 /// The compose project its containers (task host, desktop, mirror, kind's nodes) were in
 const COMPOSE_PROJECT: &str = "ckdry";
+/// Its images: the exam's (published), and the desktop's VNC driver (built here)
+const IMAGES: [&str; 2] = ["ghcr.io/dungxtd/ckdry-", "ckdry-"];
 
 /// Before `dir` (the data directory) is first made: the old directory
 /// becomes it, and the database inside takes the new name. Nothing when
@@ -37,9 +39,26 @@ pub fn move_data(dir: &Path) {
     tracing::info!(from = %old.display(), "moved the former data directory in");
 }
 
-/// Remove the containers left in the former compose project. Before the
-/// environment starts, so nothing of it is running yet
+/// Remove the containers left in the former compose project, then its
+/// images (a few GB). Before the environment starts, so nothing of it is
+/// running yet
 pub async fn remove_containers(docker: &Docker) {
+    remove_project(docker).await;
+    remove_images(docker).await;
+}
+
+async fn remove_images(docker: &Docker) {
+    let Ok(images) = docker.list_images(None::<bollard::query_parameters::ListImagesOptions>).await else { return };
+    for tag in images.into_iter().flat_map(|i| i.repo_tags).filter(|t| IMAGES.iter().any(|p| t.starts_with(p))) {
+        let removed = docker.remove_image(&tag, None::<bollard::query_parameters::RemoveImageOptions>, None).await;
+        match removed {
+            Ok(_) => tracing::info!(image = %tag, "removed a former image"),
+            Err(e) => tracing::warn!(error = %e, image = %tag, "could not remove a former image"),
+        }
+    }
+}
+
+async fn remove_project(docker: &Docker) {
     let label = format!("com.docker.compose.project={COMPOSE_PROJECT}");
     let Ok(containers) = docker
         .list_containers(Some(ListContainersOptions {
