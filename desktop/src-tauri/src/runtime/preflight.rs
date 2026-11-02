@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Rough memory use of kind nodes, measured on kubeadm v1.35 nodes (a
 /// control plane ~545 MB, a worker ~150 MB idle: room left for the tasks' pods)
 const CONTROL_PLANE_MB: u32 = 700;
-const WORKER_MB: u32 = 300;
+pub const WORKER_MB: u32 = 300;
 /// Left for the engine, the app and the exam workloads
 const HEADROOM_MB: u32 = 1024;
 /// The exam desktop with Firefox and VSCodium open (1.05 GB measured)

@@ -4,7 +4,7 @@
 //! starts (it needs the memory) and when the app quits.
 
 use crate::error::AppError;
-use crate::lab::verify::{Run, Topology};
+use crate::lab::verify::{Log, Run, Topology};
 use crate::runtime::infra::Infra;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -17,6 +17,11 @@ pub const CLUSTER: &str = "k8s";
 pub const WORKERS: u8 = 1;
 /// Memory a verify run takes (a cluster and its task host)
 pub const RUN_MB: u32 = 2048;
+
+/// Memory a verify run with `workers` workers takes
+pub fn run_mb(workers: u8) -> u32 {
+    RUN_MB + crate::runtime::preflight::WORKER_MB * u32::from(workers.saturating_sub(WORKERS))
+}
 /// How long the cluster stays once the screen is left
 const KEEP_AFTER_LEAVING: Duration = Duration::from_secs(10 * 60);
 
@@ -144,6 +149,41 @@ impl Workspace {
         drop(inner);
         self.prepare(infra, fits());
         run
+    }
+
+    /// A cluster with `workers` workers to prove an exam on, spent by it (the
+    /// caller finishes it): the made one when that is enough (another is
+    /// made in its place), else one made now for this exam alone. `fits`
+    /// says whether Docker has room for a run of so many megabytes. The made
+    /// one still being made is waited for
+    pub async fn run_for(
+        self: &Arc<Self>,
+        workers: u8,
+        infra: Arc<Infra>,
+        fits: impl Fn(u32) -> Result<(), String>,
+        log: Log<'_>,
+    ) -> Result<Arc<Run>, AppError> {
+        if workers <= WORKERS {
+            // Being made: proving starts once it is
+            while self.state() == WorkspaceState::Preparing {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+            return self.take(infra, || fits(RUN_MB)).ok_or_else(|| {
+                AppError::invalid(match self.state() {
+                    WorkspaceState::Preparing => "the verify cluster is still being made".to_string(),
+                    WorkspaceState::Failed { reason } => reason,
+                    _ => "there is no verify cluster: prepare one first".to_string(),
+                })
+            });
+        }
+        fits(run_mb(workers)).map_err(AppError::invalid)?;
+        let run = Arc::new(Run::new(&self.data_dir)?);
+        let topology = Topology::from([(CLUSTER.to_string(), workers)]);
+        if let Err(e) = run.start(&infra, &topology, &CancellationToken::new(), log).await {
+            run.finish(log).await;
+            return Err(e);
+        }
+        Ok(run)
     }
 
     /// Stop making the cluster, or remove it

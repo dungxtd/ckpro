@@ -24,22 +24,24 @@ const named = (domain: string) => domain.replaceAll("-", " ");
 
 /**
  * The exam being built, beside the conversation (`bar`: under it, its
- * questions folded, on a narrow window): its questions (from the
- * packs, or new ones Claude wrote, each with where it stands), the verify
- * cluster, and the candidate's two steps: prove the new questions (after
- * reading them), then save
+ * questions folded, on a narrow window): its questions (from the packs, or
+ * new ones Claude wrote, each with where it stands) and the candidate's
+ * step: prove the exam on a cluster, every question together (after reading
+ * the new ones), and save it once they all prove
  */
 export function DraftPanel({ bar = false }: { bar?: boolean }) {
-	const { draft, workspace, verifying } = useStudio();
-	const { removeItem, verify, save } = useStudio.getState();
+	const { draft, session, verifying } = useStudio();
+	const { removeItem, proveAndSave, save } = useStudio.getState();
 	const navigate = useNavigate();
 	const [reviewing, setReviewing] = useState(false);
 	// On a narrow window the questions fold under the draft's bar
 	const [unfolded, setUnfolded] = useState(false);
 	const items = draft?.items ?? [];
-	const fresh = items.flatMap(i => (i.kind === "new" ? [i] : []));
-	const unproven = fresh.filter(q => q.status.state !== "proven");
-	const ready = workspace.state === "ready";
+	const unproven = items.filter(i => i.status.state !== "proven");
+	// The new ones are read before their scripts run
+	const unread = unproven.flatMap(i => (i.kind === "new" ? [i] : []));
+	const proving = verifying !== null && verifying === session;
+	const go = () => (unread.length > 0 ? setReviewing(true) : proveAndSave());
 
 	return (
 		<div
@@ -107,30 +109,28 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 					</Button>
 				) : (
 					<>
-						{unproven.length > 0 && (
+						{items.length > 0 && (
 							<span className="text-caption text-muted-foreground">
-								{unproven.length} new question{unproven.length === 1 ? "" : "s"} to prove on the
-								cluster before saving
+								{proving
+									? "Running every question together, as in an exam…"
+									: unproven.length > 0
+										? "Saved once every question proves together"
+										: "Every question proved together"}
 							</span>
 						)}
 						<div className="flex items-center justify-end gap-2">
-							{unproven.length > 0 && (
-								<Button
-									size="push"
-									variant="push"
-									disabled={!ready || verifying}
-									onClick={() => setReviewing(true)}
-								>
-									{verifying ? "Proving…" : "Review & prove"}
-								</Button>
-							)}
 							<Button
 								size="push"
 								variant="pushDefault"
-								disabled={items.length === 0 || unproven.length > 0 || !draft?.title}
-								onClick={save}
+								disabled={items.length === 0 || !draft?.title || verifying !== null}
+								title={
+									verifying !== null && !proving
+										? "Another conversation's exam is being proven"
+										: undefined
+								}
+								onClick={unproven.length > 0 ? go : save}
 							>
-								Save exam
+								{proving ? "Proving…" : unproven.length > 0 ? "Prove & save" : "Save exam"}
 							</Button>
 						</div>
 					</>
@@ -141,14 +141,15 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 			<Dialog open={reviewing} onOpenChange={setReviewing}>
 				<DialogContent className="max-w-2xl">
 					<DialogHeader>
-						<DialogTitle>Prove the new questions</DialogTitle>
+						<DialogTitle>Prove the exam</DialogTitle>
 						<DialogDescription>
-							Their setup, checks and solution run on the verify cluster: every check must fail
-							before the solution and pass after. Read them first.
+							Every question runs on the verify cluster as in an exam: all the setups first, then
+							each check must fail before its solution and pass after. Claude wrote these: read them
+							first.
 						</DialogDescription>
 					</DialogHeader>
 					<div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto">
-						{unproven.map(q => (
+						{unread.map(q => (
 							<div key={q.key} className="flex flex-col gap-1.5">
 								<span className="font-semibold text-callout">{q.title}</span>
 								<CodeBlock title="yaml" wrap>
@@ -164,10 +165,10 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 						<Button
 							onClick={() => {
 								setReviewing(false);
-								verify();
+								proveAndSave();
 							}}
 						>
-							Run on the cluster
+							Prove & save
 						</Button>
 					</DialogFooter>
 				</DialogContent>
@@ -178,15 +179,15 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 
 const key = (item: DraftItem) => (item.kind === "new" ? item.key : item.id);
 
-/** A question of the draft: from the packs, or new and where it stands */
+/** A question of the draft: from the packs or new, and where it stands in the exam */
 function Item({ item, onRemove }: { item: DraftItem; onRemove: () => void }) {
 	const status =
-		item.kind === "existing" ? (
-			<Badge variant="subtle">From the packs</Badge>
-		) : item.status.state === "proven" ? (
+		item.status.state === "proven" ? (
 			<Badge variant="success">Proven</Badge>
 		) : item.status.state === "failed" ? (
 			<Badge variant="destructive">Did not prove</Badge>
+		) : item.kind === "existing" ? (
+			<Badge variant="subtle">From the packs</Badge>
 		) : (
 			<Badge variant="warningTag">New · lints</Badge>
 		);
@@ -210,7 +211,7 @@ function Item({ item, onRemove }: { item: DraftItem; onRemove: () => void }) {
 				</div>
 			</div>
 			<span className="text-2xs text-muted-foreground capitalize">{named(item.domain)}</span>
-			{item.kind === "new" && item.status.state === "failed" && (
+			{item.status.state === "failed" && (
 				<ul className="list-disc pl-4 text-2xs text-destructive">
 					{item.status.problems.slice(0, 4).map(p => (
 						<li key={p}>{p}</li>
