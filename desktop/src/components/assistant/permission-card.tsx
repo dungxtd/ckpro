@@ -1,5 +1,5 @@
-import { Button } from "@ckdry/ui/components/button";
-import { CodeBlock } from "@ckdry/ui/components/code-block";
+import { Button } from "@cktry/ui/components/button";
+import { CodeBlock } from "@cktry/ui/components/code-block";
 import { useEffect } from "react";
 import type { PermissionOption } from "@/tauri/api";
 

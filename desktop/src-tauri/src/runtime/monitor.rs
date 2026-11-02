@@ -72,6 +72,8 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
         tracing::info!("connected to docker");
 
         if !reconciled {
+            // The containers left under the app's former name go first
+            crate::former::remove_containers(&docker).await;
             reconcile::on_startup(&docker, &kind, &activities, &resuming).await;
             // Exams start without building anything
             tauri::async_runtime::spawn(prepare_images(docker.clone(), infra.clone(), activities.clone()));
@@ -162,7 +164,7 @@ async fn sync(
     let mut clusters: Vec<ClusterState> = Vec::new();
     for c in containers {
         let cluster = &c.cluster;
-        // Other kind clusters on the machine are not ckdry's to show
+        // Other kind clusters on the machine are not cktry's to show
         if !owned.contains(cluster) {
             continue;
         }

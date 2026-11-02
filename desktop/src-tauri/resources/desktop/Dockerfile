@@ -1,7 +1,7 @@
 # The exam's remote desktop: the machine named `base`, an XFCE desktop with a
 # terminal, Firefox, VSCodium and a virtual keyboard, and no Kubernetes tools. Each task
 # names the host to `ssh` into, as on the real exam. Served over VNC through
-# websockify; the app is the noVNC client. Built once by ckdry
+# websockify; the app is the noVNC client. Built once by cktry
 # (runtime/infra.rs); started for an exam attempt (runtime/desktop.rs).
 FROM debian:trixie-slim
 

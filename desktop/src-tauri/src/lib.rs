@@ -3,6 +3,7 @@ mod cli;
 mod cluster;
 mod commands;
 mod error;
+mod former;
 mod lab;
 mod observability;
 mod runtime;
@@ -31,7 +32,7 @@ pub struct ActivityLog {
     pub line: String,
 }
 
-/// Something changed the running attempt's environment outside ckdry.
+/// Something changed the running attempt's environment outside cktry.
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct GuardNotice(String);
 
@@ -111,7 +112,9 @@ fn typescript() -> specta_typescript::Typescript {
 }
 
 /// Bundle identifier (tauri.conf.json); names the app data directory.
-pub const APP_ID: &str = "dev.ckdry.app";
+pub const APP_ID: &str = "dev.cktry.app";
+/// The database, in the data directory (store.rs)
+pub const DATABASE: &str = "cktry.db";
 
 /// Where the app keeps kind, kubeconfigs and the jumphost files: the same
 /// directory for the app and the CLI.
@@ -119,6 +122,8 @@ pub const APP_ID: &str = "dev.ckdry.app";
 /// made private before anything goes in, whichever runs first.
 pub fn data_dir() -> std::path::PathBuf {
     let dir = dirs::data_dir().unwrap_or_else(std::env::temp_dir).join(APP_ID);
+    // What the app kept under its former name comes along, the first time
+    former::move_data(&dir);
     let _ = std::fs::create_dir_all(&dir);
     #[cfg(unix)]
     {
@@ -213,7 +218,7 @@ pub fn run() {
             let jumphost = app.state::<Arc<runtime::jumphost::Jumphost>>().inner().clone();
             // Everything kept between runs; what earlier versions wrote to
             // files moves in once
-            let store = Arc::new(store::Store::open(&data_dir.join("ckdry.db"))?);
+            let store = Arc::new(store::Store::open(&data_dir.join(DATABASE))?);
             store.import_files(&data_dir);
             // The assistant runs where its settings say
             app.state::<ai::Coach>().apply(&ai::policy::AgentSettings::load(&store).unwrap_or_default().normalized());
@@ -255,14 +260,14 @@ pub fn run() {
             app.manage(exams);
             app.manage(kind);
             app.manage(env);
-            tracing::info!(version = env!("CARGO_PKG_VERSION"), "ckdry started");
+            tracing::info!(version = env!("CARGO_PKG_VERSION"), "cktry started");
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
             if let RunEvent::Exit = event {
-                // ckdry stops the containers itself now: not for the guard to restart
+                // cktry stops the containers itself now: not for the guard to restart
                 app.state::<Arc<runtime::guard::Guard>>().suspend();
                 // Clusters stop until the next start
                 runtime::reconcile::on_exit(&app.state::<Arc<cluster::kind::Kind>>());

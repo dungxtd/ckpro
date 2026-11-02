@@ -1,8 +1,8 @@
-import { Button } from "@ckdry/ui/components/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@ckdry/ui/components/card";
-import { Placeholder } from "@ckdry/ui/components/placeholder";
-import { Progress } from "@ckdry/ui/components/progress";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Button } from "@cktry/ui/components/button";
+import { Card, CardDescription, CardHeader, CardTitle } from "@cktry/ui/components/card";
+import { Placeholder } from "@cktry/ui/components/placeholder";
+import { Progress } from "@cktry/ui/components/progress";
+import { cn } from "@cktry/ui/lib/utils";
 import type * as React from "react";
 import { PREDICT_COVERAGE, predicted, scoreTone } from "@/components/study/data";
 import type { ExamReadiness } from "@/tauri/api";

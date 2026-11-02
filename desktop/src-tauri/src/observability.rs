@@ -1,5 +1,5 @@
 //! Logging: stderr plus a daily rotating file in the app log directory
-//! (7 kept). Filter with `CKDRY_LOG`, e.g. `CKDRY_LOG=ckdry_lib=debug`.
+//! (7 kept). Filter with `CKTRY_LOG`, e.g. `CKTRY_LOG=cktry_lib=debug`.
 
 use std::path::Path;
 use std::sync::OnceLock;
@@ -10,11 +10,11 @@ static GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 
 pub fn init(log_dir: &Path) {
     let filter = || {
-        EnvFilter::try_from_env("CKDRY_LOG").unwrap_or_else(|_| EnvFilter::new("info"))
+        EnvFilter::try_from_env("CKTRY_LOG").unwrap_or_else(|_| EnvFilter::new("info"))
     };
     let file = tracing_appender::rolling::Builder::new()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
-        .filename_prefix("ckdry")
+        .filename_prefix("cktry")
         .filename_suffix("log")
         .max_log_files(7)
         .build(log_dir);

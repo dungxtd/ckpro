@@ -1,8 +1,8 @@
-# CK --dry-run (ckdry)
+# CK Try (cktry)
 
 Tauri v2 desktop app for practising the CKA/CKAD/CKS exams on local kind
 clusters: Rust core in `desktop/src-tauri`, React 19 interface in
-`desktop/src`, UI kit in `packages/ckdry-ui`, question bank in `packs/core`.
+`desktop/src`, UI kit in `packages/cktry-ui`, question bank in `packs/core`.
 Architecture: `docs/ARCHITECTURE.md`.
 
 ## Invariants
@@ -10,7 +10,7 @@ Architecture: `docs/ARCHITECTURE.md`.
 - **Exam mode is AI-free.** Every assistant command and MCP tool refuses
   while an exam-mode attempt runs; Agent (commands) is practice-only.
 - **The host needs only Docker.** Clusters, task host, desktop and mirror run
-  in Docker under the `ckdry` compose project; kind and kubeconfigs stay in
+  in Docker under the `cktry` compose project; kind and kubeconfigs stay in
   the data directory. The optional host tools are the agent CLIs (Claude
   Code, with Node.js for its adapter), used with their own logins. During an
   attempt the guard keeps the
@@ -33,7 +33,7 @@ Architecture: `docs/ARCHITECTURE.md`.
   `history/`, `environment/`, `settings/`, `activity/`). Shared across screens means the
   kit, not another screen's folder.
 
-- **The kit first.** `@ckdry/ui` (`@ckdry/ui/components/<name>`) owns every
+- **The kit first.** `@cktry/ui` (`@cktry/ui/components/<name>`) owns every
   control and surface: `Button`, `IconButton` (its label is the tooltip),
   `SegmentedControl`, `Stepper`, `Select`, `Switch`, `Popover` with the
   `menu` classes, `DropdownMenu` (submenus), `Dialog`/`AlertDialog`,
@@ -70,6 +70,6 @@ cargo run -- lab lint ../../packs/core
 ```
 
 Commands or types changed: regenerate the bindings with
-`cargo test bindings_export` and copy `$TMPDIR/ckdry-bindings.ts` to
+`cargo test bindings_export` and copy `$TMPDIR/cktry-bindings.ts` to
 `desktop/src/tauri/bindings.ts`. Image files changed: regenerate the manifest
 with `cargo run -- images > resources/images.json`.

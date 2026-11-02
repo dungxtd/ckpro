@@ -1,26 +1,26 @@
-import { Button } from "@ckdry/ui/components/button";
-import { Chip } from "@ckdry/ui/components/chip";
-import { Input } from "@ckdry/ui/components/input";
-import { Loading } from "@ckdry/ui/components/loading";
-import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
+import { Button } from "@cktry/ui/components/button";
+import { Chip } from "@cktry/ui/components/chip";
+import { Input } from "@cktry/ui/components/input";
+import { Loading } from "@cktry/ui/components/loading";
+import { SegmentedControl } from "@cktry/ui/components/segmented-control";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@ckdry/ui/components/select";
+} from "@cktry/ui/components/select";
 import {
 	Sheet,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
-} from "@ckdry/ui/components/sheet";
-import { StatusDot } from "@ckdry/ui/components/status-dot";
-import { Stepper } from "@ckdry/ui/components/stepper";
-import { Switch } from "@ckdry/ui/components/switch";
-import { cn } from "@ckdry/ui/lib/utils";
+} from "@cktry/ui/components/sheet";
+import { StatusDot } from "@cktry/ui/components/status-dot";
+import { Stepper } from "@cktry/ui/components/stepper";
+import { Switch } from "@cktry/ui/components/switch";
+import { cn } from "@cktry/ui/lib/utils";
 import { ChevronRight, RotateCw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";

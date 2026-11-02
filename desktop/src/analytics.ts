@@ -78,4 +78,4 @@ export function track(event: string, properties?: Record<string, unknown>) {
 
 /** A screen shown (the router changed) */
 export const pageView = (path: string) =>
-	track("$pageview", { $current_url: `app://ckdry${path}` });
+	track("$pageview", { $current_url: `app://cktry${path}` });

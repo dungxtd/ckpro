@@ -1,11 +1,11 @@
-import { Loading } from "@ckdry/ui/components/loading";
+import { Loading } from "@cktry/ui/components/loading";
 import {
 	Sheet,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
 	SheetTitle,
-} from "@ckdry/ui/components/sheet";
+} from "@cktry/ui/components/sheet";
 import { useEffect, useState } from "react";
 import { MASK } from "@/analytics";
 import { Answer, UserMessage } from "@/components/assistant/answer";

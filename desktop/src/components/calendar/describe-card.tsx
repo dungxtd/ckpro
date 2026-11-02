@@ -1,4 +1,4 @@
-import { Terminal } from "@ckdry/ui/components/terminal";
+import { Terminal } from "@cktry/ui/components/terminal";
 import type * as React from "react";
 import type { Line } from "./describe";
 

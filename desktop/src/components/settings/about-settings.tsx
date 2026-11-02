@@ -1,6 +1,6 @@
-import { Button } from "@ckdry/ui/components/button";
-import { Loading } from "@ckdry/ui/components/loading";
-import { Switch } from "@ckdry/ui/components/switch";
+import { Button } from "@cktry/ui/components/button";
+import { Loading } from "@cktry/ui/components/loading";
+import { Switch } from "@cktry/ui/components/switch";
 import { ChartNoAxesColumn, Copy, FolderOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -53,7 +53,7 @@ export function AboutSettings() {
 			{/* Who the app is, at the end of the page */}
 			<footer className="flex select-none flex-col items-center gap-1 pt-4 text-center">
 				<img src={appIcon} alt="" className="size-16" />
-				<div className="font-semibold">CK --dry-run</div>
+				<div className="font-semibold">CK Try</div>
 				<div className="text-caption text-muted-foreground tabular-nums">
 					Version {info.version}
 				</div>

@@ -1,4 +1,4 @@
-import { ConfirmDialog } from "@ckdry/ui/components/confirm-dialog";
+import { ConfirmDialog } from "@cktry/ui/components/confirm-dialog";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -10,14 +10,14 @@ import {
 	ContextMenuSubContent,
 	ContextMenuSubTrigger,
 	ContextMenuTrigger,
-} from "@ckdry/ui/components/context-menu";
+} from "@cktry/ui/components/context-menu";
 import {
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
 	DropdownMenuSeparator,
-} from "@ckdry/ui/components/dropdown-menu";
+} from "@cktry/ui/components/dropdown-menu";
 import {
 	SidebarEye,
 	SidebarGrip,
@@ -25,9 +25,9 @@ import {
 	SidebarItem,
 	SidebarLabel,
 	SidebarRemove,
-} from "@ckdry/ui/components/sidebar";
-import { useDragOrder } from "@ckdry/ui/hooks/use-drag-order";
-import { cn } from "@ckdry/ui/lib/utils";
+} from "@cktry/ui/components/sidebar";
+import { useDragOrder } from "@cktry/ui/hooks/use-drag-order";
+import { cn } from "@cktry/ui/lib/utils";
 import { Pin } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";

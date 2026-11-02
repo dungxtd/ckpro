@@ -56,7 +56,7 @@ pub async fn run_tail(
             }
             e => AppError::docker(e),
         })?;
-    // ckdry's own: the guard does not report it as outside access
+    // cktry's own: the guard does not report it as outside access
     super::guard::own_exec(&exec.id);
     let StartExecResults::Attached { mut output, mut input } = docker.start_exec(&exec.id, None).await?
     else {

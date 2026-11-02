@@ -1,6 +1,6 @@
 //! Static checks across a pack, without a cluster: references between files,
 //! variables, curriculum domains, and what an exam can draw from the bank.
-//! `ckdry lab lint` and the app run this before using a pack.
+//! `cktry lab lint` and the app run this before using a pack.
 
 use super::load::{Finding, Level, LoadedPack, relative};
 use super::model::{CheckKind, Question};

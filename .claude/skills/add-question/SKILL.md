@@ -1,11 +1,11 @@
 ---
 name: add-question
-description: Add or fix exam questions in a ckdry pack (packs/<pack>/questions/*.yaml) so they pass `ckdry lab lint` and `ckdry lab verify` on real clusters. Use for "add a question about X", "write a CKA/CKAD/CKS task", "turn this task into a question", "add it to an exam", or when a question fails verify.
+description: Add or fix exam questions in a cktry pack (packs/<pack>/questions/*.yaml) so they pass `cktry lab lint` and `cktry lab verify` on real clusters. Use for "add a question about X", "write a CKA/CKAD/CKS task", "turn this task into a question", "add it to an exam", or when a question fails verify.
 ---
 
-# Add a question to a ckdry pack
+# Add a question to a cktry pack
 
-A question is one YAML file. It is done only when `ckdry lab verify` proves
+A question is one YAML file. It is done only when `cktry lab verify` proves
 it on a real cluster: every check **fails** before the solution and
 **passes** after it.
 
@@ -107,15 +107,15 @@ Each rule here comes from a question that failed verify.
 
 ## 4. Prove it
 
-Run from the repo root. `ckdry` is `desktop/src-tauri/target/debug/ckdry`
+Run from the repo root. `cktry` is `desktop/src-tauri/target/debug/cktry`
 (build it once with `cargo build` in `desktop/src-tauri`) or the installed
-app's `ckdry.app/Contents/MacOS/ckdry`. Verify logs cluster creation to
+app's `cktry.app/Contents/MacOS/cktry`. Verify logs cluster creation to
 stderr; `2>/tmp/verify.log` keeps the report on stdout readable.
 
 ```sh
-ckdry lab lint packs/core                              # schema, domains, vars, interactive commands
-ckdry lab verify packs/core --question core/<cert>/<slug>
-ckdry lab verify packs/core --question ... --keep      # keep the cluster to debug
+cktry lab lint packs/core                              # schema, domains, vars, interactive commands
+cktry lab verify packs/core --question core/<cert>/<slug>
+cktry lab verify packs/core --question ... --keep      # keep the cluster to debug
 ```
 
 Verify builds its own kind cluster (about 2 GB, 1–3 minutes) and never
@@ -127,8 +127,8 @@ touches the app's clusters. On failure:
 3. Run it again.
 
 With `--keep`, inspect the cluster with
-`docker exec ckdry-jumphost-<run> kubectl ...`. When done, delete
-`~/Library/Application Support/dev.ckdry.app/runs/<run>/keep`; the next
+`docker exec cktry-jumphost-<run> kubectl ...`. When done, delete
+`~/Library/Application Support/dev.cktry.app/runs/<run>/keep`; the next
 verify removes the run (its cluster, node volumes and jumphost). Verify also
 cleans up after runs that were killed or crashed. Never remove kind nodes
 with a bare `docker rm -f`, which leaves a ~1 GB volume per node behind.
@@ -138,6 +138,6 @@ with a bare `docker rm -f`, which leaves a ~1 GB volume per node behind.
 Exams live in `packs/core/exams/<id>.yaml` and list question ids under
 `questions:`. They can also draw at random by domain:
 `random: { count: 5 }`. After adding it, verify the whole exam, because its
-questions share a cluster: `ckdry lab verify packs/core --exam <id>`.
-`ckdry lab verify packs/core` with no selector verifies the whole pack, 4
+questions share a cluster: `cktry lab verify packs/core --exam <id>`.
+`cktry lab verify packs/core` with no selector verifies the whole pack, 4
 runs at a time (`--parallel N` to change).

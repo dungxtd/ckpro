@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../schema/pack.schema.json
 id: core
-title: ckdry core pack
+title: cktry core pack
 version: 0.1.0
 
 # Curriculum blueprints (Linux Foundation, 2025 curriculum; exams on Kubernetes v1.35)

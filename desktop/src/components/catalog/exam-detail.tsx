@@ -1,9 +1,9 @@
-import { Badge } from "@ckdry/ui/components/badge";
-import { Button } from "@ckdry/ui/components/button";
-import { Card } from "@ckdry/ui/components/card";
-import { Progress } from "@ckdry/ui/components/progress";
-import { Stat, StatGroup } from "@ckdry/ui/components/stat";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Badge } from "@cktry/ui/components/badge";
+import { Button } from "@cktry/ui/components/button";
+import { Card } from "@cktry/ui/components/card";
+import { Progress } from "@cktry/ui/components/progress";
+import { Stat, StatGroup } from "@cktry/ui/components/stat";
+import { cn } from "@cktry/ui/lib/utils";
 import { BookOpenCheck, ListChecks, Server, Target, Timer } from "lucide-react";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { useExam } from "@/stores/exam";

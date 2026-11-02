@@ -294,6 +294,6 @@ export const useExam = create<ExamStore>()(
 				}
 			},
 		})),
-		{ name: "ckdry-exam", enabled: import.meta.env.DEV }
+		{ name: "cktry-exam", enabled: import.meta.env.DEV }
 	)
 );

@@ -1,14 +1,14 @@
-//! The attempt's environment, kept as ckdry set it up. The candidate owns
+//! The attempt's environment, kept as cktry set it up. The candidate owns
 //! Docker, so nothing can be locked away; what can be closed is closed, the
 //! rest is noticed at once, put back, and written on the result:
 //! - The clusters' API servers refuse the host (the kind network's gateway,
 //!   where the Mac's port forward arrives): `kubectl` from the Mac does not
 //!   reach them during an attempt. The task host, the nodes and pods do.
 //! - A container of the attempt (nodes, desktop, task host, mirror) stopped,
-//!   killed or paused outside ckdry is started again; removed, it is noted.
-//! - A command run in one of them (`docker exec`) that ckdry did not run, a
+//!   killed or paused outside cktry is started again; removed, it is noted.
+//! - A command run in one of them (`docker exec`) that cktry did not run, a
 //!   container disconnected from the kind network (connected again) or a
-//!   ckdry volume removed is noted.
+//!   cktry volume removed is noted.
 //! It follows the events the monitor already receives: nothing polls.
 
 use crate::sync::MutexExt;
@@ -21,10 +21,10 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use crate::cluster::kind::{CLUSTER_LABEL, node_containers};
-/// Marks ckdry's own firewall rule, to find and remove it again
-const RULE_COMMENT: &str = "ckdry-guard";
+/// Marks cktry's own firewall rule, to find and remove it again
+const RULE_COMMENT: &str = "cktry-guard";
 
-/// Execs ckdry itself started (`exec::run`, terminals), and when: not
+/// Execs cktry itself started (`exec::run`, terminals), and when: not
 /// outside access. Each is judged once; one never judged is dropped after a
 /// while
 fn own_execs() -> &'static Mutex<HashMap<String, Instant>> {
@@ -32,10 +32,10 @@ fn own_execs() -> &'static Mutex<HashMap<String, Instant>> {
     OWN.get_or_init(Default::default)
 }
 
-/// How long an exec of ckdry's waits to be judged (its event comes at once)
+/// How long an exec of cktry's waits to be judged (its event comes at once)
 const OWN_EXEC_TTL: Duration = Duration::from_secs(600);
 
-/// Note an exec ckdry starts, before it starts
+/// Note an exec cktry starts, before it starts
 pub fn own_exec(id: &str) {
     let mut own = own_execs().locked();
     if own.len() > 1_000 {
@@ -44,21 +44,21 @@ pub fn own_exec(id: &str) {
     own.insert(id.to_string(), Instant::now());
 }
 
-/// Whether ckdry started the exec (judged once)
+/// Whether cktry started the exec (judged once)
 fn is_own_exec(id: &str) -> bool {
     own_execs().locked().remove(id).is_some()
 }
 
-/// ckdry's own operations that exec through a CLI (kind reads the
+/// cktry's own operations that exec through a CLI (kind reads the
 /// kubeconfig with `docker exec`): an exec while one runs, or just after, is
-/// ckdry's
+/// cktry's
 static OWN_OPERATIONS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 fn own_until() -> &'static Mutex<Option<Instant>> {
     static UNTIL: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
     UNTIL.get_or_init(Default::default)
 }
 
-/// Held while ckdry runs a command that execs in containers (kind)
+/// Held while cktry runs a command that execs in containers (kind)
 pub struct OwnOperation(());
 
 pub fn own_operation() -> OwnOperation {
@@ -93,7 +93,7 @@ struct Active {
     containers: HashSet<String>,
     /// Container ids seen, for network events (they give ids, not names)
     ids: HashMap<String, String>,
-    /// ckdry's own restarts (Reset desktop): not outside
+    /// cktry's own restarts (Reset desktop): not outside
     expected: HashMap<String, Instant>,
     /// The kind network's gateway: where the host's traffic comes from
     gateway: Option<String>,
@@ -107,7 +107,7 @@ pub struct Guard {
     /// Held while the guard is brought to what is wanted: one change at a
     /// time, so a quick start-and-end cannot activate after deactivating
     changing: tokio::sync::Mutex<()>,
-    /// What happened outside ckdry during the attempt
+    /// What happened outside cktry during the attempt
     outside: Mutex<Vec<String>>,
     notify: Box<dyn Fn(&str) + Send + Sync>,
 }
@@ -212,7 +212,7 @@ impl Guard {
             let Ok(c) = docker.inspect_container(&name, None).await else { continue };
             let state = c.state.unwrap_or_default();
             if state.paused == Some(true) {
-                self.record(format!("{name} was paused while ckdry lost Docker: resumed"));
+                self.record(format!("{name} was paused while cktry lost Docker: resumed"));
                 let _ = docker.unpause_container(&name).await;
             } else if state.running != Some(true) {
                 self.record(format!("{name} was not running when Docker came back: started again"));
@@ -239,20 +239,20 @@ impl Guard {
         self.lock().as_ref().is_some_and(|a| a.clusters.contains(cluster))
     }
 
-    /// ckdry is about to restart `container` itself (Reset desktop)
+    /// cktry is about to restart `container` itself (Reset desktop)
     pub fn expect(&self, container: &str) {
         if let Some(a) = self.lock().as_mut() {
             a.expected.insert(container.to_string(), Instant::now() + Duration::from_secs(60));
         }
     }
 
-    /// What happened outside ckdry so far
+    /// What happened outside cktry so far
     #[cfg(test)]
     pub fn outside(&self) -> Vec<String> {
         self.outside.locked().clone()
     }
 
-    /// What happened outside ckdry, for the result; cleared
+    /// What happened outside cktry, for the result; cleared
     pub fn take_outside(&self) -> Vec<String> {
         std::mem::take(&mut *self.outside.locked())
     }
@@ -290,7 +290,7 @@ impl Guard {
                 }
                 let (this, docker) = (self.clone(), docker.clone());
                 match action.split(':').next().unwrap_or_default() {
-                    // Judged a moment later: ckdry notes its own exec right after
+                    // Judged a moment later: cktry notes its own exec right after
                     // creating it, which can be after Docker reports it
                     "exec_create" if !in_own_operation() => {
                         let exec_id = attr("execID");
@@ -313,19 +313,19 @@ impl Guard {
                                 .and_then(|c| c.state?.running)
                                 .unwrap_or(false);
                             if !running {
-                                this.record(format!("{name} was stopped outside ckdry: started again"));
+                                this.record(format!("{name} was stopped outside cktry: started again"));
                                 let _ = docker.start_container(&name, None::<bollard::query_parameters::StartContainerOptions>).await;
                             }
                         });
                     }
                     "pause" => {
                         tokio::spawn(async move {
-                            this.record(format!("{name} was paused outside ckdry: resumed"));
+                            this.record(format!("{name} was paused outside cktry: resumed"));
                             let _ = docker.unpause_container(&name).await;
                         });
                     }
                     "destroy" if !expected => {
-                        self.record(format!("{name} was removed outside ckdry: end the exam and start it again"));
+                        self.record(format!("{name} was removed outside cktry: end the exam and start it again"));
                     }
                     // A control plane started again lost its firewall rule
                     "start" if name.ends_with("-control-plane") => {
@@ -349,7 +349,7 @@ impl Guard {
                         let running = c.state.and_then(|s| s.running).unwrap_or(false);
                         let attached = c.network_settings.and_then(|n| n.networks).is_some_and(|n| n.contains_key(NETWORK));
                         if running && !attached {
-                            this.record(format!("{name} was disconnected from the {NETWORK} network outside ckdry: connected again"));
+                            this.record(format!("{name} was disconnected from the {NETWORK} network outside cktry: connected again"));
                             let request = NetworkConnectRequest { container: id, ..Default::default() };
                             let _ = docker.connect_network(NETWORK, request).await;
                         }
@@ -358,8 +358,8 @@ impl Guard {
             }
             Some(EventMessageTypeEnum::VOLUME) if action == "destroy" => {
                 let name = actor.and_then(|a| a.id.clone()).unwrap_or_default();
-                if self.lock().is_some() && name.starts_with("ckdry") {
-                    self.record(format!("Volume {name} was removed outside ckdry"));
+                if self.lock().is_some() && name.starts_with("cktry") {
+                    self.record(format!("Volume {name} was removed outside cktry"));
                 }
             }
             _ => {}

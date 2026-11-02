@@ -1,15 +1,15 @@
 // The design system, live: every kit component and the app's own patterns,
 // in both themes. Development only (`pnpm vite` → /kit.html); the app build
 // does not include it. When a component or variant is added, add it here.
-import { Alert } from "@ckdry/ui/components/alert";
-import { Badge } from "@ckdry/ui/components/badge";
-import { Button } from "@ckdry/ui/components/button";
-import { Capsule, CapsuleItem } from "@ckdry/ui/components/capsule";
-import { Card, CardDescription, CardHeader, CardTitle } from "@ckdry/ui/components/card";
-import { Chip } from "@ckdry/ui/components/chip";
-import { CodeBlock } from "@ckdry/ui/components/code-block";
-import { ConfirmDialog } from "@ckdry/ui/components/confirm-dialog";
-import { Disclosure } from "@ckdry/ui/components/disclosure";
+import { Alert } from "@cktry/ui/components/alert";
+import { Badge } from "@cktry/ui/components/badge";
+import { Button } from "@cktry/ui/components/button";
+import { Capsule, CapsuleItem } from "@cktry/ui/components/capsule";
+import { Card, CardDescription, CardHeader, CardTitle } from "@cktry/ui/components/card";
+import { Chip } from "@cktry/ui/components/chip";
+import { CodeBlock } from "@cktry/ui/components/code-block";
+import { ConfirmDialog } from "@cktry/ui/components/confirm-dialog";
+import { Disclosure } from "@cktry/ui/components/disclosure";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -20,25 +20,25 @@ import {
 	DropdownMenuSubContent,
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
-} from "@ckdry/ui/components/dropdown-menu";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@ckdry/ui/components/hover-card";
-import { IconButton } from "@ckdry/ui/components/icon-button";
-import { Input } from "@ckdry/ui/components/input";
-import { Loading } from "@ckdry/ui/components/loading";
-import { menu, menuRow } from "@ckdry/ui/components/menu";
-import { Placeholder } from "@ckdry/ui/components/placeholder";
-import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
-import { Progress, ProgressRing } from "@ckdry/ui/components/progress";
-import { Range } from "@ckdry/ui/components/range";
-import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
+} from "@cktry/ui/components/dropdown-menu";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@cktry/ui/components/hover-card";
+import { IconButton } from "@cktry/ui/components/icon-button";
+import { Input } from "@cktry/ui/components/input";
+import { Loading } from "@cktry/ui/components/loading";
+import { menu, menuRow } from "@cktry/ui/components/menu";
+import { Placeholder } from "@cktry/ui/components/placeholder";
+import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
+import { Progress, ProgressRing } from "@cktry/ui/components/progress";
+import { Range } from "@cktry/ui/components/range";
+import { SegmentedControl } from "@cktry/ui/components/segmented-control";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@ckdry/ui/components/select";
-import { Separator } from "@ckdry/ui/components/separator";
+} from "@cktry/ui/components/select";
+import { Separator } from "@cktry/ui/components/separator";
 import {
 	Sheet,
 	SheetContent,
@@ -46,7 +46,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 	SheetTrigger,
-} from "@ckdry/ui/components/sheet";
+} from "@cktry/ui/components/sheet";
 import {
 	Sidebar,
 	SidebarEye,
@@ -54,14 +54,14 @@ import {
 	SidebarItem,
 	SidebarLabel,
 	SidebarRemove,
-} from "@ckdry/ui/components/sidebar";
-import { Skeleton } from "@ckdry/ui/components/skeleton";
-import { Toaster } from "@ckdry/ui/components/sonner";
-import { Spinner } from "@ckdry/ui/components/spinner";
-import { Stat, StatGroup } from "@ckdry/ui/components/stat";
-import { StatusDot } from "@ckdry/ui/components/status-dot";
-import { Stepper } from "@ckdry/ui/components/stepper";
-import { Switch } from "@ckdry/ui/components/switch";
+} from "@cktry/ui/components/sidebar";
+import { Skeleton } from "@cktry/ui/components/skeleton";
+import { Toaster } from "@cktry/ui/components/sonner";
+import { Spinner } from "@cktry/ui/components/spinner";
+import { Stat, StatGroup } from "@cktry/ui/components/stat";
+import { StatusDot } from "@cktry/ui/components/status-dot";
+import { Stepper } from "@cktry/ui/components/stepper";
+import { Switch } from "@cktry/ui/components/switch";
 import {
 	Table,
 	TableBody,
@@ -69,12 +69,12 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@ckdry/ui/components/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ckdry/ui/components/tabs";
-import { Terminal } from "@ckdry/ui/components/terminal";
-import { Textarea } from "@ckdry/ui/components/textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/tooltip";
-import { Truncated } from "@ckdry/ui/components/truncated";
+} from "@cktry/ui/components/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cktry/ui/components/tabs";
+import { Terminal } from "@cktry/ui/components/terminal";
+import { Textarea } from "@cktry/ui/components/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@cktry/ui/components/tooltip";
+import { Truncated } from "@cktry/ui/components/truncated";
 import {
 	Check,
 	ChevronDown,
@@ -149,9 +149,9 @@ function Gallery() {
 			<div className="mx-auto flex max-w-5xl flex-col gap-10 p-8">
 				<header className="flex items-center gap-4">
 					<div className="flex-1">
-						<h1 className="font-semibold text-2xl">ckdry design system</h1>
+						<h1 className="font-semibold text-2xl">cktry design system</h1>
 						<p className="text-muted-foreground text-sm">
-							@ckdry/ui (packages/ckdry-ui) and the app's patterns. Use these; a hand-rolled control
+							@cktry/ui (packages/cktry-ui) and the app's patterns. Use these; a hand-rolled control
 							is a missing component.
 						</p>
 					</div>
@@ -668,7 +668,7 @@ function Gallery() {
 					<Row>
 						<Loading label="Loading exams…" />
 						<div className="h-32 w-64 rounded-lg border border-border">
-							<Loading fill label="Opening ckdry…" />
+							<Loading fill label="Opening cktry…" />
 						</div>
 					</Row>
 					<Separator />
@@ -754,7 +754,7 @@ function Gallery() {
 					</div>
 				</Section>
 
-				<Section title="App patterns" note="ckdry's own components, built on the kit.">
+				<Section title="App patterns" note="cktry's own components, built on the kit.">
 					<Row>
 						<Timer startedAt={Date.now() - 60_000} endsAt={Date.now() + 7_200_000} />
 						<Timer startedAt={Date.now() - 60_000} endsAt={Date.now() + 1_200_000} />

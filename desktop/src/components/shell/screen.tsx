@@ -1,5 +1,5 @@
-import { IconButton } from "@ckdry/ui/components/icon-button";
-import { cn } from "@ckdry/ui/lib/utils";
+import { IconButton } from "@cktry/ui/components/icon-button";
+import { cn } from "@cktry/ui/lib/utils";
 import { ChevronLeft } from "lucide-react";
 import type { ReactNode } from "react";
 

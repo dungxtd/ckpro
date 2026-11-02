@@ -7,7 +7,7 @@ import {
 	ContextMenuSub,
 	ContextMenuSubContent,
 	ContextMenuSubTrigger,
-} from "@ckdry/ui/components/context-menu";
+} from "@cktry/ui/components/context-menu";
 import { arrange, SORTS } from "@/components/catalog/layout";
 import { useExam } from "@/stores/exam";
 import { useSidebarLayout } from "@/stores/settings";

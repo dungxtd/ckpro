@@ -1,16 +1,16 @@
-import { Alert } from "@ckdry/ui/components/alert";
-import { Button } from "@ckdry/ui/components/button";
-import { Card } from "@ckdry/ui/components/card";
-import { CodeBlock } from "@ckdry/ui/components/code-block";
-import { Input } from "@ckdry/ui/components/input";
-import { SegmentedControl } from "@ckdry/ui/components/segmented-control";
+import { Alert } from "@cktry/ui/components/alert";
+import { Button } from "@cktry/ui/components/button";
+import { Card } from "@cktry/ui/components/card";
+import { CodeBlock } from "@cktry/ui/components/code-block";
+import { Input } from "@cktry/ui/components/input";
+import { SegmentedControl } from "@cktry/ui/components/segmented-control";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@ckdry/ui/components/select";
+} from "@cktry/ui/components/select";
 import { useEffect, useState } from "react";
 import { track } from "@/analytics";
 import { ActivityProgress } from "@/components/activity/activity-progress";
@@ -33,7 +33,7 @@ const label = (domain: string) => domain.replaceAll("-", " ").replace(/^./, c =>
 
 /**
  * "Generate a question": the coach writes one for a certification's domain,
- * ckdry proves it on a cluster (every check fails before the solution and
+ * cktry proves it on a cluster (every check fails before the solution and
  * passes after it), and it joins "My questions".
  */
 export function GenerateCard({ onGenerated }: { onGenerated: () => void }) {
@@ -106,7 +106,7 @@ export function GenerateCard({ onGenerated }: { onGenerated: () => void }) {
 				/>
 			</header>
 			<p className="text-muted-foreground text-sm">
-				The coach writes a task for the domain you pick. You read it; ckdry then proves it on a
+				The coach writes a task for the domain you pick. You read it; cktry then proves it on a
 				cluster of its own (every check fails before the solution and passes after it) and adds it
 				to My questions. A few minutes.
 			</p>

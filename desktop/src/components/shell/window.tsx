@@ -1,4 +1,4 @@
-import { mac } from "@ckdry/ui/lib/platform";
+import { mac } from "@cktry/ui/lib/platform";
 import type { ReactNode } from "react";
 import { WindowControls } from "@/components/shell/window-controls";
 

@@ -1,9 +1,9 @@
-import { Alert } from "@ckdry/ui/components/alert";
-import { Button } from "@ckdry/ui/components/button";
-import { Loading } from "@ckdry/ui/components/loading";
-import { Toaster } from "@ckdry/ui/components/sonner";
-import { mac } from "@ckdry/ui/lib/platform";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Alert } from "@cktry/ui/components/alert";
+import { Button } from "@cktry/ui/components/button";
+import { Loading } from "@cktry/ui/components/loading";
+import { Toaster } from "@cktry/ui/components/sonner";
+import { mac } from "@cktry/ui/lib/platform";
+import { cn } from "@cktry/ui/lib/utils";
 import { CircleAlert } from "lucide-react";
 import { lazy, type ReactNode, StrictMode, Suspense, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -183,7 +183,7 @@ function App() {
 	if (!settingsLoaded || !examKnown)
 		return (
 			<WindowFrame>
-				<Loading fill label="Opening ckdry…" />
+				<Loading fill label="Opening cktry…" />
 			</WindowFrame>
 		);
 
@@ -223,7 +223,7 @@ function OpenFailed({ message, onRetry }: { message: string; onRetry: () => void
 				<CircleAlert />
 				<div className="flex min-w-0 flex-1 flex-col gap-3">
 					<div>
-						<strong>ckdry could not open</strong>
+						<strong>cktry could not open</strong>
 						<p className="mt-1 break-words text-muted-foreground">{message}</p>
 					</div>
 					<Button size="push" variant="push" className="self-end" onClick={onRetry}>

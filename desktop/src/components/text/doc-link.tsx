@@ -1,5 +1,5 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from "@ckdry/ui/components/tooltip";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@cktry/ui/components/tooltip";
+import { cn } from "@cktry/ui/lib/utils";
 import { BookOpen } from "lucide-react";
 import type * as React from "react";
 import { toast } from "sonner";

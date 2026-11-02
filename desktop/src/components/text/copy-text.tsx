@@ -1,6 +1,6 @@
-import { Button } from "@ckdry/ui/components/button";
-import { CodeBlock } from "@ckdry/ui/components/code-block";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Button } from "@cktry/ui/components/button";
+import { CodeBlock } from "@cktry/ui/components/code-block";
+import { cn } from "@cktry/ui/lib/utils";
 import { Check, Copy } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { copyToDesktop } from "@/components/exam/desktop-clipboard";

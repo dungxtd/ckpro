@@ -4,8 +4,8 @@ import {
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@ckdry/ui/components/select";
-import { Stepper } from "@ckdry/ui/components/stepper";
+} from "@cktry/ui/components/select";
+import { Stepper } from "@cktry/ui/components/stepper";
 import { Monitor, Type, ZoomIn } from "lucide-react";
 import { RESOLUTIONS, useDesktopSettings } from "@/components/exam/desktop-menu";
 import { TextSize } from "@/components/exam/question-panel";

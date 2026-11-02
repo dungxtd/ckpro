@@ -1,6 +1,6 @@
-import { Card } from "@ckdry/ui/components/card";
-import { Spinner } from "@ckdry/ui/components/spinner";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Card } from "@cktry/ui/components/card";
+import { Spinner } from "@cktry/ui/components/spinner";
+import { cn } from "@cktry/ui/lib/utils";
 import { ActivityProgress } from "@/components/activity/activity-progress";
 import type { Attempt, ExamState } from "@/tauri/api";
 

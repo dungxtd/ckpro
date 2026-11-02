@@ -1,7 +1,7 @@
-import { Button } from "@ckdry/ui/components/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@ckdry/ui/components/card";
-import { Placeholder } from "@ckdry/ui/components/placeholder";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Button } from "@cktry/ui/components/button";
+import { Card, CardDescription, CardHeader, CardTitle } from "@cktry/ui/components/card";
+import { Placeholder } from "@cktry/ui/components/placeholder";
+import { cn } from "@cktry/ui/lib/utils";
 import { useNavigate } from "react-router";
 import { addDays, dayKey } from "@/days";
 import type { PlanView } from "@/tauri/api";

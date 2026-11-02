@@ -1,5 +1,5 @@
-import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
+import { cn } from "@cktry/ui/lib/utils";
 import { type ReactNode, useRef, useState } from "react";
 import { useExam } from "@/stores/exam";
 import { shortTitle } from "@/titles";

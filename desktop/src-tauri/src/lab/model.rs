@@ -1,5 +1,5 @@
 //! Lab format v1. These types are the single source of truth: the loader
-//! parses YAML into them and `ckdry schema` generates the JSON Schemas that
+//! parses YAML into them and `cktry schema` generates the JSON Schemas that
 //! editors (and AI authors) validate against.
 //!
 //! A pack is a directory:
@@ -67,7 +67,7 @@ pub struct Question {
     #[serde(default)]
     pub tags: Vec<String>,
     /// Capabilities the question needs beyond a cluster and the jumphost.
-    /// Questions needing one ckdry does not provide are left out of exams and
+    /// Questions needing one cktry does not provide are left out of exams and
     /// verify runs.
     #[serde(default)]
     pub requires: Vec<Capability>,
@@ -83,7 +83,7 @@ pub struct Question {
     /// Shown only in practice mode, one at a time
     #[serde(default)]
     pub hints: Vec<String>,
-    /// Reference answer. `run` must make every check pass (`ckdry lab verify`)
+    /// Reference answer. `run` must make every check pass (`cktry lab verify`)
     pub solution: Solution,
     /// Documentation allowed in the exam (kubernetes.io/docs, ...)
     #[serde(default)]
@@ -107,7 +107,7 @@ pub enum Capability {
 }
 
 impl Capability {
-    /// Whether ckdry can offer it
+    /// Whether cktry can offer it
     pub fn available(self) -> bool {
         match self {
             Capability::ContainerRuntime => false,

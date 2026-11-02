@@ -1,12 +1,12 @@
-import { Capsule, CapsuleItem } from "@ckdry/ui/components/capsule";
+import { Capsule, CapsuleItem } from "@cktry/ui/components/capsule";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuTrigger,
-} from "@ckdry/ui/components/dropdown-menu";
-import { IconButton } from "@ckdry/ui/components/icon-button";
-import { mac } from "@ckdry/ui/lib/platform";
-import { cn } from "@ckdry/ui/lib/utils";
+} from "@cktry/ui/components/dropdown-menu";
+import { IconButton } from "@cktry/ui/components/icon-button";
+import { mac } from "@cktry/ui/lib/platform";
+import { cn } from "@cktry/ui/lib/utils";
 import { ChevronDown, PanelLeft, Search } from "lucide-react";
 import type * as React from "react";
 import { useLocation, useNavigate } from "react-router";

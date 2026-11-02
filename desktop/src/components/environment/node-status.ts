@@ -1,4 +1,4 @@
-import type { StatusTone } from "@ckdry/ui/components/status-dot";
+import type { StatusTone } from "@cktry/ui/components/status-dot";
 import type { NodeState } from "@/tauri/api";
 
 /** Container state and Kubernetes readiness folded into one tone + label. */

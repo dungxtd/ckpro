@@ -1,6 +1,6 @@
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@ckdry/ui/components/hover-card";
-import { useElementSize } from "@ckdry/ui/hooks/use-element-size";
-import { cn } from "@ckdry/ui/lib/utils";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@cktry/ui/components/hover-card";
+import { useElementSize } from "@cktry/ui/hooks/use-element-size";
+import { cn } from "@cktry/ui/lib/utils";
 import { Flag, GripVertical, Plus, X } from "lucide-react";
 import { type DragEvent, useState } from "react";
 import { scoreOf, startedAt } from "@/components/study/data";

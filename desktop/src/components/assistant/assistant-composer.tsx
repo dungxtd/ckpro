@@ -1,6 +1,6 @@
-import { Badge } from "@ckdry/ui/components/badge";
-import { Button } from "@ckdry/ui/components/button";
-import { Chip } from "@ckdry/ui/components/chip";
+import { Badge } from "@cktry/ui/components/badge";
+import { Button } from "@cktry/ui/components/button";
+import { Chip } from "@cktry/ui/components/chip";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -12,13 +12,13 @@ import {
 	DropdownMenuSubContent,
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
-} from "@ckdry/ui/components/dropdown-menu";
-import { IconButton } from "@ckdry/ui/components/icon-button";
-import { menu, menuRow } from "@ckdry/ui/components/menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@ckdry/ui/components/popover";
-import { Textarea } from "@ckdry/ui/components/textarea";
-import { Truncated } from "@ckdry/ui/components/truncated";
-import { cn } from "@ckdry/ui/lib/utils";
+} from "@cktry/ui/components/dropdown-menu";
+import { IconButton } from "@cktry/ui/components/icon-button";
+import { menu, menuRow } from "@cktry/ui/components/menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
+import { Textarea } from "@cktry/ui/components/textarea";
+import { Truncated } from "@cktry/ui/components/truncated";
+import { cn } from "@cktry/ui/lib/utils";
 import {
 	ArrowUp,
 	AtSign,

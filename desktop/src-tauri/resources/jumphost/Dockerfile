@@ -2,8 +2,8 @@
 # Reached from the exam desktop (`base`) with `ssh <host>`, one host name per
 # cluster, which logs in with that cluster's kubectl context. kubectl (k,
 # completion), helm, etcdctl, yq, curl, wget and man, like the exam's hosts;
-# ssh to every node by name. Built by ckdry (runtime/infra.rs); per-exam
-# files are mounted at /root/.ckdry by the app.
+# ssh to every node by name. Built by cktry (runtime/infra.rs); per-exam
+# files are mounted at /root/.cktry by the app.
 FROM debian:trixie-slim
 
 ARG KUBECTL_VERSION
@@ -34,7 +34,7 @@ RUN arch=$(dpkg --print-architecture) \
 
 # kubeconfig and etcd certs come from the app (read-only mount)
 RUN mkdir -p /root/.kube /root/.ssh \
- && ln -s /root/.ckdry/kubeconfig /root/.kube/config \
+ && ln -s /root/.cktry/kubeconfig /root/.kube/config \
  && printf '%s\n' 'Host *' '  User root' '  StrictHostKeyChecking no' \
       '  UserKnownHostsFile /dev/null' '  LogLevel ERROR' > /root/.ssh/config \
  && printf '%s\n' \
@@ -46,16 +46,16 @@ RUN mkdir -p /root/.kube /root/.ssh \
       >> /root/.bashrc
 
 # sshd for the exam desktop, on the private exam network only. The desktop
-# sends CKDRY_HOST (the host name it used): login switches to that cluster
+# sends CKTRY_HOST (the host name it used): login switches to that cluster
 # and shows it in the prompt
 RUN passwd -d root \
  && mkdir -p /run/sshd \
- && printf '%s\n' 'PermitRootLogin yes' 'PermitEmptyPasswords yes' 'UsePAM no' 'AcceptEnv CKDRY_HOST' \
-      > /etc/ssh/sshd_config.d/ckdry.conf \
+ && printf '%s\n' 'PermitRootLogin yes' 'PermitEmptyPasswords yes' 'UsePAM no' 'AcceptEnv CKTRY_HOST' \
+      > /etc/ssh/sshd_config.d/cktry.conf \
  && printf '%s\n' \
-      'if [ -n "$CKDRY_HOST" ]; then' \
-      '  kubectl config use-context "$CKDRY_HOST" >/dev/null 2>&1' \
-      '  PS1="\u@$CKDRY_HOST:\w\\$ "' \
+      'if [ -n "$CKTRY_HOST" ]; then' \
+      '  kubectl config use-context "$CKTRY_HOST" >/dev/null 2>&1' \
+      '  PS1="\u@$CKTRY_HOST:\w\\$ "' \
       'fi' \
       >> /root/.bashrc
 

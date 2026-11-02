@@ -1,4 +1,4 @@
-import { cn } from "@ckdry/ui/lib/utils";
+import { cn } from "@cktry/ui/lib/utils";
 import { ChevronRight } from "lucide-react";
 import type * as React from "react";
 import type { ReactNode } from "react";

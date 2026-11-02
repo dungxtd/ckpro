@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// The app's desktop (tests run their own, by name)
-pub const NAME: &str = "ckdry-desktop";
+pub const NAME: &str = "cktry-desktop";
 const VNC_PORT: &str = "6080/tcp";
 const POLICIES: &str = "usr/share/firefox-esr/distribution/policies.json";
 const SSH_HOSTS: &str = "etc/ssh/ssh_config.d/10-hosts.conf";
@@ -213,7 +213,7 @@ fn quick_links(allowed: &[String]) -> serde_json::Value {
 
 /// `ssh <cluster>` logs into the task host with that cluster's context
 fn ssh_hosts(hosts: &[String], jumphost: &str) -> String {
-    hosts.iter().map(|host| format!("Host {host}\n  HostName {jumphost}\n  SetEnv CKDRY_HOST={host}\n")).collect()
+    hosts.iter().map(|host| format!("Host {host}\n  HostName {jumphost}\n  SetEnv CKTRY_HOST={host}\n")).collect()
 }
 
 async fn upload(docker: &Docker, name: &str, files: &[(&str, String)]) -> AppResult<()> {

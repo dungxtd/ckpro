@@ -1,4 +1,4 @@
-import { cn } from "@ckdry/ui/lib/utils";
+import { cn } from "@cktry/ui/lib/utils";
 import { memo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";

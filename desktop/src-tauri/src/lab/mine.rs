@@ -61,7 +61,7 @@ pub fn save(data_dir: &Path, certification: &str, certification_title: &str, pat
     std::fs::create_dir_all(path.parent().unwrap_or(&root)).map_err(io)?;
     let pack_file = root.join("pack.yaml");
     if !pack_file.exists() {
-        std::fs::write(&pack_file, "# The questions the coach generated and ckdry verified\nid: mine\ntitle: My questions\nversion: 0.1.0\n")
+        std::fs::write(&pack_file, "# The questions the coach generated and cktry verified\nid: mine\ntitle: My questions\nversion: 0.1.0\n")
             .map_err(io)?;
     }
     std::fs::write(path, yaml).map_err(io)?;
@@ -118,7 +118,7 @@ mod tests {
 
     #[test]
     fn saves_questions_with_an_exam_per_certification() {
-        let data = std::env::temp_dir().join(format!("ckdry-mine-{}", std::process::id()));
+        let data = std::env::temp_dir().join(format!("cktry-mine-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&data);
         let (id, path) = new_question(&data, "cka", "Fix a Pending PVC!");
         assert_eq!(id, "mine/cka/fix-a-pending-pvc");
@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn deletes_only_the_candidates_own_exam() {
-        let data = std::env::temp_dir().join(format!("ckdry-mine-delete-{}", std::process::id()));
+        let data = std::env::temp_dir().join(format!("cktry-mine-delete-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&data);
         let (_, path) = new_question(&data, "ckad", "Probe a pod");
         save(&data, "ckad", "Certified Kubernetes Application Developer", &path, "title: x\n").unwrap();

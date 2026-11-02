@@ -1,8 +1,8 @@
-import { Alert } from "@ckdry/ui/components/alert";
-import { Button } from "@ckdry/ui/components/button";
-import { Separator } from "@ckdry/ui/components/separator";
-import { Stepper } from "@ckdry/ui/components/stepper";
-import { cn } from "@ckdry/ui/lib/utils";
+import { Alert } from "@cktry/ui/components/alert";
+import { Button } from "@cktry/ui/components/button";
+import { Separator } from "@cktry/ui/components/separator";
+import { Stepper } from "@cktry/ui/components/stepper";
+import { cn } from "@cktry/ui/lib/utils";
 import { Eye, Lightbulb, ListChecks } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { CheckList } from "@/components/exam/check-list";

@@ -1,8 +1,8 @@
 # Builds the macOS app (arm64 and x86_64, one DMG each) for a version tag,
 # publishes the DMGs on this repo's GitHub Release, then points the Homebrew
 # cask in Casks/ at them:
-#   brew tap dungxtd/ckdry https://github.com/dungxtd/ckdry
-#   brew install --cask ckdry
+#   brew tap dungxtd/cktry https://github.com/dungxtd/cktry
+#   brew install --cask cktry
 name: release
 
 on:
@@ -63,14 +63,14 @@ jobs:
           set -euo pipefail
           mkdir -p _artifacts
           for f in desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg; do
-            cp "$f" "_artifacts/ckdry_${{ matrix.label }}_$(basename "$f")"
+            cp "$f" "_artifacts/cktry_${{ matrix.label }}_$(basename "$f")"
           done
           ls -la _artifacts
 
       - name: Keep the DMG with the run
         uses: actions/upload-artifact@v4
         with:
-          name: ckdry-${{ matrix.label }}
+          name: cktry-${{ matrix.label }}
           path: _artifacts/*.dmg
           retention-days: 7
 
@@ -111,10 +111,10 @@ jobs:
             /on_intel do/  { blk = "intel" }
             /^    sha256 / { print "    sha256 \"" (blk == "arm" ? arm : intel) "\""; next }
             { print }
-          ' Casks/ckdry.rb > Casks/ckdry.rb.tmp
-          mv Casks/ckdry.rb.tmp Casks/ckdry.rb
-          cat Casks/ckdry.rb
-          if git diff --quiet Casks/ckdry.rb; then
+          ' Casks/cktry.rb > Casks/cktry.rb.tmp
+          mv Casks/cktry.rb.tmp Casks/cktry.rb
+          cat Casks/cktry.rb
+          if git diff --quiet Casks/cktry.rb; then
             echo "Cask already up to date"
             exit 0
           fi

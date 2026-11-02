@@ -93,7 +93,7 @@ impl EnvState {
                 severity: Severity::Error,
                 component: "docker".into(),
                 message: reason.clone(),
-                hint: "Start OrbStack or Docker Desktop; ckdry reconnects on its own.".into(),
+                hint: "Start OrbStack or Docker Desktop; cktry reconnects on its own.".into(),
             });
             return issues;
         }

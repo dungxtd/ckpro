@@ -15,7 +15,7 @@ struct Fixture {
 
 /// Clusters, kind state and a jumphost of the test's own
 fn fixture(name: &str) -> Fixture {
-    let dir = std::env::temp_dir().join(format!("ckdry-e2e-{name}"));
+    let dir = std::env::temp_dir().join(format!("cktry-e2e-{name}"));
     Fixture {
         kind: Arc::new(cluster::kind::Kind::new(dir.clone())),
         infra: Arc::new(infra::Infra::new(dir.clone())),
@@ -81,7 +81,7 @@ async fn eventually(what: &str, attempts: u32, check: impl AsyncFn() -> bool) {
 #[ignore]
 async fn exam_cluster_from_the_jumphost() {
     let f = fixture("cluster");
-    let name = "ckdry-e2e";
+    let name = "cktry-e2e";
     let started = std::time::Instant::now();
     f.create(name, 1).await;
     println!("created in {:?}", started.elapsed());
@@ -89,9 +89,9 @@ async fn exam_cluster_from_the_jumphost() {
     let docker = runtime::docker::connect().await.unwrap();
     for container in [format!("{name}-control-plane"), format!("{name}-worker"), f.jumphost.name.clone()] {
         let labels = docker.inspect_container(&container, None).await.unwrap().config.unwrap().labels.unwrap();
-        assert_eq!(labels.get("com.docker.compose.project").map(String::as_str), Some("ckdry"), "{container}");
+        assert_eq!(labels.get("com.docker.compose.project").map(String::as_str), Some("cktry"), "{container}");
     }
-    println!("ok: nodes and jumphost are in the ckdry compose project");
+    println!("ok: nodes and jumphost are in the cktry compose project");
 
     let out = f.on_jumphost("kubectl config current-context && kubectl get nodes --no-headers | wc -l").await;
     assert_eq!(out.text.split_whitespace().collect::<Vec<_>>(), [name, "2"], "{}", out.text);
@@ -105,7 +105,7 @@ async fn exam_cluster_from_the_jumphost() {
     println!("ok: ssh to nodes, static pods and kubelet visible");
 
     let out = f.on_jumphost(&format!(
-        "d=/root/.ckdry/etcd/{name}; etcdctl --endpoints=https://{name}-control-plane:2379 --cacert=$d/ca.crt --cert=$d/client.crt --key=$d/client.key endpoint health"
+        "d=/root/.cktry/etcd/{name}; etcdctl --endpoints=https://{name}-control-plane:2379 --cacert=$d/ca.crt --cert=$d/client.crt --key=$d/client.key endpoint health"
     ))
     .await;
     assert!(out.text.contains("is healthy"), "{}", out.text);
@@ -167,7 +167,7 @@ async fn exam_cluster_from_the_jumphost() {
 async fn monitor_tracks_node_failure_and_repair() {
     use runtime::model::{ContainerStatus, Readiness};
     let f = fixture("monitor");
-    let name = "ckdry-mon";
+    let name = "cktry-mon";
     let env = Arc::new(Env::new(|_| {}));
     // Readiness is followed while it is shown (the Environment page)
     env.set_watch_nodes(true);
@@ -205,7 +205,7 @@ async fn monitor_tracks_node_failure_and_repair() {
 /// exam: `cargo test exam_engine -- --ignored --nocapture`
 /// A pack with one exam ("core/one") of one question, on `cluster`
 fn one_question_pack(name: &str, cluster: &str) -> (std::path::PathBuf, lab::load::LoadedPack) {
-    let pack_dir = std::env::temp_dir().join(format!("ckdry-e2e-pack-{name}"));
+    let pack_dir = std::env::temp_dir().join(format!("cktry-e2e-pack-{name}"));
     let _ = std::fs::remove_dir_all(&pack_dir);
     let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/core");
     std::fs::create_dir_all(pack_dir.join("questions/cka")).unwrap();
@@ -225,16 +225,16 @@ async fn exam_engine_practice_and_exam_modes() {
     use lab::exam::{ExamState, Exams, Mode};
     // A cluster of its own: kind names are global, and `k8s` is the app's
     // (a running exam's cluster would be replaced)
-    let cluster = "ckdry-e2e-exam";
+    let cluster = "cktry-e2e-exam";
     let (pack_dir, pack) = one_question_pack("exam", cluster);
 
-    let db = std::env::temp_dir().join("ckdry-e2e-exam.db");
+    let db = std::env::temp_dir().join("cktry-e2e-exam.db");
     for suffix in ["", "-wal", "-shm"] {
         let _ = std::fs::remove_file(format!("{}{suffix}", db.display()));
     }
     let store = Arc::new(store::Store::open(&db).unwrap());
     let f = fixture("exam");
-    let desktop = "ckdry-desktop-test-exam";
+    let desktop = "cktry-desktop-test-exam";
     // The monitor feeds the guard Docker's events, as in the app
     let guard = runtime::guard::Guard::new(|what| println!("  guard: {what}"));
     runtime::monitor::start(Arc::new(Env::new(|_| {})), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), guard.clone(), vec![]);
@@ -406,7 +406,7 @@ async fn exam_engine_practice_and_exam_modes() {
     })
     .await;
     let ExamState::Finished { result, .. } = exams.state() else { unreachable!() };
-    // Exactly what was done above: not ckdry's own restarts or kind's execs
+    // Exactly what was done above: not cktry's own restarts or kind's execs
     assert!(result.outside.len() == 2 && !result.outside.iter().any(|o| o.contains("disconnected")), "{:?}", result.outside);
     println!("ok: the result lists what was done outside the exam desktop: {:?}", result.outside);
     eventually("the nodes' memory measured", 30, async || store.footprint().unwrap().control_plane_mb > 0).await;
@@ -477,10 +477,10 @@ async fn exam_engine_practice_and_exam_modes() {
         matches!(exams.state(), ExamState::Finished { ref result, .. } if !result.passed)
     })
     .await;
-    // Quitting and resuming (kind reading kubeconfigs) is ckdry's own doing
+    // Quitting and resuming (kind reading kubeconfigs) is cktry's own doing
     let ExamState::Finished { result, .. } = exams.state() else { unreachable!() };
     assert!(result.outside.is_empty(), "{:?}", result.outside);
-    println!("ok: nothing outside noted for an attempt only ckdry touched");
+    println!("ok: nothing outside noted for an attempt only cktry touched");
     assert!(exams.solution(question).is_ok());
     println!("ok: solution available after the result");
     exams.end().await.unwrap();
@@ -497,6 +497,6 @@ async fn exam_engine_practice_and_exam_modes() {
 #[test]
 fn bindings_export() {
     specta_builder()
-        .export(typescript(), std::env::temp_dir().join("ckdry-bindings.ts"))
+        .export(typescript(), std::env::temp_dir().join("cktry-bindings.ts"))
         .unwrap();
 }

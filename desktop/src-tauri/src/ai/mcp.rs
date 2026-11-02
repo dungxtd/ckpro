@@ -66,10 +66,10 @@ impl Server {
     /// The session's question in the running practice attempt
     fn question(&self) -> AppResult<(String, Question)> {
         let (attempt, questions) =
-            exam::saved_running(&self.store).ok_or_else(|| AppError::not_found("no practice attempt is running in ckdry"))?;
+            exam::saved_running(&self.store).ok_or_else(|| AppError::not_found("no practice attempt is running in cktry"))?;
         if attempt.mode == exam::Mode::Exam {
             return Err(AppError::invalid(
-                "An exam-mode attempt is running in ckdry: the assistant is off until it ends, as in the real exam.",
+                "An exam-mode attempt is running in cktry: the assistant is off until it ends, as in the real exam.",
             ));
         }
         questions
@@ -99,7 +99,7 @@ impl Server {
 
     /// Run `command` (bash) on the task host for the agent session's question,
     /// as the candidate would after `ssh <host>`. The candidate approved it in
-    /// ckdry (the agent asks before each tool use)
+    /// cktry (the agent asks before each tool use)
     async fn run_command(&self, command: &str, timeout: Option<u64>) -> AppResult<String> {
         let (_, question) = self.question()?;
         let command = command.trim();
@@ -126,7 +126,7 @@ fn initialize(params: &Value) -> Value {
     json!({
         "protocolVersion": version,
         "capabilities": { "tools": {} },
-        "serverInfo": { "name": "ckdry", "title": "ckdry", "version": env!("CARGO_PKG_VERSION") },
+        "serverInfo": { "name": "cktry", "title": "cktry", "version": env!("CARGO_PKG_VERSION") },
     })
 }
 
@@ -136,7 +136,7 @@ async fn task_host() -> AppResult<(bollard::Docker, &'static str)> {
     let host = crate::runtime::jumphost::APP_NAME;
     let running = docker.inspect_container(host, None).await.ok().and_then(|c| c.state?.running).unwrap_or(false);
     if !running {
-        return Err(AppError::invalid("The attempt's cluster is not running: open ckdry to resume the attempt, then try again."));
+        return Err(AppError::invalid("The attempt's cluster is not running: open cktry to resume the attempt, then try again."));
     }
     Ok((docker, host))
 }
@@ -154,7 +154,7 @@ fn refused(command: &str) -> Option<&'static str> {
         return Some("it would remove or replace the exam's cluster");
     }
     if has("docker") || has("podman") {
-        return Some("ckdry's containers are not part of the task");
+        return Some("cktry's containers are not part of the task");
     }
     if ["reboot", "shutdown", "halt", "poweroff"].iter().any(|w| has(w)) || follows("init", "0") {
         return Some("it would take the host down");
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn commands_that_break_the_environment_are_refused() {
-        for bad in ["kind delete cluster --name k8s", "docker rm -f ckdry-jumphost", "sudo reboot", "rm -rf /", "cd /tmp && rm -fr ~", ":(){ :|:& };:"] {
+        for bad in ["kind delete cluster --name k8s", "docker rm -f cktry-jumphost", "sudo reboot", "rm -rf /", "cd /tmp && rm -fr ~", ":(){ :|:& };:"] {
             assert!(refused(bad).is_some(), "{bad}");
         }
         for ok in ["kubectl get pods -A", "rm -rf /tmp/work", "ssh node01 'systemctl restart kubelet'", "kubectl rollout restart deploy/web", "echo dockerfile"] {

@@ -1,4 +1,4 @@
-import { cn } from "@ckdry/ui/lib/utils";
+import { cn } from "@cktry/ui/lib/utils";
 import { type RefObject, useState } from "react";
 
 /** A border dragged to resize the panels beside it */

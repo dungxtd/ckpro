@@ -96,11 +96,11 @@ pub async fn wait(timeout: std::time::Duration, waiting: impl FnOnce()) -> AppRe
     }
 }
 
-/// Compose project every container started by ckdry belongs to, so container
+/// Compose project every container started by cktry belongs to, so container
 /// managers (OrbStack, Docker Desktop) group them as one app.
-pub const COMPOSE_PROJECT: &str = "ckdry";
+pub const COMPOSE_PROJECT: &str = "cktry";
 
-/// Labels that put a container in the ckdry compose project as `service`.
+/// Labels that put a container in the cktry compose project as `service`.
 pub fn compose_labels(service: &str) -> Vec<(String, String)> {
     vec![
         ("com.docker.compose.project".into(), COMPOSE_PROJECT.into()),

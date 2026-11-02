@@ -551,7 +551,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ckdry"
+name = "cktry"
 version = "0.1.0"
 dependencies = [
  "bollard",
