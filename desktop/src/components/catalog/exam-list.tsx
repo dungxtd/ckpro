@@ -12,11 +12,9 @@ import {
 	ContextMenuTrigger,
 } from "@cktry/ui/components/context-menu";
 import {
-	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
-	DropdownMenuSeparator,
 } from "@cktry/ui/components/dropdown-menu";
 import {
 	SidebarEye,
@@ -32,11 +30,10 @@ import { Pin } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
-import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { SHORTCUTS } from "@/shortcuts";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
-import { useAssistantEnabled, useSidebarLayout } from "@/stores/settings";
+import { useSidebarLayout } from "@/stores/settings";
 import { type ExamSort, type ExamSummary, errorText, examApi } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 import { memoryFit, useExamStats, useSelection } from "./exams";
@@ -87,9 +84,8 @@ export function ExamList({
 	const loadCatalog = useExam(s => s.loadCatalog);
 	const stats = useExamStats(s => s.stats);
 	const dockerMb = useDockerMb();
-	const assistant = useAssistantEnabled();
 	const [layout, setLayout] = useSidebarLayout();
-	const { exam: shown, generating, select, generate } = useSelection();
+	const { exam: shown, select } = useSelection();
 	const navigate = useNavigate();
 	const onExams = useLocation().pathname === "/exams";
 	const [deleting, setDeleting] = useState<ExamSummary | null>(null);
@@ -176,7 +172,7 @@ export function ExamList({
 						// Pinned, away from its certification's heading: it says which
 						detail={`${isPinned ? `${exam.certification.toUpperCase()}, ` : ""}${exam.questions} questions, ${exam.duration_minutes} min${f === "slower" ? ", runs slower" : f === "too-small" ? ", needs more memory" : ""}`}
 						warning={f === "slower" || f === "too-small"}
-						current={onExams && !generating && shown?.id === exam.id}
+						current={onExams && shown?.id === exam.id}
 						onClick={() => select(exam.id)}
 						// Edited: the same row, a red minus (its own) and its grip added
 						leading={
@@ -301,17 +297,6 @@ export function ExamList({
 			{q && top.length === 0 && groups.length === 0 && (
 				<p className="px-2.5 pt-3 text-2xs text-muted-foreground">No exam has “{query.trim()}”.</p>
 			)}
-			{assistant && !q && !editing && (
-				<>
-					<SidebarLabel>Features</SidebarLabel>
-					<SidebarItem
-						icon={<ClaudeIcon className="text-claude!" />}
-						label="Generate a question"
-						current={onExams && generating}
-						onClick={generate}
-					/>
-				</>
-			)}
 			<ConfirmDialog
 				open={deleting !== null}
 				onOpenChange={o => !o && setDeleting(null)}
@@ -328,47 +313,32 @@ export function ExamList({
 export function ExamMenuItems() {
 	const catalog = useCatalog();
 	const stats = useExamStats(s => s.stats);
-	const assistant = useAssistantEnabled();
 	const [layout] = useSidebarLayout();
-	const { exam: shown, generating, select, generate } = useSelection();
+	const { exam: shown, select } = useSelection();
 	const onExams = useLocation().pathname === "/exams";
 	const top = pinned(catalog, layout);
 	return (
-		<>
-			<DropdownMenuRadioGroup
-				value={onExams && !generating ? (shown?.id ?? "") : ""}
-				onValueChange={select}
-			>
-				{top.length > 0 && (
-					<>
-						<DropdownMenuLabel>Pinned</DropdownMenuLabel>
-						{top.map(exam => (
-							<DropdownMenuRadioItem key={exam.id} value={exam.id}>
-								{exam.certification.toUpperCase()} {shortTitle(exam.title)}
-							</DropdownMenuRadioItem>
-						))}
-					</>
-				)}
-				{arrange(catalog, layout, false, stats).map(({ cert, exams }) => (
-					<Fragment key={cert}>
-						<DropdownMenuLabel>{cert.toUpperCase()}</DropdownMenuLabel>
-						{exams.map(exam => (
-							<DropdownMenuRadioItem key={exam.id} value={exam.id}>
-								{shortTitle(exam.title)}
-							</DropdownMenuRadioItem>
-						))}
-					</Fragment>
-				))}
-			</DropdownMenuRadioGroup>
-			{assistant && (
+		<DropdownMenuRadioGroup value={onExams ? (shown?.id ?? "") : ""} onValueChange={select}>
+			{top.length > 0 && (
 				<>
-					<DropdownMenuSeparator />
-					<DropdownMenuItem onSelect={generate}>
-						<ClaudeIcon className="text-claude" />
-						Generate a question
-					</DropdownMenuItem>
+					<DropdownMenuLabel>Pinned</DropdownMenuLabel>
+					{top.map(exam => (
+						<DropdownMenuRadioItem key={exam.id} value={exam.id}>
+							{exam.certification.toUpperCase()} {shortTitle(exam.title)}
+						</DropdownMenuRadioItem>
+					))}
 				</>
 			)}
-		</>
+			{arrange(catalog, layout, false, stats).map(({ cert, exams }) => (
+				<Fragment key={cert}>
+					<DropdownMenuLabel>{cert.toUpperCase()}</DropdownMenuLabel>
+					{exams.map(exam => (
+						<DropdownMenuRadioItem key={exam.id} value={exam.id}>
+							{shortTitle(exam.title)}
+						</DropdownMenuRadioItem>
+					))}
+				</Fragment>
+			))}
+		</DropdownMenuRadioGroup>
 	);
 }

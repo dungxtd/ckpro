@@ -14,7 +14,7 @@ import { ActivityChip } from "@/components/activity/activity-chip";
 import { ExamMenuItems } from "@/components/catalog/exam-list";
 import { WindowControls } from "@/components/shell/window-controls";
 import { SHORTCUTS } from "@/shortcuts";
-import { useSidebarLayout } from "@/stores/settings";
+import { useAssistantEnabled, useSidebarLayout } from "@/stores/settings";
 import { arrangeScreens } from "./sections";
 
 /**
@@ -39,6 +39,7 @@ export function TitleBar({
 	const { pathname } = useLocation();
 	const navigate = useNavigate();
 	const [layout] = useSidebarLayout();
+	const assistant = useAssistantEnabled();
 	return (
 		<div
 			data-tauri-drag-region
@@ -75,7 +76,7 @@ export function TitleBar({
 				>
 					<PanelLeft />
 				</IconButton>
-				{arrangeScreens(layout).map(({ path, label }) => (
+				{arrangeScreens(layout, { assistant }).map(({ path, label }) => (
 					<CapsuleItem key={path} current={pathname === path} onClick={() => navigate(path)}>
 						{label}
 					</CapsuleItem>

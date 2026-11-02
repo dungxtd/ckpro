@@ -8,6 +8,39 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  Current environment; later changes arrive as `EnvChanged` events. */
 	envState: () => __TAURI_INVOKE<EnvState>("env_state"),
+	/**  Where the Create screen's verify cluster stands; changes arrive as `StudioChanged` */
+	studioState: () => __TAURI_INVOKE<WorkspaceState>("studio_state"),
+	/**
+	 *  The Create screen opened: its verify cluster is made unless it is there
+	 *  (refused during an exam, which needs the memory and has no assistant)
+	 */
+	studioPrepare: () => typedError<null, AppError>(__TAURI_INVOKE("studio_prepare")),
+	/**  Stop making the Create screen's verify cluster, or remove it */
+	studioRelease: () => __TAURI_INVOKE<void>("studio_release"),
+	/**  The Create screen was left: its verify cluster goes after a while */
+	studioLeave: () => __TAURI_INVOKE<void>("studio_leave"),
+	/**  The Create conversations, latest first */
+	studioSessions: () => typedError<StudioSessionRow[], AppError>(__TAURI_INVOKE("studio_sessions")),
+	/**  A new Create conversation */
+	studioNew: () => typedError<StudioConversation_Serialize, AppError>(__TAURI_INVOKE("studio_new")),
+	/**  A Create conversation, with its messages and draft */
+	studioOpen: (session: number) => typedError<StudioConversation_Serialize, AppError>(__TAURI_INVOKE("studio_open", { session })),
+	/**
+	 *  Say something in a Create conversation; the answer streams as it is
+	 *  written (and Claude's tool uses), the draft's changes arrive as `StudioDraft`
+	 */
+	studioAsk: (session: number, text: string, model: ModelChoice, events: Channel<CoachEvent>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("studio_ask", { session, text, model, events })),
+	studioRename: (session: number, title: string) => typedError<null, AppError>(__TAURI_INVOKE("studio_rename", { session, title })),
+	studioDelete: (session: number) => typedError<null, AppError>(__TAURI_INVOKE("studio_delete", { session })),
+	/**  Take a question out of the draft (by id, or a new one's key) */
+	studioRemove: (session: number, id: string) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_remove", { session, id })),
+	/**
+	 *  Prove the draft's new questions on the verify cluster (the candidate's
+	 *  go: their scripts run there); the draft with their results
+	 */
+	studioVerify: (session: number) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_verify", { session })),
+	/**  Save the draft as the candidate's exam; its id */
+	studioSave: (session: number) => typedError<string, AppError>(__TAURI_INVOKE("studio_save", { session })),
 	/**  Try Docker again now (Retry), not at the monitor's next backoff. */
 	envRetry: () => __TAURI_INVOKE<void>("env_retry"),
 	/**
@@ -112,15 +145,6 @@ export const commands = {
 	studyStats: () => __TAURI_INVOKE<StudyStats[]>("study_stats"),
 	/**  Open a web page in the system browser (https only): links outside the exam desktop. */
 	openInBrowser: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_in_browser", { url })),
-	/**  What the question generator can write for. */
-	generatorTargets: () => __TAURI_INVOKE<GeneratorTarget[]>("generator_targets"),
-	/**
-	 *  Generate a question, prove it on a cluster and keep it in "My questions"
-	 *  (progress as an activity). Not during an exam.
-	 */
-	generateQuestion: (request: GenerateRequest, drafts: Channel<Draft>) => typedError<Generated, AppError>(__TAURI_INVOKE("generate_question", { request, drafts })),
-	/**  The candidate's answer to the generated draft: run it on a cluster, or discard it. */
-	generateReview: (approve: boolean) => typedError<null, AppError>(__TAURI_INVOKE("generate_review", { approve })),
 	/**
 	 *  The last long operations, with their logs (later changes arrive as
 	 *  `ActivityChanged` and `ActivityLog`).
@@ -156,6 +180,8 @@ export const events = {
 	envChanged: makeEvent<EnvChanged, EnvChanged>("env-changed"),
 	examChanged: makeEvent<ExamChanged_Serialize, ExamChanged_Deserialize>("exam-changed"),
 	guardNotice: makeEvent<GuardNotice, GuardNotice>("guard-notice"),
+	studioChanged: makeEvent<StudioChanged, StudioChanged>("studio-changed"),
+	studioDraft: makeEvent<StudioDraft_Serialize, StudioDraft_Deserialize>("studio-draft"),
 };
 
 /* Types */
@@ -498,8 +524,6 @@ export type DesktopSession = {
 	password: string,
 };
 
-export type Difficulty = "easy" | "medium" | "hard";
-
 export type DockerState = { state: "connecting" } | { state: "down"; reason: string } | { state: "up"; engine: string; version: string; cpus: number; memory_mb: number };
 
 /**  How the candidate did in one curriculum domain, over all attempts */
@@ -513,15 +537,31 @@ export type DomainStat = {
 	questions: number,
 };
 
-/**
- *  A question the model wrote that lints, for the candidate to read before
- *  its scripts run on a cluster
- */
-export type Draft = {
-	title: string,
-	/**  The whole question as the pack keeps it: task, setup, solution, checks */
-	yaml: string,
-};
+export type DraftItem = DraftItem_Serialize | DraftItem_Deserialize;
+
+export type DraftItem_Deserialize = 
+/**  A question of the packs, by id (its title and domain as added) */
+{ kind: "existing"; id: string; title?: string; domain?: string } | 
+/**  A question Claude wrote for this exam */
+{
+	kind: "new",
+} & NewQuestion;
+
+export type DraftItem_Serialize = 
+/**  A question of the packs, by id (its title and domain as added) */
+{ kind: "existing"; id: string; title: string; domain: string } | 
+/**  A question Claude wrote for this exam */
+{
+	kind: "new",
+} & NewQuestion;
+
+export type DraftStatus = 
+/**  It lints: to be proven on a cluster */
+{ state: "linted" } | 
+/**  Every check failed before its solution and passed after */
+{ state: "proven" } | 
+/**  It did not prove, and why */
+{ state: "failed"; problems: string[] };
 
 /**  Pushed to the UI on every environment change. */
 export type EnvChanged = EnvState;
@@ -544,6 +584,28 @@ export type ExamChanged_Deserialize = ExamState_Deserialize;
 
 /**  Pushed to the UI on every exam state change. */
 export type ExamChanged_Serialize = ExamState_Serialize;
+
+export type ExamDraft = ExamDraft_Serialize | ExamDraft_Deserialize;
+
+export type ExamDraft_Deserialize = {
+	title?: string,
+	/**  A certification of the pack (`cka`); every question belongs to it */
+	certification?: string,
+	duration_minutes?: number | null,
+	items?: DraftItem_Deserialize[],
+	/**  The exam it was saved as */
+	saved?: string | null,
+};
+
+export type ExamDraft_Serialize = {
+	title: string,
+	/**  A certification of the pack (`cka`); every question belongs to it */
+	certification: string,
+	duration_minutes: number | null,
+	items: DraftItem_Serialize[],
+	/**  The exam it was saved as */
+	saved: string | null,
+};
 
 /**
  *  How ready the candidate is for a certification: per domain over recent
@@ -713,33 +775,6 @@ export type ExamTarget_Serialize = {
 	rest_days: number[],
 };
 
-/**  What to generate */
-export type GenerateRequest = {
-	/**  A certification of the pack (`cka`, `ckad`, `cks`) */
-	certification: string,
-	/**  One of its curriculum domains */
-	domain: string,
-	difficulty: Difficulty,
-	/**  What it should be about, in the candidate's words (may be empty) */
-	topic: string,
-};
-
-/**  A question that was proven and kept */
-export type Generated = {
-	id: string,
-	title: string,
-	/**  The exam of the candidate's questions for the certification */
-	exam_id: string,
-};
-
-/**  A certification the generator can write for, with its domains */
-export type GeneratorTarget = {
-	certification: string,
-	title: string,
-	/**  Domain and its weight in percent, heaviest first */
-	domains: ([string, number])[],
-};
-
 /**  Something changed the running attempt's environment outside cktry. */
 export type GuardNotice = string;
 
@@ -801,6 +836,16 @@ export type ModelOption_Serialize = {
 	value: string,
 	name: string,
 	description: string | null,
+};
+
+export type NewQuestion = {
+	/**  Its name in the draft (`n1`, `n2`…), until it is saved */
+	key: string,
+	title: string,
+	/**  Its domain in the draft's certification */
+	domain: string,
+	yaml: string,
+	status: DraftStatus,
 };
 
 export type NodeRole = "control_plane" | "worker";
@@ -1096,6 +1141,51 @@ export type Solution = {
 	run: string,
 };
 
+/**  The Create screen's verify cluster changed. */
+export type StudioChanged = WorkspaceState;
+
+/**  A Create conversation, opened: its messages and draft exam */
+export type StudioConversation = StudioConversation_Serialize | StudioConversation_Deserialize;
+
+/**  A Create conversation, opened: its messages and draft exam */
+export type StudioConversation_Deserialize = {
+	id: number,
+	messages: CoachMessage[],
+	draft: ExamDraft_Deserialize,
+};
+
+/**  A Create conversation, opened: its messages and draft exam */
+export type StudioConversation_Serialize = {
+	id: number,
+	messages: CoachMessage[],
+	draft: ExamDraft_Serialize,
+};
+
+/**  Claude changed a Create conversation's draft exam. */
+export type StudioDraft = StudioDraft_Serialize | StudioDraft_Deserialize;
+
+/**  Claude changed a Create conversation's draft exam. */
+export type StudioDraft_Deserialize = {
+	session: number,
+	draft: ExamDraft_Deserialize,
+};
+
+/**  Claude changed a Create conversation's draft exam. */
+export type StudioDraft_Serialize = {
+	session: number,
+	draft: ExamDraft_Serialize,
+};
+
+/**
+ *  A Create with Claude conversation, listed: its id, title (its own name,
+ *  else its first message) and when it last changed (Unix ms)
+ */
+export type StudioSessionRow = {
+	id: number,
+	title: string,
+	updated_at: number | null,
+};
+
 /**  One certification's results so far */
 export type StudyStats = {
 	certification: string,
@@ -1110,6 +1200,17 @@ export type StudyStats = {
 export type Theme = 
 /**  As macOS is set, following it when it changes */
 "system" | "light" | "dark";
+
+/**  Where the Create screen's cluster stands */
+export type WorkspaceState = 
+/**  None: not asked for, or removed */
+{ state: "off" } | 
+/**  Being made */
+{ state: "preparing" } | 
+/**  Made, waiting for questions to prove */
+{ state: "ready" } | 
+/**  Could not be made, and why */
+{ state: "failed"; reason: string };
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

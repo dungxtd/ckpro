@@ -17,7 +17,7 @@ import { useLocation, useNavigate } from "react-router";
 import { ExamList } from "@/components/catalog/exam-list";
 import { moved, toggled } from "@/components/catalog/layout";
 import { SHORTCUTS } from "@/shortcuts";
-import { useSidebarLayout } from "@/stores/settings";
+import { useAssistantEnabled, useSidebarLayout } from "@/stores/settings";
 import { arrangeScreens } from "./sections";
 import { SidebarMenu } from "./sidebar-menu";
 
@@ -51,11 +51,12 @@ export function AppSidebar({
 		stopSearching();
 		setEditing(true);
 	};
-	const screens = arrangeScreens(layout, editing);
+	const assistant = useAssistantEnabled();
+	const screens = arrangeScreens(layout, { withHidden: editing, assistant });
 	const dragScreen = useDragOrder("sidebar-screens", (path, target, after) =>
 		setLayout({
 			screens: moved(
-				arrangeScreens(layout, true).map(s => s.path),
+				arrangeScreens(layout, { withHidden: true }).map(s => s.path),
 				path,
 				target,
 				after
