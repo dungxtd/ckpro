@@ -2,6 +2,7 @@ import { Alert } from "@ckpro/ui/components/alert";
 import { Button } from "@ckpro/ui/components/button";
 import { Loading } from "@ckpro/ui/components/loading";
 import { Toaster } from "@ckpro/ui/components/sonner";
+import { mac } from "@ckpro/ui/lib/platform";
 import { cn } from "@ckpro/ui/lib/utils";
 import { CircleAlert } from "lucide-react";
 import { lazy, type ReactNode, StrictMode, Suspense, useEffect, useRef, useState } from "react";
@@ -23,6 +24,7 @@ import { screenTitle } from "@/components/shell/sections";
 import { TitleBar } from "@/components/shell/title-bar";
 import { WindowFrame } from "@/components/shell/window";
 import { CatalogRoute } from "@/routes/catalog";
+import { SHORTCUTS } from "@/shortcuts";
 import { useActivities } from "@/stores/activity";
 import { useCoach } from "@/stores/coach";
 import { useEnvironment } from "@/stores/environment";
@@ -49,13 +51,13 @@ function Layout() {
 		main.current?.scrollTo({ top: 0 });
 		setScrolled(false);
 	}, [pathname]);
-	// ⌘, opens Settings and ⌃⌘S shows or hides the sidebar, as in every Mac app
+	// ⌘, (Ctrl+,) opens Settings and ⌃⌘S (Ctrl+Shift+S) shows or hides the sidebar
 	useEffect(() => {
 		const keys = (e: KeyboardEvent) => {
-			if (e.metaKey && e.key === ",") {
+			if (SHORTCUTS.settings.is(e)) {
 				e.preventDefault();
 				navigate("/settings");
-			} else if (e.metaKey && e.ctrlKey && e.key.toLowerCase() === "s") {
+			} else if (SHORTCUTS.sidebar.is(e)) {
 				e.preventDefault();
 				update({ sidebar_folded: !useSettings.getState().settings.sidebar_folded });
 			}
@@ -235,6 +237,9 @@ function OpenFailed({ message, onRetry }: { message: string; onRetry: () => void
 
 // A failure nothing handled still says what went wrong, instead of an
 // action that silently did nothing
+// Which platform the window is on, for the little CSS that differs (index.css)
+document.documentElement.dataset.platform = mac ? "mac" : "windows";
+
 window.addEventListener("unhandledrejection", e => {
 	toast.error(errorText(e.reason));
 });

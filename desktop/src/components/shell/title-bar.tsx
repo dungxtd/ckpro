@@ -11,6 +11,7 @@ import type * as React from "react";
 import { useLocation, useNavigate } from "react-router";
 import { ActivityChip } from "@/components/activity/activity-chip";
 import { ExamMenuItems } from "@/components/catalog/exam-list";
+import { SHORTCUTS } from "@/shortcuts";
 import { useSidebarLayout } from "@/stores/settings";
 import { arrangeScreens } from "./sections";
 
@@ -67,7 +68,7 @@ export function TitleBar({
 					variant="toolbar"
 					size="bar"
 					className="rounded-full"
-					aria-label="Show sidebar (⌃⌘S)"
+					aria-label={`Show sidebar (${SHORTCUTS.sidebar.label})`}
 					onClick={onUnfold}
 				>
 					<PanelLeft />

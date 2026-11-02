@@ -22,6 +22,12 @@ body,
 }
 
 /* Window behaviour of a desktop app */
+/* On macOS the window's buttons float over the web view's top strip:
+   floating surfaces keep out of it (lib/utils floatingPadding) */
+:root[data-platform="mac"] {
+	--titlebar-h: 48px;
+}
+
 @layer base {
 	[data-theme="dark"] {
 		color-scheme: dark;
@@ -39,11 +45,9 @@ body,
 	[role="button"]:not([aria-disabled="true"]) {
 		cursor: pointer;
 	}
-	/* Thin, consistent scrollbars app-wide (macOS overlay feel). */
-	* {
-		scrollbar-width: thin;
-		scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent;
-	}
+	/* Thin scrollbars app-wide (macOS overlay feel), drawn alike by WebKit and
+	   WebView2 through ::-webkit-scrollbar alone: Chromium ignores it once the
+	   standard scrollbar-width or scrollbar-color is set */
 	::-webkit-scrollbar {
 		width: 8px;
 		height: 8px;

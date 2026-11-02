@@ -33,6 +33,7 @@ import { Fragment, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { ClaudeIcon } from "@/components/assistant/claude-icon";
+import { SHORTCUTS } from "@/shortcuts";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import { useAssistantEnabled, useSidebarLayout } from "@/stores/settings";
@@ -70,7 +71,7 @@ function useCatalog() {
  * grip to drag them into order (exams within their certification, or among
  * the pinned), a certification an eye to hide it (hidden ones then show,
  * dimmed), a candidate's exam a red minus to delete it. Move to Top and
- * Bottom, and ⌥⌘↑ and ⌥⌘↓, move an exam without dragging. `query` keeps
+ * Bottom, and ⌥⌘↑ and ⌥⌘↓ (Ctrl+Alt+↑↓), move an exam without dragging. `query` keeps
  * the exams whose title has it
  */
 export function ExamList({
@@ -125,11 +126,11 @@ export function ExamList({
 		setLayout({ pinned: moved(layout.pinned, id, target, after) })
 	);
 
-	// ⌥⌘↑ and ⌥⌘↓ move the exam shown, among the pinned or in its certification
+	// ⌥⌘↑ and ⌥⌘↓ (Ctrl+Alt+↑↓) move the exam shown, among the pinned or in its certification
 	useEffect(() => {
 		const keys = (e: KeyboardEvent) => {
-			if (!e.altKey || !e.metaKey || !shown || !onExams) return;
-			const by = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+			if (!shown || !onExams) return;
+			const by = SHORTCUTS.moveUp.is(e) ? -1 : SHORTCUTS.moveDown.is(e) ? 1 : 0;
 			if (!by) return;
 			e.preventDefault();
 			if (layout.pinned.includes(shown.id)) {
