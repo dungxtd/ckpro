@@ -5,12 +5,14 @@ import {
 	DropdownMenuTrigger,
 } from "@ckdry/ui/components/dropdown-menu";
 import { IconButton } from "@ckdry/ui/components/icon-button";
+import { mac } from "@ckdry/ui/lib/platform";
 import { cn } from "@ckdry/ui/lib/utils";
 import { ChevronDown, PanelLeft, Search } from "lucide-react";
 import type * as React from "react";
 import { useLocation, useNavigate } from "react-router";
 import { ActivityChip } from "@/components/activity/activity-chip";
 import { ExamMenuItems } from "@/components/catalog/exam-list";
+import { WindowControls } from "@/components/shell/window-controls";
 import { SHORTCUTS } from "@/shortcuts";
 import { useSidebarLayout } from "@/stores/settings";
 import { arrangeScreens } from "./sections";
@@ -107,6 +109,7 @@ export function TitleBar({
 				</IconButton>
 			</Capsule>
 			<ActivityChip compact={folded} />
+			{!mac && <WindowControls />}
 		</div>
 	);
 }
