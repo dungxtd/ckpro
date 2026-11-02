@@ -40,8 +40,8 @@ export const commands = {
 	 */
 	studioEdit: (session: number, title: string | null, durationMinutes: number | null, clear: boolean) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_edit", { session, title, durationMinutes, clear })),
 	/**
-	 *  Prove the draft's new questions on the verify cluster (the candidate's
-	 *  go: their scripts run there); the draft with their results
+	 *  Prove the draft exam, every question together, on a verify cluster (the
+	 *  candidate's go: their scripts run there); the draft with their results
 	 */
 	studioVerify: (session: number) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_verify", { session })),
 	/**  Save the draft as the candidate's exam; its id */
@@ -553,7 +553,9 @@ export type DraftItem_Deserialize =
 /**  A question of the packs, by id (its title and domain as added) */
 { kind: "existing"; id: string; title?: string; domain?: string; 
 /**  Its suggested time, in minutes */
-minutes?: number | null } | 
+minutes?: number | null; 
+/**  Where it stands in this exam (proven alone in its pack, not with these) */
+status?: DraftStatus } | 
 /**  A question Claude wrote for this exam */
 {
 	kind: "new",
@@ -563,16 +565,18 @@ export type DraftItem_Serialize =
 /**  A question of the packs, by id (its title and domain as added) */
 { kind: "existing"; id: string; title: string; domain: string; 
 /**  Its suggested time, in minutes */
-minutes: number | null } | 
+minutes: number | null; 
+/**  Where it stands in this exam (proven alone in its pack, not with these) */
+status: DraftStatus } | 
 /**  A question Claude wrote for this exam */
 {
 	kind: "new",
 } & NewQuestion_Serialize;
 
 export type DraftStatus = 
-/**  It lints: to be proven on a cluster */
+/**  To be proven with the exam on a cluster (a new one lints) */
 { state: "linted" } | 
-/**  Every check failed before its solution and passed after */
+/**  In the exam's run, every check failed before its solution and passed after */
 { state: "proven" } | 
 /**  It did not prove, and why */
 { state: "failed"; problems: string[] };

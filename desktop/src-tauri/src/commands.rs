@@ -654,8 +654,8 @@ pub fn studio_edit(
     Ok(draft)
 }
 
-/// Prove the draft's new questions on the verify cluster (the candidate's
-/// go: their scripts run there); the draft with their results
+/// Prove the draft exam, every question together, on a verify cluster (the
+/// candidate's go: their scripts run there); the draft with their results
 #[tauri::command]
 #[specta::specta]
 pub async fn studio_verify(
@@ -668,10 +668,8 @@ pub async fn studio_verify(
     session: i32,
 ) -> AppResult<crate::studio::draft::ExamDraft> {
     no_exam(&exams)?;
-    let take = || {
-        workspace.take(infra.inner().clone(), || preflight::fits(&env.snapshot(), "The verify cluster", workspace::RUN_MB, &[]))
-    };
-    crate::studio::verify(&store, &exams, &workspace, &activities, &crate::data_dir(), session, take).await
+    let fits = |mb| preflight::fits(&env.snapshot(), "The verify cluster", mb, &[]);
+    crate::studio::verify(&store, &exams, &workspace, &activities, infra.inner().clone(), &crate::data_dir(), session, fits).await
 }
 
 /// Save the draft as the candidate's exam; its id

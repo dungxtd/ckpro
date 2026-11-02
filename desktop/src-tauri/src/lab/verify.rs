@@ -30,7 +30,7 @@ pub struct Report {
     pub after: Vec<CheckResult>,
 }
 
-type Log<'a> = &'a (dyn Fn(String) + Sync);
+pub type Log<'a> = &'a (dyn Fn(String) + Sync);
 
 /// Verify `ids` in a run of their own. `keep` leaves the run's clusters and
 /// jumphost for inspection.

@@ -1,7 +1,9 @@
 //! The exam a Create conversation builds: questions of the packs, and new
 //! ones Claude proposes. A new question is checked as it comes (format,
 //! certification, the verify cluster's shape, no twin of a question already
-//! there, lint); proving it on a cluster and saving are the candidate's.
+//! there, lint); proving the whole exam on a cluster (its questions together,
+//! as in an exam) and saving are the candidate's. Any change of its
+//! questions makes it to be proven again.
 
 use super::workspace;
 use crate::ai::generate::{lint_errors, staging_of};
@@ -57,6 +59,9 @@ pub enum DraftItem {
         /// Its suggested time, in minutes
         #[serde(default)]
         minutes: Option<u32>,
+        /// Where it stands in this exam (proven alone in its pack, not with these)
+        #[serde(default)]
+        status: DraftStatus,
     },
     /// A question Claude wrote for this exam
     New(NewQuestion),
@@ -76,12 +81,13 @@ pub struct NewQuestion {
     pub status: DraftStatus,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum DraftStatus {
-    /// It lints: to be proven on a cluster
+    /// To be proven with the exam on a cluster (a new one lints)
+    #[default]
     Linted,
-    /// Every check failed before its solution and passed after
+    /// In the exam's run, every check failed before its solution and passed after
     Proven,
     /// It did not prove, and why
     Failed { problems: Vec<String> },
@@ -103,6 +109,37 @@ impl ExamDraft {
             DraftItem::New(q) => Some(q),
             DraftItem::Existing { .. } => None,
         })
+    }
+
+    /// The id or key a question has in the draft, and where it stands
+    pub fn statuses(&self) -> impl Iterator<Item = (&str, &DraftStatus)> {
+        self.items.iter().map(|i| match i {
+            DraftItem::Existing { id, status, .. } => (id.as_str(), status),
+            DraftItem::New(q) => (q.key.as_str(), &q.status),
+        })
+    }
+
+    pub fn status_mut(&mut self, id_or_key: &str) -> Option<&mut DraftStatus> {
+        self.items.iter_mut().find_map(|i| match i {
+            DraftItem::Existing { id, status, .. } if id == id_or_key => Some(status),
+            DraftItem::New(q) if q.key == id_or_key => Some(&mut q.status),
+            _ => None,
+        })
+    }
+
+    /// Every question proven together: it can be saved
+    pub fn proven(&self) -> bool {
+        !self.items.is_empty() && self.statuses().all(|(_, s)| *s == DraftStatus::Proven)
+    }
+
+    /// Its questions changed: what was proven was another exam
+    fn unprove(&mut self) {
+        for item in &mut self.items {
+            match item {
+                DraftItem::Existing { status, .. } => *status = DraftStatus::Linted,
+                DraftItem::New(q) => q.status = DraftStatus::Linted,
+            }
+        }
     }
 
     pub fn find_new(&mut self, key: &str) -> Option<&mut NewQuestion> {
@@ -167,9 +204,18 @@ impl ExamDraft {
                 refused.push(format!("{id}: not a {} question", self.certification));
             } else if !q.value.runnable() {
                 refused.push(format!("{id}: needs what ckpro does not provide"));
+            } else if q.value.cluster != workspace::CLUSTER {
+                refused.push(format!("{id}: runs on another cluster than `{}`", workspace::CLUSTER));
             } else if !self.items.iter().any(|i| matches!(i, DraftItem::Existing { id: x, .. } if x == id)) {
+                self.unprove();
                 let domain = q.value.certifications[&self.certification].clone();
-                self.items.push(DraftItem::Existing { id: id.clone(), title: q.value.title.clone(), domain, minutes: minutes(&q.value) });
+                self.items.push(DraftItem::Existing {
+                    id: id.clone(),
+                    title: q.value.title.clone(),
+                    domain,
+                    minutes: minutes(&q.value),
+                    status: DraftStatus::Linted,
+                });
             }
         }
         refused
@@ -189,6 +235,7 @@ impl ExamDraft {
             yaml: yaml.trim().to_string() + "\n",
             status: DraftStatus::Linted,
         };
+        self.unprove();
         match self.find_new(&key) {
             Some(existing) => *existing = new,
             None => self.items.push(DraftItem::New(new)),
@@ -203,7 +250,11 @@ impl ExamDraft {
             DraftItem::Existing { id, .. } => id != id_or_key,
             DraftItem::New(q) => q.key != id_or_key,
         });
-        self.items.len() != before
+        let removed = self.items.len() != before;
+        if removed {
+            self.unprove();
+        }
+        removed
     }
 
     fn check(&self, bank: &LoadedPack, data_dir: &Path, yaml: &str, replacing: Option<&str>) -> Result<Question, Vec<String>> {
@@ -306,6 +357,40 @@ hints:\n  - kubectl create deploy\n"
         let refused = draft.add_existing(&bank, &[cka.clone(), cka.clone(), ckad.clone(), "nope".into()]);
         assert!(matches!(draft.items.as_slice(), [DraftItem::Existing { id, title, .. }] if *id == cka && !title.is_empty()));
         assert_eq!(refused.len(), 2);
+    }
+
+    /// What is proven is the exam as it stands: a question in or out makes
+    /// it to be proven again
+    #[test]
+    fn a_change_of_questions_unproves_the_exam() {
+        let bank = bank();
+        let dir = std::env::temp_dir().join(format!("ckpro-draft-unprove-{}", std::process::id()));
+        let mut draft = ExamDraft::default();
+        draft.set_exam(&bank, "Mock", "cka", None).unwrap();
+        let mut cka = bank.questions.iter().filter(|(_, q)| q.value.certifications.contains_key("cka") && q.value.runnable()).map(|(id, _)| id.clone());
+        let (a, b) = (cka.next().unwrap(), cka.next().unwrap());
+        draft.add_existing(&bank, std::slice::from_ref(&a));
+        assert!(!draft.proven());
+        let prove = |draft: &mut ExamDraft| {
+            let ids: Vec<String> = draft.statuses().map(|(id, _)| id.to_string()).collect();
+            for id in ids {
+                *draft.status_mut(&id).unwrap() = DraftStatus::Proven;
+            }
+        };
+        prove(&mut draft);
+        assert!(draft.proven());
+        draft.add_existing(&bank, std::slice::from_ref(&a));
+        assert!(draft.proven(), "already there: nothing changed");
+        draft.add_existing(&bank, std::slice::from_ref(&b));
+        assert!(draft.statuses().all(|(_, s)| *s == DraftStatus::Linted));
+        prove(&mut draft);
+        draft.propose(&bank, &dir, &question("A web deployment", ""), None).unwrap();
+        assert!(!draft.proven());
+        prove(&mut draft);
+        assert!(draft.remove(&b));
+        assert!(!draft.proven());
+        draft.edit(Some("Renamed"), Some(60), false);
+        assert!(draft.statuses().all(|(_, s)| *s == DraftStatus::Linted), "edits keep what stands");
     }
 
     /// The exam keeps its certification's domain weights (heaviest first)

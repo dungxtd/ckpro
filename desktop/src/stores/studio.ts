@@ -30,8 +30,8 @@ interface StudioStore {
 	writing: boolean;
 	/** The tool Claude is using now */
 	tool: string | null;
-	/** The new questions are being proven */
-	verifying: boolean;
+	/** The conversation whose exam is being proven (another can go on meanwhile) */
+	verifying: number | null;
 	error: string | null;
 	/** The screen opened: the cluster is made, the latest conversation shown;
 	 * returns how to stop following the cluster and the draft */
@@ -47,8 +47,9 @@ interface StudioStore {
 	send: (text: string) => Promise<void>;
 	stop: () => void;
 	removeItem: (id: string) => Promise<void>;
-	/** Prove the new questions on the cluster (the candidate's go) */
-	verify: () => Promise<void>;
+	/** Prove the exam on a cluster, every question together (the candidate's
+	 * go), then save it if they all proved */
+	proveAndSave: () => Promise<void>;
 	/** Save the draft as an exam; its id */
 	save: () => Promise<string | null>;
 	/** The candidate's changes: a title, a length, or every question out */
@@ -72,7 +73,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		draft: null,
 		writing: false,
 		tool: null,
-		verifying: false,
+		verifying: null,
 		error: null,
 		renaming: false,
 		setRenaming: renaming => set({ renaming }),
@@ -211,17 +212,22 @@ export const useStudio = create<StudioStore>()((set, get) => {
 				failed(e);
 			}
 		},
-		verify: async () => {
-			const { session } = get();
-			if (session === null) return;
-			set({ verifying: true, error: null });
+		proveAndSave: async () => {
+			const { session, verifying } = get();
+			if (session === null || verifying !== null) return;
+			set({ verifying: session, error: null });
 			try {
-				set({ draft: await studioApi.verify(session) });
+				const draft = await studioApi.verify(session);
 				track("studio_verified");
+				// The candidate may have opened another conversation meanwhile
+				if (get().session !== session) return;
+				set({ draft });
+				const proven = draft.items.every(i => i.status.state === "proven");
+				if (proven) await get().save();
 			} catch (e) {
-				failed(e);
+				if (get().session === session) failed(e);
 			} finally {
-				set({ verifying: false });
+				set({ verifying: null });
 			}
 		},
 		save: async () => {
