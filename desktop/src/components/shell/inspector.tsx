@@ -38,7 +38,16 @@ export const useInspectorShown = () => useContext(InspectorContext).shown;
  * and, on Windows, holds the window's buttons. Rendered into the layout's
  * column; nothing when the window is too narrow (`useInspectorFits`)
  */
-export function Inspector({ className, children }: { className?: string; children: ReactNode }) {
+export function Inspector({
+	top,
+	className,
+	children,
+}: {
+	/** What the top strip holds, beside the window's buttons */
+	top?: ReactNode;
+	className?: string;
+	children: ReactNode;
+}) {
 	const { element, wide, setShown } = useContext(InspectorContext);
 	const on = wide && element !== null;
 	useEffect(() => {
@@ -55,8 +64,9 @@ export function Inspector({ className, children }: { className?: string; childre
 		>
 			<div
 				data-tauri-drag-region
-				className="flex h-12 shrink-0 select-none items-center justify-end px-3"
+				className="flex h-12 shrink-0 select-none items-center gap-2 px-4"
 			>
+				<div className="flex min-w-0 flex-1 items-center gap-2">{top}</div>
 				{!mac && <WindowControls />}
 			</div>
 			{children}

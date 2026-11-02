@@ -24,9 +24,24 @@ pub struct ExamDraft {
     pub duration_minutes: Option<u32>,
     #[serde(default)]
     pub items: Vec<DraftItem>,
+    /// The certification's domains and their weight in the real exam
+    /// (percent), heaviest first: what the exam's coverage is measured against
+    #[serde(default)]
+    pub domains: Vec<DomainWeight>,
     /// The exam it was saved as
     #[serde(default)]
     pub saved: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct DomainWeight {
+    pub domain: String,
+    pub weight: u32,
+}
+
+/// A question's suggested time, in whole minutes
+fn minutes(q: &Question) -> Option<u32> {
+    q.estimate.as_ref()?.seconds().map(|s| s.div_ceil(60) as u32)
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -39,6 +54,9 @@ pub enum DraftItem {
         title: String,
         #[serde(default)]
         domain: String,
+        /// Its suggested time, in minutes
+        #[serde(default)]
+        minutes: Option<u32>,
     },
     /// A question Claude wrote for this exam
     New(NewQuestion),
@@ -52,6 +70,9 @@ pub struct NewQuestion {
     /// Its domain in the draft's certification
     pub domain: String,
     pub yaml: String,
+    /// Its suggested time, in minutes
+    #[serde(default)]
+    pub minutes: Option<u32>,
     pub status: DraftStatus,
 }
 
@@ -110,7 +131,28 @@ impl ExamDraft {
         self.title = title.trim().to_string();
         self.certification = certification.to_string();
         self.duration_minutes = duration_minutes;
+        let mut domains: Vec<DomainWeight> = bank.pack.certifications[certification]
+            .domains
+            .iter()
+            .map(|(domain, weight)| DomainWeight { domain: domain.clone(), weight: *weight })
+            .collect();
+        domains.sort_by_key(|d| std::cmp::Reverse(d.weight));
+        self.domains = domains;
         Ok(())
+    }
+
+    /// The candidate's changes: a new title, another length, or every
+    /// question out
+    pub fn edit(&mut self, title: Option<&str>, duration_minutes: Option<u32>, clear: bool) {
+        if let Some(title) = title.map(str::trim).filter(|t| !t.is_empty()) {
+            self.title = title.to_string();
+        }
+        if let Some(minutes) = duration_minutes {
+            self.duration_minutes = Some(minutes.clamp(10, 300));
+        }
+        if clear {
+            self.items.clear();
+        }
     }
 
     /// Add questions of the packs; the ids not added, and why
@@ -127,7 +169,7 @@ impl ExamDraft {
                 refused.push(format!("{id}: needs what cktry does not provide"));
             } else if !self.items.iter().any(|i| matches!(i, DraftItem::Existing { id: x, .. } if x == id)) {
                 let domain = q.value.certifications[&self.certification].clone();
-                self.items.push(DraftItem::Existing { id: id.clone(), title: q.value.title.clone(), domain });
+                self.items.push(DraftItem::Existing { id: id.clone(), title: q.value.title.clone(), domain, minutes: minutes(&q.value) });
             }
         }
         refused
@@ -139,7 +181,14 @@ impl ExamDraft {
         let question = self.check(bank, data_dir, yaml, replacing)?;
         let domain = question.certifications[&self.certification].clone();
         let key = replacing.map_or_else(|| self.next_key(), str::to_string);
-        let new = NewQuestion { key: key.clone(), title: question.title, domain, yaml: yaml.trim().to_string() + "\n", status: DraftStatus::Linted };
+        let new = NewQuestion {
+            key: key.clone(),
+            minutes: minutes(&question),
+            title: question.title,
+            domain,
+            yaml: yaml.trim().to_string() + "\n",
+            status: DraftStatus::Linted,
+        };
         match self.find_new(&key) {
             Some(existing) => *existing = new,
             None => self.items.push(DraftItem::New(new)),
@@ -258,4 +307,26 @@ hints:\n  - kubectl create deploy\n"
         assert!(matches!(draft.items.as_slice(), [DraftItem::Existing { id, title, .. }] if *id == cka && !title.is_empty()));
         assert_eq!(refused.len(), 2);
     }
+
+    /// The exam keeps its certification's domain weights (heaviest first)
+    /// and each question's minutes; the candidate renames it, sets its
+    /// length (within reason) and empties it
+    #[test]
+    fn the_draft_measures_and_takes_edits() {
+        let bank = bank();
+        let mut draft = ExamDraft::default();
+        draft.set_exam(&bank, "Mock", "cka", Some(60)).unwrap();
+        assert!(!draft.domains.is_empty());
+        assert!(draft.domains.windows(2).all(|w| w[0].weight >= w[1].weight));
+        let (id, q) = bank.questions.iter().find(|(_, q)| q.value.certifications.contains_key("cka") && q.value.estimate.is_some() && q.value.runnable()).unwrap();
+        draft.add_existing(&bank, std::slice::from_ref(id));
+        assert!(matches!(&draft.items[0], DraftItem::Existing { minutes: Some(m), .. } if Some(*m) == minutes(&q.value)));
+
+        draft.edit(Some("  Warm-up  "), Some(5), false);
+        assert_eq!((draft.title.as_str(), draft.duration_minutes), ("Warm-up", Some(10)));
+        draft.edit(Some(" "), None, true);
+        assert_eq!(draft.title, "Warm-up");
+        assert!(draft.items.is_empty());
+    }
+
 }
