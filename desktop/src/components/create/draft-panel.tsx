@@ -22,12 +22,13 @@ import { ClusterChip } from "./cluster-chip";
 const named = (domain: string) => domain.replaceAll("-", " ");
 
 /**
- * The exam being built, beside the conversation: its questions (from the
+ * The exam being built, beside the conversation (`bar`: under it, its
+ * questions folded, on a narrow window): its questions (from the
  * packs, or new ones Claude wrote, each with where it stands), the verify
  * cluster, and the candidate's two steps: prove the new questions (after
  * reading them), then save
  */
-export function DraftPanel() {
+export function DraftPanel({ bar = false }: { bar?: boolean }) {
 	const { draft, workspace, verifying } = useStudio();
 	const { removeItem, verify, save } = useStudio.getState();
 	const navigate = useNavigate();
@@ -40,16 +41,22 @@ export function DraftPanel() {
 	const ready = workspace.state === "ready";
 
 	return (
-		<aside className="flex min-h-0 flex-col border-border border-t bg-foreground/[0.015] @3xl:border-t-0 @3xl:border-l">
+		<div
+			className={cn(
+				"flex min-h-0 flex-1 flex-col",
+				bar && "border-border border-t bg-foreground/[0.015]"
+			)}
+		>
 			{/* As tall as the conversation's header, so their lines meet */}
 			<div className="flex h-14 shrink-0 items-center border-border border-b px-4">
 				<div className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
-					<h2 className="truncate font-semibold text-lead">{draft?.title || "Draft exam"}</h2>
-					{items.length > 0 && (
+					<h2 className="truncate font-semibold text-lead" title={draft?.title || undefined}>
+						{draft?.title || "Draft exam"}
+					</h2>
+					{bar && items.length > 0 && (
 						<Button
 							size="push"
 							variant="push"
-							className="@3xl:hidden"
 							aria-expanded={unfolded}
 							onClick={() => setUnfolded(u => !u)}
 						>
@@ -58,9 +65,8 @@ export function DraftPanel() {
 					)}
 					{draft?.certification && (
 						<span className="shrink-0 text-caption text-muted-foreground">
-							{draft.certification.toUpperCase()}
-							{draft.duration_minutes ? ` · ${draft.duration_minutes} min` : ""} · {items.length}{" "}
-							question{items.length === 1 ? "" : "s"}
+							{items.length} question{items.length === 1 ? "" : "s"}
+							{draft.duration_minutes ? ` · ${draft.duration_minutes} min` : ""}
 						</span>
 					)}
 				</div>
@@ -68,9 +74,9 @@ export function DraftPanel() {
 
 			<div
 				className={cn(
-					"min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 py-3 @3xl:flex",
-					// Narrow: folded, or a part of the height when opened
-					unfolded ? "flex max-h-[45vh] @3xl:max-h-none" : "hidden"
+					"min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 py-3",
+					// In the bar: folded, or a part of the height when opened
+					!bar ? "flex" : unfolded ? "flex max-h-[45vh]" : "hidden"
 				)}
 			>
 				{items.length === 0 ? (
@@ -170,7 +176,7 @@ export function DraftPanel() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-		</aside>
+		</div>
 	);
 }
 
