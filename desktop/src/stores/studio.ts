@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { track } from "@/analytics";
 import { useCoach } from "@/stores/coach";
+import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import {
 	type ExamDraft,
@@ -140,6 +141,14 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		setRenaming: renaming => set({ renaming }),
 
 		enter: async () => {
+			// Whether proving fits depends on Docker and the clusters running
+			// beside: again when they change (Docker coming up after the app)
+			let replanning: ReturnType<typeof setTimeout> | undefined;
+			const stopEnv = useEnvironment.subscribe((s, before) => {
+				if (s.env === before.env) return;
+				clearTimeout(replanning);
+				replanning = setTimeout(replan, 500);
+			});
 			const stops = [
 				studioApi.onDraft((session, draft) => {
 					if (session !== get().session) return;
@@ -172,6 +181,8 @@ export const useStudio = create<StudioStore>()((set, get) => {
 				failed(e);
 			}
 			return () => {
+				stopEnv();
+				clearTimeout(replanning);
 				for (const stop of stops) stop.then(fn => fn());
 			};
 		},
