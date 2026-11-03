@@ -135,7 +135,7 @@ function StepLog({ lines, follow }: { lines: string[]; follow: boolean }) {
 				const el = e.currentTarget;
 				stuck.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
 			}}
-			className="mt-0.5 mb-1.5 ml-6 max-h-40 select-text overflow-auto whitespace-pre-wrap break-words rounded-md bg-foreground/[0.04] px-2.5 py-2 font-mono text-[11px] text-muted-foreground leading-relaxed"
+			className="mt-0.5 mb-1.5 ml-6 max-h-40 select-text overflow-auto whitespace-pre-wrap break-words rounded-md border border-white/5 bg-terminal px-2.5 py-2 font-mono text-[11px] text-terminal-foreground/80 leading-relaxed"
 		>
 			{lines.map((line, i) => (
 				<span
