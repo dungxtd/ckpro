@@ -51,6 +51,12 @@ interface StudioStore {
 	pending: Record<number, Pending>;
 	/** Exams being proven, by conversation */
 	proofs: Record<number, Proof>;
+	/** Each conversation's latest proof as it last stood (running or ended):
+	 * its steps, times and log stay to read */
+	last: Record<number, Proof>;
+	/** What the panel shows: the exam's questions, or its latest proof */
+	tab: "exam" | "proof";
+	setTab: (tab: "exam" | "proof") => void;
 	error: string | null;
 	/** The screen opened: the latest conversation shown; returns how to stop
 	 * following the drafts and the proofs */
@@ -79,9 +85,6 @@ interface StudioStore {
 	setRenaming: (renaming: boolean) => void;
 }
 
-/** Each conversation's proof as it last stood: where a stopped one was */
-const lastProof: Record<number, Proof> = {};
-
 export const useStudio = create<StudioStore>()((set, get) => {
 	const failed = (e: unknown) => set({ error: errorText(e) });
 	/** What proving the shown exam takes, again (its questions changed) */
@@ -93,7 +96,14 @@ export const useStudio = create<StudioStore>()((set, get) => {
 	};
 	const show = async (session: number) => {
 		const c = await studioApi.open(session);
-		set({ session: c.id, messages: c.messages, draft: c.draft, error: null, plan: null });
+		set({
+			session: c.id,
+			messages: c.messages,
+			draft: c.draft,
+			error: null,
+			plan: null,
+			tab: "exam",
+		});
 		replan();
 	};
 	return {
@@ -105,6 +115,9 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		draft: null,
 		pending: {},
 		proofs: {},
+		last: {},
+		tab: "exam",
+		setTab: tab => set({ tab }),
 		error: null,
 		renaming: false,
 		setRenaming: renaming => set({ renaming }),
@@ -119,15 +132,17 @@ export const useStudio = create<StudioStore>()((set, get) => {
 				studioApi.onProof((session, proof) =>
 					set(s => {
 						const proofs = { ...s.proofs };
-						if (proof) {
-							proofs[session] = proof;
-							lastProof[session] = proof;
-						} else delete proofs[session];
-						return { proofs };
+						if (!proof) {
+							delete proofs[session];
+							return { proofs };
+						}
+						if (!proof.ended_at) proofs[session] = proof;
+						return { proofs, last: { ...s.last, [session]: proof } };
 					})
 				),
 			];
-			set({ proofs: Object.fromEntries(await studioApi.proofs()) });
+			const running = Object.fromEntries(await studioApi.proofs());
+			set(s => ({ proofs: running, last: { ...s.last, ...running } }));
 			try {
 				const sessions = await studioApi.sessions();
 				set({ sessions });
@@ -147,7 +162,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		newSession: async () => {
 			try {
 				const c = await studioApi.create();
-				set({ session: c.id, messages: [], draft: c.draft, error: null, plan: null });
+				set({ session: c.id, messages: [], draft: c.draft, error: null, plan: null, tab: "exam" });
 			} catch (e) {
 				failed(e);
 			}
@@ -260,24 +275,26 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		proveAndSave: async scope => {
 			const { session, proofs } = get();
 			if (session === null || proofs[session]) return;
-			set({ error: null });
+			// Its steps as they go
+			set({ error: null, tab: "proof" });
 			const ended = (end: ProofEnd) => set(s => ({ ended: { ...s.ended, [session]: end } }));
 			const started = Date.now();
 			try {
 				const draft = await studioApi.verify(session, scope);
 				track("studio_verified");
 				const failed = draft.items.filter(i => i.status.state === "failed").length;
-				const checked = lastProof[session]?.checking.length ?? draft.items.length;
+				const checked = get().last[session]?.checking.length ?? draft.items.length;
 				ended({ kind: "done", ms: Date.now() - started, failed, checked });
+				// Done: back to the questions, where each one's result shows
 				if (get().session === session) {
-					set({ draft });
+					set({ draft, tab: "exam" });
 					replan();
 				}
 				if (draft.items.every(i => i.status.state === "proven")) await get().save(session);
 			} catch (e) {
 				if ((e as { code?: string }).code === "cancelled") {
 					// Where it was: the last event before it ended
-					const last = lastProof[session];
+					const last = get().last[session];
 					if (last)
 						ended({ kind: "stopped", at: last.results.length + 1, of: last.checking.length });
 				} else if (get().session === session) failed(e);

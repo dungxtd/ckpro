@@ -117,7 +117,16 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
         .collect();
     let title = if draft.title.is_empty() { "Prove the exam".to_string() } else { format!("Prove {}", draft.title) };
     let op = app.activities.begin(title, steps);
-    let proof = Proof { activity: op.id(), started_at: now_ms(), checking: checking.clone(), stage: ProofStage::Cluster { workers }, results: Vec::new() };
+    let started = now_ms();
+    let proof = Proof {
+        activity: op.id(),
+        started_at: started,
+        checking: checking.clone(),
+        stage: ProofStage::Cluster { workers },
+        results: Vec::new(),
+        marks: vec![started],
+        ended_at: None,
+    };
     let Some(cancel) = app.proofs.begin(session, proof) else {
         return op.end(Err(AppError::invalid("this exam is being proven already")));
     };
@@ -136,13 +145,20 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
                 let on = |stage: Stage| match stage {
                     Stage::SettingUp => {
                         op.step(1, None);
-                        app.proofs.update(session, |p| p.stage = ProofStage::SettingUp);
+                        app.proofs.update(session, |p| {
+                            p.stage = ProofStage::SettingUp;
+                            p.marks.push(now_ms());
+                        });
                     }
                     Stage::Proving(index) => {
                         let key = at(index);
                         let step = checking.iter().position(|k| *k == key).unwrap_or(0);
                         op.step(step as u32 + 2, None);
-                        app.proofs.update(session, |p| p.stage = ProofStage::Proving { key, since: now_ms() });
+                        let since = now_ms();
+                        app.proofs.update(session, |p| {
+                            p.stage = ProofStage::Proving { key, since };
+                            p.marks.push(since);
+                        });
                     }
                     Stage::Proved(index, report) => {
                         app.proofs.update(session, |p| p.results.push(ProofResult { key: at(index), status: status_of(report) }));

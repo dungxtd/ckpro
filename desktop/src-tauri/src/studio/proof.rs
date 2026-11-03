@@ -84,6 +84,11 @@ pub struct Proof {
     pub stage: ProofStage,
     /// The questions checked so far, and how
     pub results: Vec<ProofResult>,
+    /// When each step of its activity began (ms since the epoch): the
+    /// cluster, the setups, then each question checked
+    pub marks: Vec<f64>,
+    /// When it ended (ms since the epoch)
+    pub ended_at: Option<f64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -150,8 +155,12 @@ impl Proofs {
         }
     }
 
+    /// It ended: as it stood last (its end time), then none
     pub fn end(&self, session: i32) {
-        if self.running.locked().remove(&session).is_some() {
+        let ended = self.running.locked().remove(&session);
+        if let Some(mut r) = ended {
+            r.proof.ended_at = Some(crate::runtime::activity::now_ms());
+            (self.changed)(session, Some(&r.proof));
             (self.changed)(session, None);
         }
     }
