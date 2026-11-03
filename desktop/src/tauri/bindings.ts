@@ -8,17 +8,6 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  Current environment; later changes arrive as `EnvChanged` events. */
 	envState: () => __TAURI_INVOKE<EnvState>("env_state"),
-	/**  Where the Create screen's verify cluster stands; changes arrive as `StudioChanged` */
-	studioState: () => __TAURI_INVOKE<WorkspaceState>("studio_state"),
-	/**
-	 *  The Create screen opened: its verify cluster is made unless it is there
-	 *  (refused during an exam, which needs the memory and has no assistant)
-	 */
-	studioPrepare: () => typedError<null, AppError>(__TAURI_INVOKE("studio_prepare")),
-	/**  Stop making the Create screen's verify cluster, or remove it */
-	studioRelease: () => __TAURI_INVOKE<void>("studio_release"),
-	/**  The Create screen was left: its verify cluster goes after a while */
-	studioLeave: () => __TAURI_INVOKE<void>("studio_leave"),
 	/**  The Create conversations, latest first */
 	studioSessions: () => typedError<StudioSessionRow[], AppError>(__TAURI_INVOKE("studio_sessions")),
 	/**  A new Create conversation */
@@ -40,10 +29,22 @@ export const commands = {
 	 */
 	studioEdit: (session: number, title: string | null, durationMinutes: number | null, clear: boolean) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_edit", { session, title, durationMinutes, clear })),
 	/**
-	 *  Prove the draft exam, every question together, on a verify cluster (the
-	 *  candidate's go: their scripts run there); the draft with their results
+	 *  What proving a conversation's exam takes (its cluster, the time), and
+	 *  why it cannot run now if so
 	 */
-	studioVerify: (session: number) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_verify", { session })),
+	studioPlan: (session: number) => typedError<ProofPlan_Serialize, AppError>(__TAURI_INVOKE("studio_plan", { session })),
+	/**
+	 *  Prove the draft exam on a cluster made for it, every question together
+	 *  (`scope`: all, or those not proven), as the candidate's go: their scripts
+	 *  run there. The draft with their results; where it is arrives as `StudioProof`
+	 */
+	studioVerify: (session: number, scope: Scope) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_verify", { session, scope })),
+	/**  The exams being proven, by conversation */
+	studioProofs: () => __TAURI_INVOKE<([number, Proof])[]>("studio_proofs"),
+	/**  Stop proving a conversation's exam (its cluster goes) */
+	studioStopProof: (session: number) => __TAURI_INVOKE<void>("studio_stop_proof", { session }),
+	/**  Stop the answer being written in a conversation */
+	studioStop: (session: number) => __TAURI_INVOKE<void>("studio_stop", { session }),
 	/**  Save the draft as the candidate's exam; its id */
 	studioSave: (session: number) => typedError<string, AppError>(__TAURI_INVOKE("studio_save", { session })),
 	/**  Try Docker again now (Retry), not at the monitor's next backoff. */
@@ -185,8 +186,8 @@ export const events = {
 	envChanged: makeEvent<EnvChanged, EnvChanged>("env-changed"),
 	examChanged: makeEvent<ExamChanged_Serialize, ExamChanged_Deserialize>("exam-changed"),
 	guardNotice: makeEvent<GuardNotice, GuardNotice>("guard-notice"),
-	studioChanged: makeEvent<StudioChanged, StudioChanged>("studio-changed"),
 	studioDraft: makeEvent<StudioDraft_Serialize, StudioDraft_Deserialize>("studio-draft"),
+	studioProof: makeEvent<StudioProof_Serialize, StudioProof_Deserialize>("studio-proof"),
 };
 
 /* Types */
@@ -555,7 +556,9 @@ export type DraftItem_Deserialize =
 /**  Its suggested time, in minutes */
 minutes?: number | null; 
 /**  Where it stands in this exam (proven alone in its pack, not with these) */
-status?: DraftStatus } | 
+status?: DraftStatus; 
+/**  It changes the nodes for the questions after it */
+disrupts?: boolean } | 
 /**  A question Claude wrote for this exam */
 {
 	kind: "new",
@@ -567,7 +570,9 @@ export type DraftItem_Serialize =
 /**  Its suggested time, in minutes */
 minutes: number | null; 
 /**  Where it stands in this exam (proven alone in its pack, not with these) */
-status: DraftStatus } | 
+status: DraftStatus; 
+/**  It changes the nodes for the questions after it */
+disrupts: boolean } | 
 /**  A question Claude wrote for this exam */
 {
 	kind: "new",
@@ -878,6 +883,8 @@ export type NewQuestion_Deserialize = {
 	/**  Its suggested time, in minutes */
 	minutes?: number | null,
 	status: DraftStatus,
+	/**  It changes the nodes for the questions after it */
+	disrupts?: boolean,
 };
 
 export type NewQuestion_Serialize = {
@@ -890,6 +897,8 @@ export type NewQuestion_Serialize = {
 	/**  Its suggested time, in minutes */
 	minutes: number | null,
 	status: DraftStatus,
+	/**  It changes the nodes for the questions after it */
+	disrupts: boolean,
 };
 
 export type NodeRole = "control_plane" | "worker";
@@ -954,6 +963,72 @@ export type Progress = {
 	/**  Hints opened per question (practice mode) */
 	hints_shown: { [key in string]: number },
 };
+
+export type Proof = {
+	/**  Its activity: the plan and the log */
+	activity: number,
+	/**  When it started (ms since the epoch) */
+	started_at: number | null,
+	/**  The questions it checks, by id or key, in the order they run */
+	checking: string[],
+	stage: ProofStage,
+	/**  The questions checked so far, and how */
+	results: ProofResult[],
+};
+
+/**  What proving the exam takes, before it starts */
+export type ProofPlan = ProofPlan_Serialize | ProofPlan_Deserialize;
+
+/**  What proving the exam takes, before it starts */
+export type ProofPlan_Deserialize = {
+	/**  Workers of its cluster */
+	workers: number,
+	/**  Memory it takes, in MB */
+	mb: number,
+	/**  Questions not proven (new or changed), of `total` */
+	changed: number,
+	total: number,
+	/**  Minutes it takes, about: every question, or the changed ones */
+	minutes_all: number,
+	minutes_changed: number,
+	/**
+	 *  Why it cannot run now (two questions that change the nodes, too
+	 *  little memory)
+	 */
+	problem?: string | null,
+};
+
+/**  What proving the exam takes, before it starts */
+export type ProofPlan_Serialize = {
+	/**  Workers of its cluster */
+	workers: number,
+	/**  Memory it takes, in MB */
+	mb: number,
+	/**  Questions not proven (new or changed), of `total` */
+	changed: number,
+	total: number,
+	/**  Minutes it takes, about: every question, or the changed ones */
+	minutes_all: number,
+	minutes_changed: number,
+	/**
+	 *  Why it cannot run now (two questions that change the nodes, too
+	 *  little memory)
+	 */
+	problem: string | null,
+};
+
+export type ProofResult = {
+	key: string,
+	status: DraftStatus,
+};
+
+export type ProofStage = 
+/**  Its cluster is being made */
+{ stage: "cluster"; workers: number } | 
+/**  Every question's setup, as an exam's */
+{ stage: "setting_up" } | 
+/**  The question `key` is being checked, since (ms since the epoch) */
+{ stage: "proving"; key: string; since: number | null };
 
 /**
  *  An agent the assistant can run (each over ACP with its own adapter and
@@ -1046,6 +1121,12 @@ export type RuntimeInfo_Serialize = {
 	/**  Why the assistant cannot run here */
 	problem: string | null,
 };
+
+/**
+ *  Which questions a proof checks: all, or those not proven (new or
+ *  changed since the last proof; every setup still runs, as in the exam)
+ */
+export type Scope = "all" | "changed";
 
 /**  The exam desk's display settings */
 export type Settings = Settings_Serialize | Settings_Deserialize;
@@ -1185,9 +1266,6 @@ export type Solution = {
 	run: string,
 };
 
-/**  The Create screen's verify cluster changed. */
-export type StudioChanged = WorkspaceState;
-
 /**  A Create conversation, opened: its messages and draft exam */
 export type StudioConversation = StudioConversation_Serialize | StudioConversation_Deserialize;
 
@@ -1220,6 +1298,21 @@ export type StudioDraft_Serialize = {
 	draft: ExamDraft_Serialize,
 };
 
+/**  A Create conversation's exam is being proven: where it is (none: done). */
+export type StudioProof = StudioProof_Serialize | StudioProof_Deserialize;
+
+/**  A Create conversation's exam is being proven: where it is (none: done). */
+export type StudioProof_Deserialize = {
+	session: number,
+	proof?: Proof | null,
+};
+
+/**  A Create conversation's exam is being proven: where it is (none: done). */
+export type StudioProof_Serialize = {
+	session: number,
+	proof: Proof | null,
+};
+
 /**
  *  A Create with Claude conversation, listed: its id, title (its own name,
  *  else its first message) and when it last changed (Unix ms)
@@ -1244,17 +1337,6 @@ export type StudyStats = {
 export type Theme = 
 /**  As macOS is set, following it when it changes */
 "system" | "light" | "dark";
-
-/**  Where the Create screen's cluster stands */
-export type WorkspaceState = 
-/**  None: not asked for, or removed */
-{ state: "off" } | 
-/**  Being made */
-{ state: "preparing" } | 
-/**  Made, waiting for questions to prove */
-{ state: "ready" } | 
-/**  Could not be made, and why */
-{ state: "failed"; reason: string };
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

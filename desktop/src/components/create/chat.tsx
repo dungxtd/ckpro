@@ -26,7 +26,18 @@ const STARTERS = [
  * draft beside); the conversations kept, to reopen
  */
 export function Chat() {
-	const { messages, writing, tool, error, sessions, session } = useStudio();
+	const { messages, pending, proofs, error, sessions, session } = useStudio();
+	// The answer being written here; others' go on unseen
+	const live = session === null ? undefined : pending[session];
+	const writing = !!live;
+	const tool = live?.tool ?? null;
+	const shown = live
+		? [
+				...messages,
+				{ role: "user" as const, text: live.asked },
+				{ role: "assistant" as const, text: live.text },
+			]
+		: messages;
 	const { send, stop, newSession, open, remove } = useStudio.getState();
 	const account = useCoach(s => s.account);
 	const [signingIn, setSigningIn] = useState(false);
@@ -38,7 +49,7 @@ export function Chat() {
 	// biome-ignore lint/correctness/useExhaustiveDependencies: follows every message change
 	useEffect(() => {
 		list.current?.scrollTo({ top: list.current.scrollHeight });
-	}, [messages]);
+	}, [shown]);
 
 	const submit = (value = text) => {
 		if (!value.trim() || writing) return;
@@ -72,9 +83,16 @@ export function Chat() {
 									<button
 										type="button"
 										onClick={() => open(s.id)}
-										className="min-w-0 flex-1 truncate px-2 py-1.5 text-left text-callout outline-none"
+										className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-callout outline-none"
 									>
-										{s.title}
+										<span className="truncate">{s.title}</span>
+										{/* Going on there: an answer being written, or its exam being proven */}
+										{(pending[s.id] || proofs[s.id]) && (
+											<span className="ml-auto flex shrink-0 items-center gap-1 text-2xs text-muted-foreground">
+												<Spinner size="inline" className="size-3" />
+												{proofs[s.id] ? "Proving" : "Writing"}
+											</span>
+										)}
 									</button>
 									<IconButton
 										variant="toolbar"
@@ -98,7 +116,7 @@ export function Chat() {
 			{/* A readable line however wide the window */}
 			<div ref={list} className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
 				<div className="mx-auto flex min-h-full max-w-3xl flex-col gap-3">
-					{messages.length === 0 && (
+					{shown.length === 0 && (
 						<div className="m-auto flex max-w-md flex-col items-center gap-3 text-center">
 							<ClaudeIcon className="size-7 text-claude" />
 							<p className="font-semibold text-lead">What exam do you want?</p>
@@ -116,7 +134,7 @@ export function Chat() {
 							</div>
 						</div>
 					)}
-					{messages.map((m, i) =>
+					{shown.map((m, i) =>
 						m.role === "user" ? (
 							// biome-ignore lint/suspicious/noArrayIndexKey: messages only grow
 							<UserMessage key={i}>{m.text}</UserMessage>

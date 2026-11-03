@@ -10,7 +10,7 @@ use crate::runtime::activity::Activities;
 use crate::store::{Progress, Settings, Store};
 use crate::runtime::model::{Env, EnvState};
 use crate::runtime::preflight;
-use crate::studio::workspace::{self, Workspace, WorkspaceState};
+use crate::studio::proof::{Proof, ProofPlan, Proofs, Scope};
 use std::sync::Arc;
 use tauri::State;
 use tauri::ipc::Channel;
@@ -454,14 +454,11 @@ pub async fn start_exam(
     exams: State<'_, Arc<Exams>>,
     env: State<'_, Arc<Env>>,
     coach: State<'_, Coach>,
-    workspace: State<'_, Arc<Workspace>>,
     id: String,
     mode: Mode,
     replace: bool,
 ) -> AppResult<()> {
-    // The Create screen's verify cluster gives its memory to the exam
-    workspace.release();
-    // Before anything is created: this machine can run it
+// Before anything is created: this machine can run it
     if let Some(summary) = exams.catalog().into_iter().find(|e| e.id == id) {
         preflight::exam_fits(&env.snapshot(), summary.minimum_mb, &summary.clusters).map_err(AppError::invalid)?;
     }
@@ -525,43 +522,6 @@ fn no_exam(exams: &Exams) -> AppResult<()> {
 #[specta::specta]
 pub fn telemetry_configure(on: bool, key: String, host: String, distinct_id: String, session_id: Option<String>) {
     crate::telemetry::configure(on, key, host, distinct_id, session_id);
-}
-
-/// Where the Create screen's verify cluster stands; changes arrive as `StudioChanged`
-#[tauri::command]
-#[specta::specta]
-pub fn studio_state(workspace: State<'_, Arc<Workspace>>) -> WorkspaceState {
-    workspace.state()
-}
-
-/// The Create screen opened: its verify cluster is made unless it is there
-/// (refused during an exam, which needs the memory and has no assistant)
-#[tauri::command]
-#[specta::specta]
-pub fn studio_prepare(
-    workspace: State<'_, Arc<Workspace>>,
-    exams: State<'_, Arc<Exams>>,
-    infra: State<'_, Arc<Infra>>,
-    env: State<'_, Arc<Env>>,
-) -> AppResult<()> {
-    no_exam(&exams)?;
-    let fits = preflight::fits(&env.snapshot(), "The verify cluster", workspace::RUN_MB, &[]);
-    workspace.prepare(infra.inner().clone(), fits);
-    Ok(())
-}
-
-/// Stop making the Create screen's verify cluster, or remove it
-#[tauri::command]
-#[specta::specta]
-pub fn studio_release(workspace: State<'_, Arc<Workspace>>) {
-    workspace.release();
-}
-
-/// The Create screen was left: its verify cluster goes after a while
-#[tauri::command]
-#[specta::specta]
-pub fn studio_leave(workspace: State<'_, Arc<Workspace>>) {
-    workspace.leave();
 }
 
 /// A Create conversation, opened: its messages and draft exam
@@ -654,22 +614,63 @@ pub fn studio_edit(
     Ok(draft)
 }
 
-/// Prove the draft exam, every question together, on a verify cluster (the
-/// candidate's go: their scripts run there); the draft with their results
+/// What proving a conversation's exam takes (its cluster, the time), and
+/// why it cannot run now if so
 #[tauri::command]
 #[specta::specta]
+pub fn studio_plan(store: State<'_, Arc<Store>>, exams: State<'_, Arc<Exams>>, env: State<'_, Arc<Env>>, session: i32) -> AppResult<ProofPlan> {
+    let fits = |mb| preflight::fits(&env.snapshot(), "Proving the exam", mb, &[]);
+    crate::studio::plan(&store, &exams, &crate::data_dir(), session, fits)
+}
+
+/// Prove the draft exam on a cluster made for it, every question together
+/// (`scope`: all, or those not proven), as the candidate's go: their scripts
+/// run there. The draft with their results; where it is arrives as `StudioProof`
+#[tauri::command]
+#[specta::specta]
+#[allow(clippy::too_many_arguments)]
 pub async fn studio_verify(
     store: State<'_, Arc<Store>>,
     exams: State<'_, Arc<Exams>>,
-    workspace: State<'_, Arc<Workspace>>,
+    proofs: State<'_, Proofs>,
     activities: State<'_, Arc<Activities>>,
     infra: State<'_, Arc<Infra>>,
     env: State<'_, Arc<Env>>,
     session: i32,
+    scope: Scope,
 ) -> AppResult<crate::studio::draft::ExamDraft> {
     no_exam(&exams)?;
-    let fits = |mb| preflight::fits(&env.snapshot(), "The verify cluster", mb, &[]);
-    crate::studio::verify(&store, &exams, &workspace, &activities, infra.inner().clone(), &crate::data_dir(), session, fits).await
+    let fits = |mb| preflight::fits(&env.snapshot(), "Proving the exam", mb, &[]);
+    let app = crate::studio::Proving {
+        store: &store,
+        exams: &exams,
+        proofs: &proofs,
+        activities: &activities,
+        infra: infra.inner().clone(),
+        data_dir: &crate::data_dir(),
+    };
+    crate::studio::verify(app, session, scope, fits).await
+}
+
+/// The exams being proven, by conversation
+#[tauri::command]
+#[specta::specta]
+pub fn studio_proofs(proofs: State<'_, Proofs>) -> Vec<(i32, Proof)> {
+    proofs.list()
+}
+
+/// Stop proving a conversation's exam (its cluster goes)
+#[tauri::command]
+#[specta::specta]
+pub fn studio_stop_proof(proofs: State<'_, Proofs>, session: i32) {
+    proofs.stop(session);
+}
+
+/// Stop the answer being written in a conversation
+#[tauri::command]
+#[specta::specta]
+pub fn studio_stop(coach: State<'_, Coach>, session: i32) {
+    coach.studio_stop(session);
 }
 
 /// Save the draft as the candidate's exam; its id

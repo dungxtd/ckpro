@@ -5,9 +5,11 @@ import { useExam } from "@/stores/exam";
 import {
 	type ExamDraft,
 	errorText,
+	type Proof,
+	type ProofPlan,
+	type ProofScope,
 	type StudioSessionRow,
 	studioApi,
-	type WorkspaceState,
 } from "@/tauri/api";
 
 export interface StudioMessage {
@@ -15,43 +17,61 @@ export interface StudioMessage {
 	text: string;
 }
 
+/** An answer being written in a conversation: what was asked, the words so
+ * far, the tool Claude is using */
+export interface Pending {
+	asked: string;
+	text: string;
+	tool: string | null;
+}
+
+/** How a conversation's last proof ended, for its panel to say */
+export type ProofEnd =
+	| { kind: "stopped"; at: number; of: number }
+	| { kind: "done"; ms: number; failed: number; checked: number };
+
 /**
- * Create with Claude: the conversation shown, its draft exam, the others to
- * reopen, and the verify cluster the screen keeps ready. Rust owns all of
- * it; this mirrors it (the draft's changes and the cluster's arrive as events)
+ * Create with Claude: the conversation shown, its draft exam and what
+ * proving it takes, the others to reopen. Rust owns all of it; this mirrors
+ * it (the draft's changes and the proofs' arrive as events). Conversations
+ * go on at once: each has its answer being written and its exam being
+ * proven (on a cluster made for it), whichever is shown
  */
 interface StudioStore {
-	workspace: WorkspaceState;
+	/** What proving the shown exam takes, and why it cannot run now if so */
+	plan: ProofPlan | null;
+	/** How each conversation's last proof ended */
+	ended: Record<number, ProofEnd>;
 	sessions: StudioSessionRow[];
 	session: number | null;
+	/** The shown conversation's, as kept (an answer being written is in `pending`) */
 	messages: StudioMessage[];
 	draft: ExamDraft | null;
-	/** An answer is being written */
-	writing: boolean;
-	/** The tool Claude is using now */
-	tool: string | null;
-	/** The conversation whose exam is being proven (another can go on meanwhile) */
-	verifying: number | null;
+	/** Answers being written, by conversation */
+	pending: Record<number, Pending>;
+	/** Exams being proven, by conversation */
+	proofs: Record<number, Proof>;
 	error: string | null;
-	/** The screen opened: the cluster is made, the latest conversation shown;
-	 * returns how to stop following the cluster and the draft */
+	/** The screen opened: the latest conversation shown; returns how to stop
+	 * following the drafts and the proofs */
 	enter: () => Promise<() => void>;
-	/** The screen was left: the cluster goes after a while */
-	leave: () => void;
-	prepare: () => void;
-	release: () => void;
 	newSession: () => Promise<void>;
 	open: (session: number) => Promise<void>;
 	rename: (title: string) => Promise<void>;
 	remove: (session: number) => Promise<void>;
 	send: (text: string) => Promise<void>;
+	/** Stop the shown conversation's answer */
 	stop: () => void;
 	removeItem: (id: string) => Promise<void>;
-	/** Prove the exam on a cluster, every question together (the candidate's
-	 * go), then save it if they all proved */
-	proveAndSave: () => Promise<void>;
-	/** Save the draft as an exam; its id */
-	save: () => Promise<string | null>;
+	/** Prove the exam on a cluster made for it, every question together (the
+	 * candidate's go): all, or those not proven. Then save it if they all proved */
+	proveAndSave: (scope: ProofScope) => Promise<void>;
+	/** Send Claude the questions that did not prove, to fix or replace */
+	askToFix: () => Promise<void>;
+	/** Stop proving the shown conversation's exam */
+	stopProof: () => void;
+	/** Save a conversation's draft (the shown one's by default) as an exam; its id */
+	save: (session?: number) => Promise<string | null>;
 	/** The candidate's changes: a title, a length, or every question out */
 	edit: (change: { title?: string; duration?: number; clear?: boolean }) => Promise<void>;
 	/** The title is being edited (the summary's field, or the menu's Rename) */
@@ -59,34 +79,55 @@ interface StudioStore {
 	setRenaming: (renaming: boolean) => void;
 }
 
+/** Each conversation's proof as it last stood: where a stopped one was */
+const lastProof: Record<number, Proof> = {};
+
 export const useStudio = create<StudioStore>()((set, get) => {
 	const failed = (e: unknown) => set({ error: errorText(e) });
+	/** What proving the shown exam takes, again (its questions changed) */
+	const replan = async () => {
+		const { session } = get();
+		if (session === null) return;
+		const plan = await studioApi.plan(session).catch(() => null);
+		if (get().session === session) set({ plan });
+	};
 	const show = async (session: number) => {
 		const c = await studioApi.open(session);
-		set({ session: c.id, messages: c.messages, draft: c.draft, error: null, tool: null });
+		set({ session: c.id, messages: c.messages, draft: c.draft, error: null, plan: null });
+		replan();
 	};
 	return {
-		workspace: { state: "off" },
+		plan: null,
+		ended: {},
 		sessions: [],
 		session: null,
 		messages: [],
 		draft: null,
-		writing: false,
-		tool: null,
-		verifying: null,
+		pending: {},
+		proofs: {},
 		error: null,
 		renaming: false,
 		setRenaming: renaming => set({ renaming }),
 
 		enter: async () => {
 			const stops = [
-				studioApi.onState(workspace => set({ workspace })),
 				studioApi.onDraft((session, draft) => {
-					if (session === get().session) set({ draft });
+					if (session !== get().session) return;
+					set({ draft });
+					replan();
 				}),
+				studioApi.onProof((session, proof) =>
+					set(s => {
+						const proofs = { ...s.proofs };
+						if (proof) {
+							proofs[session] = proof;
+							lastProof[session] = proof;
+						} else delete proofs[session];
+						return { proofs };
+					})
+				),
 			];
-			set({ workspace: await studioApi.state() });
-			get().prepare();
+			set({ proofs: Object.fromEntries(await studioApi.proofs()) });
 			try {
 				const sessions = await studioApi.sessions();
 				set({ sessions });
@@ -102,16 +143,11 @@ export const useStudio = create<StudioStore>()((set, get) => {
 				for (const stop of stops) stop.then(fn => fn());
 			};
 		},
-		leave: () => studioApi.leave(),
-		prepare: () => {
-			studioApi.prepare().catch(failed);
-		},
-		release: () => studioApi.release(),
 
 		newSession: async () => {
 			try {
 				const c = await studioApi.create();
-				set({ session: c.id, messages: [], draft: c.draft, error: null });
+				set({ session: c.id, messages: [], draft: c.draft, error: null, plan: null });
 			} catch (e) {
 				failed(e);
 			}
@@ -140,58 +176,66 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		},
 
 		send: async text => {
-			const { session, writing } = get();
-			if (session === null || writing || !text.trim()) return;
+			const { session, pending } = get();
+			if (session === null || pending[session] || !text.trim()) return;
 			const coach = useCoach.getState();
-			set(s => ({
-				writing: true,
-				error: null,
-				messages: [...s.messages, { role: "user", text }, { role: "assistant", text: "" }],
-			}));
-			const append = (piece: string) =>
+			const change = (f: (p: Pending) => Pending | null) =>
 				set(s => {
-					const messages = [...s.messages];
-					const last = messages[messages.length - 1];
-					messages[messages.length - 1] = { ...last, text: last.text + piece };
-					return { messages };
+					const pending = { ...s.pending };
+					const next = pending[session] && f(pending[session]);
+					if (next) pending[session] = next;
+					else delete pending[session];
+					return { pending };
 				});
+			set(s => ({
+				error: null,
+				pending: { ...s.pending, [session]: { asked: text, text: "", tool: null } },
+			}));
 			try {
 				const reply = await studioApi.ask(
 					session,
 					text,
 					{ model: coach.model, effort: coach.effort, profile: "agent" },
 					event => {
-						if (event.kind === "text") append(event.text);
+						if (event.kind === "text") change(p => ({ ...p, text: p.text + event.text }));
 						if (event.kind === "tool")
-							set({
+							change(p => ({
+								...p,
 								tool:
 									event.status === "completed" || event.status === "failed" ? null : event.command,
-							});
+							}));
 					}
 				);
-				set(s => {
-					const messages = [...s.messages];
-					messages[messages.length - 1] = { role: "assistant", text: reply.text };
-					return { messages };
-				});
+				// Kept now: in the conversation, if it is the one shown
+				if (get().session === session)
+					set(s => ({
+						messages: [
+							...s.messages,
+							{ role: "user", text },
+							{ role: "assistant", text: reply.text },
+						],
+					}));
 				set({ sessions: await studioApi.sessions() });
 				track("studio_message");
 			} catch (e) {
-				// What was asked comes back to the composer's history, the pair goes
-				set(s => ({ messages: s.messages.slice(0, -2) }));
-				if ((e as { code?: string }).code !== "cancelled") failed(e);
-				if ((e as { code?: string }).code === "sign_in_required") useCoach.getState().loadAccount();
+				const code = (e as { code?: string }).code;
+				if (code !== "cancelled" && get().session === session) failed(e);
+				if (code === "sign_in_required") useCoach.getState().loadAccount();
 			} finally {
-				set({ writing: false, tool: null });
+				change(() => null);
 			}
 		},
-		stop: () => useCoach.getState().stop(),
+		stop: () => {
+			const { session } = get();
+			if (session !== null) studioApi.stop(session);
+		},
 
 		removeItem: async id => {
 			const { session } = get();
 			if (session === null) return;
 			try {
 				set({ draft: await studioApi.removeItem(session, id) });
+				replan();
 			} catch (e) {
 				failed(e);
 			}
@@ -208,34 +252,57 @@ export const useStudio = create<StudioStore>()((set, get) => {
 						!!change.clear
 					),
 				});
+				replan();
 			} catch (e) {
 				failed(e);
 			}
 		},
-		proveAndSave: async () => {
-			const { session, verifying } = get();
-			if (session === null || verifying !== null) return;
-			set({ verifying: session, error: null });
+		proveAndSave: async scope => {
+			const { session, proofs } = get();
+			if (session === null || proofs[session]) return;
+			set({ error: null });
+			const ended = (end: ProofEnd) => set(s => ({ ended: { ...s.ended, [session]: end } }));
+			const started = Date.now();
 			try {
-				const draft = await studioApi.verify(session);
+				const draft = await studioApi.verify(session, scope);
 				track("studio_verified");
-				// The candidate may have opened another conversation meanwhile
-				if (get().session !== session) return;
-				set({ draft });
-				const proven = draft.items.every(i => i.status.state === "proven");
-				if (proven) await get().save();
+				const failed = draft.items.filter(i => i.status.state === "failed").length;
+				const checked = lastProof[session]?.checking.length ?? draft.items.length;
+				ended({ kind: "done", ms: Date.now() - started, failed, checked });
+				if (get().session === session) {
+					set({ draft });
+					replan();
+				}
+				if (draft.items.every(i => i.status.state === "proven")) await get().save(session);
 			} catch (e) {
-				if (get().session === session) failed(e);
-			} finally {
-				set({ verifying: null });
+				if ((e as { code?: string }).code === "cancelled") {
+					// Where it was: the last event before it ended
+					const last = lastProof[session];
+					if (last)
+						ended({ kind: "stopped", at: last.results.length + 1, of: last.checking.length });
+				} else if (get().session === session) failed(e);
 			}
 		},
-		save: async () => {
+		askToFix: async () => {
+			const { draft, send } = get();
+			const broken = (draft?.items ?? []).flatMap(i =>
+				i.status.state === "failed" ? [{ title: i.title, problems: i.status.problems }] : []
+			);
+			if (broken.length === 0) return;
+			const lines = broken.map(b => `- "${b.title}": ${b.problems.slice(0, 3).join("; ")}`);
+			await send(
+				`Proving the exam, ${broken.length === 1 ? "this question" : "these questions"} did not prove:\n${lines.join("\n")}\nFix ${broken.length === 1 ? "it" : "them"}, or replace ${broken.length === 1 ? "it" : "them"} with another.`
+			);
+		},
+		stopProof: () => {
 			const { session } = get();
-			if (session === null) return null;
+			if (session !== null) studioApi.stopProof(session);
+		},
+		save: async (session = get().session ?? undefined) => {
+			if (session === undefined) return null;
 			try {
 				const id = await studioApi.save(session);
-				await show(session);
+				if (get().session === session) await show(session);
 				await useExam.getState().loadCatalog();
 				track("studio_saved");
 				return id;

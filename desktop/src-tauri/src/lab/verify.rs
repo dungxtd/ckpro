@@ -32,6 +32,18 @@ pub struct Report {
 
 pub type Log<'a> = &'a (dyn Fn(String) + Sync);
 
+/// Where a run of questions is, as it goes
+pub enum Stage<'a> {
+    /// Every question's setup, as an exam's
+    SettingUp,
+    /// The question at this index (of the ids given) is being proven
+    Proving(usize),
+    /// It was: its report
+    Proved(usize, &'a Report),
+}
+
+pub type OnStage<'a> = &'a (dyn Fn(Stage) + Sync);
+
 /// Verify `ids` in a run of their own. `keep` leaves the run's clusters and
 /// jumphost for inspection.
 pub async fn verify(
@@ -52,7 +64,7 @@ pub async fn verify(
     let run = Run::new(data_dir)?;
     let result = async {
         run.start(infra, &topology, &CancellationToken::new(), log).await?;
-        run.check(pack, ids, log).await
+        run.check(pack, ids, None, log, &|_| {}).await
     }
     .await;
     if keep {
@@ -109,8 +121,16 @@ impl Run {
     }
 
     /// Run `ids` on the run's clusters: every setup, then per question the
-    /// checks before and after its solution
-    pub async fn check(&self, pack: &LoadedPack, ids: &[String], log: Log<'_>) -> AppResult<Vec<Report>> {
+    /// checks before and after its solution; only for those in `only` when
+    /// given (the others' setups still run)
+    pub async fn check(
+        &self,
+        pack: &LoadedPack,
+        ids: &[String],
+        only: Option<&std::collections::HashSet<String>>,
+        log: Log<'_>,
+        on: OnStage<'_>,
+    ) -> AppResult<Vec<Report>> {
         let placement = self.placement.lock().unwrap_or_else(|e| e.into_inner()).clone();
         let mut questions = Vec::new();
         for id in ids {
@@ -121,7 +141,7 @@ impl Run {
             questions.push((id.clone(), render::render(q, &render::pick(q, true), physical)));
         }
         let docker = docker::connect().await?;
-        run_questions(&docker, &self.jumphost.name, &questions, &self.id, log).await
+        run_questions(&docker, &self.jumphost.name, &questions, only, &self.id, log, on).await
     }
 
     /// Leave the clusters and jumphost for inspection
@@ -247,10 +267,13 @@ async fn run_questions(
     docker: &bollard::Docker,
     jumphost: &str,
     questions: &[(String, Question)],
+    only: Option<&std::collections::HashSet<String>>,
     run: &str,
     log: Log<'_>,
+    on: OnStage<'_>,
 ) -> AppResult<Vec<Report>> {
     // Like an exam: every task is set up before the candidate starts
+    on(Stage::SettingUp);
     let mut setup_failed = BTreeMap::new();
     for (id, q) in questions {
         if let Some(setup) = &q.setup {
@@ -263,7 +286,11 @@ async fn run_questions(
     }
 
     let mut reports = Vec::new();
-    for (id, q) in questions {
+    for (index, (id, q)) in questions.iter().enumerate() {
+        if only.is_some_and(|only| !only.contains(id)) {
+            continue;
+        }
+        on(Stage::Proving(index));
         log(format!("[{run}] verifying {id}"));
         let mut problems = Vec::new();
         if let Some(output) = setup_failed.get(id) {
@@ -295,7 +322,9 @@ async fn run_questions(
         for c in after.iter().filter(|c| !c.passed) {
             problems.push(format!("check fails after the solution: {} ({})", c.name, c.detail));
         }
-        reports.push(Report { question: id.clone(), ok: problems.is_empty(), problems, before, after });
+        let report = Report { question: id.clone(), ok: problems.is_empty(), problems, before, after };
+        on(Stage::Proved(index, &report));
+        reports.push(report);
     }
     Ok(reports)
 }

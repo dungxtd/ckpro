@@ -140,6 +140,9 @@ pub struct CoachTranscript {
 pub struct Coach {
     agent: Agent,
     running: Mutex<Option<CancellationToken>>,
+    /// The answers being written in Create conversations, by conversation:
+    /// several at once, each stopped on its own
+    studio_running: Mutex<HashMap<i32, CancellationToken>>,
     /// The ACP sessions behind open coach sessions: (attempt, question) →
     /// (ACP session, model, effort, profile)
     open: tokio::sync::Mutex<HashMap<(String, String), (String, String, String, Profile)>>,
@@ -185,6 +188,7 @@ impl Coach {
         Self {
             agent: Agent::new(),
             running: Mutex::new(None),
+            studio_running: Default::default(),
             open: Default::default(),
             permissions: Default::default(),
             tools: Default::default(),
