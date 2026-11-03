@@ -6,7 +6,7 @@ use super::{Coach, CoachEvent, CoachReply, Profile, TITLE_MODEL, TITLE_SYSTEM, a
 use crate::error::{AppError, AppResult};
 use crate::lab::exam::Exams;
 use crate::lab::load::LoadedPack;
-use crate::store::{CoachMessage, Role, Store};
+use crate::store::{Role, Store, StudioMessage, ToolUse};
 use crate::studio::proof::{CLUSTER, MAX_WORKERS};
 use crate::sync::MutexExt;
 use std::fmt::Write as _;
@@ -85,15 +85,38 @@ impl Coach {
             title.ok().and_then(|t| session_title(&t))
         };
         let transcript = Mutex::new(String::new());
+        // The tools it uses, in order, each with when it started
+        let tools: Mutex<Vec<(ToolUse, std::time::Instant)>> = Mutex::new(Vec::new());
         let stream = |event: agent::AgentEvent| match event {
             agent::AgentEvent::Text(t) => {
                 transcript.locked().push_str(t);
                 on_event(CoachEvent::Text { text: t.to_string() });
             }
-            // What Claude looks at or changes, shown as it goes (not kept)
+            // What Claude looks at or changes, shown as it goes and kept with the answer
             agent::AgentEvent::Tool(call) => {
                 let name = call.title.rsplit("__").next().unwrap_or(&call.title).to_string();
-                on_event(CoachEvent::Tool { id: call.id.clone(), command: name, status: call.status.clone() });
+                let input = if call.input.is_null() { String::new() } else { call.input.to_string() };
+                let done = matches!(call.status.as_str(), "completed" | "failed");
+                {
+                    let mut tools = tools.locked();
+                    let at = match tools.iter().position(|(t, _)| t.id == call.id) {
+                        Some(at) => at,
+                        None => {
+                            let tool = ToolUse { id: call.id.clone(), name: String::new(), status: String::new(), input: String::new(), output: None, ms: None };
+                            tools.push((tool, std::time::Instant::now()));
+                            tools.len() - 1
+                        }
+                    };
+                    let (tool, started) = &mut tools[at];
+                    tool.name.clone_from(&name);
+                    tool.status.clone_from(&call.status);
+                    tool.input.clone_from(&input);
+                    tool.output.clone_from(&call.output);
+                    if done && tool.ms.is_none() {
+                        tool.ms = Some(started.elapsed().as_millis() as u32);
+                    }
+                }
+                on_event(CoachEvent::Tool { id: call.id.clone(), command: name, status: call.status.clone(), input: Some(input), output: call.output.clone() });
             }
             // Its tools only read, or change the draft: nothing to ask
             agent::AgentEvent::Permission(params, reply) => {
@@ -119,9 +142,13 @@ impl Coach {
             }
         };
         let kept = transcript.into_inner().unwrap_or_else(|p| p.into_inner());
+        let used = tools.into_inner().unwrap_or_else(|p| p.into_inner()).into_iter().map(|(t, _)| t).collect();
         store.studio_add_messages(
             session,
-            &[CoachMessage { role: Role::User, text: text.to_string() }, CoachMessage { role: Role::Assistant, text: kept.clone() }],
+            &[
+                StudioMessage { role: Role::User, text: text.to_string(), tools: vec![] },
+                StudioMessage { role: Role::Assistant, text: kept.clone(), tools: used },
+            ],
         )?;
         if let Some(t) = &title {
             store.studio_rename(session, t)?;
@@ -137,7 +164,7 @@ impl Coach {
         session: i32,
         model: &str,
         effort: &str,
-        history: &[CoachMessage],
+        history: &[StudioMessage],
         text: &str,
     ) -> AppResult<(String, String)> {
         if let Some((open, current, current_effort, _)) = self.open.lock().await.get(&key(session)).cloned() {
