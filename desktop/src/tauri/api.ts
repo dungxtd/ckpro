@@ -19,11 +19,13 @@ import {
 	type ModelChoice,
 	type PlanView_Serialize,
 	type Progress,
+	type Proof,
+	type ProofPlan,
+	type Scope as ProofScope,
 	type Settings_Serialize,
 	type SignInEvent,
 	type SignInMethod,
 	type StudioConversation_Serialize,
-	type WorkspaceState,
 } from "./bindings";
 
 /** What the generated command functions resolve to. */
@@ -52,7 +54,7 @@ export type ExamDraft = ExamDraft_Serialize;
 export type DraftItem = ExamDraft["items"][number];
 /** A Create conversation, opened */
 export type StudioConversation = StudioConversation_Serialize;
-export type { WorkspaceState };
+export type { Proof, ProofPlan, ProofScope };
 
 /** A long operation as the app sends it */
 export type Activity = Activity_Serialize;
@@ -237,16 +239,6 @@ export const coachApi = {
 };
 
 export const studioApi = {
-	/** Where the Create screen's verify cluster stands; changes come to `onState` */
-	state: () => commands.studioState(),
-	onState: (on: (state: WorkspaceState) => void) =>
-		events.studioChanged.listen(event => on(event.payload)),
-	/** The screen opened: make its verify cluster unless it is there */
-	prepare: () => unwrap(commands.studioPrepare()),
-	/** Stop making it, or remove it */
-	release: () => commands.studioRelease(),
-	/** The screen was left: it goes after a while */
-	leave: () => commands.studioLeave(),
 	sessions: () => unwrap(commands.studioSessions()),
 	create: () => unwrap(commands.studioNew()) as Promise<StudioConversation>,
 	open: (session: number) => unwrap(commands.studioOpen(session)) as Promise<StudioConversation>,
@@ -264,8 +256,23 @@ export const studioApi = {
 	/** The candidate's changes to the draft: a title, a length, or every question out */
 	edit: (session: number, title: string | null, duration: number | null, clear: boolean) =>
 		unwrap(commands.studioEdit(session, title, duration, clear)) as Promise<ExamDraft>,
-	/** Prove the new questions on the verify cluster (their scripts run there) */
-	verify: (session: number) => unwrap(commands.studioVerify(session)) as Promise<ExamDraft>,
+	/** Stop the answer being written in a conversation (others go on) */
+	stop: (session: number) => commands.studioStop(session),
+	/** What proving a conversation's exam takes (its cluster, the time), and
+	 * why it cannot run now if so */
+	plan: (session: number) => unwrap(commands.studioPlan(session)),
+	/** Prove the exam on a cluster made for it, every question together (their
+	 * scripts run there): all, or those not proven. Where it is comes to
+	 * `onProof` as it goes */
+	verify: (session: number, scope: ProofScope) =>
+		unwrap(commands.studioVerify(session, scope)) as Promise<ExamDraft>,
+	/** Stop proving a conversation's exam */
+	stopProof: (session: number) => commands.studioStopProof(session),
+	/** The exams being proven, by conversation */
+	proofs: () => commands.studioProofs(),
+	/** A conversation's exam moved on being proven (null: done) */
+	onProof: (on: (session: number, proof: Proof | null) => void) =>
+		events.studioProof.listen(event => on(event.payload.session, event.payload.proof)),
 	/** Save the draft as an exam; its id */
 	save: (session: number) => unwrap(commands.studioSave(session)),
 };

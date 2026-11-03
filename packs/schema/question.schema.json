@@ -281,6 +281,11 @@
       "$ref": "#/$defs/Difficulty",
       "default": "medium"
     },
+    "disrupts": {
+      "default": false,
+      "description": "It changes the nodes for the tasks after it (cordons, drains or\ntaints one): an exam built in Create has one at most, run last",
+      "type": "boolean"
+    },
     "estimate": {
       "anyOf": [
         {

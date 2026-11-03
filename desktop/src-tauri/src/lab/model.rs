@@ -64,6 +64,10 @@ pub struct Question {
     pub workers: u8,
     #[serde(default)]
     pub namespace: Option<String>,
+    /// It changes the nodes for the tasks after it (cordons, drains or
+    /// taints one): an exam built in Create has one at most, run last
+    #[serde(default)]
+    pub disrupts: bool,
     #[serde(default)]
     pub tags: Vec<String>,
     /// Capabilities the question needs beyond a cluster and the jumphost.
