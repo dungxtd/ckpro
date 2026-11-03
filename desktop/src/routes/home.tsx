@@ -43,26 +43,24 @@ export function HomeRoute() {
 	const certifications = [...new Set(catalog.map(e => e.certification))];
 	// The certification measured: the target's, else the latest attempt's
 	const certification =
-		target?.certification ??
-		(history?.[0] && catalog.find(e => e.id === history[0].exam_id)?.certification) ??
-		null;
+		target?.certification ?? (history?.find(h => h.certification)?.certification || null) ?? null;
 
-	// Read again whenever an attempt is over (and for a new week)
+	// Read again whenever an attempt is over, the exams change (one deleted
+	// takes its plans) and for a new week
 	const week = dayKey(weekStart);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the exams changing is the cue
 	useEffect(() => {
 		if (!idle) return;
 		examApi.history().then(setHistory);
 		examApi.plans(week, dayKey(addDays(parseDay(week), 6))).then(setPlans);
-	}, [idle, week]);
+	}, [idle, week, catalog]);
 	useEffect(() => {
 		if (certification && idle)
 			examApi.readiness(certification).then(setReadiness, () => setReadiness(null));
 	}, [certification, idle]);
 
 	if (history === null) return <Loading fill label="Reading your attempts…" />;
-	const measured = certification
-		? history.filter(h => catalog.find(e => e.id === h.exam_id)?.certification === certification)
-		: history;
+	const measured = certification ? history.filter(h => h.certification === certification) : history;
 	const weak = weakest(readiness);
 	// The certification's longest exam measures the most domains at once
 	const mock = catalog

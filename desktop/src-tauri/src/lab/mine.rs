@@ -138,40 +138,66 @@ fn slug(title: &str) -> String {
     if slug.is_empty() { "exam".into() } else { slug.trim_end_matches('-').to_string() }
 }
 
-/// Delete one of the candidate's exams. `mine/custom/<slug>` (built in
-/// Create) goes alone; `mine/<certification>` takes the questions it lists
-/// (all of that certification's) and the custom exams that used them. Any
-/// other id is refused: nothing outside the candidate's pack is ever touched
-pub fn delete_exam(data_dir: &Path, exam_id: &str) -> AppResult<()> {
+/// What deleting one of the candidate's exams takes: the exams that go
+/// (it, and the custom exams using its questions) and the questions (their
+/// id prefix, `mine/<certification>/`), with the files behind them
+pub struct Deletion {
+    pub exams: Vec<String>,
+    pub questions: Option<String>,
+    files: Vec<PathBuf>,
+    dirs: Vec<PathBuf>,
+}
+
+/// What deleting `exam_id` takes. `mine/custom/<slug>` (built in Create)
+/// goes alone; `mine/<certification>` takes the questions it lists (all of
+/// that certification's) and the custom exams that used them. Any other id
+/// is refused: nothing outside the candidate's pack is ever touched
+pub fn deletion(data_dir: &Path, exam_id: &str) -> AppResult<Deletion> {
     let name_ok = |c: &&str| !c.is_empty() && c.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-');
+    let root = root(data_dir);
     if let Some(name) = exam_id.strip_prefix(&format!("{PACK_ID}/{CUSTOM}/")).filter(name_ok) {
-        let exam = root(data_dir).join("exams").join(CUSTOM).join(format!("{name}.yaml"));
+        let exam = root.join("exams").join(CUSTOM).join(format!("{name}.yaml"));
         if !exam.exists() {
             return Err(AppError::not_found(format!("no exam '{exam_id}'")));
         }
-        return std::fs::remove_file(&exam).map_err(|e| AppError::io("deleting the exam", e));
+        return Ok(Deletion { exams: vec![exam_id.to_string()], questions: None, files: vec![exam], dirs: vec![] });
     }
     let certification = exam_id
         .strip_prefix(&format!("{PACK_ID}/"))
         .filter(name_ok)
         .ok_or_else(|| AppError::invalid("only your own exams can be deleted"))?;
-    let root = root(data_dir);
-    // Custom exams using these questions would no longer load
-    let prefix = format!("  - {PACK_ID}/{certification}/");
-    for custom in std::fs::read_dir(root.join("exams").join(CUSTOM)).into_iter().flatten().flatten() {
-        if std::fs::read_to_string(custom.path()).is_ok_and(|text| text.lines().any(|l| l.starts_with(&prefix))) {
-            let _ = std::fs::remove_file(custom.path());
-        }
-    }
     let exam = root.join("exams").join(format!("{certification}.yaml"));
     if !exam.exists() {
         return Err(AppError::not_found(format!("no exam '{exam_id}'")));
     }
+    let mut deletion = Deletion {
+        exams: vec![exam_id.to_string()],
+        questions: Some(format!("{PACK_ID}/{certification}/")),
+        files: vec![exam],
+        dirs: vec![root.join("questions").join(certification)],
+    };
+    // Custom exams using these questions would no longer load
+    let listed = format!("  - {PACK_ID}/{certification}/");
+    for custom in std::fs::read_dir(root.join("exams").join(CUSTOM)).into_iter().flatten().flatten() {
+        let path = custom.path();
+        if std::fs::read_to_string(&path).is_ok_and(|text| text.lines().any(|l| l.starts_with(&listed)))
+            && let Some(slug) = path.file_stem().and_then(|s| s.to_str())
+        {
+            deletion.exams.push(format!("{PACK_ID}/{CUSTOM}/{slug}"));
+            deletion.files.push(path);
+        }
+    }
+    Ok(deletion)
+}
+
+/// Delete what `deletion` lists
+pub fn delete(deletion: &Deletion) -> AppResult<()> {
     let io = |e: std::io::Error| AppError::io("deleting the exam", e);
-    std::fs::remove_file(&exam).map_err(io)?;
-    let questions = root.join("questions").join(certification);
-    if questions.exists() {
-        std::fs::remove_dir_all(&questions).map_err(io)?;
+    for file in &deletion.files {
+        std::fs::remove_file(file).map_err(io)?;
+    }
+    for dir in deletion.dirs.iter().filter(|d| d.exists()) {
+        std::fs::remove_dir_all(dir).map_err(io)?;
     }
     Ok(())
 }
@@ -179,6 +205,13 @@ pub fn delete_exam(data_dir: &Path, exam_id: &str) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Delete an exam as the app does: the exams gone
+    fn delete_exam(data_dir: &Path, exam_id: &str) -> AppResult<Vec<String>> {
+        let deletion = deletion(data_dir, exam_id)?;
+        delete(&deletion)?;
+        Ok(deletion.exams)
+    }
 
     #[test]
     fn saves_questions_with_an_exam_per_certification() {
@@ -230,7 +263,8 @@ mod tests {
 
         delete_exam(&dir, "mine/custom/weak-spots-etcd-2").unwrap();
         assert!(path.exists(), "a custom exam's questions stay");
-        delete_exam(&dir, "mine/cka").unwrap();
+        let gone = delete_exam(&dir, "mine/cka").unwrap();
+        assert_eq!(gone, ["mine/cka", "mine/custom/weak-spots-etcd"], "it says what went");
         assert!(!root(&dir).join("exams/custom/weak-spots-etcd.yaml").exists(), "it used the deleted questions");
         assert!(delete_exam(&dir, "mine/custom/../../x").is_err());
         let _ = std::fs::remove_dir_all(&dir);

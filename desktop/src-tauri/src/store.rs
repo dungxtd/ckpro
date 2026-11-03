@@ -449,6 +449,15 @@ impl Store {
         Ok(())
     }
 
+    /// The exams were deleted: their plans go with them
+    pub fn remove_plans_of(&self, exam_ids: &[String]) -> AppResult<()> {
+        let conn = self.conn();
+        for id in exam_ids {
+            conn.execute("DELETE FROM plan WHERE exam_id = ?1", params![id]).map_err(db)?;
+        }
+        Ok(())
+    }
+
     pub fn remove_plan(&self, id: i32) -> AppResult<()> {
         self.conn().execute("DELETE FROM plan WHERE id = ?1", params![id]).map_err(db)?;
         Ok(())
@@ -807,6 +816,14 @@ impl Store {
         }
         tx.execute("UPDATE studio_session SET updated_at = ?2 WHERE id = ?1", params![session, now_ms() as i64]).map_err(db)?;
         tx.commit().map_err(db)
+    }
+
+    /// Every conversation's draft, as JSON
+    pub fn studio_drafts(&self) -> AppResult<Vec<(i32, String)>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT id, draft FROM studio_session").map_err(db)?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).map_err(db)?;
+        rows.collect::<Result<_, _>>().map_err(db)
     }
 
     /// A conversation's draft, as JSON (`{}` before the first)

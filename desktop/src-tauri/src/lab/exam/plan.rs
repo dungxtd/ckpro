@@ -220,6 +220,7 @@ mod tests {
             attempt_id: format!("{at}"),
             exam_id: exam.clone(),
             title: "CKA".into(),
+            certification: "cka".into(),
             mode: Mode::Practice,
             pass_score: 66,
             result: ExamResult {
@@ -250,5 +251,10 @@ mod tests {
         // An attempt ended before any point measures nothing
         let unworked = readiness(&pack, &[entry(now - day, &[(&trouble, 0)])], "cka", now).unwrap();
         assert_eq!((unworked.predicted, unworked.coverage), (None, 0));
+        // Its exam deleted since (one of the candidate's): it still counts
+        let mut gone = entry(now - day, &[(&trouble, 9)]);
+        gone.exam_id = "mine/custom/deleted".into();
+        let kept = readiness(&pack, &[gone], "cka", now).unwrap();
+        assert_eq!(kept.coverage, 30, "measured without its exam");
     }
 }

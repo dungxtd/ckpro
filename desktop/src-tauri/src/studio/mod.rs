@@ -76,7 +76,8 @@ fn staged(bank: &LoadedPack, data_dir: &Path, draft: &ExamDraft) -> AppResult<St
 /// why it cannot run now if so
 pub fn plan(store: &Store, exams: &Exams, data_dir: &Path, session: i32, fits: impl Fn(u32) -> Result<(), String>) -> AppResult<ProofPlan> {
     let draft = ExamDraft::load(store, session)?;
-    Ok(ProofPlan::of(&draft, staged(&exams.bank(), data_dir, &draft)?.workers, fits))
+    let bank = exams.bank();
+    Ok(ProofPlan::of(&draft, &bank, staged(&bank, data_dir, &draft)?.workers, fits))
 }
 
 /// Prove the exam (the candidate's go: its scripts run there) on a cluster
@@ -98,8 +99,9 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
     if checking.is_empty() {
         return Ok(draft);
     }
-    draft.disrupting().map_err(AppError::invalid)?;
     let bank = app.exams.bank();
+    draft.complete(&bank).map_err(AppError::invalid)?;
+    draft.disrupting().map_err(AppError::invalid)?;
     let Staged { pack: staging, ids, workers } = staged(&bank, app.data_dir, &draft)?;
     fits(proof::run_mb(workers)).map_err(AppError::invalid)?;
     let title_of = |key: &str| {
@@ -220,6 +222,7 @@ pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32) -> AppR
         return Err(AppError::invalid("prove the exam on a cluster first: every question, together"));
     }
     let bank = exams.bank();
+    draft.complete(&bank).map_err(AppError::invalid)?;
     let cert_title = bank.pack.certifications.get(&draft.certification).map(|c| c.title.clone()).unwrap_or_default();
     let mut ids = Vec::new();
     for item in &draft.items {
@@ -234,8 +237,68 @@ pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32) -> AppR
         }
     }
     let id = mine::save_exam(data_dir, &draft.title, &draft.certification, draft.duration_minutes, &ids)?;
+    // Its new questions are the candidate's now: saved again (the exam
+    // deleted), it lists them, not new copies
+    for (item, id) in draft.items.iter_mut().zip(&ids) {
+        if let DraftItem::New(q) = item {
+            *item = DraftItem::Existing {
+                id: id.clone(),
+                title: q.title.clone(),
+                domain: q.domain.clone(),
+                minutes: q.minutes,
+                status: q.status.clone(),
+                disrupts: q.disrupts,
+            };
+        }
+    }
     exams.reload_mine(data_dir);
     draft.saved = Some(id.clone());
     draft.save(store, session)?;
     Ok(id)
+}
+
+/// Exams were deleted: the conversations that saved them hold drafts again,
+/// to change and save anew
+pub fn exams_deleted(store: &Store, exam_ids: &[String]) -> AppResult<()> {
+    for (session, text) in store.studio_drafts()? {
+        let Ok(mut draft) = serde_json::from_str::<ExamDraft>(&text) else { continue };
+        if draft.saved.as_ref().is_some_and(|id| exam_ids.contains(id)) {
+            draft.saved = None;
+            draft.save(store, session)?;
+        }
+    }
+    Ok(())
+}
+
+/// A conversation's draft as it is opened: saved as an exam that is not
+/// there any more (deleted before this was kept, or its files removed), it
+/// is a draft again
+pub fn opened(store: &Store, exams: &Exams, session: i32) -> AppResult<ExamDraft> {
+    let mut draft = ExamDraft::load(store, session)?;
+    if let Some(id) = &draft.saved
+        && !exams.bank().exams.contains_key(id)
+    {
+        draft.saved = None;
+        draft.save(store, session)?;
+    }
+    Ok(draft)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A conversation that saved an exam deleted since holds a draft again;
+    /// the others keep theirs
+    #[test]
+    fn a_deleted_exam_gives_its_draft_back() {
+        let store = Store::open(&std::env::temp_dir().join(format!("ckpro-studio-deleted-{}.db", std::process::id()))).unwrap();
+        let (a, b) = (store.studio_new().unwrap(), store.studio_new().unwrap());
+        for (session, saved) in [(a, "mine/custom/gone"), (b, "mine/custom/kept")] {
+            ExamDraft { title: "Mock".into(), saved: Some(saved.into()), ..Default::default() }.save(&store, session).unwrap();
+        }
+        exams_deleted(&store, &["mine/custom/gone".into(), "mine/cka".into()]).unwrap();
+        assert_eq!(ExamDraft::load(&store, a).unwrap().saved, None);
+        assert_eq!(ExamDraft::load(&store, b).unwrap().saved.as_deref(), Some("mine/custom/kept"));
+    }
 }
