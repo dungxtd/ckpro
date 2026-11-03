@@ -12,17 +12,17 @@ import {
 } from "@cktry/ui/components/dialog";
 import { IconButton } from "@cktry/ui/components/icon-button";
 import { Placeholder } from "@cktry/ui/components/placeholder";
-import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
 import { Progress } from "@cktry/ui/components/progress";
 import { cn } from "@cktry/ui/lib/utils";
 import { X } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { ActivityProgress, clock } from "@/components/activity/activity-progress";
+import { clock } from "@/components/activity/activity-progress";
 import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { useStudio } from "@/stores/studio";
 import type { DraftItem, Proof, ProofScope } from "@/tauri/api";
-import { DraftMenu, DraftSummary } from "./draft-header";
+import { DraftMenu, DraftSummary, ProofTabs } from "./draft-header";
+import { ProofSteps } from "./proof-steps";
 
 const named = (domain: string) => domain.replaceAll("-", " ");
 const key = (item: DraftItem) => (item.kind === "new" ? item.key : item.id);
@@ -37,9 +37,11 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
  * reading the new ones), and save it once they all prove
  */
 export function DraftPanel({ bar = false }: { bar?: boolean }) {
-	const { draft, session, proofs } = useStudio();
+	const { draft, session, proofs, last, tab } = useStudio();
 	const { removeItem, proveAndSave } = useStudio.getState();
 	const proof = session === null ? undefined : proofs[session];
+	// The proof shown in its tab: the one running, or the latest
+	const shownProof = session === null ? undefined : last[session];
 	const [reviewing, setReviewing] = useState<ProofScope | null>(null);
 	// On a narrow window the questions fold under the draft's bar
 	const [unfolded, setUnfolded] = useState(false);
@@ -78,6 +80,7 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 						Questions {unfolded ? "▴" : "▾"}
 					</Button>
 				)}
+				{bar && <ProofTabs />}
 				{bar && <DraftMenu />}
 			</div>
 
@@ -88,7 +91,9 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 					!bar ? "flex" : unfolded ? "flex max-h-[45vh]" : "hidden"
 				)}
 			>
-				{items.length === 0 ? (
+				{tab === "proof" && shownProof ? (
+					<ProofSteps proof={shownProof} />
+				) : items.length === 0 ? (
 					<Placeholder
 						className="my-auto"
 						sample={[1, 2, 3].map(n => (
@@ -370,8 +375,8 @@ function useNow(on: boolean) {
 /**
  * The exam being proven, at the panel's foot: what it is at (its cluster
  * being made, the setups, question n of those checked), how far and how
- * long, its plan and log (the activity's), and a way to stop it (its
- * cluster goes)
+ * long, and a way to stop it (its cluster goes). Its steps and their logs
+ * are the Proof tab's
  */
 function ProofProgress({ proof }: { proof: Proof }) {
 	const total = useStudio(s => s.draft?.items.length ?? 0);
@@ -397,18 +402,7 @@ function ProofProgress({ proof }: { proof: Proof }) {
 				label="Questions proven"
 				value={(proof.results.length * 100) / Math.max(1, checking)}
 			/>
-			<div className="flex items-center gap-2">
-				<Popover>
-					<PopoverTrigger asChild>
-						<Button size="push" variant="push">
-							Log
-						</Button>
-					</PopoverTrigger>
-					<PopoverContent align="start" side="top" className="w-[28rem]">
-						<ActivityProgress id={proof.activity} compact />
-					</PopoverContent>
-				</Popover>
-				<span className="flex-1" />
+			<div className="flex items-center justify-end gap-2">
 				<Button size="push" variant="push" onClick={stopProof}>
 					Stop
 				</Button>

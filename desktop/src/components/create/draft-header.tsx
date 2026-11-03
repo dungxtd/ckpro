@@ -14,9 +14,11 @@ import {
 } from "@cktry/ui/components/dropdown-menu";
 import { IconButton } from "@cktry/ui/components/icon-button";
 import { Input } from "@cktry/ui/components/input";
+import { SegmentedControl } from "@cktry/ui/components/segmented-control";
+import { Spinner } from "@cktry/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@cktry/ui/components/tooltip";
 import { cn } from "@cktry/ui/lib/utils";
-import { Ellipsis, Pencil } from "lucide-react";
+import { Check, Ellipsis, Pencil, X } from "lucide-react";
 import { useState } from "react";
 import { useStudio } from "@/stores/studio";
 import type { ExamDraft } from "@/tauri/api";
@@ -26,17 +28,64 @@ const DOMAIN = ["bg-domain-1", "bg-domain-2", "bg-domain-3", "bg-domain-4", "bg-
 const named = (domain: string) => domain.replaceAll("-", " ");
 const LENGTHS = [30, 45, 60, 90, 120];
 
-/** The draft's top strip: what it is, and what can be done to it */
+/**
+ * The draft's top strip: what it is, or once it was proven its two views
+ * (the questions, the proof's steps), and what can be done to it
+ */
 export function DraftStrip() {
 	const draft = useStudio(s => s.draft);
-	const proving = useStudio(s => s.session !== null && !!s.proofs[s.session]);
+	const proven = useStudio(s => s.session !== null && !!s.last[s.session]);
 	return (
 		<>
-			<span className="flex-1 truncate font-bold text-2xs text-muted-foreground tracking-wide">
-				{draft?.saved ? "SAVED EXAM" : proving ? "PROVING EXAM" : "DRAFT EXAM"}
-			</span>
+			{proven ? (
+				<span className="flex-1">
+					<ProofTabs />
+				</span>
+			) : (
+				<span className="flex-1 truncate font-bold text-2xs text-muted-foreground tracking-wide">
+					{draft?.saved ? "SAVED EXAM" : "DRAFT EXAM"}
+				</span>
+			)}
 			<DraftMenu />
 		</>
+	);
+}
+
+/**
+ * Exam | Proof: the questions, or the latest proof's steps; Proof says how
+ * it goes (k of n, a spinner) or how it ended (✓ or ✗)
+ */
+export function ProofTabs() {
+	const tab = useStudio(s => s.tab);
+	const setTab = useStudio(s => s.setTab);
+	const proof = useStudio(s => (s.session === null ? undefined : s.last[s.session]));
+	if (!proof) return null;
+	const failed = proof.results.some(r => r.status.state === "failed");
+	const state = !proof.ended_at ? (
+		<>
+			<Spinner size="inline" className="size-3" />
+			<span className="tabular-nums">
+				{proof.results.length}/{proof.checking.length}
+			</span>
+		</>
+	) : failed || proof.results.length < proof.checking.length ? (
+		<X className="size-3.5 text-destructive" />
+	) : (
+		<Check className="size-3.5 text-success" />
+	);
+	return (
+		<SegmentedControl
+			label="Show"
+			value={tab}
+			onChange={setTab}
+			options={[
+				{ value: "exam", label: "Exam" },
+				{
+					value: "proof",
+					label: <span className="flex items-center gap-1.5">Proof {state}</span>,
+				},
+			]}
+		/>
 	);
 }
 
