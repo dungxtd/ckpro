@@ -40,7 +40,7 @@ export const commands = {
 	 */
 	studioVerify: (session: number, scope: Scope) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_verify", { session, scope })),
 	/**  The exams being proven, by conversation */
-	studioProofs: () => __TAURI_INVOKE<([number, Proof])[]>("studio_proofs"),
+	studioProofs: () => __TAURI_INVOKE<([number, Proof_Serialize])[]>("studio_proofs"),
 	/**  Stop proving a conversation's exam (its cluster goes) */
 	studioStopProof: (session: number) => __TAURI_INVOKE<void>("studio_stop_proof", { session }),
 	/**  Stop the answer being written in a conversation */
@@ -964,17 +964,7 @@ export type Progress = {
 	hints_shown: { [key in string]: number },
 };
 
-export type Proof = {
-	/**  Its activity: the plan and the log */
-	activity: number,
-	/**  When it started (ms since the epoch) */
-	started_at: number | null,
-	/**  The questions it checks, by id or key, in the order they run */
-	checking: string[],
-	stage: ProofStage,
-	/**  The questions checked so far, and how */
-	results: ProofResult[],
-};
+export type Proof = Proof_Serialize | Proof_Deserialize;
 
 /**  What proving the exam takes, before it starts */
 export type ProofPlan = ProofPlan_Serialize | ProofPlan_Deserialize;
@@ -1029,6 +1019,44 @@ export type ProofStage =
 { stage: "setting_up" } | 
 /**  The question `key` is being checked, since (ms since the epoch) */
 { stage: "proving"; key: string; since: number | null };
+
+export type Proof_Deserialize = {
+	/**  Its activity: the plan and the log */
+	activity: number,
+	/**  When it started (ms since the epoch) */
+	started_at: number | null,
+	/**  The questions it checks, by id or key, in the order they run */
+	checking: string[],
+	stage: ProofStage,
+	/**  The questions checked so far, and how */
+	results: ProofResult[],
+	/**
+	 *  When each step of its activity began (ms since the epoch): the
+	 *  cluster, the setups, then each question checked
+	 */
+	marks: (number | null)[],
+	/**  When it ended (ms since the epoch) */
+	ended_at?: number | null,
+};
+
+export type Proof_Serialize = {
+	/**  Its activity: the plan and the log */
+	activity: number,
+	/**  When it started (ms since the epoch) */
+	started_at: number | null,
+	/**  The questions it checks, by id or key, in the order they run */
+	checking: string[],
+	stage: ProofStage,
+	/**  The questions checked so far, and how */
+	results: ProofResult[],
+	/**
+	 *  When each step of its activity began (ms since the epoch): the
+	 *  cluster, the setups, then each question checked
+	 */
+	marks: (number | null)[],
+	/**  When it ended (ms since the epoch) */
+	ended_at: number | null,
+};
 
 /**
  *  An agent the assistant can run (each over ACP with its own adapter and
@@ -1304,13 +1332,13 @@ export type StudioProof = StudioProof_Serialize | StudioProof_Deserialize;
 /**  A Create conversation's exam is being proven: where it is (none: done). */
 export type StudioProof_Deserialize = {
 	session: number,
-	proof?: Proof | null,
+	proof?: Proof_Deserialize | null,
 };
 
 /**  A Create conversation's exam is being proven: where it is (none: done). */
 export type StudioProof_Serialize = {
 	session: number,
-	proof: Proof | null,
+	proof: Proof_Serialize | null,
 };
 
 /**
