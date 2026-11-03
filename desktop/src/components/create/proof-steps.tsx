@@ -6,6 +6,7 @@ import { Check, ChevronRight, Circle, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ActivityProgress, clock } from "@/components/activity/activity-progress";
 import { useActivities } from "@/stores/activity";
+import { useStudio } from "@/stores/studio";
 import type { Proof } from "@/tauri/api";
 
 /** A step of the activity's plan logs `▸ <step>` as it starts */
@@ -150,5 +151,37 @@ function StepLog({ lines, follow }: { lines: string[]; follow: boolean }) {
 				</span>
 			))}
 		</pre>
+	);
+}
+
+/**
+ * The proof to come, before the first: its steps (a cluster as big as the
+ * exam needs, the setups, each question to check) and about how long
+ */
+export function ProofPreview() {
+	const draft = useStudio(s => s.draft);
+	const plan = useStudio(s => s.plan);
+	const checking = (draft?.items ?? []).filter(i => i.status.state !== "proven");
+	const workers = plan?.workers ?? 1;
+	const steps = [
+		`Make a cluster with ${workers} worker${workers === 1 ? "" : "s"}`,
+		"Set up every question",
+		...checking.map(i => i.title),
+	];
+	return (
+		<div className="flex flex-col gap-0.5">
+			<span className="mb-1 px-1.5 text-caption text-muted-foreground">
+				Not run yet: about {plan ? plan.minutes_changed : "?"} min, its cluster removed after
+			</span>
+			{steps.map(title => (
+				<div
+					key={title}
+					className="flex items-center gap-2 px-1.5 py-1 text-callout text-muted-foreground"
+				>
+					<Circle className="size-3 shrink-0" />
+					<span className="min-w-0 flex-1 truncate">{title}</span>
+				</div>
+			))}
+		</div>
 	);
 }

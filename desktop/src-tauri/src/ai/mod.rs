@@ -39,8 +39,17 @@ const TITLE_MODEL: &str = "haiku";
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CoachEvent {
     Text { text: String },
-    /// A command the agent runs (Agent profile), as it goes
-    Tool { id: String, command: String, status: String },
+    /// A command the agent runs (Agent profile), or a tool it uses (Create),
+    /// as it goes: in Create, its arguments (JSON) and what it returned
+    Tool {
+        id: String,
+        command: String,
+        status: String,
+        #[serde(default)]
+        input: Option<String>,
+        #[serde(default)]
+        output: Option<String>,
+    },
     /// The agent asks to run a command: the candidate picks an option
     /// (`coach_permit`)
     Permission { id: u32, command: String, options: Vec<PermissionOption> },
@@ -473,7 +482,7 @@ impl Coach {
             agent::AgentEvent::Text(t) => text_out(t),
             agent::AgentEvent::Tool(call) => {
                 let command = call.input["command"].as_str().unwrap_or(&call.title).to_string();
-                on_event(CoachEvent::Tool { id: call.id.clone(), command: command.clone(), status: call.status.clone() });
+                on_event(CoachEvent::Tool { id: call.id.clone(), command: command.clone(), status: call.status.clone(), input: None, output: None });
                 if matches!(call.status.as_str(), "completed" | "failed") {
                     ran.store(true, std::sync::atomic::Ordering::SeqCst);
                     let output = call.output.as_deref().unwrap_or("").trim_end();

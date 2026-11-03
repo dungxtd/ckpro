@@ -528,7 +528,7 @@ pub fn telemetry_configure(on: bool, key: String, host: String, distinct_id: Str
 #[derive(Clone, Debug, serde::Serialize, specta::Type)]
 pub struct StudioConversation {
     pub id: i32,
-    pub messages: Vec<crate::store::CoachMessage>,
+    pub messages: Vec<crate::store::StudioMessage>,
     pub draft: crate::studio::draft::ExamDraft,
 }
 

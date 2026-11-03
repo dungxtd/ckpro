@@ -18,7 +18,7 @@ export const commands = {
 	 *  Say something in a Create conversation; the answer streams as it is
 	 *  written (and Claude's tool uses), the draft's changes arrive as `StudioDraft`
 	 */
-	studioAsk: (session: number, text: string, model: ModelChoice, events: Channel<CoachEvent>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("studio_ask", { session, text, model, events })),
+	studioAsk: (session: number, text: string, model: ModelChoice, events: Channel<CoachEvent_Deserialize>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("studio_ask", { session, text, model, events })),
 	studioRename: (session: number, title: string) => typedError<null, AppError>(__TAURI_INVOKE("studio_rename", { session, title })),
 	studioDelete: (session: number) => typedError<null, AppError>(__TAURI_INVOKE("studio_delete", { session })),
 	/**  Take a question out of the draft (by id, or a new one's key) */
@@ -110,7 +110,7 @@ export const commands = {
 	 *  Ask the coach about a question (practice mode, or after the result); the
 	 *  answer streams on `events` and resolves to the whole answer.
 	 */
-	coachAsk: (questionId: string, text: string, checks: CheckResult[], solutionOpened: boolean, model: ModelChoice, context: CoachContext, events: Channel<CoachEvent>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("coach_ask", { questionId, text, checks, solutionOpened, model, context, events })),
+	coachAsk: (questionId: string, text: string, checks: CheckResult[], solutionOpened: boolean, model: ModelChoice, context: CoachContext, events: Channel<CoachEvent_Deserialize>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("coach_ask", { questionId, text, checks, solutionOpened, model, context, events })),
 	/**  Stop the answer being written. */
 	coachCancel: () => __TAURI_INVOKE<void>("coach_cancel"),
 	/**
@@ -408,9 +408,28 @@ export type CoachContext = {
 };
 
 /**  The coach's answer as it is written */
-export type CoachEvent = { kind: "text"; text: string } | 
-/**  A command the agent runs (Agent profile), as it goes */
-{ kind: "tool"; id: string; command: string; status: string } | 
+export type CoachEvent = CoachEvent_Serialize | CoachEvent_Deserialize;
+
+/**  The coach's answer as it is written */
+export type CoachEvent_Deserialize = { kind: "text"; text: string } | 
+/**
+ *  A command the agent runs (Agent profile), or a tool it uses (Create),
+ *  as it goes: in Create, its arguments (JSON) and what it returned
+ */
+{ kind: "tool"; id: string; command: string; status: string; input?: string | null; output?: string | null } | 
+/**
+ *  The agent asks to run a command: the candidate picks an option
+ *  (`coach_permit`)
+ */
+{ kind: "permission"; id: number; command: string; options: PermissionOption[] };
+
+/**  The coach's answer as it is written */
+export type CoachEvent_Serialize = { kind: "text"; text: string } | 
+/**
+ *  A command the agent runs (Agent profile), or a tool it uses (Create),
+ *  as it goes: in Create, its arguments (JSON) and what it returned
+ */
+{ kind: "tool"; id: string; command: string; status: string; input: string | null; output: string | null } | 
 /**
  *  The agent asks to run a command: the candidate picks an option
  *  (`coach_permit`)
@@ -1300,14 +1319,14 @@ export type StudioConversation = StudioConversation_Serialize | StudioConversati
 /**  A Create conversation, opened: its messages and draft exam */
 export type StudioConversation_Deserialize = {
 	id: number,
-	messages: CoachMessage[],
+	messages: StudioMessage_Deserialize[],
 	draft: ExamDraft_Deserialize,
 };
 
 /**  A Create conversation, opened: its messages and draft exam */
 export type StudioConversation_Serialize = {
 	id: number,
-	messages: CoachMessage[],
+	messages: StudioMessage_Serialize[],
 	draft: ExamDraft_Serialize,
 };
 
@@ -1324,6 +1343,32 @@ export type StudioDraft_Deserialize = {
 export type StudioDraft_Serialize = {
 	session: number,
 	draft: ExamDraft_Serialize,
+};
+
+/**
+ *  A message of a Create conversation; an answer keeps the tools Claude used
+ *  for it
+ */
+export type StudioMessage = StudioMessage_Serialize | StudioMessage_Deserialize;
+
+/**
+ *  A message of a Create conversation; an answer keeps the tools Claude used
+ *  for it
+ */
+export type StudioMessage_Deserialize = {
+	role: Role,
+	text: string,
+	tools?: ToolUse_Deserialize[],
+};
+
+/**
+ *  A message of a Create conversation; an answer keeps the tools Claude used
+ *  for it
+ */
+export type StudioMessage_Serialize = {
+	role: Role,
+	text: string,
+	tools: ToolUse_Serialize[],
 };
 
 /**  A Create conversation's exam is being proven: where it is (none: done). */
@@ -1365,6 +1410,37 @@ export type StudyStats = {
 export type Theme = 
 /**  As macOS is set, following it when it changes */
 "system" | "light" | "dark";
+
+/**  A tool Claude used: what it asked and what came back */
+export type ToolUse = ToolUse_Serialize | ToolUse_Deserialize;
+
+/**  A tool Claude used: what it asked and what came back */
+export type ToolUse_Deserialize = {
+	id: string,
+	name: string,
+	/**  pending, in_progress, completed, failed */
+	status: string,
+	/**  Its arguments, as JSON */
+	input: string,
+	/**  What it returned, once it did */
+	output?: string | null,
+	/**  How long it took, in milliseconds */
+	ms?: number | null,
+};
+
+/**  A tool Claude used: what it asked and what came back */
+export type ToolUse_Serialize = {
+	id: string,
+	name: string,
+	/**  pending, in_progress, completed, failed */
+	status: string,
+	/**  Its arguments, as JSON */
+	input: string,
+	/**  What it returned, once it did */
+	output: string | null,
+	/**  How long it took, in milliseconds */
+	ms: number | null,
+};
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
