@@ -102,8 +102,11 @@ pub fn exam_fits(state: &EnvState, needed_mb: u32, clusters: &[String]) -> Resul
 /// Whether `what` (a sentence's subject: "This exam") needing `needed_mb`
 /// fits in what Docker has left, but `clusters`: the reason when it does not
 pub fn fits(state: &EnvState, what: &str, needed_mb: u32, clusters: &[String]) -> Result<(), String> {
-    let DockerState::Up { cpus, memory_mb, .. } = state.docker else {
-        return Err("Docker is not running. Start OrbStack or Docker Desktop.".into());
+    let (cpus, memory_mb) = match state.docker {
+        DockerState::Up { cpus, memory_mb, .. } => (cpus, memory_mb),
+        // The app has not reached it yet: not a reason to start Docker
+        DockerState::Connecting => return Err("Connecting to Docker…".into()),
+        DockerState::Down { .. } => return Err("Docker is not running. Start OrbStack or Docker Desktop.".into()),
     };
     if cpus < 2 {
         return Err(format!("{what} needs at least 2 CPUs for Docker; it has {cpus}."));
