@@ -37,7 +37,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
  * reading the new ones), and save it once they all prove
  */
 export function DraftPanel({ bar = false }: { bar?: boolean }) {
-	const { draft, session, proofs, last, tab } = useStudio();
+	const { draft, session, proofs, last, tab, plan } = useStudio();
 	const { removeItem, proveAndSave } = useStudio.getState();
 	const proof = session === null ? undefined : proofs[session];
 	// The proof shown in its tab: the one running, or the latest
@@ -113,6 +113,7 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 							item={item}
 							proof={proof}
 							partly={partly}
+							deleted={!!plan?.missing.includes(key(item))}
 							onRemove={() => removeItem(key(item))}
 						/>
 					))
@@ -289,17 +290,21 @@ function ProofFoot({ onProve }: { onProve: (scope: ProofScope) => void }) {
  * A question of the draft: from the packs or new, and where it stands in the
  * exam (`partly`: some proved, so a proven one is from the last proof);
  * while it is proven, its result as soon as it has one, the one running, or
- * waiting its turn. The one changing the nodes says it runs last
+ * waiting its turn. The one changing the nodes says it runs last; one
+ * whose question was deleted says so, to be taken out
  */
 function Item({
 	item,
 	proof,
 	partly,
+	deleted,
 	onRemove,
 }: {
 	item: DraftItem;
 	proof?: Proof;
 	partly: boolean;
+	/** Its question was deleted since it was added */
+	deleted: boolean;
 	onRemove: () => void;
 }) {
 	const id = key(item);
@@ -310,7 +315,9 @@ function Item({
 	const running = proof?.stage.stage === "proving" && proof.stage.key === id ? proof.stage : null;
 	const waiting = checked && !running && !result;
 	const now = useNow(!!running);
-	const status = running ? (
+	const status = deleted ? (
+		<Badge variant="destructive">Deleted</Badge>
+	) : running ? (
 		<Badge className="bg-highlight/15 text-highlight tabular-nums">
 			Running · {clock(now - (running.since ?? now))}
 		</Badge>

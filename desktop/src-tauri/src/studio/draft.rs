@@ -144,6 +144,27 @@ impl ExamDraft {
         })
     }
 
+    /// Questions of the packs it lists that are gone (deleted since): their
+    /// ids and titles
+    pub fn missing(&self, bank: &LoadedPack) -> Vec<(String, String)> {
+        self.items
+            .iter()
+            .filter_map(|i| match i {
+                DraftItem::Existing { id, title, .. } if !bank.questions.contains_key(id) => Some((id.clone(), title.clone())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// None of its questions is gone: else, which, to take out
+    pub fn complete(&self, bank: &LoadedPack) -> Result<(), String> {
+        match self.missing(bank).as_slice() {
+            [] => Ok(()),
+            [(_, title)] => Err(format!("{title} was deleted: remove it from the exam")),
+            gone => Err(format!("{} questions were deleted: remove them from the exam", gone.len())),
+        }
+    }
+
     /// Every question proven together: it can be saved
     pub fn proven(&self) -> bool {
         !self.items.is_empty() && self.statuses().all(|(_, s)| *s == DraftStatus::Proven)
@@ -443,6 +464,20 @@ hints:\n  - kubectl create deploy\n"
         assert!(draft.proven(), "what is left proved");
         draft.unprove();
         assert!(draft.statuses().all(|(_, s)| *s == DraftStatus::Linted));
+    }
+
+    /// A question of the packs deleted since it was added is named, and the
+    /// exam cannot be proven or saved until it is taken out
+    #[test]
+    fn a_deleted_question_is_named_until_removed() {
+        let bank = bank();
+        let mut draft = ExamDraft::default();
+        draft.set_exam(&bank, "Mock", "cka", None).unwrap();
+        draft.items.push(DraftItem::Existing { id: "mine/cka/gone".into(), title: "Gone".into(), domain: "storage".into(), minutes: None, status: DraftStatus::Proven, disrupts: false });
+        assert_eq!(draft.missing(&bank), [("mine/cka/gone".to_string(), "Gone".to_string())]);
+        assert!(draft.complete(&bank).unwrap_err().contains("Gone was deleted"));
+        assert!(draft.remove("mine/cka/gone"));
+        assert!(draft.complete(&bank).is_ok());
     }
 
     /// One question at most changes the nodes, and it runs last

@@ -70,11 +70,14 @@ export function CalendarRoute() {
 	};
 
 	const reload = useCallback(() => examApi.plans(from, to).then(setPlans), [from, to]);
+	// Again when the exams change: one deleted takes its plans
+	const catalog = useExam(s => s.catalog);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the exams changing is the cue
 	useEffect(() => {
 		if (!idle) return;
 		examApi.history().then(setHistory);
 		reload();
-	}, [idle, reload]);
+	}, [idle, reload, catalog]);
 
 	/** Do a change, read the plans again, and offer to undo it */
 	const change = async (

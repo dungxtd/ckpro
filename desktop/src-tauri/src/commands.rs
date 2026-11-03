@@ -130,11 +130,16 @@ pub fn readiness(exams: State<'_, Arc<Exams>>, certification: String) -> AppResu
     exams.readiness(&certification, crate::runtime::activity::now_ms())
 }
 
-/// Delete one of the candidate's own exams (generated questions) and its questions.
+/// Delete one of the candidate's own exams and its questions (and the
+/// custom exams using them): their plans go, and Create conversations that
+/// saved them hold drafts again. The exams gone
 #[tauri::command]
 #[specta::specta]
-pub fn delete_exam(exams: State<'_, Arc<Exams>>, id: String) -> AppResult<()> {
-    exams.delete_exam(&id, &crate::data_dir())
+pub fn delete_exam(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>, id: String) -> AppResult<Vec<String>> {
+    let gone = exams.delete_exam(&id, &crate::data_dir())?;
+    store.remove_plans_of(&gone)?;
+    crate::studio::exams_deleted(&store, &gone)?;
+    Ok(gone)
 }
 
 /// Reset the exam desktop: a new one, every window closed; the client reconnects.
@@ -550,8 +555,9 @@ pub fn studio_new(store: State<'_, Arc<Store>>) -> AppResult<StudioConversation>
 /// A Create conversation, with its messages and draft
 #[tauri::command]
 #[specta::specta]
-pub fn studio_open(store: State<'_, Arc<Store>>, session: i32) -> AppResult<StudioConversation> {
-    Ok(StudioConversation { id: session, messages: store.studio_messages(session)?, draft: crate::studio::draft::ExamDraft::load(&store, session)? })
+pub fn studio_open(store: State<'_, Arc<Store>>, exams: State<'_, Arc<Exams>>, session: i32) -> AppResult<StudioConversation> {
+    let draft = crate::studio::opened(&store, &exams, session)?;
+    Ok(StudioConversation { id: session, messages: store.studio_messages(session)?, draft })
 }
 
 /// Say something in a Create conversation; the answer streams as it is
@@ -582,7 +588,10 @@ pub fn studio_rename(store: State<'_, Arc<Store>>, session: i32, title: String) 
 
 #[tauri::command]
 #[specta::specta]
-pub async fn studio_delete(coach: State<'_, Coach>, store: State<'_, Arc<Store>>, session: i32) -> AppResult<()> {
+pub async fn studio_delete(coach: State<'_, Coach>, proofs: State<'_, Proofs>, store: State<'_, Arc<Store>>, session: i32) -> AppResult<()> {
+    // What goes on for it stops: its answer, its proof (and the proof's cluster)
+    coach.studio_stop(session);
+    proofs.stop(session);
     coach.studio_forget(session).await;
     store.studio_delete(session)
 }

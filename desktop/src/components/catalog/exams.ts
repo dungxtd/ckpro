@@ -22,7 +22,8 @@ export function memoryFit(exam: ExamSummary, dockerMb: number | null): Fit {
 
 /**
  * What the Exams screen shows, kept in the URL (`/exams?exam=<id>`): the
- * exam picked (the first one until one is)
+ * exam picked (the first one until one is). One picked that is not there
+ * (deleted) is `missing`, never another in its place
  */
 export function useSelection() {
 	const [params] = useSearchParams();
@@ -35,9 +36,12 @@ export function useSelection() {
 		...pinned(catalog, layout),
 		...arrange(catalog, layout, false, stats).flatMap(g => g.exams),
 	];
-	const exam = catalog.find(e => e.id === picked) ?? shown[0] ?? catalog[0] ?? null;
+	const found = picked ? (catalog.find(e => e.id === picked) ?? null) : null;
+	const exam = picked ? found : (shown[0] ?? catalog[0] ?? null);
 	return {
 		exam,
+		/** The exam picked is gone (the list is read, and has it not) */
+		missing: !!picked && !found && catalog.length > 0,
 		select: (id: string) => navigate(`/exams?exam=${encodeURIComponent(id)}`),
 	};
 }

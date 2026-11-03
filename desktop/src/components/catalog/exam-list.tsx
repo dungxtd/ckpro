@@ -34,6 +34,7 @@ import { SHORTCUTS } from "@/shortcuts";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import { useSidebarLayout } from "@/stores/settings";
+import { useStudio } from "@/stores/studio";
 import { type ExamSort, type ExamSummary, errorText, examApi } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 import { memoryFit, useExamStats, useSelection } from "./exams";
@@ -87,7 +88,8 @@ export function ExamList({
 	const [layout, setLayout] = useSidebarLayout();
 	const { exam: shown, select } = useSelection();
 	const navigate = useNavigate();
-	const onExams = useLocation().pathname === "/exams";
+	const here = useLocation();
+	const onExams = here.pathname === "/exams";
 	const [deleting, setDeleting] = useState<ExamSummary | null>(null);
 	const q = query.trim().toLowerCase();
 	const matches = (e: ExamSummary) => e.title.toLowerCase().includes(q);
@@ -143,11 +145,25 @@ export function ExamList({
 
 	const remove = async (exam: ExamSummary) => {
 		try {
-			await examApi.delete(exam.id);
-			setLayout({ pinned: toggled(layout.pinned, exam.id, false) });
-			if (shown?.id === exam.id) navigate("/exams");
+			// It, and the custom exams that used its questions
+			const gone = await examApi.delete(exam.id);
+			const kept = (ids?: string[]) => ids?.filter(id => !gone.includes(id));
+			setLayout({
+				pinned: kept(layout.pinned),
+				exams: kept(layout.exams),
+				hidden: kept(layout.hidden),
+			});
+			// The one shown went: the list's first instead (none picked)
+			const picked = new URLSearchParams(here.search).get("exam");
+			if (onExams && picked && gone.includes(picked)) navigate("/exams");
 			await loadCatalog();
-			toast.success(`${exam.title} deleted`);
+			// A Create conversation that saved it holds a draft again
+			useStudio.getState().reopen();
+			toast.success(
+				gone.length > 1
+					? `${exam.title} and ${gone.length - 1} exam${gone.length === 2 ? "" : "s"} using it deleted`
+					: `${exam.title} deleted`
+			);
 		} catch (e) {
 			toast.error(errorText(e));
 		}

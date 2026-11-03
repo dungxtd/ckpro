@@ -46,15 +46,17 @@ pub struct ProofPlan {
     /// Minutes it takes, about: every question, or the changed ones
     pub minutes_all: u32,
     pub minutes_changed: u32,
-    /// Why it cannot run now (two questions that change the nodes, too
-    /// little memory)
+    /// Why it cannot run now (questions deleted, two that change the
+    /// nodes, too little memory)
     pub problem: Option<String>,
+    /// Its questions that were deleted, by id
+    pub missing: Vec<String>,
 }
 
 impl ProofPlan {
-    /// The plan for `draft`, its workers by question; `fits` says whether
-    /// Docker has room for so many megabytes
-    pub fn of(draft: &ExamDraft, workers: u8, fits: impl Fn(u32) -> Result<(), String>) -> Self {
+    /// The plan for `draft` (its questions in `bank`), its workers by
+    /// question; `fits` says whether Docker has room for so many megabytes
+    pub fn of(draft: &ExamDraft, bank: &crate::lab::load::LoadedPack, workers: u8, fits: impl Fn(u32) -> Result<(), String>) -> Self {
         let total = draft.items.len() as u32;
         let changed = draft.statuses().filter(|(_, s)| **s != DraftStatus::Proven).count() as u32;
         let mb = run_mb(workers);
@@ -68,7 +70,8 @@ impl ProofPlan {
             total,
             minutes_all: minutes(total),
             minutes_changed: minutes(changed),
-            problem: draft.disrupting().err().or_else(|| fits(mb).err()),
+            problem: draft.complete(bank).err().or_else(|| draft.disrupting().err()).or_else(|| fits(mb).err()),
+            missing: draft.missing(bank).into_iter().map(|(id, _)| id).collect(),
         }
     }
 }

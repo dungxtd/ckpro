@@ -1,7 +1,9 @@
 import { Alert } from "@cktry/ui/components/alert";
 import { Button } from "@cktry/ui/components/button";
 import { Loading } from "@cktry/ui/components/loading";
+import { Placeholder } from "@cktry/ui/components/placeholder";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { ExamDetail } from "@/components/catalog/exam-detail";
 import { useSelection } from "@/components/catalog/exams";
 import { useEnvironment } from "@/stores/environment";
@@ -18,7 +20,8 @@ export function CatalogRoute() {
 	useEffect(() => {
 		loadCatalog().finally(() => setLoaded(true));
 	}, [loadCatalog]);
-	const { exam } = useSelection();
+	const { exam, missing } = useSelection();
+	const navigate = useNavigate();
 
 	return (
 		<div className="mx-auto flex max-w-3xl flex-col gap-6 px-8 pt-2 pb-10">
@@ -51,6 +54,18 @@ export function CatalogRoute() {
 				<div key={exam.id} className="fade-in-0 animate-in duration-200 motion-reduce:animate-none">
 					<ExamDetail exam={exam} dockerMb={docker?.state === "up" ? docker.memory_mb : null} />
 				</div>
+			) : missing ? (
+				<Placeholder
+					className="mt-16"
+					sample={<div className="h-24 w-72 rounded-xl border border-border bg-card" />}
+					title="This exam is not here any more"
+					description="It was deleted, or the questions it used were."
+					action={
+						<Button size="push" variant="push" onClick={() => navigate("/exams")}>
+							Show the exams
+						</Button>
+					}
+				/>
 			) : (
 				!loaded && <Loading fill label="Loading exams…" />
 			)}

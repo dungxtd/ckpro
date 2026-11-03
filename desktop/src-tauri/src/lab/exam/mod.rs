@@ -203,6 +203,10 @@ pub struct HistoryEntry {
     pub attempt_id: String,
     pub exam_id: String,
     pub title: String,
+    /// Its exam's certification: kept, the exam may be deleted since
+    /// (entries from before it was kept get it from their exam or questions)
+    #[serde(default)]
+    pub certification: String,
     pub mode: Mode,
     pub pass_score: u32,
     pub result: ExamResult,
@@ -286,18 +290,22 @@ impl Exams {
         }
     }
 
-    /// Delete one of the candidate's own exams (and its questions); not while
-    /// an attempt of it is open
-    pub fn delete_exam(&self, exam_id: &str, data_dir: &std::path::Path) -> AppResult<()> {
+    /// Delete one of the candidate's own exams (and its questions, and the
+    /// custom exams using them); not while an attempt of any of them, or of
+    /// their questions, is open. The exams gone
+    pub fn delete_exam(&self, exam_id: &str, data_dir: &std::path::Path) -> AppResult<Vec<String>> {
+        let deletion = crate::lab::mine::deletion(data_dir, exam_id)?;
         let state = self.state();
-        if !matches!(state, ExamState::Idle | ExamState::Finished { .. })
-            && state.attempt().is_some_and(|a| a.exam_id == exam_id)
-        {
-            return Err(AppError::invalid("this exam has an attempt open; close it first"));
+        let touches = |a: &Attempt| {
+            deletion.exams.contains(&a.exam_id)
+                || deletion.questions.as_ref().is_some_and(|prefix| a.questions.iter().any(|q| q.id.starts_with(prefix.as_str())))
+        };
+        if !matches!(state, ExamState::Idle | ExamState::Finished { .. }) && state.attempt().is_some_and(touches) {
+            return Err(AppError::invalid("an attempt using this exam or its questions is open; close it first"));
         }
-        crate::lab::mine::delete_exam(data_dir, exam_id)?;
+        crate::lab::mine::delete(&deletion)?;
         self.reload_mine(data_dir);
-        Ok(())
+        Ok(deletion.exams)
     }
 
     pub fn state(&self) -> ExamState {
@@ -725,6 +733,7 @@ impl Exams {
             attempt_id: attempt.id.clone(),
             exam_id: attempt.exam_id.clone(),
             title: attempt.title.clone(),
+            certification: attempt.certification.clone(),
             mode: attempt.mode,
             pass_score: attempt.pass_score,
             result: result.clone(),
@@ -735,10 +744,30 @@ impl Exams {
     }
 
     pub fn history(&self) -> Vec<HistoryEntry> {
-        self.store.history().unwrap_or_else(|e| {
+        let mut history: Vec<HistoryEntry> = self.store.history().unwrap_or_else(|e| {
             tracing::warn!(error = %e, "reading exam history");
             Vec::new()
-        })
+        });
+        let pack = self.bank();
+        for entry in history.iter_mut().filter(|e| e.certification.is_empty()) {
+            entry.certification = certification_of(&pack, entry).unwrap_or_default();
+        }
+        history
     }
+}
+
+/// An entry's certification, for one kept before it was: its exam's, else
+/// the one most of its questions belong to (its exam deleted)
+fn certification_of(pack: &LoadedPack, entry: &HistoryEntry) -> Option<String> {
+    if let Some(exam) = pack.exams.get(&entry.exam_id) {
+        return Some(exam.value.certification.clone());
+    }
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    for q in &entry.result.questions {
+        for certification in pack.questions.get(&q.id).into_iter().flat_map(|l| l.value.certifications.keys()) {
+            *counts.entry(certification).or_default() += 1;
+        }
+    }
+    counts.into_iter().max_by_key(|(_, n)| *n).map(|(c, _)| c.to_string())
 }
 
