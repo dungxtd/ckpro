@@ -80,6 +80,8 @@ interface StudioStore {
 	 * following the drafts and the proofs */
 	enter: () => Promise<() => void>;
 	newSession: () => Promise<void>;
+	/** Read the shown conversation again (its exam deleted elsewhere) */
+	reopen: () => Promise<void>;
 	open: (session: number) => Promise<void>;
 	rename: (title: string) => Promise<void>;
 	remove: (session: number) => Promise<void>;
@@ -194,6 +196,10 @@ export const useStudio = create<StudioStore>()((set, get) => {
 			} catch (e) {
 				failed(e);
 			}
+		},
+		reopen: async () => {
+			const { session } = get();
+			if (session !== null) await show(session).catch(failed);
 		},
 		open: async session => {
 			try {

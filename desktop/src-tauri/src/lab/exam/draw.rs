@@ -170,6 +170,7 @@ mod tests {
             attempt_id: String::new(),
             exam_id: String::new(),
             title: String::new(),
+            certification: String::new(),
             mode: Mode::Practice,
             pass_score: 66,
             result: ExamResult {

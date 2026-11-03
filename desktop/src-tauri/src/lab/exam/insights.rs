@@ -122,9 +122,8 @@ impl Exams {
 pub fn study_stats(pack: &LoadedPack, history: &[HistoryEntry]) -> Vec<StudyStats> {
     let mut stats: Vec<StudyStats> = Vec::new();
     for entry in history.iter().rev() {
-        let Some(cert_id) = pack.exams.get(&entry.exam_id).map(|e| e.value.certification.clone()) else {
-            continue;
-        };
+        // Kept with the entry: its exam may be deleted since
+        let cert_id = entry.certification.clone();
         let Some(cert) = pack.pack.certifications.get(&cert_id) else { continue };
         let i = match stats.iter().position(|s| s.certification == cert_id) {
             Some(i) => i,

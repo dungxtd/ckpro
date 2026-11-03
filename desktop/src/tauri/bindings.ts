@@ -58,8 +58,12 @@ export const commands = {
 	/**  Start a cluster's stopped nodes. */
 	repairCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("repair_cluster", { name })),
 	listExams: () => __TAURI_INVOKE<ExamSummary[]>("list_exams"),
-	/**  Delete one of the candidate's own exams (generated questions) and its questions. */
-	deleteExam: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_exam", { id })),
+	/**
+	 *  Delete one of the candidate's own exams and its questions (and the
+	 *  custom exams using them): their plans go, and Create conversations that
+	 *  saved them hold drafts again. The exams gone
+	 */
+	deleteExam: (id: string) => typedError<string[], AppError>(__TAURI_INVOKE("delete_exam", { id })),
 	/**
 	 *  The plans from `from` to `to` (YYYY-MM-DD, both included); `offset_minutes`
 	 *  east of UTC places attempts on the candidate's own days.
@@ -838,6 +842,11 @@ export type HistoryEntry_Deserialize = {
 	attempt_id: string,
 	exam_id: string,
 	title: string,
+	/**
+	 *  Its exam's certification: kept, the exam may be deleted since
+	 *  (entries from before it was kept get it from their exam or questions)
+	 */
+	certification?: string,
 	mode: Mode,
 	pass_score: number,
 	result: ExamResult_Deserialize,
@@ -848,6 +857,11 @@ export type HistoryEntry_Serialize = {
 	attempt_id: string,
 	exam_id: string,
 	title: string,
+	/**
+	 *  Its exam's certification: kept, the exam may be deleted since
+	 *  (entries from before it was kept get it from their exam or questions)
+	 */
+	certification: string,
 	mode: Mode,
 	pass_score: number,
 	result: ExamResult_Serialize,
@@ -1001,10 +1015,12 @@ export type ProofPlan_Deserialize = {
 	minutes_all: number,
 	minutes_changed: number,
 	/**
-	 *  Why it cannot run now (two questions that change the nodes, too
-	 *  little memory)
+	 *  Why it cannot run now (questions deleted, two that change the
+	 *  nodes, too little memory)
 	 */
 	problem?: string | null,
+	/**  Its questions that were deleted, by id */
+	missing: string[],
 };
 
 /**  What proving the exam takes, before it starts */
@@ -1020,10 +1036,12 @@ export type ProofPlan_Serialize = {
 	minutes_all: number,
 	minutes_changed: number,
 	/**
-	 *  Why it cannot run now (two questions that change the nodes, too
-	 *  little memory)
+	 *  Why it cannot run now (questions deleted, two that change the
+	 *  nodes, too little memory)
 	 */
 	problem: string | null,
+	/**  Its questions that were deleted, by id */
+	missing: string[],
 };
 
 export type ProofResult = {
