@@ -500,3 +500,95 @@ fn bindings_export() {
         .export(typescript(), std::env::temp_dir().join("cktry-bindings.ts"))
         .unwrap();
 }
+
+/// Create's proof: an exam of the packs proven whole on a cluster made
+/// for it as big as it needs, its stages and results arriving as they go,
+/// then saved; a question added proven alone after every setup; a proof
+/// stopped by the candidate. No cluster outlives its proof
+#[tokio::test]
+#[ignore]
+async fn create_proves_an_exam_as_it_goes_and_stops() {
+    use lab::exam::{ExamState, Exams};
+    use studio::draft::{DraftStatus, ExamDraft};
+    use studio::proof::{ProofStage, Proofs, Scope};
+    let dir = std::env::temp_dir().join("cktry-e2e-create");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let store = Arc::new(store::Store::open(&dir.join("cktry.db")).unwrap());
+    let f = fixture("create");
+    let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/core");
+    let guard = runtime::guard::Guard::new(|_| {});
+    let activities = runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}"));
+    let exams = Arc::new(Exams::new(lab::load::load(&core).0.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), "cktry-desktop-test-create", store.clone(), |_: &ExamState| {}, activities.clone(), guard));
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let proofs = Proofs::new({
+        let seen = seen.clone();
+        move |session, proof| seen.lock().unwrap().push((session, proof.map(|p| (p.stage.clone(), p.results.len()))))
+    });
+    let app = || studio::Proving { store: &store, exams: &exams, proofs: &proofs, activities: &activities, infra: f.infra.clone(), data_dir: &dir };
+    let fits = |_| Ok(());
+    let clusters = async || {
+        let out = std::process::Command::new("docker").args(["ps", "-a", "--format", "{{.Names}}"]).output().unwrap();
+        String::from_utf8_lossy(&out.stdout).lines().filter(|n| n.starts_with("k8s-v")).count()
+    };
+    let before = clusters().await;
+
+    // Two workers needed: its cluster has them
+    let session = store.studio_new().unwrap();
+    let mut draft = ExamDraft::default();
+    draft.set_exam(&exams.bank(), "E2E proof", "cka", Some(30)).unwrap();
+    let ids = ["core/cka-003/q02-node-maintenance-cordon-drain".to_string(), "core/cka/rbac-ci-token".to_string(), "core/cka/fix-broken-image".to_string()];
+    assert!(draft.add_existing(&exams.bank(), &ids[..2]).is_empty());
+    assert_eq!(draft.items.last().unwrap().content().0, ids[0], "the drain runs last");
+    draft.save(&store, session).unwrap();
+    let plan = studio::plan(&store, &exams, &dir, session, fits).unwrap();
+    assert_eq!((plan.workers, plan.changed, plan.problem.clone()), (2, 2, None), "{plan:?}");
+    let proven = studio::verify(app(), session, Scope::Changed, fits).await.unwrap();
+    assert!(proven.proven(), "{:?}", proven.items);
+    let stages: Vec<_> = seen.lock().unwrap().iter().filter_map(|(_, p)| p.clone()).collect();
+    println!("ok: stages {stages:?}");
+    assert!(matches!(stages[0], (ProofStage::Cluster { workers: 2 }, 0)));
+    assert!(stages.iter().any(|(s, _)| *s == ProofStage::SettingUp));
+    assert!(stages.iter().any(|(s, n)| matches!(s, ProofStage::Proving { key, .. } if *key == ids[0]) && *n == 1), "the first result came before the second ran");
+    assert_eq!(seen.lock().unwrap().last().unwrap(), &(session, None));
+    assert_eq!(clusters().await, before, "its cluster went with it");
+    println!("ok: proven whole on a cluster of its own, removed");
+
+    // One more: only it is checked, after every setup
+    seen.lock().unwrap().clear();
+    let mut draft = ExamDraft::load(&store, session).unwrap();
+    draft.add_existing(&exams.bank(), &ids[2..]);
+    draft.save(&store, session).unwrap();
+    assert_eq!(studio::plan(&store, &exams, &dir, session, fits).unwrap().changed, 1);
+    let proven = studio::verify(app(), session, Scope::Changed, fits).await.unwrap();
+    assert!(proven.proven(), "{:?}", proven.items);
+    let results = seen.lock().unwrap().iter().filter_map(|(_, p)| p.as_ref().map(|(_, n)| *n)).max();
+    assert_eq!(results, Some(1), "only the new one was checked");
+    let id = studio::save(&store, &exams, &dir, session).unwrap();
+    assert!(dir.join("packs/mine/exams/custom/e2e-proof.yaml").exists(), "{id}");
+    println!("ok: the change proven alone, saved as {id}");
+
+    // Stopped while its cluster is made: nothing proven, its cluster gone
+    let session = store.studio_new().unwrap();
+    let mut draft = ExamDraft::default();
+    draft.set_exam(&exams.bank(), "E2E stop", "cka", None).unwrap();
+    assert!(draft.add_existing(&exams.bank(), &ids[1..2]).is_empty());
+    draft.save(&store, session).unwrap();
+    let stopping = async {
+        loop {
+            if proofs.list().iter().any(|(s, p)| *s == session && matches!(p.stage, ProofStage::Cluster { .. })) {
+                tokio::time::sleep(Duration::from_secs(15)).await;
+                proofs.stop(session);
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    };
+    let (stopped, ()) = tokio::join!(studio::verify(app(), session, Scope::All, fits), stopping);
+    assert!(matches!(stopped, Err(error::AppError::Cancelled { .. })), "{stopped:?}");
+    assert!(proofs.list().is_empty());
+    assert!(ExamDraft::load(&store, session).unwrap().statuses().all(|(_, s)| *s == DraftStatus::Linted));
+    assert_eq!(clusters().await, before, "its cluster went with it");
+    println!("ok: stopped, nothing proven, its cluster gone");
+    f.teardown().await;
+}

@@ -2,10 +2,11 @@
 //! ones Claude proposes. A new question is checked as it comes (format,
 //! certification, the verify cluster's shape, no twin of a question already
 //! there, lint); proving the whole exam on a cluster (its questions together,
-//! as in an exam) and saving are the candidate's. Any change of its
-//! questions makes it to be proven again.
+//! as in an exam) and saving are the candidate's. A question added or
+//! changed is to be proven; the others keep what they proved. One question
+//! at most changes the nodes for the rest (`disrupts`), and it runs last.
 
-use super::workspace;
+use super::proof::{CLUSTER, MAX_WORKERS};
 use crate::ai::generate::{lint_errors, staging_of};
 use crate::error::{AppError, AppResult};
 use crate::lab::load::LoadedPack;
@@ -62,6 +63,9 @@ pub enum DraftItem {
         /// Where it stands in this exam (proven alone in its pack, not with these)
         #[serde(default)]
         status: DraftStatus,
+        /// It changes the nodes for the questions after it
+        #[serde(default)]
+        disrupts: bool,
     },
     /// A question Claude wrote for this exam
     New(NewQuestion),
@@ -79,6 +83,9 @@ pub struct NewQuestion {
     #[serde(default)]
     pub minutes: Option<u32>,
     pub status: DraftStatus,
+    /// It changes the nodes for the questions after it
+    #[serde(default)]
+    pub disrupts: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -91,6 +98,16 @@ pub enum DraftStatus {
     Proven,
     /// It did not prove, and why
     Failed { problems: Vec<String> },
+}
+
+impl DraftItem {
+    /// What it is, where it stands aside: the same question if equal
+    pub fn content(&self) -> (&str, &str) {
+        match self {
+            DraftItem::Existing { id, .. } => (id, ""),
+            DraftItem::New(q) => (&q.key, &q.yaml),
+        }
+    }
 }
 
 impl ExamDraft {
@@ -132,8 +149,37 @@ impl ExamDraft {
         !self.items.is_empty() && self.statuses().all(|(_, s)| *s == DraftStatus::Proven)
     }
 
-    /// Its questions changed: what was proven was another exam
-    fn unprove(&mut self) {
+    /// The questions that change the nodes for the rest, by title
+    fn disruptive(&self) -> impl Iterator<Item = &str> {
+        self.items.iter().filter_map(|i| match i {
+            DraftItem::Existing { disrupts: true, title, .. } => Some(title.as_str()),
+            DraftItem::New(q) if q.disrupts => Some(q.title.as_str()),
+            _ => None,
+        })
+    }
+
+    /// One question at most changes the nodes: else, why it cannot be proven
+    pub fn disrupting(&self) -> Result<(), String> {
+        let titles: Vec<&str> = self.disruptive().collect();
+        match titles.as_slice() {
+            [first, second, ..] => Err(format!("{first} and {second} both change the nodes for what follows: keep one")),
+            _ => Ok(()),
+        }
+    }
+
+    /// Add a question: last, but before the one that changes the nodes
+    fn place(&mut self, item: DraftItem) {
+        let disrupts = matches!(&item, DraftItem::Existing { disrupts: true, .. }) || matches!(&item, DraftItem::New(q) if q.disrupts);
+        let last_disrupts = matches!(self.items.last(), Some(DraftItem::Existing { disrupts: true, .. })) || matches!(self.items.last(), Some(DraftItem::New(q)) if q.disrupts);
+        if !disrupts && last_disrupts {
+            self.items.insert(self.items.len() - 1, item);
+        } else {
+            self.items.push(item);
+        }
+    }
+
+    /// Every question to be proven again (the candidate's "prove all")
+    pub fn unprove(&mut self) {
         for item in &mut self.items {
             match item {
                 DraftItem::Existing { status, .. } => *status = DraftStatus::Linted,
@@ -204,17 +250,21 @@ impl ExamDraft {
                 refused.push(format!("{id}: not a {} question", self.certification));
             } else if !q.value.runnable() {
                 refused.push(format!("{id}: needs what cktry does not provide"));
-            } else if q.value.cluster != workspace::CLUSTER {
-                refused.push(format!("{id}: runs on another cluster than `{}`", workspace::CLUSTER));
-            } else if !self.items.iter().any(|i| matches!(i, DraftItem::Existing { id: x, .. } if x == id)) {
-                self.unprove();
+            } else if q.value.cluster != CLUSTER {
+                refused.push(format!("{id}: runs on another cluster than `{CLUSTER}`"));
+            } else if self.items.iter().any(|i| matches!(i, DraftItem::Existing { id: x, .. } if x == id)) {
+                // There already
+            } else if let Some(other) = self.disruptive().next().filter(|_| q.value.disrupts) {
+                refused.push(format!("{id}: changes the nodes for what follows, and {other} does already: an exam has one at most"));
+            } else {
                 let domain = q.value.certifications[&self.certification].clone();
-                self.items.push(DraftItem::Existing {
+                self.place(DraftItem::Existing {
                     id: id.clone(),
                     title: q.value.title.clone(),
                     domain,
                     minutes: minutes(&q.value),
                     status: DraftStatus::Linted,
+                    disrupts: q.value.disrupts,
                 });
             }
         }
@@ -234,11 +284,11 @@ impl ExamDraft {
             domain,
             yaml: yaml.trim().to_string() + "\n",
             status: DraftStatus::Linted,
+            disrupts: question.disrupts,
         };
-        self.unprove();
         match self.find_new(&key) {
             Some(existing) => *existing = new,
-            None => self.items.push(DraftItem::New(new)),
+            None => self.place(DraftItem::New(new)),
         }
         Ok(key)
     }
@@ -250,11 +300,7 @@ impl ExamDraft {
             DraftItem::Existing { id, .. } => id != id_or_key,
             DraftItem::New(q) => q.key != id_or_key,
         });
-        let removed = self.items.len() != before;
-        if removed {
-            self.unprove();
-        }
-        removed
+        self.items.len() != before
     }
 
     fn check(&self, bank: &LoadedPack, data_dir: &Path, yaml: &str, replacing: Option<&str>) -> Result<Question, Vec<String>> {
@@ -273,11 +319,20 @@ impl ExamDraft {
             )),
             None => problems.push(format!("`certifications` must map `{}` to one of its domains", self.certification)),
         }
-        if question.cluster != workspace::CLUSTER {
-            problems.push(format!("use the `{}` cluster (leave `cluster` out)", workspace::CLUSTER));
+        if question.cluster != CLUSTER {
+            problems.push(format!("use the `{CLUSTER}` cluster (leave `cluster` out)"));
         }
-        if question.workers > workspace::WORKERS {
-            problems.push(format!("at most {} worker node (the verify cluster's size)", workspace::WORKERS));
+        if question.workers > MAX_WORKERS {
+            problems.push(format!("at most {MAX_WORKERS} worker nodes"));
+        }
+        let others = self.items.iter().filter(|i| !matches!(i, DraftItem::New(q) if Some(q.key.as_str()) == replacing));
+        let disrupting = others.filter_map(|i| match i {
+            DraftItem::Existing { disrupts: true, title, .. } => Some(title.clone()),
+            DraftItem::New(q) if q.disrupts => Some(q.title.clone()),
+            _ => None,
+        });
+        if let Some(other) = disrupting.take(1).next().filter(|_| question.disrupts) {
+            problems.push(format!("it changes the nodes for what follows, and {other} does already: an exam has one at most"));
         }
         let title = question.title.trim().to_lowercase();
         if let Some((id, _)) = bank.questions.iter().find(|(_, q)| q.value.title.trim().to_lowercase() == title) {
@@ -334,8 +389,8 @@ hints:\n  - kubectl create deploy\n"
 
         let problems = draft.propose(&bank, &dir, &question("A web deployment", ""), None).unwrap_err();
         assert!(problems.iter().any(|p| p.contains("draft has a question with this title")), "{problems:?}");
-        let problems = draft.propose(&bank, &dir, &question("Two workers", "workers: 2\n"), None).unwrap_err();
-        assert!(problems.iter().any(|p| p.contains("at most 1 worker")), "{problems:?}");
+        let problems = draft.propose(&bank, &dir, &question("Four workers", "workers: 4\n"), None).unwrap_err();
+        assert!(problems.iter().any(|p| p.contains("at most 3 worker")), "{problems:?}");
         let taken = bank.questions.values().find(|q| q.value.certifications.contains_key("cka")).unwrap().value.title.clone();
         let problems = draft.propose(&bank, &dir, &question(&taken, ""), None).unwrap_err();
         assert!(problems.iter().any(|p| p.contains("is there already")), "{problems:?}");
@@ -359,18 +414,17 @@ hints:\n  - kubectl create deploy\n"
         assert_eq!(refused.len(), 2);
     }
 
-    /// What is proven is the exam as it stands: a question in or out makes
-    /// it to be proven again
+    /// A question added or changed is to be proven, the others keep what
+    /// they proved; the candidate can have them all proven again
     #[test]
-    fn a_change_of_questions_unproves_the_exam() {
+    fn a_change_is_proven_and_the_rest_kept() {
         let bank = bank();
-        let dir = std::env::temp_dir().join(format!("cktry-draft-unprove-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("cktry-draft-changed-{}", std::process::id()));
         let mut draft = ExamDraft::default();
         draft.set_exam(&bank, "Mock", "cka", None).unwrap();
-        let mut cka = bank.questions.iter().filter(|(_, q)| q.value.certifications.contains_key("cka") && q.value.runnable()).map(|(id, _)| id.clone());
+        let mut cka = bank.questions.iter().filter(|(_, q)| q.value.certifications.contains_key("cka") && q.value.runnable() && !q.value.disrupts).map(|(id, _)| id.clone());
         let (a, b) = (cka.next().unwrap(), cka.next().unwrap());
         draft.add_existing(&bank, std::slice::from_ref(&a));
-        assert!(!draft.proven());
         let prove = |draft: &mut ExamDraft| {
             let ids: Vec<String> = draft.statuses().map(|(id, _)| id.to_string()).collect();
             for id in ids {
@@ -379,18 +433,33 @@ hints:\n  - kubectl create deploy\n"
         };
         prove(&mut draft);
         assert!(draft.proven());
-        draft.add_existing(&bank, std::slice::from_ref(&a));
-        assert!(draft.proven(), "already there: nothing changed");
         draft.add_existing(&bank, std::slice::from_ref(&b));
+        let unproven: Vec<&str> = draft.statuses().filter(|(_, s)| **s != DraftStatus::Proven).map(|(id, _)| id).collect();
+        assert_eq!(unproven, [b.as_str()]);
+        prove(&mut draft);
+        let key = draft.propose(&bank, &dir, &question("A web deployment", ""), None).unwrap();
+        assert_eq!(draft.statuses().filter(|(_, s)| **s != DraftStatus::Proven).map(|(id, _)| id).collect::<Vec<_>>(), [key.as_str()]);
+        assert!(draft.remove(&key));
+        assert!(draft.proven(), "what is left proved");
+        draft.unprove();
         assert!(draft.statuses().all(|(_, s)| *s == DraftStatus::Linted));
-        prove(&mut draft);
-        draft.propose(&bank, &dir, &question("A web deployment", ""), None).unwrap();
-        assert!(!draft.proven());
-        prove(&mut draft);
-        assert!(draft.remove(&b));
-        assert!(!draft.proven());
-        draft.edit(Some("Renamed"), Some(60), false);
-        assert!(draft.statuses().all(|(_, s)| *s == DraftStatus::Linted), "edits keep what stands");
+    }
+
+    /// One question at most changes the nodes, and it runs last
+    #[test]
+    fn one_question_changes_the_nodes_and_runs_last() {
+        let bank = bank();
+        let mut draft = ExamDraft::default();
+        draft.set_exam(&bank, "Mock", "cka", None).unwrap();
+        let disrupting: Vec<String> = bank.questions.iter().filter(|(_, q)| q.value.disrupts && q.value.certifications.contains_key("cka") && q.value.runnable()).map(|(id, _)| id.clone()).collect();
+        assert!(disrupting.len() >= 2, "the packs have them: {disrupting:?}");
+        let calm = bank.questions.iter().find(|(_, q)| q.value.certifications.contains_key("cka") && q.value.runnable() && !q.value.disrupts).unwrap().0.clone();
+        assert!(draft.add_existing(&bank, &disrupting[..1]).is_empty());
+        let refused = draft.add_existing(&bank, &disrupting[1..2]);
+        assert!(refused[0].contains("one at most"), "{refused:?}");
+        draft.add_existing(&bank, std::slice::from_ref(&calm));
+        assert!(matches!(draft.items.last(), Some(DraftItem::Existing { id, .. }) if *id == disrupting[0]), "it stays last");
+        assert!(draft.disrupting().is_ok());
     }
 
     /// The exam keeps its certification's domain weights (heaviest first)

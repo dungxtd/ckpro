@@ -37,9 +37,12 @@ pub struct ActivityLog {
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct GuardNotice(String);
 
-/// The Create screen's verify cluster changed.
+/// A Create conversation's exam is being proven: where it is (none: done).
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
-pub struct StudioChanged(studio::workspace::WorkspaceState);
+pub struct StudioProof {
+    pub session: i32,
+    pub proof: Option<studio::proof::Proof>,
+}
 
 /// Claude changed a Create conversation's draft exam.
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
@@ -55,13 +58,9 @@ pub struct EnvChanged(EnvState);
 /// Typed IPC: debug builds regenerate `desktop/src/tauri/bindings.ts`.
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ActivityChanged, ActivityLog, GuardNotice, StudioChanged, StudioDraft])
+        .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ActivityChanged, ActivityLog,GuardNotice, StudioDraft, StudioProof])
         .commands(tauri_specta::collect_commands![
         commands::env_state,
-        commands::studio_state,
-        commands::studio_prepare,
-        commands::studio_release,
-        commands::studio_leave,
         commands::studio_sessions,
         commands::studio_new,
         commands::studio_open,
@@ -70,7 +69,11 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::studio_delete,
         commands::studio_remove,
         commands::studio_edit,
+        commands::studio_plan,
         commands::studio_verify,
+        commands::studio_proofs,
+        commands::studio_stop_proof,
+        commands::studio_stop,
         commands::studio_save,
         commands::env_retry,
         commands::env_watch_nodes,
@@ -218,9 +221,9 @@ pub fn run() {
             let kind = Arc::new(cluster::kind::Kind::new(data_dir.clone()));
             let infra = Arc::new(runtime::infra::Infra::new(data_dir.clone()));
             app.manage(infra.clone());
-            let studio = app.handle().clone();
-            app.manage(studio::workspace::Workspace::new(data_dir.clone(), move |state| {
-                let _ = StudioChanged(state.clone()).emit(&studio);
+let proving = app.handle().clone();
+            app.manage(studio::proof::Proofs::new(move |session, proof| {
+                let _ = StudioProof { session, proof: proof.cloned() }.emit(&proving);
             }));
             app.manage(Arc::new(runtime::jumphost::Jumphost::app(&data_dir)));
             let (changed, line) = (app.handle().clone(), app.handle().clone());
@@ -302,8 +305,8 @@ pub fn run() {
                 app.state::<Arc<runtime::guard::Guard>>().suspend();
                 // Clusters stop until the next start
                 runtime::reconcile::on_exit(&app.state::<Arc<cluster::kind::Kind>>());
-                // The Create screen's verify cluster goes
-                app.state::<Arc<studio::workspace::Workspace>>().on_exit();
+                // Exams being proven in Create: their clusters go
+                app.state::<studio::proof::Proofs>().on_exit();
             }
         });
 }

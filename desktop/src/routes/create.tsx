@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { toast } from "sonner";
 import { Chat } from "@/components/create/chat";
 import { DraftStrip } from "@/components/create/draft-header";
 import { DraftPanel } from "@/components/create/draft-panel";
@@ -9,23 +8,16 @@ import { useStudio } from "@/stores/studio";
 /**
  * Create with Claude: a conversation building an exam from everything the
  * app knows, the exam in the window's inspector (as tall as the window,
- * like the sidebar), or a bar under the chat on a narrow window. Opening
- * it makes the verify cluster new questions are proven on; leaving keeps it
- * a while (back soon, it is ready) and says so, with a way to remove it at once
+ * like the sidebar), or a bar under the chat on a narrow window. Its
+ * questions are proven on a cluster made when the candidate asks, for that
+ * proof alone
  */
 export function CreateRoute() {
 	const fits = useInspectorFits();
 	useEffect(() => {
-		const { enter } = useStudio.getState();
-		const stop = enter();
+		const stop = useStudio.getState().enter();
 		return () => {
 			stop.then(fn => fn());
-			const { workspace, leave, release } = useStudio.getState();
-			leave();
-			if (workspace.state === "preparing" || workspace.state === "ready")
-				toast("The verify cluster stays 10 minutes for when you come back", {
-					action: { label: "Remove now", onClick: release },
-				});
 		};
 	}, []);
 

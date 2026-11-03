@@ -5,6 +5,7 @@ certifications:
 difficulty: hard
 workers: 2
 namespace: node-ops
+disrupts: true
 tags: [node-maintenance, cordon, drain, eviction]
 
 statement: |

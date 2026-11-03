@@ -5,6 +5,7 @@ certifications:
 difficulty: hard
 workers: 3
 namespace: default
+disrupts: true
 tags: [nodes, taints, cluster-inspection]
 
 statement: |

@@ -5,6 +5,7 @@ certifications:
 difficulty: hard
 workers: 2
 namespace: scheduling
+disrupts: true
 tags: [scheduling, taints, tolerations]
 
 statement: |
