@@ -22,7 +22,7 @@ import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { useStudio } from "@/stores/studio";
 import type { DraftItem, Proof, ProofScope } from "@/tauri/api";
 import { DraftMenu, DraftSummary, ProofTabs } from "./draft-header";
-import { ProofSteps } from "./proof-steps";
+import { ProofPreview, ProofSteps } from "./proof-steps";
 
 const named = (domain: string) => domain.replaceAll("-", " ");
 const key = (item: DraftItem) => (item.kind === "new" ? item.key : item.id);
@@ -91,8 +91,12 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 					!bar ? "flex" : unfolded ? "flex max-h-[45vh]" : "hidden"
 				)}
 			>
-				{tab === "proof" && shownProof ? (
-					<ProofSteps proof={shownProof} />
+				{tab === "proof" && items.length > 0 ? (
+					shownProof ? (
+						<ProofSteps proof={shownProof} />
+					) : (
+						<ProofPreview />
+					)
 				) : items.length === 0 ? (
 					<Placeholder
 						className="my-auto"

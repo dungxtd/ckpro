@@ -12,17 +12,34 @@ import {
 	studioApi,
 } from "@/tauri/api";
 
+/** A tool Claude used for an answer: what it asked and what came back */
+export interface StudioTool {
+	id: string;
+	name: string;
+	/** pending, in_progress, completed, failed */
+	status: string;
+	/** Its arguments, as JSON */
+	input: string;
+	output: string | null;
+	/** How long it took (ms), once done */
+	ms: number | null;
+	/** When it started here (ms since the epoch), while it runs */
+	since?: number;
+}
+
 export interface StudioMessage {
 	role: "user" | "assistant";
 	text: string;
+	/** An answer's tools, in the order Claude used them */
+	tools: StudioTool[];
 }
 
-/** An answer being written in a conversation: what was asked, the words so
- * far, the tool Claude is using */
+/** An answer being written in a conversation: what was asked, the words and
+ * the tools so far */
 export interface Pending {
 	asked: string;
 	text: string;
-	tool: string | null;
+	tools: StudioTool[];
 }
 
 /** How a conversation's last proof ended, for its panel to say */
@@ -98,7 +115,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		const c = await studioApi.open(session);
 		set({
 			session: c.id,
-			messages: c.messages,
+			messages: c.messages as StudioMessage[],
 			draft: c.draft,
 			error: null,
 			plan: null,
@@ -204,7 +221,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 				});
 			set(s => ({
 				error: null,
-				pending: { ...s.pending, [session]: { asked: text, text: "", tool: null } },
+				pending: { ...s.pending, [session]: { asked: text, text: "", tools: [] } },
 			}));
 			try {
 				const reply = await studioApi.ask(
@@ -214,20 +231,36 @@ export const useStudio = create<StudioStore>()((set, get) => {
 					event => {
 						if (event.kind === "text") change(p => ({ ...p, text: p.text + event.text }));
 						if (event.kind === "tool")
-							change(p => ({
-								...p,
-								tool:
-									event.status === "completed" || event.status === "failed" ? null : event.command,
-							}));
+							change(p => {
+								const done = event.status === "completed" || event.status === "failed";
+								const was = p.tools.find(t => t.id === event.id);
+								const since = was?.since ?? Date.now();
+								const tool: StudioTool = {
+									id: event.id,
+									name: event.command,
+									status: event.status,
+									input: event.input ?? was?.input ?? "",
+									output: event.output ?? was?.output ?? null,
+									ms: done ? (was?.ms ?? Date.now() - since) : null,
+									since,
+								};
+								return {
+									...p,
+									tools: was
+										? p.tools.map(t => (t.id === event.id ? tool : t))
+										: [...p.tools, tool],
+								};
+							});
 					}
 				);
 				// Kept now: in the conversation, if it is the one shown
+				const tools = get().pending[session]?.tools ?? [];
 				if (get().session === session)
 					set(s => ({
 						messages: [
 							...s.messages,
-							{ role: "user", text },
-							{ role: "assistant", text: reply.text },
+							{ role: "user", text, tools: [] },
+							{ role: "assistant", text: reply.text, tools },
 						],
 					}));
 				set({ sessions: await studioApi.sessions() });

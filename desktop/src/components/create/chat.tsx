@@ -12,6 +12,7 @@ import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { SignInDialog } from "@/components/assistant/sign-in-dialog";
 import { useCoach } from "@/stores/coach";
 import { useStudio } from "@/stores/studio";
+import { ToolUses } from "./tool-uses";
 
 /** Ways to start, for an empty conversation */
 const STARTERS = [
@@ -22,20 +23,19 @@ const STARTERS = [
 
 /**
  * The conversation: what the candidate asks for, Claude's answers as they
- * are written and the tool it is using (it reads the app, and builds the
- * draft beside); the conversations kept, to reopen
+ * are written with the tools it used (it reads the app, and builds the
+ * draft beside), each opened in place; the conversations kept, to reopen
  */
 export function Chat() {
 	const { messages, pending, proofs, error, sessions, session } = useStudio();
 	// The answer being written here; others' go on unseen
 	const live = session === null ? undefined : pending[session];
 	const writing = !!live;
-	const tool = live?.tool ?? null;
 	const shown = live
 		? [
 				...messages,
-				{ role: "user" as const, text: live.asked },
-				{ role: "assistant" as const, text: live.text },
+				{ role: "user" as const, text: live.asked, tools: [] },
+				{ role: "assistant" as const, text: live.text, tools: live.tools },
 			]
 		: messages;
 	const { send, stop, newSession, open, remove } = useStudio.getState();
@@ -142,13 +142,19 @@ export function Chat() {
 							// biome-ignore lint/suspicious/noArrayIndexKey: messages only grow
 							<div key={i} className="flex gap-2.5">
 								<ClaudeIcon className="mt-1 size-4 shrink-0 text-claude" />
-								{m.text ? (
-									<Answer>{m.text}</Answer>
-								) : (
-									<span className="flex items-center gap-2 text-callout text-muted-foreground">
-										<Spinner size="inline" className="size-3.5" /> Thinking…
-									</span>
-								)}
+								<div className="flex min-w-0 flex-1 flex-col gap-1.5">
+									{/* What it looked at and changed, then what it says */}
+									<ToolUses tools={m.tools} />
+									{m.text ? (
+										<Answer>{m.text}</Answer>
+									) : (
+										!m.tools.some(t => t.status !== "completed" && t.status !== "failed") && (
+											<span className="flex items-center gap-2 text-callout text-muted-foreground">
+												<Spinner size="inline" className="size-3.5" /> Thinking…
+											</span>
+										)
+									)}
+								</div>
 							</div>
 						)
 					)}
@@ -156,12 +162,6 @@ export function Chat() {
 				</div>
 			</div>
 
-			{tool && (
-				<div className="flex items-center gap-2 border-border border-t px-5 py-2 text-muted-foreground text-xs">
-					<Spinner size="inline" className="size-3.5" />
-					<code className="min-w-0 truncate font-mono">{tool}</code>
-				</div>
-			)}
 			{account?.signed_in === false ? (
 				<div className="flex items-center gap-3 border-border border-t px-5 py-3">
 					<span className="flex-1 text-muted-foreground text-xs">

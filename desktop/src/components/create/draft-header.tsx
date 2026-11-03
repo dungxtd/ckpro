@@ -34,10 +34,11 @@ const LENGTHS = [30, 45, 60, 90, 120];
  */
 export function DraftStrip() {
 	const draft = useStudio(s => s.draft);
-	const proven = useStudio(s => s.session !== null && !!s.last[s.session]);
+	// Once it has questions: its two views
+	const tabs = (draft?.items.length ?? 0) > 0;
 	return (
 		<>
-			{proven ? (
+			{tabs ? (
 				<span className="flex-1">
 					<ProofTabs />
 				</span>
@@ -52,16 +53,18 @@ export function DraftStrip() {
 }
 
 /**
- * Exam | Proof: the questions, or the latest proof's steps; Proof says how
- * it goes (k of n, a spinner) or how it ended (✓ or ✗)
+ * Exam | Proof: the questions, or the proof's steps (those to come before
+ * the first); Proof says how one goes (k of n, a spinner) or how it ended
+ * (✓ or ✗)
  */
 export function ProofTabs() {
 	const tab = useStudio(s => s.tab);
 	const setTab = useStudio(s => s.setTab);
 	const proof = useStudio(s => (s.session === null ? undefined : s.last[s.session]));
-	if (!proof) return null;
-	const failed = proof.results.some(r => r.status.state === "failed");
-	const state = !proof.ended_at ? (
+	const items = useStudio(s => s.draft?.items.length ?? 0);
+	if (items === 0) return null;
+	const failed = proof?.results.some(r => r.status.state === "failed");
+	const state = !proof ? null : !proof.ended_at ? (
 		<>
 			<Spinner size="inline" className="size-3" />
 			<span className="tabular-nums">
