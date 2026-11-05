@@ -248,7 +248,6 @@ export const studioApi = {
 	/** Claude changed a conversation's draft */
 	onDraft: (on: (session: number, draft: ExamDraft) => void) =>
 		events.studioDraft.listen(event => on(event.payload.session, event.payload.draft as ExamDraft)),
-	rename: (session: number, title: string) => unwrap(commands.studioRename(session, title)),
 	remove: (session: number) => unwrap(commands.studioDelete(session)),
 	/** Take a question out of the draft */
 	removeItem: (session: number, id: string) =>

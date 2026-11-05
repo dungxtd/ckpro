@@ -11,7 +11,7 @@ import { Answer, UserMessage } from "@/components/assistant/answer";
 import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { SignInDialog } from "@/components/assistant/sign-in-dialog";
 import { useCoach } from "@/stores/coach";
-import { useStudio } from "@/stores/studio";
+import { running, useStudio } from "@/stores/studio";
 import { ToolUses } from "./tool-uses";
 
 /** Ways to start, for an empty conversation */
@@ -27,7 +27,12 @@ const STARTERS = [
  * draft beside), each opened in place; the conversations kept, to reopen
  */
 export function Chat() {
-	const { messages, pending, proofs, error, sessions, session } = useStudio();
+	const messages = useStudio(s => s.messages);
+	const pending = useStudio(s => s.pending);
+	const last = useStudio(s => s.last);
+	const sessions = useStudio(s => s.sessions);
+	const session = useStudio(s => s.session);
+	const error = useStudio(s => (s.session === null ? undefined : s.errors[s.session]));
 	// The answer being written here; others' go on unseen
 	const live = session === null ? undefined : pending[session];
 	const writing = !!live;
@@ -87,10 +92,10 @@ export function Chat() {
 									>
 										<span className="truncate">{s.title}</span>
 										{/* Going on there: an answer being written, or its exam being proven */}
-										{(pending[s.id] || proofs[s.id]) && (
+										{(pending[s.id] || running({ last }, s.id)) && (
 											<span className="ml-auto flex shrink-0 items-center gap-1 text-2xs text-muted-foreground">
 												<Spinner size="inline" className="size-3" />
-												{proofs[s.id] ? "Proving" : "Writing"}
+												{running({ last }, s.id) ? "Proving" : "Writing"}
 											</span>
 										)}
 									</button>

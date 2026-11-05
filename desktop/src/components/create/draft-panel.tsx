@@ -11,7 +11,7 @@ import { useNavigate } from "react-router";
 import { clock } from "@/components/activity/activity-progress";
 import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { useStudio } from "@/stores/studio";
-import type { DraftItem, Proof, ProofScope } from "@/tauri/api";
+import type { DraftItem, Proof } from "@/tauri/api";
 import { DraftMenu, DraftSummary, ProofTabs } from "./draft-header";
 import { NewScripts, ProofPreview, ProofSteps } from "./proof-steps";
 
@@ -24,24 +24,24 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
  * The exam being built, beside the conversation (`bar`: under it, its
  * questions folded, on a narrow window): its questions (from the packs, or
  * new ones Claude wrote, each with where it stands) and the candidate's
- * step: prove it on a cluster made for it, every question together (after
- * reading the new ones), and save it once they all prove
+ * step: prove it on a cluster made for it, every question together (their
+ * scripts held to the script rules, nothing to read first), and save it
+ * once they all prove
  */
 export function DraftPanel({ bar = false }: { bar?: boolean }) {
-	const { draft, session, proofs, last, tab, plan } = useStudio();
-	const { removeItem, proveAndSave } = useStudio.getState();
-	const proof = session === null ? undefined : proofs[session];
+	const draft = useStudio(s => s.draft);
+	const tab = useStudio(s => s.tab);
+	const plan = useStudio(s => s.plan);
 	// The proof shown in its tab: the one running, or the latest
-	const shownProof = session === null ? undefined : last[session];
+	const shownProof = useStudio(s => (s.session === null ? undefined : s.last[s.session]));
+	const proof = shownProof && !shownProof.ended_at ? shownProof : undefined;
+	const { removeItem } = useStudio.getState();
 	// On a narrow window the questions fold under the draft's bar
 	const [unfolded, setUnfolded] = useState(false);
 	const items = draft?.items ?? [];
 	// Some proved, and some came or changed since: those keep what they proved
 	const partly =
 		items.some(i => i.status.state === "proven") && items.some(i => i.status.state === "linted");
-	// Their scripts run in a throwaway cluster, held to the script rules: no
-	// need to read them (and spoil the questions) first
-	const prove = (scope: ProofScope) => proveAndSave(scope);
 
 	return (
 		<div
@@ -50,7 +50,7 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 				bar && "border-border border-t bg-foreground/[0.015]"
 			)}
 		>
-			{/* Under the inspector's strip (its label and menu), as tall as the
+			{/* Under the inspector's strip (its tabs and menu), as tall as the
 			    conversation's header so their lines meet; in the bar, its menu here */}
 			<div className="flex h-14 shrink-0 items-center gap-2 border-border border-b px-4">
 				<DraftSummary className="min-w-0 flex-1" />
@@ -111,7 +111,7 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 					!bar && "min-h-[5.75rem]"
 				)}
 			>
-				{proof ? <ProofProgress proof={proof} /> : <ProofFoot onProve={prove} />}
+				{proof ? <ProofProgress proof={proof} /> : <ProofFoot />}
 			</div>
 		</div>
 	);
@@ -123,12 +123,15 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
  * from here: prove, prove what changed, have Claude fix what did not
  * prove, or open the exam saved
  */
-function ProofFoot({ onProve }: { onProve: (scope: ProofScope) => void }) {
-	const { draft, session, plan, ended } = useStudio();
-	const { askToFix, save } = useStudio.getState();
+function ProofFoot() {
+	const draft = useStudio(s => s.draft);
+	const plan = useStudio(s => s.plan);
+	// How the last proof ended, if it did
+	const last = useStudio(s => (s.session === null ? undefined : s.last[s.session]));
+	const { askToFix, save, proveAndSave: onProve } = useStudio.getState();
 	const navigate = useNavigate();
 	const items = draft?.items ?? [];
-	const end = session === null ? undefined : ended[session];
+	const took = last?.ended_at ? clock(last.ended_at - (last.started_at ?? last.ended_at)) : null;
 	const failed = items.filter(i => i.status.state === "failed").length;
 	const proven = items.filter(i => i.status.state === "proven").length;
 	const changed = items.length - proven;
@@ -139,8 +142,7 @@ function ProofFoot({ onProve }: { onProve: (scope: ProofScope) => void }) {
 	if (draft?.saved)
 		return (
 			<>
-				{end?.kind === "done" &&
-					line(`Every question proved together · ${clock(end.ms)}`, "text-success")}
+				{took && line(`Every question proved together · ${took}`, "text-success")}
 				<div className="flex justify-end">
 					<Button
 						size="push"
@@ -168,13 +170,15 @@ function ProofFoot({ onProve }: { onProve: (scope: ProofScope) => void }) {
 				line(
 					<>
 						<span className="text-destructive">
-							{failed} of {end?.kind === "done" ? end.checked : items.length} did not prove
+							{failed} of {last?.ended_at ? last.checking.length : items.length} did not prove
 						</span>
-						{end?.kind === "done" && ` · ${clock(end.ms)}`} · cluster removed
+						{took && ` · ${took}`} · cluster removed
 					</>
 				)
-			) : end?.kind === "stopped" && proven === 0 ? (
-				line(`Stopped at question ${end.at} of ${end.of}; its cluster is removed`)
+			) : last?.stopped && proven === 0 ? (
+				line(
+					`Stopped at question ${last.results.length + 1} of ${last.checking.length}; its cluster is removed`
+				)
 			) : proven > 0 && changed > 0 ? (
 				line(
 					`${changed} changed: ~${plan?.minutes_changed ?? "?"} min, every setup again, ${changed === 1 ? "its checks" : "their checks"} only`

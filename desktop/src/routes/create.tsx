@@ -14,12 +14,7 @@ import { useStudio } from "@/stores/studio";
  */
 export function CreateRoute() {
 	const fits = useInspectorFits();
-	useEffect(() => {
-		const stop = useStudio.getState().enter();
-		return () => {
-			stop.then(fn => fn());
-		};
-	}, []);
+	useEffect(() => useStudio.getState().enter(), []);
 
 	return fits ? (
 		<>

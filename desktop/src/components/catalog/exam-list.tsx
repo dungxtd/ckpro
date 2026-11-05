@@ -34,7 +34,6 @@ import { SHORTCUTS } from "@/shortcuts";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import { useSidebarLayout } from "@/stores/settings";
-import { useStudio } from "@/stores/studio";
 import { type ExamSort, type ExamSummary, errorText, examApi } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 import { memoryFit, useExamStats, useSelection } from "./exams";
@@ -157,8 +156,6 @@ export function ExamList({
 			const picked = new URLSearchParams(here.search).get("exam");
 			if (onExams && picked && gone.includes(picked)) navigate("/exams");
 			await loadCatalog();
-			// A Create conversation that saved it holds a draft again
-			useStudio.getState().reopen();
 			toast.success(
 				gone.length > 1
 					? `${exam.title} and ${gone.length - 1} exam${gone.length === 2 ? "" : "s"} using it deleted`

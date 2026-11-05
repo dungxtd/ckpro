@@ -582,12 +582,6 @@ pub async fn studio_ask(
 
 #[tauri::command]
 #[specta::specta]
-pub fn studio_rename(store: State<'_, Arc<Store>>, session: i32, title: String) -> AppResult<()> {
-    store.studio_rename(session, &title)
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn studio_delete(coach: State<'_, Coach>, proofs: State<'_, Proofs>, store: State<'_, Arc<Store>>, session: i32) -> AppResult<()> {
     // What goes on for it stops: its answer, its proof (and the proof's cluster)
     coach.studio_stop(session);
