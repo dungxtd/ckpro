@@ -1,15 +1,6 @@
 import { Alert } from "@cktry/ui/components/alert";
 import { Badge } from "@cktry/ui/components/badge";
 import { Button } from "@cktry/ui/components/button";
-import { CodeBlock } from "@cktry/ui/components/code-block";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@cktry/ui/components/dialog";
 import { IconButton } from "@cktry/ui/components/icon-button";
 import { Placeholder } from "@cktry/ui/components/placeholder";
 import { Progress } from "@cktry/ui/components/progress";
@@ -22,7 +13,7 @@ import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { useStudio } from "@/stores/studio";
 import type { DraftItem, Proof, ProofScope } from "@/tauri/api";
 import { DraftMenu, DraftSummary, ProofTabs } from "./draft-header";
-import { ProofPreview, ProofSteps } from "./proof-steps";
+import { NewScripts, ProofPreview, ProofSteps } from "./proof-steps";
 
 const named = (domain: string) => domain.replaceAll("-", " ");
 const key = (item: DraftItem) => (item.kind === "new" ? item.key : item.id);
@@ -42,22 +33,15 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 	const proof = session === null ? undefined : proofs[session];
 	// The proof shown in its tab: the one running, or the latest
 	const shownProof = session === null ? undefined : last[session];
-	const [reviewing, setReviewing] = useState<ProofScope | null>(null);
 	// On a narrow window the questions fold under the draft's bar
 	const [unfolded, setUnfolded] = useState(false);
 	const items = draft?.items ?? [];
 	// Some proved, and some came or changed since: those keep what they proved
 	const partly =
 		items.some(i => i.status.state === "proven") && items.some(i => i.status.state === "linted");
-	// The new ones Claude wrote are read before their scripts run
-	const unread = (scope: ProofScope) =>
-		items.flatMap(i =>
-			i.kind === "new" && (scope === "all" || i.status.state !== "proven") ? [i] : []
-		);
-	const prove = (scope: ProofScope) => {
-		if (unread(scope).length > 0) setReviewing(scope);
-		else proveAndSave(scope);
-	};
+	// Their scripts run in a throwaway cluster, held to the script rules: no
+	// need to read them (and spoil the questions) first
+	const prove = (scope: ProofScope) => proveAndSave(scope);
 
 	return (
 		<div
@@ -92,11 +76,10 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 				)}
 			>
 				{tab === "proof" && items.length > 0 ? (
-					shownProof ? (
-						<ProofSteps proof={shownProof} />
-					) : (
-						<ProofPreview />
-					)
+					<>
+						{shownProof ? <ProofSteps proof={shownProof} /> : <ProofPreview />}
+						<NewScripts />
+					</>
 				) : items.length === 0 ? (
 					<Placeholder
 						className="my-auto"
@@ -130,43 +113,6 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 			>
 				{proof ? <ProofProgress proof={proof} /> : <ProofFoot onProve={prove} />}
 			</div>
-
-			{/* Reading them is the go to run their scripts on the cluster */}
-			<Dialog open={reviewing !== null} onOpenChange={open => !open && setReviewing(null)}>
-				<DialogContent className="max-w-2xl">
-					<DialogHeader>
-						<DialogTitle>Prove the exam</DialogTitle>
-						<DialogDescription>
-							Every question runs on a cluster made for it, as in an exam: all the setups first,
-							then each check must fail before its solution and pass after. Claude wrote these: read
-							them first.
-						</DialogDescription>
-					</DialogHeader>
-					<div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto">
-						{(reviewing ? unread(reviewing) : []).map(q => (
-							<div key={q.key} className="flex flex-col gap-1.5">
-								<span className="font-semibold text-callout">{q.title}</span>
-								<CodeBlock title="yaml" wrap>
-									{q.yaml}
-								</CodeBlock>
-							</div>
-						))}
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setReviewing(null)}>
-							Cancel
-						</Button>
-						<Button
-							onClick={() => {
-								if (reviewing) proveAndSave(reviewing);
-								setReviewing(null);
-							}}
-						>
-							Prove &amp; save
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
 		</div>
 	);
 }
@@ -235,7 +181,7 @@ function ProofFoot({ onProve }: { onProve: (scope: ProofScope) => void }) {
 				)
 			) : changed > 0 ? (
 				line(
-					`Saved once every question proves together: ~${plan?.minutes_all ?? "?"} min on ${cluster}`
+					`Saved once every question proves together: ~${plan?.minutes_all ?? "?"} min on ${cluster}, made for it and removed after`
 				)
 			) : (
 				line("Every question proved together")

@@ -8,6 +8,7 @@ import { ActivityProgress, clock } from "@/components/activity/activity-progress
 import { useActivities } from "@/stores/activity";
 import { useStudio } from "@/stores/studio";
 import type { Proof } from "@/tauri/api";
+import { QuestionScripts } from "./question-scripts";
 
 /** A step of the activity's plan logs `▸ <step>` as it starts */
 const MARK = "▸ ";
@@ -180,6 +181,49 @@ export function ProofPreview() {
 				>
 					<Circle className="size-3 shrink-0" />
 					<span className="min-w-0 flex-1 truncate">{title}</span>
+				</div>
+			))}
+		</div>
+	);
+}
+
+/**
+ * The scripts of the questions Claude wrote, each a press away: they run in
+ * a throwaway cluster held to the script rules, so reading them is a choice,
+ * and their solutions stay folded even then
+ */
+export function NewScripts() {
+	const draft = useStudio(s => s.draft);
+	const [open, setOpen] = useState<string | null>(null);
+	const fresh = (draft?.items ?? []).flatMap(i => (i.kind === "new" ? [i] : []));
+	if (fresh.length === 0) return null;
+	return (
+		<div className="mt-3 flex flex-col gap-1 border-border border-t pt-3">
+			<span className="px-1.5 font-bold text-2xs text-muted-foreground tracking-wide">
+				CLAUDE'S QUESTIONS
+			</span>
+			<span className="px-1.5 text-caption text-muted-foreground">
+				They run in a cluster made for the proof: their scripts reach only it, its task host and the
+				sources the packs use, and it is removed after. Nothing to read before.
+			</span>
+			{fresh.map(q => (
+				<div key={q.key}>
+					<button
+						type="button"
+						aria-expanded={open === q.key}
+						onClick={() => setOpen(o => (o === q.key ? null : q.key))}
+						className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-callout outline-none hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring"
+					>
+						<span className="min-w-0 flex-1 truncate">{q.title}</span>
+						<span className="text-caption text-muted-foreground">
+							{open === q.key ? "Hide scripts" : "Show scripts"}
+						</span>
+					</button>
+					{open === q.key && (
+						<div className="mt-1 mb-2 ml-1.5">
+							<QuestionScripts yaml={q.yaml} />
+						</div>
+					)}
 				</div>
 			))}
 		</div>
