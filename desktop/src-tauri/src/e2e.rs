@@ -543,8 +543,28 @@ async fn create_proves_an_exam_as_it_goes_and_stops() {
     draft.save(&store, session).unwrap();
     let plan = studio::plan(&store, &exams, &dir, session, fits).unwrap();
     assert_eq!((plan.workers, plan.changed, plan.problem.clone()), (2, 2, None), "{plan:?}");
-    let proven = studio::verify(app(), session, Scope::Changed, fits).await.unwrap();
+    // While its questions are set up: its task host is on its run's network only
+    let networks = async || {
+        let docker = runtime::docker::connect().await.unwrap();
+        loop {
+            if proofs.list().iter().any(|(s, p)| *s == session && p.stage == ProofStage::SettingUp) {
+                let hosts = docker
+                    .list_containers(Some(bollard::query_parameters::ListContainersOptions {
+                        filters: Some(std::collections::HashMap::from([("name".to_string(), vec![runtime::jumphost::RUN_PREFIX.to_string()])])),
+                        ..Default::default()
+                    }))
+                    .await
+                    .unwrap();
+                return hosts.into_iter().flat_map(|c| c.network_settings.and_then(|n| n.networks).unwrap_or_default().into_keys()).collect::<Vec<_>>();
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    };
+    let (proven, joined) = tokio::join!(studio::verify(app(), session, Scope::Changed, fits), networks());
+    let proven = proven.unwrap();
     assert!(proven.proven(), "{:?}", proven.items);
+    assert!(joined.len() == 1 && joined[0].starts_with(runtime::jumphost::RUN_NETWORK_PREFIX), "{joined:?}");
+    println!("ok: its task host was on {} only", joined[0]);
     let stages: Vec<_> = seen.lock().unwrap().iter().filter_map(|(_, p)| p.clone()).collect();
     println!("ok: stages {stages:?}");
     assert!(matches!(stages[0], (ProofStage::Cluster { workers: 2 }, 0)));
@@ -589,6 +609,8 @@ async fn create_proves_an_exam_as_it_goes_and_stops() {
     assert!(proofs.list().is_empty());
     assert!(ExamDraft::load(&store, session).unwrap().statuses().all(|(_, s)| *s == DraftStatus::Linted));
     assert_eq!(clusters().await, before, "its cluster went with it");
-    println!("ok: stopped, nothing proven, its cluster gone");
+    let left = std::process::Command::new("docker").args(["network", "ls", "--format", "{{.Name}}"]).output().unwrap();
+    assert!(!String::from_utf8_lossy(&left.stdout).lines().any(|n| n.starts_with(runtime::jumphost::RUN_NETWORK_PREFIX)), "no run network left");
+    println!("ok: stopped, nothing proven, its cluster and network gone");
     f.teardown().await;
 }

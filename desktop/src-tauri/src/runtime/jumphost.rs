@@ -30,9 +30,19 @@ pub fn app_placement(kind: &Kind) -> Placement {
 pub const APP_NAME: &str = "cktry-jumphost";
 /// A verify run's jumphost is `cktry-jumphost-<run>`
 pub const RUN_PREFIX: &str = "cktry-jumphost-";
+/// A verify run's Docker network is `cktry-run-<run>`
+pub const RUN_NETWORK_PREFIX: &str = "cktry-run-";
+
+/// The Docker network of a verify run: its clusters, its jumphost and the
+/// registry mirror, apart from the app's and other runs'
+pub fn run_network(run: &str) -> String {
+    format!("{RUN_NETWORK_PREFIX}{run}")
+}
 
 pub struct Jumphost {
     pub name: String,
+    /// The Docker network it joins: the app's, or its run's own
+    network: String,
     /// Mounted read-write at /root/.cktry (`kubectl config use-context` writes)
     dir: PathBuf,
 }
@@ -40,12 +50,12 @@ pub struct Jumphost {
 impl Jumphost {
     /// The app's jumphost
     pub fn app(data_dir: &Path) -> Self {
-        Self { name: APP_NAME.into(), dir: data_dir.join("jumphost") }
+        Self { name: APP_NAME.into(), network: NETWORK.into(), dir: data_dir.join("jumphost") }
     }
 
     /// A jumphost of its own for one verify run
     pub fn for_run(data_dir: &Path, run: &str) -> Self {
-        Self { name: format!("{RUN_PREFIX}{run}"), dir: data_dir.join("runs").join(run).join("jumphost") }
+        Self { name: format!("{RUN_PREFIX}{run}"), network: run_network(run), dir: data_dir.join("runs").join(run).join("jumphost") }
     }
 
     /// Where etcd client certs for a logical cluster are, on the jumphost
@@ -81,7 +91,7 @@ impl Jumphost {
             labels: Some(compose_labels(&self.name).into_iter().collect()),
             host_config: Some(HostConfig {
                 binds: Some(vec![format!("{source}:/root/.cktry")]),
-                network_mode: Some(NETWORK.into()),
+                network_mode: Some(self.network.clone()),
                 restart_policy: Some(RestartPolicy {
                     name: Some(RestartPolicyNameEnum::UNLESS_STOPPED),
                     ..Default::default()

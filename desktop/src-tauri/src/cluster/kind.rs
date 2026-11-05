@@ -15,16 +15,19 @@ const KIND_VERSION: &str = "v0.33.0";
 pub struct Kind {
     bin_dir: PathBuf,
     dir: PathBuf,
+    /// The Docker network its clusters are made on (kind's own, `kind`, if none)
+    network: Option<String>,
 }
 
 impl Kind {
     pub fn new(data_dir: PathBuf) -> Self {
-        Self { bin_dir: data_dir.clone(), dir: data_dir }
+        Self { bin_dir: data_dir.clone(), dir: data_dir, network: None }
     }
 
-    /// Clusters owned by one verify run, kept apart from the app's
-    pub fn scoped(data_dir: PathBuf, state_dir: PathBuf) -> Self {
-        Self { bin_dir: data_dir, dir: state_dir }
+    /// Clusters owned by one verify run, kept apart from the app's: their
+    /// state, and their Docker network
+    pub fn scoped(data_dir: PathBuf, state_dir: PathBuf, network: String) -> Self {
+        Self { bin_dir: data_dir, dir: state_dir, network: Some(network) }
     }
 
     pub fn kubeconfig(&self, cluster: &str) -> PathBuf {
@@ -138,7 +141,11 @@ impl Kind {
         let kind = self.binary().await?;
         // kind execs in the nodes (docker exec): cktry's own, not outside access
         let _own = crate::runtime::guard::own_operation();
-        let mut child = Command::new(&kind)
+        let mut command = Command::new(&kind);
+        if let Some(network) = &self.network {
+            command.env("KIND_EXPERIMENTAL_DOCKER_NETWORK", network);
+        }
+        let mut child = command
             .args(args)
             .env("PATH", self.kind_path()?)
             .stdout(Stdio::piped())
