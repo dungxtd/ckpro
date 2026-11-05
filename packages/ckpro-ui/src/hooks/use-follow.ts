@@ -28,6 +28,7 @@ export function useFollow<T extends HTMLElement>(content: unknown, slack = 24) {
 		[onScroll]
 	);
 	// Every change of the content: at the end if the reader is there
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the content changing is the cue
 	useLayoutEffect(() => {
 		const el = box.current;
 		if (el && following.current) el.scrollTop = el.scrollHeight;
