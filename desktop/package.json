@@ -8,7 +8,7 @@
     "build": "tauri build",
     "vite:dev": "vite",
     "vite:build": "tsc --noEmit && vite build && pnpm sourcemaps",
-    "sourcemaps": "[ -z \"$POSTHOG_CLI_API_KEY\" ] || posthog-cli sourcemap process --directory dist --release-name cktry --release-version \"$npm_package_version\" --delete-after",
+    "sourcemaps": "node scripts/sourcemaps.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p e2e",
     "tauri": "tauri",
