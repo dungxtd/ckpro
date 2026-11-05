@@ -15,6 +15,8 @@ export function CatalogRoute() {
 	const { catalog, loadCatalog, pendingReplace, start, cancelReplace, error } = useExam();
 	// Live, not a remembered error: it clears itself when Docker is back
 	const docker = useEnvironment(s => s.env?.docker);
+	// How to start it on this system, as Rust words it
+	const dockerHint = useEnvironment(s => s.env?.issues.find(i => i.component === "docker")?.hint);
 	// The exams once read (the list is kept between visits)
 	const [loaded, setLoaded] = useState(catalog.length > 0);
 	useEffect(() => {
@@ -39,8 +41,8 @@ export function CatalogRoute() {
 			{docker?.state === "down" && (
 				<Alert variant="warning" className="items-center">
 					<span className="flex-1">
-						<strong>Docker is not running.</strong> Start OrbStack or Docker Desktop: cktry connects
-						as soon as it is up.
+						<strong>Docker is not running.</strong>{" "}
+						{dockerHint ?? "cktry connects as soon as it is up."}
 					</span>
 					<Button size="push" variant="push" onClick={() => envApi.retry()}>
 						Retry now
