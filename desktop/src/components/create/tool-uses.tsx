@@ -4,6 +4,7 @@ import { cn } from "@cktry/ui/lib/utils";
 import { Check, ChevronRight, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { StudioTool } from "@/stores/studio";
+import { QuestionScripts } from "./question-scripts";
 
 /** Rows of a list shown as a table, at most */
 const ROWS = 20;
@@ -30,6 +31,8 @@ const show = (v: Json) =>
 function argsLine(input: string) {
 	const args = parse(input);
 	if (!isRecord(args)) return "";
+	// A question's YAML: its title
+	if (typeof args.yaml === "string") return /^title:\s*(.+)$/m.exec(args.yaml)?.[1] ?? "";
 	return Object.values(args)
 		.filter(v => scalar(v) && v !== null && v !== "")
 		.map(v => (typeof v === "string" && v.length > 40 ? `${v.slice(0, 40)}…` : String(v)))
@@ -128,18 +131,28 @@ function ToolDetail({ tool }: { tool: StudioTool }) {
 	const args = parse(tool.input);
 	const asked = isRecord(args) && Object.keys(args).length > 0;
 	const out = parse(tool.output);
+	// A question's YAML, asked or returned: read without its answer
+	const proposed = isRecord(args) && typeof args.yaml === "string" ? args.yaml : null;
+	const question =
+		tool.name === "read_question" && tool.status === "completed" ? tool.output : null;
 	return (
 		<div className="my-1 ml-6 flex max-w-2xl flex-col gap-2 rounded-lg border border-border bg-card p-2.5">
 			{asked && (
 				<Section title="Asked">
-					<CodeBlock title="json" wrap>
-						{JSON.stringify(args, null, 2)}
-					</CodeBlock>
+					{proposed !== null ? (
+						<QuestionScripts yaml={proposed} />
+					) : (
+						<CodeBlock title="json" wrap>
+							{JSON.stringify(args, null, 2)}
+						</CodeBlock>
+					)}
 				</Section>
 			)}
 			<Section title={tool.status === "failed" ? "Failed" : "Returned"}>
 				{tool.output === null ? (
 					<span className="text-caption text-muted-foreground">Nothing yet</span>
+				) : question !== null ? (
+					<QuestionScripts yaml={question} />
 				) : (
 					<Returned value={out} raw={tool.output} failed={tool.status === "failed"} />
 				)}
