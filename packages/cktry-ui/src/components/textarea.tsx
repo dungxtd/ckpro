@@ -25,6 +25,7 @@ function Textarea({
 		element.style.height = `${element.scrollHeight + element.offsetHeight - element.clientHeight}px`;
 	};
 	// A value or rows set from outside change the height too
+	// biome-ignore lint/correctness/useExhaustiveDependencies: these props are the cue to fit again
 	useLayoutEffect(fit, [props.value, props.rows]);
 	return (
 		<textarea

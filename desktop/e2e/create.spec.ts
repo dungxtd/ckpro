@@ -64,10 +64,10 @@ test("the draft's lines meet the conversation's", async ({ page }) => {
 		.getByRole("heading", { name: "Warm-up", exact: true })
 		.locator("xpath=ancestor::div[contains(@class,'h-14')][1]")
 		.boundingBox();
-	expect(chatHeader && summary).toBeTruthy();
+	if (!chatHeader || !summary) throw new Error("both are on screen");
 	// Their bottom borders are one line across the window
 	expect(
-		Math.abs(chatHeader!.y + chatHeader!.height - (summary!.y + summary!.height))
+		Math.abs(chatHeader.y + chatHeader.height - (summary.y + summary.height))
 	).toBeLessThanOrEqual(1);
 });
 
