@@ -1,6 +1,6 @@
-# Builds the macOS app (arm64 and x86_64, one DMG each) for a version tag,
-# publishes the DMGs on this repo's GitHub Release, then points the Homebrew
-# cask in Casks/ at them:
+# Builds the macOS app (arm64 and x86_64, one DMG each) and the Windows app
+# (x64, an installer) for a version tag, side by side, publishes them on this
+# repo's GitHub Release, then points the Homebrew cask in Casks/ at the DMGs:
 #   brew tap dungxtd/ckpro https://github.com/dungxtd/ckpro
 #   brew install --cask ckpro
 name: release
@@ -80,10 +80,59 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Created by the first leg; the other uploads beside it
+          # Whichever leg comes first makes the release; the others upload beside it
           scripts/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag || true
           gh release upload "$GITHUB_REF_NAME" _artifacts/*.dmg --clobber
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/sync-version-from-tag
+
+      - uses: ./.github/actions/setup-build-env
+        with:
+          rust-target: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the app
+        working-directory: desktop
+        run: pnpm run build --target x86_64-pc-windows-msvc --bundles nsis
+
+      - name: Collect the installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _artifacts
+          for f in desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe; do
+            cp "$f" "_artifacts/ckpro_windows-x64_$(basename "$f")"
+          done
+          ls -la _artifacts
+
+      - name: Keep the installer with the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: ckpro-windows-x64
+          path: _artifacts/*.exe
+          retention-days: 7
+
+      - name: Publish to the GitHub Release
+        if: ${{ inputs.dry_run != true }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Whichever leg comes first makes the release; the others upload beside it
+          scripts/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag || true
+          gh release upload "$GITHUB_REF_NAME" _artifacts/*.exe --clobber
 
   cask:
     needs: build-macos
