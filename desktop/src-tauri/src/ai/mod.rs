@@ -29,7 +29,6 @@ use tokio_util::sync::CancellationToken;
 /// The coach's default model when the agent offers it (quick answers); the
 /// candidate picks among what the agent lists (`Coach::models`)
 pub const DEFAULT_MODEL: &str = "sonnet";
-/// Writing a question that has to pass on a cluster needs the most capable one
 /// Names a session from its first question: the quick model, and how
 const TITLE_MODEL: &str = "haiku";
 
@@ -386,7 +385,8 @@ impl Coach {
     /// The agent's conversation for the question ends: the next question
     /// starts one from the session the pane shows
     async fn forget_session(&self, attempt_id: &str, question_id: &str) {
-        if let Some((session, ..)) = self.open.lock().await.remove(&(attempt_id.to_string(), question_id.to_string())) {
+        let removed = self.open.lock().await.remove(&(attempt_id.to_string(), question_id.to_string()));
+        if let Some((session, ..)) = removed {
             self.agent.close(&session).await;
         }
     }
@@ -553,7 +553,9 @@ impl Coach {
         text: &str,
     ) -> AppResult<(String, String)> {
         let key = (subject.attempt_id.clone(), question_id.to_string());
-        let opened = match self.open.lock().await.get(&key).cloned() {
+        // Read, then let go: a `match` keeps the lock for its whole body
+        let existing = self.open.lock().await.get(&key).cloned();
+        let opened = match existing {
             Some((session, .., open_profile)) if open_profile != profile => {
                 self.agent.close(&session).await;
                 None

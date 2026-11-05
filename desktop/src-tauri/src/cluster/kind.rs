@@ -207,7 +207,7 @@ impl Kind {
         .await
     }
 
-    /// kubeconfig that reaches the API server from inside the `kind` network
+    /// kubeconfig that reaches the API server from inside the clusters' network
     /// (`https://<name>-control-plane:6443`), for the jumphost.
     pub async fn internal_kubeconfig(&self, name: &str) -> AppResult<String> {
         // kind execs in the nodes (docker exec): cktry's own, not outside access

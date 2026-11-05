@@ -42,8 +42,11 @@ pub struct DomainWeight {
     pub weight: u32,
 }
 
+/// An exam's length the candidate or Claude may set, in minutes
+pub const LENGTH: std::ops::RangeInclusive<u32> = 10..=300;
+
 /// A question's suggested time, in whole minutes
-fn minutes(q: &Question) -> Option<u32> {
+pub fn minutes(q: &Question) -> Option<u32> {
     q.estimate.as_ref()?.seconds().map(|s| s.div_ceil(60) as u32)
 }
 
@@ -101,6 +104,44 @@ pub enum DraftStatus {
 }
 
 impl DraftItem {
+    /// Its name in the draft: a pack question's id, a new one's key
+    pub fn key(&self) -> &str {
+        match self {
+            DraftItem::Existing { id, .. } => id,
+            DraftItem::New(q) => &q.key,
+        }
+    }
+
+    /// Its title (a pack question's id if it had none)
+    pub fn title(&self) -> &str {
+        match self {
+            DraftItem::Existing { id, title, .. } => if title.is_empty() { id } else { title },
+            DraftItem::New(q) => &q.title,
+        }
+    }
+
+    pub fn status(&self) -> &DraftStatus {
+        match self {
+            DraftItem::Existing { status, .. } => status,
+            DraftItem::New(q) => &q.status,
+        }
+    }
+
+    fn status_mut(&mut self) -> &mut DraftStatus {
+        match self {
+            DraftItem::Existing { status, .. } => status,
+            DraftItem::New(q) => &mut q.status,
+        }
+    }
+
+    /// It changes the nodes for the questions after it
+    pub fn disrupts(&self) -> bool {
+        match self {
+            DraftItem::Existing { disrupts, .. } => *disrupts,
+            DraftItem::New(q) => q.disrupts,
+        }
+    }
+
     /// What it is, where it stands aside: the same question if equal
     pub fn content(&self) -> (&str, &str) {
         match self {
@@ -111,14 +152,37 @@ impl DraftItem {
 }
 
 impl ExamDraft {
+    /// A conversation's draft (an empty one before its first). One that
+    /// cannot be read is an error, never taken for empty: it would be saved
+    /// over
     pub fn load(store: &Store, session: i32) -> AppResult<Self> {
-        let text = store.studio_draft(session)?;
-        Ok(serde_json::from_str(&text).unwrap_or_default())
+        Self::parse(&store.studio_draft(session)?)
     }
 
+    fn parse(text: &str) -> AppResult<Self> {
+        serde_json::from_str(text).map_err(|e| AppError::invalid(format!("this conversation's exam could not be read: {e}")))
+    }
+
+    /// Change a conversation's draft with `f`, read and kept in one go:
+    /// Claude's tools, the screen and a proof never write over each other.
+    /// The draft as kept, and what `f` returns
+    pub fn update<T>(store: &Store, session: i32, f: impl FnOnce(&mut ExamDraft) -> AppResult<T>) -> AppResult<(ExamDraft, T)> {
+        store.studio_update_draft(session, |text| {
+            let mut draft = Self::parse(text)?;
+            let out = f(&mut draft)?;
+            let text = serde_json::to_string(&draft).map_err(|e| AppError::invalid(e.to_string()))?;
+            Ok((text, (draft, out)))
+        })
+    }
+
+    /// Keep it as the conversation's draft, whatever was there (tests)
+    #[cfg(test)]
     pub fn save(&self, store: &Store, session: i32) -> AppResult<()> {
-        let text = serde_json::to_string(self).map_err(|e| AppError::invalid(e.to_string()))?;
-        store.studio_save_draft(session, &text)
+        Self::update(store, session, |draft| {
+            *draft = self.clone();
+            Ok(())
+        })
+        .map(|_| ())
     }
 
     pub fn new_questions(&self) -> impl Iterator<Item = &NewQuestion> {
@@ -130,18 +194,16 @@ impl ExamDraft {
 
     /// The id or key a question has in the draft, and where it stands
     pub fn statuses(&self) -> impl Iterator<Item = (&str, &DraftStatus)> {
-        self.items.iter().map(|i| match i {
-            DraftItem::Existing { id, status, .. } => (id.as_str(), status),
-            DraftItem::New(q) => (q.key.as_str(), &q.status),
-        })
+        self.items.iter().map(|i| (i.key(), i.status()))
     }
 
-    pub fn status_mut(&mut self, id_or_key: &str) -> Option<&mut DraftStatus> {
-        self.items.iter_mut().find_map(|i| match i {
-            DraftItem::Existing { id, status, .. } if id == id_or_key => Some(status),
-            DraftItem::New(q) if q.key == id_or_key => Some(&mut q.status),
-            _ => None,
-        })
+    pub fn status_mut(&mut self, key: &str) -> Option<&mut DraftStatus> {
+        self.items.iter_mut().find(|i| i.key() == key).map(DraftItem::status_mut)
+    }
+
+    /// A question's title, by its id or key
+    pub fn title_of(&self, key: &str) -> Option<&str> {
+        self.items.iter().find(|i| i.key() == key).map(DraftItem::title)
     }
 
     /// Questions of the packs it lists that are gone (deleted since): their
@@ -149,10 +211,8 @@ impl ExamDraft {
     pub fn missing(&self, bank: &LoadedPack) -> Vec<(String, String)> {
         self.items
             .iter()
-            .filter_map(|i| match i {
-                DraftItem::Existing { id, title, .. } if !bank.questions.contains_key(id) => Some((id.clone(), title.clone())),
-                _ => None,
-            })
+            .filter(|i| matches!(i, DraftItem::Existing { .. }) && !bank.questions.contains_key(i.key()))
+            .map(|i| (i.key().to_string(), i.title().to_string()))
             .collect()
     }
 
@@ -167,21 +227,18 @@ impl ExamDraft {
 
     /// Every question proven together: it can be saved
     pub fn proven(&self) -> bool {
-        !self.items.is_empty() && self.statuses().all(|(_, s)| *s == DraftStatus::Proven)
+        !self.items.is_empty() && self.items.iter().all(|i| *i.status() == DraftStatus::Proven)
     }
 
-    /// The questions that change the nodes for the rest, by title
-    fn disruptive(&self) -> impl Iterator<Item = &str> {
-        self.items.iter().filter_map(|i| match i {
-            DraftItem::Existing { disrupts: true, title, .. } => Some(title.as_str()),
-            DraftItem::New(q) if q.disrupts => Some(q.title.as_str()),
-            _ => None,
-        })
+    /// The questions that change the nodes for the rest, by title, but the
+    /// one `except` (a key being replaced)
+    fn disruptive(&self, except: Option<&str>) -> impl Iterator<Item = &str> {
+        self.items.iter().filter(move |i| i.disrupts() && Some(i.key()) != except).map(DraftItem::title)
     }
 
     /// One question at most changes the nodes: else, why it cannot be proven
     pub fn disrupting(&self) -> Result<(), String> {
-        let titles: Vec<&str> = self.disruptive().collect();
+        let titles: Vec<&str> = self.disruptive(None).collect();
         match titles.as_slice() {
             [first, second, ..] => Err(format!("{first} and {second} both change the nodes for what follows: keep one")),
             _ => Ok(()),
@@ -190,9 +247,7 @@ impl ExamDraft {
 
     /// Add a question: last, but before the one that changes the nodes
     fn place(&mut self, item: DraftItem) {
-        let disrupts = matches!(&item, DraftItem::Existing { disrupts: true, .. }) || matches!(&item, DraftItem::New(q) if q.disrupts);
-        let last_disrupts = matches!(self.items.last(), Some(DraftItem::Existing { disrupts: true, .. })) || matches!(self.items.last(), Some(DraftItem::New(q)) if q.disrupts);
-        if !disrupts && last_disrupts {
+        if !item.disrupts() && self.items.last().is_some_and(DraftItem::disrupts) {
             self.items.insert(self.items.len() - 1, item);
         } else {
             self.items.push(item);
@@ -202,10 +257,7 @@ impl ExamDraft {
     /// Every question to be proven again (the candidate's "prove all")
     pub fn unprove(&mut self) {
         for item in &mut self.items {
-            match item {
-                DraftItem::Existing { status, .. } => *status = DraftStatus::Linted,
-                DraftItem::New(q) => q.status = DraftStatus::Linted,
-            }
+            *item.status_mut() = DraftStatus::Linted;
         }
     }
 
@@ -234,7 +286,7 @@ impl ExamDraft {
         }
         self.title = title.trim().to_string();
         self.certification = certification.to_string();
-        self.duration_minutes = duration_minutes;
+        self.duration_minutes = duration_minutes.map(|m| m.clamp(*LENGTH.start(), *LENGTH.end()));
         let mut domains: Vec<DomainWeight> = bank.pack.certifications[certification]
             .domains
             .iter()
@@ -252,7 +304,7 @@ impl ExamDraft {
             self.title = title.to_string();
         }
         if let Some(minutes) = duration_minutes {
-            self.duration_minutes = Some(minutes.clamp(10, 300));
+            self.duration_minutes = Some(minutes.clamp(*LENGTH.start(), *LENGTH.end()));
         }
         if clear {
             self.items.clear();
@@ -273,9 +325,9 @@ impl ExamDraft {
                 refused.push(format!("{id}: needs what cktry does not provide"));
             } else if q.value.cluster != CLUSTER {
                 refused.push(format!("{id}: runs on another cluster than `{CLUSTER}`"));
-            } else if self.items.iter().any(|i| matches!(i, DraftItem::Existing { id: x, .. } if x == id)) {
+            } else if self.items.iter().any(|i| i.key() == id) {
                 // There already
-            } else if let Some(other) = self.disruptive().next().filter(|_| q.value.disrupts) {
+            } else if let Some(other) = self.disruptive(None).next().filter(|_| q.value.disrupts) {
                 refused.push(format!("{id}: changes the nodes for what follows, and {other} does already: an exam has one at most"));
             } else {
                 let domain = q.value.certifications[&self.certification].clone();
@@ -295,9 +347,12 @@ impl ExamDraft {
     /// Add a new question, or replace `replacing` (a key) with it, once it
     /// passes the checks; its key, or everything wrong with it
     pub fn propose(&mut self, bank: &LoadedPack, data_dir: &Path, yaml: &str, replacing: Option<&str>) -> Result<String, Vec<String>> {
+        if let Some(key) = replacing
+            && self.find_new(key).is_none()
+        {
+            return Err(vec![format!("no new question '{key}' in the draft")]);
+        }
         let question = self.check(bank, data_dir, yaml, replacing)?;
-        // Known from its scripts, whatever it says
-        let disrupts = question.disrupts || super::rules::disrupts(&question);
         let domain = question.certifications[&self.certification].clone();
         let key = replacing.map_or_else(|| self.next_key(), str::to_string);
         let new = NewQuestion {
@@ -307,7 +362,7 @@ impl ExamDraft {
             domain,
             yaml: yaml.trim().to_string() + "\n",
             status: DraftStatus::Linted,
-            disrupts,
+            disrupts: question.disrupts,
         };
         match self.find_new(&key) {
             Some(existing) => *existing = new,
@@ -319,10 +374,7 @@ impl ExamDraft {
     /// Remove a question by id or key; whether there was one
     pub fn remove(&mut self, id_or_key: &str) -> bool {
         let before = self.items.len();
-        self.items.retain(|i| match i {
-            DraftItem::Existing { id, .. } => id != id_or_key,
-            DraftItem::New(q) => q.key != id_or_key,
-        });
+        self.items.retain(|i| i.key() != id_or_key);
         self.items.len() != before
     }
 
@@ -330,9 +382,14 @@ impl ExamDraft {
         if self.certification.is_empty() {
             return Err(vec!["set the exam first (set_exam): its certification".into()]);
         }
-        let question: Question = serde_saphyr::from_str(yaml).map_err(|e| vec![format!("not valid question YAML: {e}")])?;
+        let mut question: Question = serde_saphyr::from_str(yaml).map_err(|e| vec![format!("not valid question YAML: {e}")])?;
+        // Known from its scripts, whatever it says
+        question.disrupts |= super::rules::disrupts(&question);
         let mut problems = Vec::new();
-        let domains = &bank.pack.certifications[&self.certification].domains;
+        let Some(certification) = bank.pack.certifications.get(&self.certification) else {
+            return Err(vec![format!("the exam's certification '{}' is not in the packs any more", self.certification)]);
+        };
+        let domains = &certification.domains;
         match question.certifications.get(&self.certification) {
             Some(domain) if domains.contains_key(domain) => {}
             Some(domain) => problems.push(format!(
@@ -348,13 +405,7 @@ impl ExamDraft {
         if question.workers > MAX_WORKERS {
             problems.push(format!("at most {MAX_WORKERS} worker nodes"));
         }
-        let others = self.items.iter().filter(|i| !matches!(i, DraftItem::New(q) if Some(q.key.as_str()) == replacing));
-        let disrupting = others.filter_map(|i| match i {
-            DraftItem::Existing { disrupts: true, title, .. } => Some(title.clone()),
-            DraftItem::New(q) if q.disrupts => Some(q.title.clone()),
-            _ => None,
-        });
-        if let Some(other) = disrupting.take(1).next().filter(|_| question.disrupts || super::rules::disrupts(&question)) {
+        if let Some(other) = self.disruptive(replacing).next().filter(|_| question.disrupts) {
             problems.push(format!("it changes the nodes for what follows, and {other} does already: an exam has one at most"));
         }
         problems.extend(super::rules::problems(&question));
