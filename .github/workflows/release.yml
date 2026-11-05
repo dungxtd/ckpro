@@ -1,5 +1,5 @@
 # Builds the macOS app (arm64 and x86_64, one DMG each) and the Windows app
-# (x64, an installer) for a version tag, side by side, publishes them on this
+# (x64 and arm64, an installer each) for a version tag, side by side, publishes them on this
 # repo's GitHub Release, then points the Homebrew cask in Casks/ at the DMGs:
 #   brew tap dungxtd/ckpro https://github.com/dungxtd/ckpro
 #   brew install --cask ckpro
@@ -87,6 +87,13 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-pc-windows-msvc, label: windows-x64 }
+          # Built on the x64 runner for Windows on Arm (Snapdragon)
+          - { target: aarch64-pc-windows-msvc, label: windows-arm64 }
     steps:
       - uses: actions/checkout@v5
         with:
@@ -96,29 +103,29 @@ jobs:
 
       - uses: ./.github/actions/setup-build-env
         with:
-          rust-target: x86_64-pc-windows-msvc
+          rust-target: ${{ matrix.target }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build the app
         working-directory: desktop
-        run: pnpm run build --target x86_64-pc-windows-msvc --bundles nsis
+        run: pnpm run build --target ${{ matrix.target }} --bundles nsis
 
       - name: Collect the installer
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p _artifacts
-          for f in desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe; do
-            cp "$f" "_artifacts/ckpro_windows-x64_$(basename "$f")"
+          for f in desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe; do
+            cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f")"
           done
           ls -la _artifacts
 
       - name: Keep the installer with the run
         uses: actions/upload-artifact@v4
         with:
-          name: ckpro-windows-x64
+          name: ckpro-${{ matrix.label }}
           path: _artifacts/*.exe
           retention-days: 7
 

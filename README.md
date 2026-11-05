@@ -32,13 +32,14 @@ brew tap dungxtd/ckpro https://github.com/dungxtd/ckpro
 brew install --cask ckpro
 ```
 
-Windows: the installer (`ckpro_windows-x64_….exe`) from the
+Windows: the installer for your PC (`ckpro_windows-x64_….exe`, or
+`ckpro_windows-arm64_….exe` on Windows on Arm) from the
 [latest release](https://github.com/dungxtd/ckpro/releases/latest). It is not
 signed yet: SmartScreen asks once (More info, then Run anyway).
 
 ## Requirements
 
-- macOS (Apple silicon or Intel) or Windows 10/11 (x64)
+- macOS (Apple silicon or Intel) or Windows 10/11 (x64, or Arm on Windows 11)
 - A Docker engine: OrbStack or Docker Desktop, with 4 GB of memory or more
 
 That is all. Everything else runs in Docker or in the app's data directory:
