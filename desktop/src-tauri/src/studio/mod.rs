@@ -3,6 +3,7 @@
 
 pub mod draft;
 pub mod proof;
+pub mod rules;
 pub mod tools;
 
 use crate::error::{AppError, AppResult};

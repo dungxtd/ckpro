@@ -225,7 +225,9 @@ New questions, in ckpro's question format (YAML, the JSON schema below). {}\
 - Use the `{CLUSTER}` cluster (leave out `cluster`) and as few workers as the task needs (`workers`, \
 default 1, at most {MAX_WORKERS}).\n\
 - One question at most changes the nodes for the others (cordons, drains or taints one): mark it \
-`disrupts: true`; it runs last. Questions of the packs that do are marked so already.\n\n",
+`disrupts: true`; it runs last. Questions of the packs that do are marked so already.\n\
+- Scripts fetch only from charts.bitnami.com, the kubernetes and kubernetes-sigs GitHub projects \
+and dl.k8s.io (or inside the cluster), and never run what they download (no `curl … | bash`).\n\n",
         super::generate::RULES,
     );
     s.push_str("Certifications and their domains (weight in percent):\n");
