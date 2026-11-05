@@ -296,6 +296,8 @@ impl ExamDraft {
     /// passes the checks; its key, or everything wrong with it
     pub fn propose(&mut self, bank: &LoadedPack, data_dir: &Path, yaml: &str, replacing: Option<&str>) -> Result<String, Vec<String>> {
         let question = self.check(bank, data_dir, yaml, replacing)?;
+        // Known from its scripts, whatever it says
+        let disrupts = question.disrupts || super::rules::disrupts(&question);
         let domain = question.certifications[&self.certification].clone();
         let key = replacing.map_or_else(|| self.next_key(), str::to_string);
         let new = NewQuestion {
@@ -305,7 +307,7 @@ impl ExamDraft {
             domain,
             yaml: yaml.trim().to_string() + "\n",
             status: DraftStatus::Linted,
-            disrupts: question.disrupts,
+            disrupts,
         };
         match self.find_new(&key) {
             Some(existing) => *existing = new,
@@ -352,9 +354,10 @@ impl ExamDraft {
             DraftItem::New(q) if q.disrupts => Some(q.title.clone()),
             _ => None,
         });
-        if let Some(other) = disrupting.take(1).next().filter(|_| question.disrupts) {
+        if let Some(other) = disrupting.take(1).next().filter(|_| question.disrupts || super::rules::disrupts(&question)) {
             problems.push(format!("it changes the nodes for what follows, and {other} does already: an exam has one at most"));
         }
+        problems.extend(super::rules::problems(&question));
         let title = question.title.trim().to_lowercase();
         if let Some((id, _)) = bank.questions.iter().find(|(_, q)| q.value.title.trim().to_lowercase() == title) {
             problems.push(format!("a question with this title is there already: {id}; write another task"));
