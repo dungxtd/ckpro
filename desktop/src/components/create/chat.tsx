@@ -57,6 +57,8 @@ export function Chat() {
 	const [text, setText] = useState("");
 	// The conversation to delete, once confirmed
 	const [deleting, setDeleting] = useState<{ id: number; title: string } | null>(null);
+	// The conversations' list: it closes on a pick
+	const [listing, setListing] = useState(false);
 	// The latest words in view as they come, unless the reader scrolled up
 	const written =
 		shownLength(messages) + (live ? live.text.length + live.tools.length + live.asked.length : 0);
@@ -74,7 +76,7 @@ export function Chat() {
 			<header className="flex h-14 shrink-0 select-none items-center gap-2 border-border border-b px-5">
 				<ClaudeIcon className="size-4 shrink-0 text-claude" />
 				<h2 className="min-w-0 flex-1 truncate font-semibold text-callout">{title}</h2>
-				<Popover>
+				<Popover open={listing} onOpenChange={setListing}>
 					<PopoverTrigger asChild>
 						<IconButton variant="toolbar" size="sm" aria-label="Earlier conversations">
 							<History />
@@ -89,7 +91,14 @@ export function Chat() {
 						)}
 						{sessions.map(s => (
 							<div key={s.id} className="group relative">
-								<button type="button" className={cn(menuRow(), "pr-8")} onClick={() => open(s.id)}>
+								<button
+									type="button"
+									className={cn(menuRow(), "pr-8")}
+									onClick={() => {
+										setListing(false);
+										open(s.id);
+									}}
+								>
 									{s.id === session && (
 										<span className={menu.check}>
 											<Check className="size-3" />
@@ -108,7 +117,10 @@ export function Chat() {
 									size="xs"
 									aria-label={`Delete ${s.title}`}
 									className="absolute top-0 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-									onClick={() => setDeleting(s)}
+									onClick={() => {
+										setListing(false);
+										setDeleting(s);
+									}}
 								>
 									<Trash2 />
 								</IconButton>
