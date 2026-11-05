@@ -4,11 +4,12 @@ import { Card } from "@cktry/ui/components/card";
 import { CodeBlock } from "@cktry/ui/components/code-block";
 import { Progress } from "@cktry/ui/components/progress";
 import { Spinner } from "@cktry/ui/components/spinner";
+import { useFollow } from "@cktry/ui/hooks/use-follow";
 import { useNow } from "@cktry/ui/hooks/use-now";
 import { clock } from "@cktry/ui/lib/time";
 import { cn } from "@cktry/ui/lib/utils";
 import { Check, ChevronDown, ChevronRight, Circle, Copy, X } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useActivities } from "@/stores/activity";
 
@@ -40,27 +41,14 @@ export function ActivityProgress({
 	const activity = useActivities(s => s.byId[id]);
 	const [stepSince, setStepSince] = useState(Date.now());
 	const [userOpen, setUserOpen] = useState<boolean | null>(null);
-	const logBox = useRef<HTMLPreElement>(null);
-	const following = useRef(true);
 	const running = activity?.status === "running";
 	const now = useNow(running);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: restart the slow-step clock on each step
 	useEffect(() => setStepSince(Date.now()), [activity?.current]);
 
-	// Follow new lines unless the reader scrolled up
-	// biome-ignore lint/correctness/useExhaustiveDependencies: runs on every new line
-	useEffect(() => {
-		const el = logBox.current;
-		if (el && following.current) el.scrollTop = el.scrollHeight;
-	}, [activity?.log.length]);
-	// Opened: at its newest lines, following them
-	const showLog = useCallback((el: HTMLPreElement | null) => {
-		logBox.current = el;
-		if (!el) return;
-		following.current = true;
-		el.scrollTop = el.scrollHeight;
-	}, []);
+	// Opened at its newest lines, following them unless the reader scrolled up
+	const showLog = useFollow<HTMLPreElement>(activity?.log.length);
 
 	if (!activity) {
 		return <div className="text-muted-foreground text-sm">Starting…</div>;
@@ -163,10 +151,6 @@ export function ActivityProgress({
 					<CodeBlock
 						wrap
 						ref={showLog}
-						onScroll={e => {
-							const el = e.currentTarget;
-							following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
-						}}
 						className={cn("mt-2 p-3 text-2xs leading-relaxed", compact ? "h-40" : "h-56")}
 					>
 						{activity.log.length === 0 ? "Waiting for output…" : activity.log.join("\n")}

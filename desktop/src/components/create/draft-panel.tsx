@@ -77,7 +77,11 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 			>
 				{tab === "proof" && items.length > 0 ? (
 					<>
-						{shownProof ? <ProofSteps proof={shownProof} /> : <ProofPreview />}
+						{shownProof ? (
+							<ProofSteps key={shownProof.activity} proof={shownProof} />
+						) : (
+							<ProofPreview />
+						)}
 						<NewScripts />
 					</>
 				) : items.length === 0 ? (
