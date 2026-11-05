@@ -1,3 +1,9 @@
 packages:
   - "desktop"
   - "packages/*"
+
+# Dependencies whose install scripts run: the PostHog CLI fetches its binary
+# (release builds upload source maps with it); core-js only prints a notice
+allowBuilds:
+  "@posthog/cli": true
+  core-js: false
