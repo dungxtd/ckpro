@@ -1,12 +1,16 @@
 import { Alert } from "@ckpro/ui/components/alert";
 import { Button } from "@ckpro/ui/components/button";
+import { ConfirmDialog } from "@ckpro/ui/components/confirm-dialog";
 import { IconButton } from "@ckpro/ui/components/icon-button";
+import { menu, menuRow } from "@ckpro/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Spinner } from "@ckpro/ui/components/spinner";
 import { Textarea } from "@ckpro/ui/components/textarea";
+import { Truncated } from "@ckpro/ui/components/truncated";
+import { useFollow } from "@ckpro/ui/hooks/use-follow";
 import { cn } from "@ckpro/ui/lib/utils";
-import { ArrowUp, History, Plus, Square, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ArrowUp, Check, History, Plus, Square, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { Answer, UserMessage } from "@/components/assistant/answer";
 import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { SignInDialog } from "@/components/assistant/sign-in-dialog";
@@ -20,6 +24,10 @@ const STARTERS = [
 	"Questions like the ones I got wrong last time, but new",
 	"A 60-minute warm-up for my exam day",
 ];
+
+/** How much a conversation says: it grows as an answer is written */
+const shownLength = (messages: { text: string; tools: unknown[] }[]) =>
+	messages.reduce((n, m) => n + m.text.length + m.tools.length + 1, 0);
 
 /**
  * The conversation: what the candidate asks for, Claude's answers as they
@@ -47,14 +55,13 @@ export function Chat() {
 	const account = useCoach(s => s.account);
 	const [signingIn, setSigningIn] = useState(false);
 	const [text, setText] = useState("");
-	const list = useRef<HTMLDivElement>(null);
+	// The conversation to delete, once confirmed
+	const [deleting, setDeleting] = useState<{ id: number; title: string } | null>(null);
+	// The latest words in view as they come, unless the reader scrolled up
+	const written =
+		shownLength(messages) + (live ? live.text.length + live.tools.length + live.asked.length : 0);
+	const list = useFollow<HTMLDivElement>(written, 160);
 	const title = sessions.find(s => s.id === session)?.title ?? "New exam";
-
-	// The latest words in view as they come
-	// biome-ignore lint/correctness/useExhaustiveDependencies: follows every message change
-	useEffect(() => {
-		list.current?.scrollTo({ top: list.current.scrollHeight });
-	}, [shown]);
 
 	const submit = (value = text) => {
 		if (!value.trim() || writing) return;
@@ -64,7 +71,7 @@ export function Chat() {
 
 	return (
 		<section className="flex h-full min-h-0 min-w-0 flex-col">
-			<header className="flex h-14 shrink-0 items-center gap-2 border-border border-b px-5">
+			<header className="flex h-14 shrink-0 select-none items-center gap-2 border-border border-b px-5">
 				<ClaudeIcon className="size-4 shrink-0 text-claude" />
 				<h2 className="min-w-0 flex-1 truncate font-semibold text-callout">{title}</h2>
 				<Popover>
@@ -73,44 +80,40 @@ export function Chat() {
 							<History />
 						</IconButton>
 					</PopoverTrigger>
-					<PopoverContent align="end" className="w-80 p-1.5">
-						{sessions.length === 0 ? (
-							<p className="px-2 py-1.5 text-caption text-muted-foreground">No conversation yet.</p>
-						) : (
-							sessions.map(s => (
-								<div
-									key={s.id}
-									className={cn(
-										"group flex items-center gap-1 rounded-md pr-1 hover:bg-foreground/5",
-										s.id === session && "bg-foreground/10"
-									)}
-								>
-									<button
-										type="button"
-										onClick={() => open(s.id)}
-										className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-callout outline-none"
-									>
-										<span className="truncate">{s.title}</span>
-										{/* Going on there: an answer being written, or its exam being proven */}
-										{(pending[s.id] || running({ last }, s.id)) && (
-											<span className="ml-auto flex shrink-0 items-center gap-1 text-2xs text-muted-foreground">
-												<Spinner size="inline" className="size-3" />
-												{running({ last }, s.id) ? "Proving" : "Writing"}
-											</span>
-										)}
-									</button>
-									<IconButton
-										variant="toolbar"
-										size="xs"
-										aria-label={`Delete ${s.title}`}
-										className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-										onClick={() => remove(s.id)}
-									>
-										<Trash2 />
-									</IconButton>
-								</div>
-							))
+					<PopoverContent align="end" className={cn(menu.surface, "w-80")}>
+						<div className={menu.header}>Conversations</div>
+						{sessions.length === 0 && (
+							<div className={cn(menu.content, "py-1 text-muted-foreground text-xs")}>
+								No conversation yet
+							</div>
 						)}
+						{sessions.map(s => (
+							<div key={s.id} className="group relative">
+								<button type="button" className={cn(menuRow(), "pr-8")} onClick={() => open(s.id)}>
+									{s.id === session && (
+										<span className={menu.check}>
+											<Check className="size-3" />
+										</span>
+									)}
+									<Truncated>{s.title}</Truncated>
+									{/* Going on there: an answer being written, or its exam being proven */}
+									{(pending[s.id] || running({ last }, s.id)) && (
+										<span className={menu.hint}>
+											{running({ last }, s.id) ? "Proving" : "Writing"}
+										</span>
+									)}
+								</button>
+								<IconButton
+									variant="toolbar"
+									size="xs"
+									aria-label={`Delete ${s.title}`}
+									className="absolute top-0 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+									onClick={() => setDeleting(s)}
+								>
+									<Trash2 />
+								</IconButton>
+							</div>
+						))}
 					</PopoverContent>
 				</Popover>
 				<IconButton variant="toolbar" size="sm" aria-label="New conversation" onClick={newSession}>
@@ -213,6 +216,14 @@ export function Chat() {
 					</div>
 				</div>
 			)}
+			<ConfirmDialog
+				open={deleting !== null}
+				onOpenChange={o => !o && setDeleting(null)}
+				title={`Delete ${deleting?.title ?? "the conversation"}?`}
+				description="Its messages and its draft go. An exam saved from it stays. An answer or a proof going on there stops."
+				action="Delete"
+				onConfirm={() => deleting && remove(deleting.id)}
+			/>
 		</section>
 	);
 }
