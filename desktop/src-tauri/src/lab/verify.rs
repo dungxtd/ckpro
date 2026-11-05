@@ -14,7 +14,7 @@ use super::render;
 use crate::cluster::{kind::Kind, lifecycle};
 use crate::error::{AppError, AppResult};
 use crate::runtime::jumphost::{self, Jumphost, Placement};
-use crate::runtime::{docker, infra::Infra};
+use crate::runtime::{docker, infra::{self, Infra}};
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -97,7 +97,7 @@ impl Run {
         std::fs::create_dir_all(&dir).map_err(|e| AppError::io("creating run dir", e))?;
         std::fs::write(dir.join("pid"), std::process::id().to_string()).map_err(|e| AppError::io("creating run dir", e))?;
         Ok(Self {
-            kind: Kind::scoped(data_dir.to_path_buf(), dir.join("kind")),
+            kind: Kind::scoped(data_dir.to_path_buf(), dir.join("kind"), jumphost::run_network(&id)),
             jumphost: Jumphost::for_run(data_dir, &id),
             id,
             dir,
@@ -111,6 +111,20 @@ impl Run {
         let placement: Placement = topology.keys().map(|c| (c.clone(), format!("{c}-v{}", self.id))).collect();
         *self.placement.lock().unwrap_or_else(|e| e.into_inner()) = placement.clone();
         let docker = docker::connect().await?;
+        // A network of its own: its scripts do not see the app's clusters,
+        // nor other runs'; the registry mirror joins it for the nodes' pulls
+        infra.ensure(&docker, log).await?;
+        let network = jumphost::run_network(&self.id);
+        if docker.inspect_network(&network, None::<bollard::query_parameters::InspectNetworkOptions>).await.is_err() {
+            let labels = docker::compose_labels(&network).into_iter().collect();
+            docker.create_network(bollard::models::NetworkCreateRequest { name: network.clone(), labels: Some(labels), ..Default::default() }).await?;
+        }
+        let mirror = bollard::models::NetworkConnectRequest { container: infra::MIRROR.into(), ..Default::default() };
+        if let Err(e) = docker.connect_network(&network, mirror).await
+            && !e.to_string().contains("already exists")
+        {
+            return Err(e.into());
+        }
         for (logical, workers) in topology {
             let physical = &placement[logical];
             log(format!("[{}] creating cluster {logical} ({physical}) with {workers} workers", self.id));
@@ -155,11 +169,13 @@ impl Run {
     /// (the app quits); the next `sweep_stale` takes the run's files
     pub fn remove_detached(&self) {
         let placement = self.placement.lock().unwrap_or_else(|e| e.into_inner()).clone();
-        let script = "{ for c in \"$@\"; do docker ps -aq --filter label=io.x-k8s.kind.cluster=$c; done; echo \"$JUMPHOST\"; } | xargs docker rm -f -v >/dev/null 2>&1";
+        let script = "{ for c in \"$@\"; do docker ps -aq --filter label=io.x-k8s.kind.cluster=$c; done; echo \"$JUMPHOST\"; } | xargs docker rm -f -v >/dev/null 2>&1; docker network disconnect -f \"$NETWORK\" \"$MIRROR\" >/dev/null 2>&1; docker network rm \"$NETWORK\" >/dev/null 2>&1";
         let spawned = std::process::Command::new("sh")
             .args(["-c", script, "sh"])
             .args(placement.values())
             .env("JUMPHOST", &self.jumphost.name)
+            .env("NETWORK", jumphost::run_network(&self.id))
+            .env("MIRROR", infra::MIRROR)
             .env("PATH", docker::cli_path())
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
@@ -180,6 +196,7 @@ impl Run {
         }
         if let Ok(docker) = docker::connect().await {
             let _ = self.jumphost.remove(&docker).await;
+            remove_network(&docker, &jumphost::run_network(&self.id)).await;
         }
         let _ = std::fs::remove_dir_all(&self.dir);
     }
@@ -240,12 +257,33 @@ pub async fn sweep_stale(data_dir: &Path, log: Log<'_>) {
             }
         }
     }
+    if let Some(docker) = &docker {
+        let networks = docker
+            .list_networks(Some(bollard::query_parameters::ListNetworksOptions {
+                filters: Some(std::collections::HashMap::from([("name".to_string(), vec![jumphost::RUN_NETWORK_PREFIX.to_string()])])),
+            }))
+            .await
+            .unwrap_or_default();
+        for name in networks.into_iter().filter_map(|n| n.name) {
+            if let Some(run) = name.strip_prefix(jumphost::RUN_NETWORK_PREFIX).filter(|run| !in_use(run)) {
+                log(format!("removing network {name} left by an interrupted verify run ({run})"));
+                remove_network(docker, &name).await;
+            }
+        }
+    }
     for entry in std::fs::read_dir(&runs).into_iter().flatten().flatten() {
         let run = entry.file_name().to_string_lossy().into_owned();
         if !in_use(&run) {
             let _ = std::fs::remove_dir_all(entry.path());
         }
     }
+}
+
+/// Remove a run's network, the registry mirror taken off it first
+async fn remove_network(docker: &bollard::Docker, network: &str) {
+    let mirror = bollard::models::NetworkDisconnectRequest { container: infra::MIRROR.into(), force: Some(true) };
+    let _ = docker.disconnect_network(network, mirror).await;
+    let _ = docker.remove_network(network).await;
 }
 
 /// `k8s-v1a2b` → `1a2b`
