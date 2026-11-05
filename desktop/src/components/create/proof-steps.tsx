@@ -1,13 +1,16 @@
 import { Button } from "@cktry/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
 import { Spinner } from "@cktry/ui/components/spinner";
+import { useNow } from "@cktry/ui/hooks/use-now";
+import { clock } from "@cktry/ui/lib/time";
 import { cn } from "@cktry/ui/lib/utils";
 import { Check, ChevronRight, Circle, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { ActivityProgress, clock } from "@/components/activity/activity-progress";
+import { ActivityProgress } from "@/components/activity/activity-progress";
 import { useActivities } from "@/stores/activity";
 import { useStudio } from "@/stores/studio";
 import type { Proof } from "@/tauri/api";
+import { plural } from "@/words";
 import { QuestionScripts } from "./question-scripts";
 
 /** A step of the activity's plan logs `▸ <step>` as it starts */
@@ -22,13 +25,8 @@ const MARK = "▸ ";
 export function ProofSteps({ proof }: { proof: Proof }) {
 	const activity = useActivities(s => s.byId[proof.activity]);
 	const [opened, setOpened] = useState<Record<number, boolean>>({});
-	const [now, setNow] = useState(Date.now);
 	const running = !proof.ended_at;
-	useEffect(() => {
-		if (!running) return;
-		const tick = setInterval(() => setNow(Date.now()), 1000);
-		return () => clearInterval(tick);
-	}, [running]);
+	const now = useNow(running);
 	if (!activity) return null;
 
 	// Each step's lines: those after its mark, the marks in the plan's order
@@ -165,7 +163,7 @@ export function ProofPreview() {
 	const checking = (draft?.items ?? []).filter(i => i.status.state !== "proven");
 	const workers = plan?.workers ?? 1;
 	const steps = [
-		`Make a cluster with ${workers} worker${workers === 1 ? "" : "s"}`,
+		`Make a cluster with ${plural(workers, "worker")}`,
 		"Set up every question",
 		...checking.map(i => i.title),
 	];
