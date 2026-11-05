@@ -19,7 +19,6 @@ export const commands = {
 	 *  written (and Claude's tool uses), the draft's changes arrive as `StudioDraft`
 	 */
 	studioAsk: (session: number, text: string, model: ModelChoice, events: Channel<CoachEvent_Deserialize>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("studio_ask", { session, text, model, events })),
-	studioRename: (session: number, title: string) => typedError<null, AppError>(__TAURI_INVOKE("studio_rename", { session, title })),
 	studioDelete: (session: number) => typedError<null, AppError>(__TAURI_INVOKE("studio_delete", { session })),
 	/**  Take a question out of the draft (by id, or a new one's key) */
 	studioRemove: (session: number, id: string) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_remove", { session, id })),
