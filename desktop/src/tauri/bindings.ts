@@ -1074,6 +1074,8 @@ export type Proof_Deserialize = {
 	marks: (number | null)[],
 	/**  When it ended (ms since the epoch) */
 	ended_at?: number | null,
+	/**  The candidate stopped it */
+	stopped?: boolean,
 };
 
 export type Proof_Serialize = {
@@ -1093,6 +1095,8 @@ export type Proof_Serialize = {
 	marks: (number | null)[],
 	/**  When it ended (ms since the epoch) */
 	ended_at: number | null,
+	/**  The candidate stopped it */
+	stopped: boolean,
 };
 
 /**

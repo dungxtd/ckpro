@@ -600,10 +600,7 @@ pub async fn studio_delete(coach: State<'_, Coach>, proofs: State<'_, Proofs>, s
 #[tauri::command]
 #[specta::specta]
 pub fn studio_remove(store: State<'_, Arc<Store>>, session: i32, id: String) -> AppResult<crate::studio::draft::ExamDraft> {
-    let mut draft = crate::studio::draft::ExamDraft::load(&store, session)?;
-    draft.remove(&id);
-    draft.save(&store, session)?;
-    Ok(draft)
+    crate::studio::edit(&store, session, |draft| Ok(draft.remove(&id))).map(|(draft, _)| draft)
 }
 
 /// The candidate's changes to the draft: its title, its length, or every
@@ -617,18 +614,25 @@ pub fn studio_edit(
     duration_minutes: Option<u32>,
     clear: bool,
 ) -> AppResult<crate::studio::draft::ExamDraft> {
-    let mut draft = crate::studio::draft::ExamDraft::load(&store, session)?;
-    draft.edit(title.as_deref(), duration_minutes, clear);
-    draft.save(&store, session)?;
-    Ok(draft)
+    crate::studio::edit(&store, session, |draft| {
+        draft.edit(title.as_deref(), duration_minutes, clear);
+        Ok(())
+    })
+    .map(|(draft, ())| draft)
 }
 
 /// What proving a conversation's exam takes (its cluster, the time), and
 /// why it cannot run now if so
 #[tauri::command]
 #[specta::specta]
-pub fn studio_plan(store: State<'_, Arc<Store>>, exams: State<'_, Arc<Exams>>, env: State<'_, Arc<Env>>, session: i32) -> AppResult<ProofPlan> {
-    let fits = |mb| preflight::fits(&env.snapshot(), "Proving the exam", mb, &[]);
+pub fn studio_plan(
+    store: State<'_, Arc<Store>>,
+    exams: State<'_, Arc<Exams>>,
+    env: State<'_, Arc<Env>>,
+    proofs: State<'_, Proofs>,
+    session: i32,
+) -> AppResult<ProofPlan> {
+    let fits = proof_fits(&env, &proofs);
     crate::studio::plan(&store, &exams, &crate::data_dir(), session, fits)
 }
 
@@ -649,7 +653,7 @@ pub async fn studio_verify(
     scope: Scope,
 ) -> AppResult<crate::studio::draft::ExamDraft> {
     no_exam(&exams)?;
-    let fits = |mb| preflight::fits(&env.snapshot(), "Proving the exam", mb, &[]);
+    let fits = proof_fits(&env, &proofs);
     let app = crate::studio::Proving {
         store: &store,
         exams: &exams,
@@ -659,6 +663,12 @@ pub async fn studio_verify(
         data_dir: &crate::data_dir(),
     };
     crate::studio::verify(app, session, scope, fits).await
+}
+
+/// Whether a proof's run of so many MB fits in what Docker has left, the
+/// proofs running counted (their clusters are not among the app's)
+fn proof_fits<'a>(env: &'a Env, proofs: &'a Proofs) -> impl Fn(u32) -> Result<(), String> + 'a {
+    move |mb| preflight::fits(&env.snapshot(), "Proving the exam", mb + proofs.reserved_mb(), &[])
 }
 
 /// The exams being proven, by conversation

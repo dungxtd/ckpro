@@ -1,6 +1,7 @@
 //! The candidate's own questions ("My questions"): a pack in the data
-//! directory (`packs/mine`) that the coach's generator adds to, merged with the
-//! bundled pack. Each certification with questions gets an exam of them all.
+//! directory (`packs/mine`) that the generator and Create add to, merged with
+//! the bundled pack. Each certification with questions gets an exam of them
+//! all; exams built in Create are kept beside (`exams/custom`).
 
 use super::load::{self, LoadedPack};
 use crate::error::{AppError, AppResult};

@@ -1,6 +1,7 @@
 //! `ckpro lab verify`: prove a pack grades correctly. Each run is isolated:
-//! its own kind clusters (`<logical>-v<run>`), kubeconfigs and jumphost, so
-//! runs go in parallel and never touch the app's exam clusters.
+//! its own kind clusters (`<logical>-v<run>`), kubeconfigs, jumphost and
+//! Docker network (`ckpro-run-<run>`), so runs go in parallel and neither
+//! touch nor reach the app's exam clusters.
 //!
 //! For the selected questions a run builds their clusters, runs every setup
 //! like an exam does, then per question: all checks must FAIL, the solution
@@ -13,6 +14,7 @@ use super::model::Question;
 use super::render;
 use crate::cluster::{kind::Kind, lifecycle};
 use crate::error::{AppError, AppResult};
+use crate::sync::MutexExt;
 use crate::runtime::jumphost::{self, Jumphost, Placement};
 use crate::runtime::{docker, infra::{self, Infra}};
 use serde::Serialize;
@@ -92,9 +94,19 @@ pub struct Run {
 
 impl Run {
     pub fn new(data_dir: &Path) -> AppResult<Self> {
-        let id = format!("{:04x}", rand::random::<u16>());
-        let dir = data_dir.join("runs").join(&id);
-        std::fs::create_dir_all(&dir).map_err(|e| AppError::io("creating run dir", e))?;
+        // A directory of its own, made only if it was not there: two runs at
+        // once never share an id (their cluster names, their network)
+        let runs = data_dir.join("runs");
+        std::fs::create_dir_all(&runs).map_err(|e| AppError::io("creating run dir", e))?;
+        let (id, dir) = loop {
+            let id = format!("{:04x}", rand::random::<u16>());
+            let dir = runs.join(&id);
+            match std::fs::create_dir(&dir) {
+                Ok(()) => break (id, dir),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(AppError::io("creating run dir", e)),
+            }
+        };
         std::fs::write(dir.join("pid"), std::process::id().to_string()).map_err(|e| AppError::io("creating run dir", e))?;
         Ok(Self {
             kind: Kind::scoped(data_dir.to_path_buf(), dir.join("kind"), jumphost::run_network(&id)),
@@ -109,7 +121,7 @@ impl Run {
     /// removes the cluster being made) when `cancel` fires
     pub async fn start(&self, infra: &Infra, topology: &Topology, cancel: &CancellationToken, log: Log<'_>) -> AppResult<()> {
         let placement: Placement = topology.keys().map(|c| (c.clone(), format!("{c}-v{}", self.id))).collect();
-        *self.placement.lock().unwrap_or_else(|e| e.into_inner()) = placement.clone();
+        *self.placement.locked() = placement.clone();
         let docker = docker::connect().await?;
         // A network of its own: its scripts do not see the app's clusters,
         // nor other runs'; the registry mirror joins it for the nodes' pulls
@@ -145,7 +157,7 @@ impl Run {
         log: Log<'_>,
         on: OnStage<'_>,
     ) -> AppResult<Vec<Report>> {
-        let placement = self.placement.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let placement = self.placement.locked().clone();
         let mut questions = Vec::new();
         for id in ids {
             let q = &pack.questions.get(id).ok_or_else(|| AppError::not_found(format!("no question '{id}'")))?.value;
@@ -161,14 +173,14 @@ impl Run {
     /// Leave the clusters and jumphost for inspection
     pub fn keep(&self, log: Log<'_>) {
         let _ = std::fs::write(self.dir.join("keep"), "");
-        let placement = self.placement.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let placement = self.placement.locked().clone();
         log(format!("[{}] kept clusters {:?} and {}", self.id, placement.values().collect::<Vec<_>>(), self.jumphost.name));
     }
 
     /// Remove the clusters' nodes and the jumphost with a detached `docker rm`
     /// (the app quits); the next `sweep_stale` takes the run's files
     pub fn remove_detached(&self) {
-        let placement = self.placement.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let placement = self.placement.locked().clone();
         let script = "{ for c in \"$@\"; do docker ps -aq --filter label=io.x-k8s.kind.cluster=$c; done; echo \"$JUMPHOST\"; } | xargs docker rm -f -v >/dev/null 2>&1; docker network disconnect -f \"$NETWORK\" \"$MIRROR\" >/dev/null 2>&1; docker network rm \"$NETWORK\" >/dev/null 2>&1";
         let spawned = std::process::Command::new("sh")
             .args(["-c", script, "sh"])
@@ -188,7 +200,7 @@ impl Run {
 
     /// Remove the clusters, the jumphost and the run's files
     pub async fn finish(&self, log: Log<'_>) {
-        let placement = self.placement.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let placement = self.placement.locked().clone();
         for physical in placement.values() {
             if let Err(e) = lifecycle::delete(&self.kind, physical, log).await {
                 log(format!("[{}] could not delete cluster {physical}: {e}", self.id));

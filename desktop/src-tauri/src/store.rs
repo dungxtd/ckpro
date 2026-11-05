@@ -836,11 +836,23 @@ impl Store {
             })
     }
 
-    pub fn studio_save_draft(&self, session: i32, draft: &str) -> AppResult<()> {
-        self.conn()
-            .execute("UPDATE studio_session SET draft = ?2, updated_at = ?3 WHERE id = ?1", params![session, draft, now_ms() as i64])
-            .map(|_| ())
-            .map_err(db)
+    /// Change a conversation's draft (JSON) with `f`, read and written in
+    /// one transaction: no other change comes between. `f` must not use the
+    /// store. What `f` returns beside the new draft
+    pub fn studio_update_draft<T>(&self, session: i32, f: impl FnOnce(&str) -> AppResult<(String, T)>) -> AppResult<T> {
+        let mut conn = self.conn();
+        let tx = conn.transaction().map_err(db)?;
+        let text: String = tx
+            .query_row("SELECT draft FROM studio_session WHERE id = ?1", params![session], |r| r.get(0))
+            .map_err(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => AppError::not_found(format!("no conversation {session}")),
+                e => db(e),
+            })?;
+        let (draft, out) = f(&text)?;
+        tx.execute("UPDATE studio_session SET draft = ?2, updated_at = ?3 WHERE id = ?1", params![session, draft, now_ms() as i64])
+            .map_err(db)?;
+        tx.commit().map_err(db)?;
+        Ok(out)
     }
 
     pub fn studio_rename(&self, session: i32, title: &str) -> AppResult<()> {
@@ -1039,7 +1051,7 @@ mod tests {
                 ],
             )
             .unwrap();
-        store.studio_save_draft(id, r#"{"title":"Mock"}"#).unwrap();
+        store.studio_update_draft(id, |_| Ok((r#"{"title":"Mock"}"#.to_string(), ()))).unwrap();
         assert_eq!(store.studio_sessions().unwrap()[0].title, "A CKA mock");
         let messages = store.studio_messages(id).unwrap();
         assert_eq!(messages.len(), 2);
