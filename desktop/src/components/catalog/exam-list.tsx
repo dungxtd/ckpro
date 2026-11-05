@@ -36,6 +36,7 @@ import { useExam } from "@/stores/exam";
 import { useSidebarLayout } from "@/stores/settings";
 import { type ExamSort, type ExamSummary, errorText, examApi } from "@/tauri/api";
 import { shortTitle } from "@/titles";
+import { plural } from "@/words";
 import { memoryFit, useExamStats, useSelection } from "./exams";
 import { arrange, moved, pinned, SORTS, stepped, toggled } from "./layout";
 
@@ -156,11 +157,12 @@ export function ExamList({
 			const picked = new URLSearchParams(here.search).get("exam");
 			if (onExams && picked && gone.includes(picked)) navigate("/exams");
 			await loadCatalog();
-			toast.success(
-				gone.length > 1
-					? `${exam.title} and ${gone.length - 1} exam${gone.length === 2 ? "" : "s"} using it deleted`
-					: `${exam.title} deleted`
-			);
+			toast.success(`Deleted ${shortTitle(exam.title)}`, {
+				description:
+					gone.length > 1
+						? `and ${plural(gone.length - 1, "exam")} using its questions`
+						: undefined,
+			});
 		} catch (e) {
 			toast.error(errorText(e));
 		}

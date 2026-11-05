@@ -658,11 +658,46 @@ function Gallery() {
 						<Spinner size="inline" />
 						<Spinner size="small" />
 						<Skeleton className="h-6 w-40" />
-						<Button size="push" variant="push" onClick={() => toast.success("Saved")}>
-							Toast
+						<Button
+							size="push"
+							variant="push"
+							onClick={() =>
+								toast.success("Exam saved", { action: { label: "Open", onClick: () => {} } })
+							}
+						>
+							Success toast
 						</Button>
-						<Button size="push" variant="push" onClick={() => toast.error("Could not save")}>
+						<Button
+							size="push"
+							variant="push"
+							onClick={() =>
+								toast.success(
+									"Deleted CKA Mock – Weak Domains (Troubleshooting, Networking and Storage)",
+									{
+										description: "and 2 exams using its questions",
+									}
+								)
+							}
+						>
+							Long toast
+						</Button>
+						<Button
+							size="push"
+							variant="push"
+							onClick={() =>
+								toast.error("Docker is not running", {
+									action: { label: "Retry", onClick: () => {} },
+								})
+							}
+						>
 							Error toast
+						</Button>
+						<Button
+							size="push"
+							variant="push"
+							onClick={() => toast("Proof stopped: its cluster is removed")}
+						>
+							Toast
 						</Button>
 					</Row>
 					<Row>
