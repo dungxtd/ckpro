@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 /// Unix sockets tried after DOCKER_HOST / the default socket, so the app also
 /// works when launched from Finder (no shell environment).
+#[cfg(unix)]
 fn candidate_sockets() -> Vec<PathBuf> {
     let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
     vec![
@@ -78,6 +79,9 @@ async fn find() -> AppResult<Docker> {
             return Ok(docker);
         }
     }
+    // Other engines' sockets (OrbStack, Colima, rootless Docker); Windows
+    // has its engine on the named pipe the defaults use
+    #[cfg(unix)]
     for socket in candidate_sockets() {
         if !socket.exists() {
             continue;
