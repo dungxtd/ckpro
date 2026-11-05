@@ -35,7 +35,8 @@ const Toaster = ({ toastOptions, ...props }: ToasterProps) => (
 				error: "[--normal-text:var(--color-destructive)]",
 				// One line: a long name is cut, never wrapping the pill
 				title: "!truncate",
-				description: "!truncate !font-normal !opacity-75",
+				// Under the title, in its colour, softer (sonner's own grey is unreadable on the pill)
+				description: "!truncate !font-normal !text-(--normal-text) !opacity-75",
 				// Plain ✕ at the end of the pill (sonner pins it to the top-left corner).
 				closeButton:
 					"!static !order-[99] !ml-1.5 !size-7 !shrink-0 !transform-none !rounded-full !border-0 !bg-white/10 !text-white/75 hover:!bg-white/20 hover:!text-white [&_svg]:!size-3.5",
