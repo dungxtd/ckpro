@@ -1,0 +1,43 @@
+# The Rust side on real clusters: the tests that need Docker (kind clusters,
+# the task host, the exam engine, Create's proofs), then every exam of the
+# bundled pack proven on its own clusters. Nightly and on demand: they take
+# minutes and Docker's memory.
+name: E2E
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-linux
+      - name: Tests on real clusters
+        working-directory: desktop/src-tauri
+        run: |
+          cargo test --locked --lib e2e:: -- --ignored --test-threads=1 2>&1 | tee e2e.log
+          # A filter that matched nothing reports success: they all ran
+          grep -Eq "test result: ok\. [1-9][0-9]* passed" e2e.log
+
+  # Each exam of the pack on clusters of its own: a question that stopped
+  # grading right (an upstream image, a manifest moved) shows here
+  pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        exam: [cka-001, cka-002, cka-003, ckad-001, ckad-002, cks-001, helm-001]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-linux
+      - name: Prove ${{ matrix.exam }}
+        working-directory: desktop/src-tauri
+        run: cargo run --locked --quiet -- lab verify ../../packs/core --exam ${{ matrix.exam }} --parallel 1
