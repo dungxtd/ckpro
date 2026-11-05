@@ -1,4 +1,4 @@
-//! Connection to the host Docker engine (OrbStack, Docker Desktop, ...).
+//! Connection to the host Docker engine.
 
 use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};
@@ -29,6 +29,25 @@ const FRESH: std::time::Duration = std::time::Duration::from_secs(5);
 const PING_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// The engine answers a ping in time
+
+/// How to get Docker running here, for what the app says when it is not
+pub const START: &str = if cfg!(target_os = "macos") {
+    "Start OrbStack or Docker Desktop"
+} else if cfg!(windows) {
+    "Start Docker Desktop"
+} else {
+    "Start Docker (sudo systemctl start docker), your user in the docker group"
+};
+
+/// How to get Docker here, for when its CLI is not found
+pub const INSTALL: &str = if cfg!(target_os = "macos") {
+    "Install OrbStack or Docker Desktop"
+} else if cfg!(windows) {
+    "Install Docker Desktop"
+} else {
+    "Install Docker Engine"
+};
+
 pub async fn answers(docker: &Docker) -> bool {
     tokio::time::timeout(PING_TIMEOUT, docker.ping()).await.is_ok_and(|r| r.is_ok())
 }
@@ -72,7 +91,7 @@ async fn find() -> AppResult<Docker> {
         }
     }
     Err(AppError::DockerUnavailable {
-        message: "Docker is not running. Start OrbStack or Docker Desktop and try again.".into(),
+        message: format!("Docker is not running. {START} and try again."),
     })
 }
 
@@ -121,15 +140,23 @@ pub fn cli() -> Option<std::path::PathBuf> {
 /// macOS start with a minimal PATH, so add the usual install locations.
 pub fn cli_path() -> String {
     let home = std::env::var("HOME").unwrap_or_default();
-    let mut dirs: Vec<String> = vec![
-        format!("{home}/.orbstack/bin"),
-        "/usr/local/bin".into(),
-        "/opt/homebrew/bin".into(),
-        "/Applications/Docker.app/Contents/Resources/bin".into(),
-        format!("{home}/.rd/bin"),
-    ];
-    if let Ok(path) = std::env::var("PATH") {
-        dirs.push(path);
+    // Where each system's Docker puts its CLI, ahead of the app's PATH (a
+    // GUI app's is short on macOS)
+    let mut dirs: Vec<std::path::PathBuf> = if cfg!(target_os = "macos") {
+        vec![
+            format!("{home}/.orbstack/bin").into(),
+            "/usr/local/bin".into(),
+            "/opt/homebrew/bin".into(),
+            "/Applications/Docker.app/Contents/Resources/bin".into(),
+            format!("{home}/.rd/bin").into(),
+        ]
+    } else if cfg!(windows) {
+        vec![r"C:\Program Files\Docker\Docker\resources\bin".into()]
+    } else {
+        vec!["/usr/bin".into(), "/usr/local/bin".into(), "/snap/bin".into(), format!("{home}/.rd/bin").into()]
+    };
+    if let Some(path) = std::env::var_os("PATH") {
+        dirs.extend(std::env::split_paths(&path));
     }
-    dirs.join(":")
+    std::env::join_paths(dirs).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default()
 }

@@ -112,7 +112,7 @@ pub fn fits(state: &EnvState, what: &str, needed_mb: u32, clusters: &[String]) -
         DockerState::Up { cpus, memory_mb, .. } => (cpus, memory_mb),
         // The app has not reached it yet: not a reason to start Docker
         DockerState::Connecting => return Err("Connecting to Docker…".into()),
-        DockerState::Down { .. } => return Err("Docker is not running. Start OrbStack or Docker Desktop.".into()),
+        DockerState::Down { .. } => return Err(format!("Docker is not running. {}.", super::docker::START)),
     };
     if cpus < 2 {
         return Err(format!("{what} needs at least 2 CPUs for Docker; it has {cpus}."));
