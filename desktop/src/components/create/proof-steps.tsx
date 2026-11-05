@@ -1,11 +1,12 @@
 import { Button } from "@cktry/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
 import { Spinner } from "@cktry/ui/components/spinner";
+import { useFollow } from "@cktry/ui/hooks/use-follow";
 import { useNow } from "@cktry/ui/hooks/use-now";
 import { clock } from "@cktry/ui/lib/time";
 import { cn } from "@cktry/ui/lib/utils";
 import { Check, ChevronRight, Circle, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { ActivityProgress } from "@/components/activity/activity-progress";
 import { useActivities } from "@/stores/activity";
 import { useStudio } from "@/stores/studio";
@@ -15,6 +16,23 @@ import { QuestionScripts } from "./question-scripts";
 
 /** A step of the activity's plan logs `▸ <step>` as it starts */
 const MARK = "▸ ";
+
+/** Each step's lines: those after its mark, the marks in the plan's order */
+function stepLogs(steps: string[], log: string[]) {
+	const logs: string[][] = steps.map(() => []);
+	let at = 0;
+	for (const line of log) {
+		if (line.startsWith(MARK)) {
+			const next = steps.indexOf(line.slice(MARK.length), at);
+			if (next >= 0) {
+				at = next;
+				continue;
+			}
+		}
+		logs[at]?.push(line);
+	}
+	return logs;
+}
 
 /**
  * The proof's plan, step by step (its cluster, the setups, each question
@@ -27,21 +45,10 @@ export function ProofSteps({ proof }: { proof: Proof }) {
 	const [opened, setOpened] = useState<Record<number, boolean>>({});
 	const running = !proof.ended_at;
 	const now = useNow(running);
+	// Split again when lines come, not on each tick of the clock
+	const logs = useMemo(() => (activity ? stepLogs(activity.steps, activity.log) : []), [activity]);
 	if (!activity) return null;
 
-	// Each step's lines: those after its mark, the marks in the plan's order
-	const logs: string[][] = activity.steps.map(() => []);
-	let at = 0;
-	for (const line of activity.log) {
-		if (line.startsWith(MARK)) {
-			const next = activity.steps.indexOf(line.slice(MARK.length), at);
-			if (next >= 0) {
-				at = next;
-				continue;
-			}
-		}
-		logs[at]?.push(line);
-	}
 	const marks = proof.marks.map(m => m ?? 0);
 	const current = marks.length - 1;
 	const stopped = !!proof.ended_at && activity.status === "failed";
@@ -121,19 +128,10 @@ function StepIcon({ state }: { state: "done" | "failed" | "running" | "waiting" 
 
 /** A step's lines; the running one's follow its newest unless scrolled up */
 function StepLog({ lines, follow }: { lines: string[]; follow: boolean }) {
-	const box = useRef<HTMLPreElement>(null);
-	const stuck = useRef(true);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: follows every new line
-	useEffect(() => {
-		if (follow && stuck.current) box.current?.scrollTo({ top: box.current.scrollHeight });
-	}, [lines.length, follow]);
+	const box = useFollow<HTMLPreElement>(follow ? lines.length : 0);
 	return (
 		<pre
 			ref={box}
-			onScroll={e => {
-				const el = e.currentTarget;
-				stuck.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
-			}}
 			className="mt-0.5 mb-1.5 ml-6 max-h-40 select-text overflow-auto whitespace-pre-wrap break-words rounded-md border border-white/5 bg-terminal px-2.5 py-2 font-mono text-[11px] text-terminal-foreground/80 leading-relaxed"
 		>
 			{lines.map((line, i) => (
