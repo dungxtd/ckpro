@@ -10,8 +10,9 @@
     "vite:build": "tsc --noEmit && vite build && pnpm sourcemaps",
     "sourcemaps": "[ -z \"$POSTHOG_CLI_API_KEY\" ] || posthog-cli sourcemap process --directory dist --release-name ckpro --release-version \"$npm_package_version\" --delete-after",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "tauri": "tauri"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e",
+    "tauri": "tauri",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@ckpro/ui": "workspace:^",
@@ -29,6 +30,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@posthog/cli": "^0.19.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.12.4",
