@@ -25,20 +25,26 @@ the cluster.
 
 ## Install
 
+macOS:
+
 ```bash
 brew tap dungxtd/cktry https://github.com/dungxtd/cktry
 brew install --cask cktry
 ```
 
+Windows: the installer (`cktry_windows-x64_….exe`) from the
+[latest release](https://github.com/dungxtd/cktry/releases/latest). It is not
+signed yet: SmartScreen asks once (More info, then Run anyway).
+
 ## Requirements
 
-- macOS (Apple silicon or Intel)
+- macOS (Apple silicon or Intel) or Windows 10/11 (x64)
 - A Docker engine: OrbStack or Docker Desktop, with 4 GB of memory or more
 
 That is all. Everything else runs in Docker or in the app's data directory:
 the clusters, task host, exam desktop and registry cache, kind and the
-kubeconfigs. The assistant, optional, uses the agent CLIs installed on the Mac
-and their own logins: Claude Code (with Node.js, which runs its adapter).
+kubeconfigs. The assistant, optional, uses the agent CLIs installed on the
+computer and their own logins: Claude Code (with Node.js, which runs its adapter).
 
 ## Development
 
