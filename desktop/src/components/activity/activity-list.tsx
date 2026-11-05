@@ -1,8 +1,9 @@
 import { Card } from "@ckpro/ui/components/card";
 import { Disclosure } from "@ckpro/ui/components/disclosure";
+import { clock } from "@ckpro/ui/lib/time";
 import { cn } from "@ckpro/ui/lib/utils";
 import { useState } from "react";
-import { ActivityProgress, clock } from "@/components/activity/activity-progress";
+import { ActivityProgress } from "@/components/activity/activity-progress";
 import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";
 import { useActivityList } from "@/stores/activity";
 

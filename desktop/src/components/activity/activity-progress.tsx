@@ -4,6 +4,8 @@ import { Card } from "@ckpro/ui/components/card";
 import { CodeBlock } from "@ckpro/ui/components/code-block";
 import { Progress } from "@ckpro/ui/components/progress";
 import { Spinner } from "@ckpro/ui/components/spinner";
+import { useNow } from "@ckpro/ui/hooks/use-now";
+import { clock } from "@ckpro/ui/lib/time";
 import { cn } from "@ckpro/ui/lib/utils";
 import { Check, ChevronDown, ChevronRight, Circle, Copy, X } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
@@ -12,11 +14,6 @@ import { useActivities } from "@/stores/activity";
 
 /** A step running longer than this opens the log: something slow is going on */
 const SLOW_STEP_MS = 30_000;
-
-export const clock = (ms: number) => {
-	const s = Math.max(0, Math.floor(ms / 1000));
-	return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
 
 /**
  * Any long operation the user waits on (preparing or cleaning up an exam,
@@ -41,18 +38,12 @@ export function ActivityProgress({
 	compact?: boolean;
 }) {
 	const activity = useActivities(s => s.byId[id]);
-	const [now, setNow] = useState(Date.now());
 	const [stepSince, setStepSince] = useState(Date.now());
 	const [userOpen, setUserOpen] = useState<boolean | null>(null);
 	const logBox = useRef<HTMLPreElement>(null);
 	const following = useRef(true);
 	const running = activity?.status === "running";
-
-	useEffect(() => {
-		if (!running) return;
-		const timer = setInterval(() => setNow(Date.now()), 1000);
-		return () => clearInterval(timer);
-	}, [running]);
+	const now = useNow(running);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: restart the slow-step clock on each step
 	useEffect(() => setStepSince(Date.now()), [activity?.current]);

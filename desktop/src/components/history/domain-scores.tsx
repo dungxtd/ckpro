@@ -9,9 +9,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ckpro/ui/components/table";
+
 import { useEffect, useState } from "react";
 import { scoreTone } from "@/components/study/data";
 import { type DomainStat, examApi, type StudyStats } from "@/tauri/api";
+import { domainName } from "@/words";
 
 /** Passing is 66% on the CKA/CKAD/CKS */
 const PASS = 66;
@@ -89,7 +91,7 @@ function DomainRow({ domain: d, next }: { domain: DomainStat; next: boolean }) {
 		<TableRow>
 			<TableCell>
 				<span className="flex items-center gap-2">
-					<span className="capitalize">{d.domain.replaceAll("-", " ")}</span>
+					<span className="capitalize">{domainName(d.domain)}</span>
 					{next && <Badge variant="warningTag">Practise next</Badge>}
 				</span>
 			</TableCell>

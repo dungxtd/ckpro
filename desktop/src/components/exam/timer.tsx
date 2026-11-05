@@ -1,7 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckpro/ui/components/tooltip";
+import { useNow } from "@ckpro/ui/hooks/use-now";
 import { cn } from "@ckpro/ui/lib/utils";
 import { Clock } from "lucide-react";
-import { useEffect, useState } from "react";
 
 const format = (ms: number) => {
 	const total = Math.max(0, Math.floor(ms / 1000));
@@ -13,11 +13,7 @@ const format = (ms: number) => {
  * alerts go), time spent in practice mode. A toolbar pill, 28px like the
  * other controls. */
 export function Timer({ startedAt, endsAt }: { startedAt: number | null; endsAt: number | null }) {
-	const [now, setNow] = useState(Date.now());
-	useEffect(() => {
-		const id = setInterval(() => setNow(Date.now()), 1000);
-		return () => clearInterval(id);
-	}, []);
+	const now = useNow();
 
 	const left = endsAt === null ? null : endsAt - now;
 	const minutes = left === null ? null : left / 60_000;

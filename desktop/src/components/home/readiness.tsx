@@ -6,6 +6,7 @@ import { cn } from "@ckpro/ui/lib/utils";
 import type * as React from "react";
 import { PREDICT_COVERAGE, predicted, scoreTone } from "@/components/study/data";
 import type { ExamReadiness } from "@/tauri/api";
+import { domainName } from "@/words";
 
 const TEXT = { success: "text-success", warning: "text-warning", destructive: "text-destructive" };
 
@@ -82,14 +83,14 @@ export function Readiness({
 						{measured.map(d => (
 							<Bar
 								key={d.domain}
-								name={d.domain.replaceAll("-", " ")}
+								name={domainName(d.domain)}
 								weight={d.weight}
 								percent={(d.points * 100) / d.max_points}
 								pass={pass}
 							/>
 						))}
 						{untested.map(d => (
-							<Untested key={d.domain} name={d.domain.replaceAll("-", " ")} weight={d.weight} />
+							<Untested key={d.domain} name={domainName(d.domain)} weight={d.weight} />
 						))}
 					</Bars>
 					{/* One next step: measure what is not yet, else practise the weakest */}
