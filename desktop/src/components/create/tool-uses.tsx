@@ -1,9 +1,11 @@
 import { CodeBlock } from "@cktry/ui/components/code-block";
 import { Spinner } from "@cktry/ui/components/spinner";
+import { useNow } from "@cktry/ui/hooks/use-now";
 import { cn } from "@cktry/ui/lib/utils";
 import { Check, ChevronRight, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { StudioTool } from "@/stores/studio";
+import { plural } from "@/words";
 import { QuestionScripts } from "./question-scripts";
 
 /** Rows of a list shown as a table, at most */
@@ -43,7 +45,7 @@ function argsLine(input: string) {
 function resultLine(tool: StudioTool) {
 	if (tool.status === "failed") return "failed";
 	const out = parse(tool.output);
-	if (Array.isArray(out)) return `${out.length} result${out.length === 1 ? "" : "s"}`;
+	if (Array.isArray(out)) return plural(out.length, "result");
 	if (isRecord(out)) {
 		const list = Object.entries(out).find(([, v]) => Array.isArray(v));
 		if (list && Array.isArray(list[1])) return `${list[1].length} ${list[0].replaceAll("_", " ")}`;
@@ -85,12 +87,7 @@ function ToolLine({
 	onToggle: () => void;
 }) {
 	const running = tool.status !== "completed" && tool.status !== "failed";
-	const [now, setNow] = useState(Date.now);
-	useEffect(() => {
-		if (!running) return;
-		const tick = setInterval(() => setNow(Date.now()), 500);
-		return () => clearInterval(tick);
-	}, [running]);
+	const now = useNow(running, 500);
 	const ms = tool.ms ?? (tool.since ? now - tool.since : null);
 	const args = argsLine(tool.input);
 	const result = running ? "" : resultLine(tool);

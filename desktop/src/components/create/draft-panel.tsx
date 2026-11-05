@@ -4,21 +4,21 @@ import { Button } from "@cktry/ui/components/button";
 import { IconButton } from "@cktry/ui/components/icon-button";
 import { Placeholder } from "@cktry/ui/components/placeholder";
 import { Progress } from "@cktry/ui/components/progress";
+import { useNow } from "@cktry/ui/hooks/use-now";
+import { clock } from "@cktry/ui/lib/time";
 import { cn } from "@cktry/ui/lib/utils";
 import { X } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useNavigate } from "react-router";
-import { clock } from "@/components/activity/activity-progress";
+
 import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { useStudio } from "@/stores/studio";
 import type { DraftItem, Proof } from "@/tauri/api";
+import { domainName, gb, plural } from "@/words";
 import { DraftMenu, DraftSummary, ProofTabs } from "./draft-header";
 import { NewScripts, ProofPreview, ProofSteps } from "./proof-steps";
 
-const named = (domain: string) => domain.replaceAll("-", " ");
 const key = (item: DraftItem) => (item.kind === "new" ? item.key : item.id);
-const gb = (mb: number) => `${(mb / 1024).toFixed(1)} GB`;
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /**
  * The exam being built, beside the conversation (`bar`: under it, its
@@ -309,7 +309,7 @@ function Item({
 					)}
 				</div>
 			</div>
-			<span className="text-2xs text-muted-foreground capitalize">{named(item.domain)}</span>
+			<span className="text-2xs text-muted-foreground capitalize">{domainName(item.domain)}</span>
 			{shown?.state === "failed" && (
 				<ul className="list-disc pl-4 text-2xs text-destructive">
 					{shown.problems.slice(0, 4).map(p => (
@@ -319,18 +319,6 @@ function Item({
 			)}
 		</div>
 	);
-}
-
-/** Ticks every second while `on` */
-function useNow(on: boolean) {
-	const [now, setNow] = useState(Date.now);
-	useEffect(() => {
-		if (!on) return;
-		setNow(Date.now());
-		const tick = setInterval(() => setNow(Date.now()), 1000);
-		return () => clearInterval(tick);
-	}, [on]);
-	return now;
 }
 
 /**

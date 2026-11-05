@@ -22,10 +22,10 @@ import { Check, Ellipsis, Pencil, X } from "lucide-react";
 import { useState } from "react";
 import { useStudio } from "@/stores/studio";
 import type { ExamDraft } from "@/tauri/api";
+import { domainName, plural } from "@/words";
 
 /** A domain's colour, by its rank in the exam's weights (tokens: index.css) */
 const DOMAIN = ["bg-domain-1", "bg-domain-2", "bg-domain-3", "bg-domain-4", "bg-domain-5"];
-const named = (domain: string) => domain.replaceAll("-", " ");
 const LENGTHS = [30, 45, 60, 90, 120];
 
 /**
@@ -189,7 +189,7 @@ export function DraftSummary({ className }: { className?: string }) {
 			{draft.certification && (
 				<div className="flex min-w-0 items-center gap-3 text-caption text-muted-foreground">
 					<span className="truncate tabular-nums">
-						{items.length} question{items.length === 1 ? "" : "s"}
+						{plural(items.length, "question")}
 						{draft.duration_minutes ? ` · ${draft.duration_minutes} min` : ""}
 						{minutes > 0 && (
 							<span className={cn(over && "text-warning")}> · ~{minutes} min est.</span>
@@ -234,7 +234,7 @@ function Coverage({ draft, className }: { draft: ExamDraft; className?: string }
 					{counts.map((d, i) => (
 						<span key={d.domain} className="flex items-center gap-2">
 							<span className={cn("size-2 rounded-[2px]", DOMAIN[i % DOMAIN.length])} />
-							<span className="flex-1 capitalize">{named(d.domain)}</span>
+							<span className="flex-1 capitalize">{domainName(d.domain)}</span>
 							<span className="tabular-nums">
 								{d.count} · {Math.round((d.count * 100) / total)}% (exam {d.weight}%)
 							</span>

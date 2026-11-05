@@ -1,5 +1,6 @@
 import { addDays, dayKey, monday, streak } from "@/days";
 import type { ExamReadiness, ExamSummary, HistoryEntry } from "@/tauri/api";
+import { domainName } from "@/words";
 
 /** When an attempt started (Unix ms), and its score */
 export const startedAt = (h: HistoryEntry): number => h.result.started_at ?? 0;
@@ -76,7 +77,6 @@ export interface Event {
 	message: string;
 }
 
-const named = (domain: string) => domain.replaceAll("-", " ");
 /** Names in a short line: the first two, then how many more */
 const listed = (names: string[]) =>
 	names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2} more` : names.join(", ");
@@ -120,7 +120,7 @@ export function events(history: HistoryEntry[], readiness: ExamReadiness | null)
 		out.push({
 			type: "Warning",
 			reason: "BelowPass",
-			message: `${below.length} domain${below.length === 1 ? "" : "s"} under ${pass}%: ${listed(below.map(x => `${named(x.d.domain)} ${Math.round(x.percent)}%`))}`,
+			message: `${below.length} domain${below.length === 1 ? "" : "s"} under ${pass}%: ${listed(below.map(x => `${domainName(x.d.domain)} ${Math.round(x.percent)}%`))}`,
 		});
 	const untested = domains.filter(d => !d.max_points);
 	if (measured.length && untested.length)
