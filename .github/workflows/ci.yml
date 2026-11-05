@@ -1,0 +1,116 @@
+# The checks every change goes through. Only the suites its files touch run;
+# the `ci` job at the end is the one required check, failing if any suite
+# that ran failed.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      interface: ${{ steps.filter.outputs.interface }}
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            interface:
+              - 'desktop/src/**'
+              - 'desktop/e2e/**'
+              - 'desktop/*.{json,ts,html}'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+              - 'biome.json'
+              - '.github/workflows/ci.yml'
+            rust:
+              - 'desktop/src-tauri/**'
+              - 'packs/**'
+              - '.github/actions/setup-linux/**'
+              - '.github/workflows/ci.yml'
+
+  # Types, unit tests and lint of the interface and the kit
+  interface:
+    needs: changes
+    if: needs.changes.outputs.interface == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Types
+        run: pnpm --filter cktry-desktop typecheck
+      - name: Unit tests
+        run: pnpm --filter cktry-desktop test
+      - name: Lint and format
+        run: pnpm exec biome check .
+
+  # The interface's journeys in WebKit and Chromium, Rust stood in for
+  journeys:
+    needs: changes
+    if: needs.changes.outputs.interface == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Browsers
+        run: pnpm --filter cktry-desktop exec playwright install --with-deps chromium webkit
+      - name: Journeys
+        run: pnpm --filter cktry-desktop e2e
+      - name: Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            desktop/playwright-report
+            desktop/test-results
+          retention-days: 7
+
+  # Rust unit tests and the bundled pack's lint
+  rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-linux
+      - name: Unit tests
+        working-directory: desktop/src-tauri
+        run: cargo test --locked --lib
+      - name: Lint the bundled pack
+        working-directory: desktop/src-tauri
+        run: cargo run --locked --quiet -- lab lint ../../packs/core
+
+  ci:
+    if: always()
+    needs: [interface, journeys, rust]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every suite that ran passed
+        run: |
+          results='${{ toJSON(needs) }}'
+          echo "$results"
+          if echo "$results" | grep -Eq '"result": "(failure|cancelled)"'; then exit 1; fi
