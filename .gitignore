@@ -26,3 +26,7 @@ dist-ssr
 # Local environment (API keys)
 .env
 .env.local
+
+# Playwright
+desktop/test-results/
+desktop/playwright-report/

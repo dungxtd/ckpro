@@ -5,6 +5,7 @@
 		"includes": [
 			"desktop/src/**",
 			"desktop/*.ts",
+			"desktop/e2e/**",
 			"packages/**",
 			"!**/node_modules",
 			"!**/dist",
@@ -60,5 +61,20 @@
 				"organizeImports": "on"
 			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": [
+				"desktop/src/**",
+				"packages/**"
+			],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"usePlaywrightValidDescribeCallback": "off"
+					}
+				}
+			}
+		}
+	]
 }
