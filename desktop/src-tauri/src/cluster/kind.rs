@@ -99,7 +99,7 @@ impl Kind {
     /// labels to every `docker run`; all other commands go straight through.
     fn kind_path(&self) -> AppResult<String> {
         let real = docker::cli().ok_or_else(|| AppError::DockerUnavailable {
-            message: "The docker CLI was not found. Install OrbStack or Docker Desktop.".into(),
+            message: format!("The docker CLI was not found. {}.", docker::INSTALL),
         })?;
         let shim_dir = self.bin_dir.join("shim");
         std::fs::create_dir_all(&shim_dir).map_err(|e| AppError::io("creating docker shim", e))?;

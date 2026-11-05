@@ -93,7 +93,7 @@ impl EnvState {
                 severity: Severity::Error,
                 component: "docker".into(),
                 message: reason.clone(),
-                hint: "Start OrbStack or Docker Desktop; ckpro reconnects on its own.".into(),
+                hint: format!("{}; ckpro reconnects on its own.", crate::runtime::docker::START),
             });
             return issues;
         }
