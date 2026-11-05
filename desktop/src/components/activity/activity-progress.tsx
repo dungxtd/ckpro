@@ -6,7 +6,7 @@ import { Progress } from "@cktry/ui/components/progress";
 import { Spinner } from "@cktry/ui/components/spinner";
 import { cn } from "@cktry/ui/lib/utils";
 import { Check, ChevronDown, ChevronRight, Circle, Copy, X } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useActivities } from "@/stores/activity";
 
@@ -63,6 +63,13 @@ export function ActivityProgress({
 		const el = logBox.current;
 		if (el && following.current) el.scrollTop = el.scrollHeight;
 	}, [activity?.log.length]);
+	// Opened: at its newest lines, following them
+	const showLog = useCallback((el: HTMLPreElement | null) => {
+		logBox.current = el;
+		if (!el) return;
+		following.current = true;
+		el.scrollTop = el.scrollHeight;
+	}, []);
 
 	if (!activity) {
 		return <div className="text-muted-foreground text-sm">Starting…</div>;
@@ -164,7 +171,7 @@ export function ActivityProgress({
 				{open && (
 					<CodeBlock
 						wrap
-						ref={logBox}
+						ref={showLog}
 						onScroll={e => {
 							const el = e.currentTarget;
 							following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
