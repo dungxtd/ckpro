@@ -101,6 +101,11 @@ export const running = (s: Pick<StudioStore, "last">, session: number | null) =>
 	return proof && !proof.ended_at ? proof : undefined;
 };
 
+/** The Exams screen, on one exam (the router's hash) */
+const openExam = (id: string) => {
+	window.location.hash = `#/exams?exam=${encodeURIComponent(id)}`;
+};
+
 const without = <T>(record: Record<number, T>, key: number) => {
 	const { [key]: _, ...rest } = record;
 	return rest;
@@ -370,6 +375,9 @@ export const useStudio = create<StudioStore>()((set, get) => {
 			try {
 				const id = await studioApi.save(session);
 				await useExam.getState().loadCatalog();
+				toast.success("Exam saved", {
+					action: { label: "Open", onClick: () => openExam(id) },
+				});
 				if (get().session === session) await refresh();
 				track("studio_saved");
 				return id;
