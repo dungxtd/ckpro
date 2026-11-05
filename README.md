@@ -37,10 +37,21 @@ Windows: the installer for your PC (`cktry_windows-x64_….exe`, or
 [latest release](https://github.com/dungxtd/cktry/releases/latest). It is not
 signed yet: SmartScreen asks once (More info, then Run anyway).
 
+Linux: the AppImage or the `.deb` for your machine (`linux-x64` or
+`linux-arm64`) from the same release:
+
+```bash
+sudo apt install ./cktry_linux-x64_*.deb   # Debian, Ubuntu
+chmod +x cktry_linux-x64_*.AppImage && ./cktry_linux-x64_*.AppImage
+```
+
 ## Requirements
 
-- macOS (Apple silicon or Intel) or Windows 10/11 (x64, or Arm on Windows 11)
-- A Docker engine: OrbStack or Docker Desktop, with 4 GB of memory or more
+- macOS (Apple silicon or Intel), Windows 10/11 (x64, or Arm on Windows 11)
+  or Linux (x64 or arm64, with WebKitGTK 4.1: Ubuntu 22.04 or later)
+- A Docker engine with 4 GB of memory or more: OrbStack or Docker Desktop on
+  macOS, Docker Desktop on Windows, Docker Engine on Linux (your user in the
+  `docker` group)
 
 That is all. Everything else runs in Docker or in the app's data directory:
 the clusters, task host, exam desktop and registry cache, kind and the
