@@ -247,6 +247,9 @@ fn release_asset() -> AppResult<&'static str> {
         ("linux", "aarch64") => "kind-linux-arm64",
         ("linux", "x86_64") => "kind-linux-amd64",
         ("windows", "x86_64") => "kind-windows-amd64",
+        // kind ships no Windows arm64 build; Windows on Arm runs the x64 one
+        // (it only talks to Docker, whose containers are arm64 there)
+        ("windows", "aarch64") => "kind-windows-amd64",
         (os, arch) => return Err(AppError::cluster(format!("unsupported platform {os}/{arch}"))),
     })
 }
