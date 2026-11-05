@@ -25,7 +25,8 @@ the cluster.
 
 ## Install
 
-macOS:
+macOS or Linux, with [Homebrew](https://brew.sh) (casks on Linux need
+Homebrew 4.5 or later):
 
 ```bash
 brew tap dungxtd/ckpro https://github.com/dungxtd/ckpro
@@ -37,8 +38,8 @@ Windows: the installer for your PC (`ckpro_windows-x64_….exe`, or
 [latest release](https://github.com/dungxtd/ckpro/releases/latest). It is not
 signed yet: SmartScreen asks once (More info, then Run anyway).
 
-Linux: the AppImage or the `.deb` for your machine (`linux-x64` or
-`linux-arm64`) from the same release:
+Linux without Homebrew: the AppImage or the `.deb` for your machine
+(`linux-x64` or `linux-arm64`) from the same release:
 
 ```bash
 sudo apt install ./ckpro_linux-x64_*.deb   # Debian, Ubuntu

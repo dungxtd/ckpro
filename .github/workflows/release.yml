@@ -1,7 +1,8 @@
 # Builds the macOS app (arm64 and x86_64, one DMG each), the Windows app (x64
 # and arm64, an installer each) and the Linux app (x64 and arm64, an AppImage
 # and a .deb each) for a version tag, side by side, publishes them on this
-# repo's GitHub Release, then points the Homebrew cask in Casks/ at the DMGs:
+# repo's GitHub Release, then points the Homebrew cask in Casks/ at the DMGs
+# and the AppImages (Homebrew installs casks on Linux too):
 #   brew tap dungxtd/ckpro https://github.com/dungxtd/ckpro
 #   brew install --cask ckpro
 name: release
@@ -204,7 +205,7 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" _artifacts/* --clobber
 
   cask:
-    needs: build-macos
+    needs: [build-macos, build-linux]
     if: ${{ inputs.dry_run != true }}
     runs-on: ubuntu-latest
     steps:
@@ -218,19 +219,17 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
-          mkdir -p dmg
-          gh release download "$GITHUB_REF_NAME" --pattern '*.dmg' --dir dmg
-          ARM_SHA=$(shasum -a 256 dmg/*_macos-arm64_*.dmg | awk '{print $1}')
-          INTEL_SHA=$(shasum -a 256 dmg/*_macos-x64_*.dmg | awk '{print $1}')
-          # Each sha256 line belongs to the on_arm or on_intel block above it
-          awk -v ver="$VERSION" -v arm="$ARM_SHA" -v intel="$INTEL_SHA" '
-            /^  version /  { print "  version \"" ver "\""; next }
-            /on_arm do/    { blk = "arm" }
-            /on_intel do/  { blk = "intel" }
-            /^    sha256 / { print "    sha256 \"" (blk == "arm" ? arm : intel) "\""; next }
-            { print }
-          ' Casks/ckpro.rb > Casks/ckpro.rb.tmp
-          mv Casks/ckpro.rb.tmp Casks/ckpro.rb
+          mkdir -p pkg
+          gh release download "$GITHUB_REF_NAME" --pattern '*.dmg' --pattern '*.AppImage' --dir pkg
+          sha() { shasum -a 256 "$(find pkg -name "$1" | head -n 1)" | awk '{print $1}'; }
+          # The macOS DMGs and the Linux AppImages, each under its sha256 key
+          sed -i -E \
+            -e "s/^  version \".*\"/  version \"$VERSION\"/" \
+            -e "s/(arm: +)\"[0-9a-f]{64}\"/\1\"$(sha '*_macos-arm64_*.dmg')\"/" \
+            -e "s/(intel: +)\"[0-9a-f]{64}\"/\1\"$(sha '*_macos-x64_*.dmg')\"/" \
+            -e "s/(arm64_linux: +)\"[0-9a-f]{64}\"/\1\"$(sha '*_linux-arm64_*.AppImage')\"/" \
+            -e "s/(x86_64_linux: +)\"[0-9a-f]{64}\"/\1\"$(sha '*_linux-x64_*.AppImage')\"/" \
+            Casks/ckpro.rb
           cat Casks/ckpro.rb
           if git diff --quiet Casks/ckpro.rb; then
             echo "Cask already up to date"
