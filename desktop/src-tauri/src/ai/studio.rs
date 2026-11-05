@@ -76,7 +76,7 @@ impl Coach {
         let (agent_session, prompt) = self.studio_session(&exams.bank(), session, model, effort, &history, text).await?;
 
         let settings = policy::AgentSettings::load(store).unwrap_or_default();
-        let first = settings.auto_titles && history.is_empty() && store.studio_sessions()?.iter().all(|s| s.id != session);
+        let first = settings.auto_titles && history.is_empty();
         let naming = async {
             if !first {
                 return None;
@@ -167,7 +167,10 @@ impl Coach {
         history: &[StudioMessage],
         text: &str,
     ) -> AppResult<(String, String)> {
-        if let Some((open, current, current_effort, _)) = self.open.lock().await.get(&key(session)).cloned() {
+        // Read, then let go: the lock is taken again below (an `if let` keeps it
+        // for its whole block)
+        let existing = self.open.lock().await.get(&key(session)).cloned();
+        if let Some((open, current, current_effort, _)) = existing {
             if current != model {
                 self.agent.set_model(&open, model).await?;
             }
@@ -195,7 +198,8 @@ impl Coach {
 
     /// Close a conversation's agent session (it was deleted)
     pub async fn studio_forget(&self, session: i32) {
-        if let Some((open, ..)) = self.open.lock().await.remove(&key(session)) {
+        let removed = self.open.lock().await.remove(&key(session));
+        if let Some((open, ..)) = removed {
             self.agent.close(&open).await;
         }
     }
@@ -226,9 +230,10 @@ New questions, in cktry's question format (YAML, the JSON schema below). {}\
 default 1, at most {MAX_WORKERS}).\n\
 - One question at most changes the nodes for the others (cordons, drains or taints one): mark it \
 `disrupts: true`; it runs last. Questions of the packs that do are marked so already.\n\
-- Scripts fetch only from charts.bitnami.com, the kubernetes and kubernetes-sigs GitHub projects \
-and dl.k8s.io (or inside the cluster), and never run what they download (no `curl … | bash`).\n\n",
+- Scripts fetch only from {} (or inside the cluster), and never run what they download (no \
+`curl … | bash`).\n\n",
         super::generate::RULES,
+        crate::studio::rules::sources(),
     );
     s.push_str("Certifications and their domains (weight in percent):\n");
     for (id, cert) in &bank.pack.certifications {

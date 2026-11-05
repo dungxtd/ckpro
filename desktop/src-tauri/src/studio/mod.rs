@@ -28,6 +28,18 @@ fn proving_id(certification: &str, key: &str) -> String {
     format!("{}/{certification}/draft-{key}", mine::PACK_ID)
 }
 
+/// Change a conversation's draft, not saved yet (a saved one is an exam
+/// now): the candidate's changes and Claude's alike. The draft as kept, and
+/// what `f` returns
+pub fn edit<T>(store: &Store, session: i32, f: impl FnOnce(&mut ExamDraft) -> AppResult<T>) -> AppResult<(ExamDraft, T)> {
+    ExamDraft::update(store, session, |draft| {
+        if draft.saved.is_some() {
+            return Err(AppError::invalid("this exam is saved; start a new conversation for another"));
+        }
+        f(draft)
+    })
+}
+
 /// What proving an exam takes from the app
 pub struct Proving<'a> {
     pub store: &'a Store,
@@ -104,35 +116,32 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
     draft.complete(&bank).map_err(AppError::invalid)?;
     draft.disrupting().map_err(AppError::invalid)?;
     let Staged { pack: staging, ids, workers } = staged(&bank, app.data_dir, &draft)?;
-    fits(proof::run_mb(workers)).map_err(AppError::invalid)?;
-    let title_of = |key: &str| {
-        draft.items.iter().find_map(|i| match i {
-            DraftItem::Existing { id, title, .. } if id == key => Some(if title.is_empty() { id.clone() } else { title.clone() }),
-            DraftItem::New(q) if q.key == key => Some(q.title.clone()),
-            _ => None,
-        })
-    };
+    let mb = proof::run_mb(workers);
+    fits(mb).map_err(AppError::invalid)?;
 
     // The plan: a cluster, the setups, then each question checked
     let steps: Vec<String> = [format!("Make a cluster with {workers} worker{}", if workers == 1 { "" } else { "s" }), "Set up every question".into()]
         .into_iter()
-        .chain(checking.iter().filter_map(|k| title_of(k)))
+        .chain(checking.iter().filter_map(|k| draft.title_of(k).map(str::to_string)))
         .collect();
     let title = if draft.title.is_empty() { "Prove the exam".to_string() } else { format!("Prove {}", draft.title) };
-    let op = app.activities.begin(title, steps);
     let started = now_ms();
     let proof = Proof {
-        activity: op.id(),
+        activity: 0,
         started_at: started,
         checking: checking.clone(),
         stage: ProofStage::Cluster { workers },
         results: Vec::new(),
         marks: vec![started],
         ended_at: None,
+        stopped: false,
     };
-    let Some(cancel) = app.proofs.begin(session, proof) else {
-        return op.end(Err(AppError::invalid("this exam is being proven already")));
+    // One at a time per conversation: refused before anything is begun
+    let Some(cancel) = app.proofs.begin(session, proof, mb) else {
+        return Err(AppError::invalid("this exam is being proven already"));
     };
+    let op = app.activities.begin(title, steps);
+    app.proofs.update(session, |p| p.activity = op.id());
     let handle = app.activities.handle(op.id());
     let log = move |line: String| handle.log(line);
     let stopped = || AppError::Cancelled { message: "you stopped proving the exam".into() };
@@ -170,8 +179,10 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
                 let order: Vec<String> = ids.iter().map(|(id, _)| id.clone()).collect();
                 let only: HashSet<String> = ids.iter().filter(|(_, key)| checking.contains(key)).map(|(id, _)| id.clone()).collect();
                 tokio::select! {
-                    reports = run.check(&staging, &order, Some(&only), &log, &on) => reports,
+                    // Stopped as it started: no setup begins
+                    biased;
                     () = cancel.cancelled() => Err(stopped()),
+                    reports = run.check(&staging, &order, Some(&only), &log, &on) => reports,
                 }
             }
         };
@@ -183,21 +194,22 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
     app.proofs.end(session);
     let reports = op.end(proved)?;
 
-    // The conversation went on meanwhile: the results are of the exam proven
-    let mut now = ExamDraft::load(app.store, session)?;
-    if !now.items.iter().map(DraftItem::content).eq(draft.items.iter().map(DraftItem::content)) {
-        return Err(AppError::invalid("the exam changed while it was proven: prove it again"));
-    }
-    if scope == Scope::All {
-        now.unprove();
-    }
-    for report in &reports {
-        let Some((_, key)) = ids.iter().find(|(id, _)| *id == report.question) else { continue };
-        if let Some(status) = now.status_mut(key) {
-            *status = status_of(report);
+    // The results are of the exam proven: not if it changed meanwhile
+    let (now, ()) = ExamDraft::update(app.store, session, |now| {
+        if !now.items.iter().map(DraftItem::content).eq(draft.items.iter().map(DraftItem::content)) {
+            return Err(AppError::invalid("the exam changed while it was proven: prove it again"));
         }
-    }
-    now.save(app.store, session)?;
+        if scope == Scope::All {
+            now.unprove();
+        }
+        for report in &reports {
+            let Some((_, key)) = ids.iter().find(|(id, _)| *id == report.question) else { continue };
+            if let Some(status) = now.status_mut(key) {
+                *status = status_of(report);
+            }
+        }
+        Ok(())
+    })?;
     Ok(now)
 }
 
@@ -209,7 +221,7 @@ fn status_of(report: &Report) -> DraftStatus {
 /// (all proven) as theirs, then the exam listing every question in order.
 /// Its id
 pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32) -> AppResult<String> {
-    let mut draft = ExamDraft::load(store, session)?;
+    let draft = ExamDraft::load(store, session)?;
     if let Some(id) = &draft.saved {
         return Ok(id.clone());
     }
@@ -238,23 +250,28 @@ pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32) -> AppR
         }
     }
     let id = mine::save_exam(data_dir, &draft.title, &draft.certification, draft.duration_minutes, &ids)?;
-    // Its new questions are the candidate's now: saved again (the exam
-    // deleted), it lists them, not new copies
-    for (item, id) in draft.items.iter_mut().zip(&ids) {
-        if let DraftItem::New(q) = item {
-            *item = DraftItem::Existing {
-                id: id.clone(),
-                title: q.title.clone(),
-                domain: q.domain.clone(),
-                minutes: q.minutes,
-                status: q.status.clone(),
-                disrupts: q.disrupts,
-            };
-        }
-    }
     exams.reload_mine(data_dir);
-    draft.saved = Some(id.clone());
-    draft.save(store, session)?;
+    ExamDraft::update(store, session, |now| {
+        if !now.items.iter().map(DraftItem::content).eq(draft.items.iter().map(DraftItem::content)) {
+            return Err(AppError::invalid("the exam changed while it was saved: save it again"));
+        }
+        // Its new questions are the candidate's now: saved again (the exam
+        // deleted), it lists them, not new copies
+        for (item, id) in now.items.iter_mut().zip(&ids) {
+            if let DraftItem::New(q) = item {
+                *item = DraftItem::Existing {
+                    id: id.clone(),
+                    title: q.title.clone(),
+                    domain: q.domain.clone(),
+                    minutes: q.minutes,
+                    status: q.status.clone(),
+                    disrupts: q.disrupts,
+                };
+            }
+        }
+        now.saved = Some(id.clone());
+        Ok(())
+    })?;
     Ok(id)
 }
 
@@ -262,10 +279,12 @@ pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32) -> AppR
 /// to change and save anew
 pub fn exams_deleted(store: &Store, exam_ids: &[String]) -> AppResult<()> {
     for (session, text) in store.studio_drafts()? {
-        let Ok(mut draft) = serde_json::from_str::<ExamDraft>(&text) else { continue };
+        let Ok(draft) = serde_json::from_str::<ExamDraft>(&text) else { continue };
         if draft.saved.as_ref().is_some_and(|id| exam_ids.contains(id)) {
-            draft.saved = None;
-            draft.save(store, session)?;
+            ExamDraft::update(store, session, |draft| {
+                draft.saved = None;
+                Ok(())
+            })?;
         }
     }
     Ok(())
@@ -275,14 +294,15 @@ pub fn exams_deleted(store: &Store, exam_ids: &[String]) -> AppResult<()> {
 /// there any more (deleted before this was kept, or its files removed), it
 /// is a draft again
 pub fn opened(store: &Store, exams: &Exams, session: i32) -> AppResult<ExamDraft> {
-    let mut draft = ExamDraft::load(store, session)?;
-    if let Some(id) = &draft.saved
-        && !exams.bank().exams.contains_key(id)
-    {
-        draft.saved = None;
-        draft.save(store, session)?;
+    let draft = ExamDraft::load(store, session)?;
+    match &draft.saved {
+        Some(id) if !exams.bank().exams.contains_key(id) => ExamDraft::update(store, session, |draft| {
+            draft.saved = None;
+            Ok(())
+        })
+        .map(|(draft, ())| draft),
+        _ => Ok(draft),
     }
-    Ok(draft)
 }
 
 #[cfg(test)]
@@ -301,5 +321,26 @@ mod tests {
         exams_deleted(&store, &["mine/custom/gone".into(), "mine/cka".into()]).unwrap();
         assert_eq!(ExamDraft::load(&store, a).unwrap().saved, None);
         assert_eq!(ExamDraft::load(&store, b).unwrap().saved.as_deref(), Some("mine/custom/kept"));
+    }
+
+    /// A saved exam is not changed by edits; a draft that cannot be read is
+    /// an error, not taken for an empty one (it would be saved over)
+    #[test]
+    fn drafts_are_kept_safe() {
+        let store = Store::open(&std::env::temp_dir().join(format!("cktry-studio-safe-{}.db", std::process::id()))).unwrap();
+        let session = store.studio_new().unwrap();
+        ExamDraft { title: "Mock".into(), saved: Some("mine/custom/mock".into()), ..Default::default() }.save(&store, session).unwrap();
+        assert!(
+            edit(&store, session, |d| {
+                d.edit(Some("Other"), None, false);
+                Ok(())
+            })
+            .is_err()
+        );
+        assert_eq!(ExamDraft::load(&store, session).unwrap().title, "Mock");
+        store.studio_update_draft(session, |_| Ok(("{not json".to_string(), ()))).unwrap();
+        assert!(ExamDraft::load(&store, session).is_err());
+        assert!(edit(&store, session, |_| Ok(())).is_err());
+        assert_eq!(store.studio_draft(session).unwrap(), "{not json", "left as it was");
     }
 }

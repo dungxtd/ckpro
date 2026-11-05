@@ -58,7 +58,7 @@ impl Tools {
             "list_plans" => self.plans(&text("from"), &text("to")),
             "get_draft" => Ok(pretty(&ExamDraft::load(&self.store, session)?)),
             "set_exam" => self.edit(session, |draft, bank, _| {
-                let minutes = args["duration_minutes"].as_u64().map(|m| m.clamp(10, 300) as u32);
+                let minutes = args["duration_minutes"].as_u64().map(|m| m.min(u64::from(u32::MAX)) as u32);
                 draft.set_exam(bank, &text("title"), &text("certification"), minutes)?;
                 Ok("The draft exam is set.".into())
             }),
@@ -69,11 +69,6 @@ impl Tools {
             }),
             "propose_question" | "update_question" => self.edit(session, |draft, bank, data_dir| {
                 let replacing = (name == "update_question").then(|| text("key"));
-                if let Some(key) = &replacing
-                    && draft.find_new(key).is_none()
-                {
-                    return Err(AppError::not_found(format!("no new question '{key}' in the draft")));
-                }
                 match draft.propose(bank, data_dir, &text("yaml"), replacing.as_deref()) {
                     Ok(key) => Ok(format!("In the draft as {key}: it lints. The candidate proves the exam on a cluster before it is saved.")),
                     Err(problems) => Err(AppError::invalid(format!("Not added; fix and propose it again:\n- {}", problems.join("\n- ")))),
@@ -89,13 +84,8 @@ impl Tools {
 
     /// Change the draft with `f`, keep it and tell the screen
     fn edit(&self, session: i32, f: impl FnOnce(&mut ExamDraft, &crate::lab::load::LoadedPack, &std::path::Path) -> AppResult<String>) -> AppResult<String> {
-        let mut draft = ExamDraft::load(&self.store, session)?;
-        if draft.saved.is_some() {
-            return Err(AppError::invalid("this exam is saved; ask the candidate to start a new conversation for another"));
-        }
         let bank = self.exams.bank();
-        let result = f(&mut draft, &bank, &self.data_dir)?;
-        draft.save(&self.store, session)?;
+        let (draft, result) = super::edit(&self.store, session, |draft| f(draft, &bank, &self.data_dir))?;
         (self.changed)(session, &draft);
         Ok(result)
     }
@@ -185,7 +175,7 @@ impl Tools {
                 (domain.is_none_or(|x| x == d) && q.value.runnable())
                     .then(|| json!({
                         "id": id, "title": q.value.title, "domain": d, "difficulty": q.value.difficulty,
-                        "minutes": q.value.estimate.as_ref().and_then(|e| e.seconds()).map(|s| s.div_ceil(60)),
+                        "minutes": super::draft::minutes(&q.value),
                     }))
             })
             .collect();

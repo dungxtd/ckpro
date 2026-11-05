@@ -19,9 +19,9 @@ pub const CLUSTER: &str = "k8s";
 pub const MAX_WORKERS: u8 = 3;
 
 /// Memory a proof's run takes: a cluster with `workers` workers and its
-/// task host (2 GB with one worker, as measured)
+/// task host
 pub fn run_mb(workers: u8) -> u32 {
-    1748 + crate::runtime::preflight::WORKER_MB * u32::from(workers.max(1))
+    crate::runtime::preflight::run_memory_mb(workers)
 }
 
 /// Which questions a proof checks: all, or those not proven (new or
@@ -92,6 +92,9 @@ pub struct Proof {
     pub marks: Vec<f64>,
     /// When it ended (ms since the epoch)
     pub ended_at: Option<f64>,
+    /// The candidate stopped it
+    #[serde(default)]
+    pub stopped: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -115,6 +118,8 @@ type Changed = Box<dyn Fn(i32, Option<&Proof>) + Send + Sync>;
 
 struct Running {
     proof: Proof,
+    /// Memory its run takes, in MB
+    mb: u32,
     cancel: CancellationToken,
     /// Its run, once made: removed if the app quits meanwhile
     run: Option<Arc<Run>>,
@@ -132,14 +137,14 @@ impl Proofs {
 
     /// Start proving the conversation's exam; how to stop it, or none if it
     /// is being proven already
-    pub fn begin(&self, session: i32, proof: Proof) -> Option<CancellationToken> {
+    pub fn begin(&self, session: i32, proof: Proof, mb: u32) -> Option<CancellationToken> {
         let mut running = self.running.locked();
         if running.contains_key(&session) {
             return None;
         }
         let cancel = CancellationToken::new();
         (self.changed)(session, Some(&proof));
-        running.insert(session, Running { proof, cancel: cancel.clone(), run: None });
+        running.insert(session, Running { proof, mb, cancel: cancel.clone(), run: None });
         Some(cancel)
     }
 
@@ -170,9 +175,16 @@ impl Proofs {
 
     /// The candidate stopped it: its cluster goes
     pub fn stop(&self, session: i32) {
-        if let Some(r) = self.running.locked().get(&session) {
+        if let Some(r) = self.running.locked().get_mut(&session) {
+            r.proof.stopped = true;
             r.cancel.cancel();
         }
+    }
+
+    /// Memory the proofs running take, in MB: their clusters are not among
+    /// the app's that Docker's free memory is reckoned with
+    pub fn reserved_mb(&self) -> u32 {
+        self.running.locked().values().map(|r| r.mb).sum()
     }
 
     /// Those running, for a screen opening

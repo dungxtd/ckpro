@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Rough memory use of kind nodes, measured on kubeadm v1.35 nodes (a
 /// control plane ~545 MB, a worker ~150 MB idle: room left for the tasks' pods)
 const CONTROL_PLANE_MB: u32 = 700;
-pub const WORKER_MB: u32 = 300;
+const WORKER_MB: u32 = 300;
 /// Left for the engine, the app and the exam workloads
 const HEADROOM_MB: u32 = 1024;
 /// The exam desktop with Firefox and VSCodium open (1.05 GB measured)
@@ -20,6 +20,12 @@ const CONTROL_PLANE_IDLE_MB: u32 = 550;
 const WORKER_IDLE_MB: u32 = 150;
 const DESKTOP_IDLE_MB: u32 = 1050;
 const SUPPORT_IDLE_MB: u32 = 50;
+
+/// Memory a verify run takes: one cluster, its task host and headroom for
+/// the tasks (no desktop)
+pub fn run_memory_mb(workers: u8) -> u32 {
+    CONTROL_PLANE_MB + WORKER_MB * u32::from(workers.max(1)) + SUPPORT_MB + HEADROOM_MB
+}
 
 /// Memory an exam runs comfortably in: its clusters (control plane and
 /// workers each), the desktop, the task host and mirror, and headroom

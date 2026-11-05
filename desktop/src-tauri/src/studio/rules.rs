@@ -21,6 +21,11 @@ const SOURCES: &[&str] = &[
     "https://dl.k8s.io/",
 ];
 
+/// The sources, for whoever writes a question (the prompt)
+pub fn sources() -> String {
+    SOURCES.iter().map(|s| s.trim_end_matches('/')).collect::<Vec<_>>().join(", ")
+}
+
 /// Every script of the question, named
 fn scripts(q: &Question) -> Vec<(String, &str)> {
     let mut all = Vec::new();
@@ -39,6 +44,8 @@ fn scripts(q: &Question) -> Vec<(String, &str)> {
 /// A URL's host is inside the cluster or the task host: a Service, a Pod,
 /// the loopback, a private address
 fn internal(host: &str) -> bool {
+    // `user@host`: the host is after the `@`
+    let host = host.rsplit('@').next().unwrap_or(host);
     let host = host.split(':').next().unwrap_or(host);
     !host.contains('.')
         || host.ends_with(".svc")
@@ -70,10 +77,7 @@ pub fn problems(q: &Question) -> Vec<String> {
         for url in urls(script) {
             let host = url.split("://").nth(1).and_then(|r| r.split('/').next()).unwrap_or("");
             if !internal(host) && !SOURCES.iter().any(|s| url.starts_with(s)) {
-                problems.push(format!(
-                    "{name} fetches {url}: scripts fetch only from {} (or inside the cluster)",
-                    SOURCES.iter().map(|s| s.trim_end_matches('/')).collect::<Vec<_>>().join(", ")
-                ));
+                problems.push(format!("{name} fetches {url}: scripts fetch only from {} (or inside the cluster)", sources()));
             }
         }
         // What is fetched is never run: a script runs what it says
@@ -82,7 +86,11 @@ pub fn problems(q: &Question) -> Vec<String> {
             flat.match_indices(f).any(|(at, _)| {
                 let after = &flat[at..];
                 let piped = after.split(';').next().unwrap_or(after);
-                piped.split('|').skip(1).any(|p| matches!(p.split_whitespace().next(), Some("sh" | "bash" | "zsh" | "python" | "python3")))
+                piped.split('|').skip(1).any(|p| {
+                    // The program piped into, past `sudo`/`env` and its path
+                    let program = p.split_whitespace().find(|w| !matches!(*w, "sudo" | "env" | "-E") && !w.contains('='));
+                    matches!(program.map(|w| w.rsplit('/').next().unwrap_or(w)), Some("sh" | "bash" | "zsh" | "dash" | "python" | "python3" | "perl" | "ruby"))
+                })
             })
         });
         if fetch_run || flat.contains("<(curl") || flat.contains("<(wget") {
@@ -124,13 +132,22 @@ mod tests {
             "curl -s http://web-svc.dns-debug.svc.cluster.local\ncurl http://localhost:8080/healthz",
         );
         assert!(problems(&ok).is_empty(), "{:?}", problems(&ok));
+        let sneaky = question("kubectl apply -f http://10.0.0.1@example.com/x.yaml", "echo ok");
+        assert!(!problems(&sneaky).is_empty(), "a user part is not the host");
         let bad = question("kubectl apply -f https://example.com/x.yaml", "echo ok");
         assert!(problems(&bad)[0].contains("setup fetches https://example.com/x.yaml"), "{:?}", problems(&bad));
     }
 
     #[test]
     fn what_is_fetched_is_never_run() {
-        for script in ["curl -sL https://raw.githubusercontent.com/kubernetes/x/install.sh | bash", "bash <(curl -s https://dl.k8s.io/x)", "wget -qO- https://dl.k8s.io/x | sh"] {
+        for script in [
+            "curl -sL https://raw.githubusercontent.com/kubernetes/x/install.sh | bash",
+            "bash <(curl -s https://dl.k8s.io/x)",
+            "wget -qO- https://dl.k8s.io/x | sh",
+            "curl -s https://dl.k8s.io/x | /bin/bash",
+            "curl -s https://dl.k8s.io/x | sudo -E bash",
+            "curl -s https://dl.k8s.io/x | env X=1 sh",
+        ] {
             let q = question("echo set", script);
             assert!(problems(&q).iter().any(|p| p.contains("runs what it downloads")), "{script}");
         }
