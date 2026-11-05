@@ -133,7 +133,8 @@ impl Kind {
                     .map_err(|e| AppError::io("writing docker shim", e))?;
             }
         }
-        Ok(format!("{}:{}", shim_dir.display(), docker::cli_path()))
+        let dirs = std::iter::once(shim_dir).chain(std::env::split_paths(&docker::cli_path()).collect::<Vec<_>>());
+        std::env::join_paths(dirs).map(|p| p.to_string_lossy().into_owned()).map_err(|e| AppError::io("setting kind's PATH", std::io::Error::other(e)))
     }
 
     /// Run kind, handing every output line to `log`.
