@@ -235,6 +235,8 @@ pub struct Exams {
     activities: Arc<Activities>,
     /// Keeps the running attempt's environment as ckpro set it up
     guard: Arc<Guard>,
+    /// The candidate's time, minutes east of UTC, as the interface last said
+    offset_minutes: std::sync::atomic::AtomicI32,
 }
 
 impl Exams {
@@ -263,7 +265,17 @@ impl Exams {
             publish: Box::new(publish),
             activities,
             guard,
+            offset_minutes: Default::default(),
         }
+    }
+
+    /// The candidate's time, minutes east of UTC: their days are counted in it
+    pub fn set_offset_minutes(&self, offset: i32) {
+        self.offset_minutes.store(offset, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn offset_minutes(&self) -> i32 {
+        self.offset_minutes.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     fn pack(&self) -> Arc<LoadedPack> {
@@ -330,7 +342,8 @@ impl Exams {
     /// window closed (a desktop that went black comes back); the attempt's
     /// allowed docs and hosts stay, the app's client reconnects
     pub async fn reset_desktop(&self) -> AppResult<()> {
-        let (ExamState::Running { attempt, .. } | ExamState::Resuming { attempt, .. }) = self.state() else {
+        // Not while resuming: that starts the desktop itself
+        let ExamState::Running { attempt, .. } = self.state() else {
             return Err(AppError::invalid("no exam is running"));
         };
         let allowed = {
@@ -502,10 +515,12 @@ impl Exams {
         let existing = self.kind.all_clusters().await?;
         let taken: Vec<&String> = clusters.keys().filter(|c| existing.contains(*c)).collect();
         if !taken.is_empty() && !replace {
-            return Err(AppError::invalid(format!(
-                "cluster {} already exists; starting the exam replaces it",
-                taken.iter().map(|c| c.as_str()).collect::<Vec<_>>().join(", ")
-            )));
+            return Err(AppError::ClustersExist {
+                message: format!(
+                    "cluster {} already exists; starting the exam replaces it",
+                    taken.iter().map(|c| c.as_str()).collect::<Vec<_>>().join(", ")
+                ),
+            });
         }
 
         let total_points: u32 = questions.iter().map(|(_, q)| q.checks.iter().map(|c| c.weight).sum::<u32>()).sum();

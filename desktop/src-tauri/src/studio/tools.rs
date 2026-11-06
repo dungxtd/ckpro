@@ -111,7 +111,7 @@ impl Tools {
             .collect();
         let history = self.exams.history();
         Ok(pretty(&json!({
-            "today": day(now),
+            "today": day(now, self.exams.offset_minutes()),
             "target": settings.target.map(|t| json!({ "certification": t.certification, "exam_day": t.date, "preparing_since": t.started })),
             "readiness": readiness,
             "attempts": history.len(),
@@ -120,16 +120,17 @@ impl Tools {
     }
 
     fn attempts(&self, limit: Option<u64>, certification: Option<&str>) -> AppResult<String> {
-        let catalog = self.exams.catalog();
+        let offset = self.exams.offset_minutes();
         let limit = limit.map_or(ATTEMPTS, |l| (l as usize).clamp(1, ATTEMPTS_MAX));
         let list: Vec<Value> = self
             .exams
             .history()
             .into_iter()
-            .filter(|h| certification.is_none_or(|c| catalog.iter().any(|e| e.id == h.exam_id && e.certification == c)))
+            // Its own certification: the exam may be deleted since
+            .filter(|h| certification.is_none_or(|c| h.certification == c))
             .take(limit)
             .map(|h| json!({
-                "id": h.attempt_id, "exam_id": h.exam_id, "exam": h.title, "mode": h.mode, "day": day(h.result.started_at),
+                "id": h.attempt_id, "exam_id": h.exam_id, "exam": h.title, "mode": h.mode, "day": day(h.result.started_at, offset),
                 "score": h.result.score.round(), "passed": h.result.passed,
                 "ended_before_any_point": !h.result.worked(),
             }))
@@ -139,7 +140,7 @@ impl Tools {
 
     fn attempt(&self, id: &str) -> AppResult<String> {
         let h = self.exams.history().into_iter().find(|h| h.attempt_id == id).ok_or_else(|| AppError::not_found(format!("no attempt '{id}'")))?;
-        let mut text = format!("{} ({:?}), {}: {}% ({})\n", h.title, h.mode, day(h.result.started_at), h.result.score.round(), if h.result.passed { "passed" } else { "failed" });
+        let mut text = format!("{} ({:?}), {}: {}% ({})\n", h.title, h.mode, day(h.result.started_at, self.exams.offset_minutes()), h.result.score.round(), if h.result.passed { "passed" } else { "failed" });
         for q in &h.result.questions {
             let _ = writeln!(text, "\n- {} [{}]: {}/{} points", q.title, q.id, q.points, q.max_points);
             for c in q.checks.iter().filter(|c| !c.passed) {
@@ -193,7 +194,7 @@ impl Tools {
     }
 
     fn plans(&self, from: &str, to: &str) -> AppResult<String> {
-        let plans = self.exams.plans_between(from, to, 0)?;
+        let plans = self.exams.plans_between(from, to, self.exams.offset_minutes())?;
         Ok(pretty(&plans.iter().map(|p| json!({ "day": p.day, "exam": p.title, "mode": p.mode, "done_score": p.done })).collect::<Vec<_>>()))
     }
 }
@@ -226,7 +227,7 @@ fn pretty(value: &impl serde::Serialize) -> String {
     serde_json::to_string_pretty(value).unwrap_or_default()
 }
 
-/// A moment (Unix ms) as YYYY-MM-DD, UTC
-fn day(ms: f64) -> String {
-    crate::lab::exam::plan::day_of(ms, 0)
+/// A moment (Unix ms) as YYYY-MM-DD, in the candidate's time
+fn day(ms: f64, offset_minutes: i32) -> String {
+    crate::lab::exam::plan::day_of(ms, offset_minutes)
 }

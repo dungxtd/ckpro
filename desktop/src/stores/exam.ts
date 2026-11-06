@@ -25,6 +25,9 @@ interface AttemptUi {
 	solutions: Record<string, Solution>;
 	/** Solutions hidden again (they stay opened: the coach knows they were seen) */
 	solutionHidden: Record<string, boolean>;
+	/** The candidate moved, flagged or opened a hint: the saved progress
+	 * read as the app opened is older than that */
+	touched: boolean;
 }
 
 interface ExamStore extends AttemptUi {
@@ -62,11 +65,13 @@ const freshAttempt = (attemptId: string | null): AttemptUi => ({
 	checks: {},
 	solutions: {},
 	solutionHidden: {},
+	touched: false,
 });
 
 /** Where the candidate is, what they flagged and the hints they opened go to
  * the app database, so they survive quitting mid-attempt like the attempt */
 const save = (s: AttemptUi) => {
+	s.touched = true;
 	if (!s.attemptId) return;
 	// Plain copies: `s` is an immer draft, gone once the update ends
 	progressApi
@@ -117,7 +122,7 @@ export const useExam = create<ExamStore>()(
 								.load(id)
 								.then(saved =>
 									set(t => {
-										if (t.attemptId !== id) return;
+										if (t.attemptId !== id || t.touched) return;
 										t.current = saved.current;
 										t.flagged = saved.flagged;
 										t.hintsShown = saved.hints_shown as Record<string, number>;
@@ -176,11 +181,7 @@ export const useExam = create<ExamStore>()(
 					track("exam_started", { exam_id: id, mode });
 				} catch (e) {
 					// The exam needs cluster names that are in use: ask first
-					if (
-						e instanceof ApiError &&
-						e.code === "invalid" &&
-						e.message.includes("already exists")
-					) {
+					if (e instanceof ApiError && e.code === "clusters_exist") {
 						set(s => {
 							s.pendingReplace = { id, mode, message: e.message };
 						});
@@ -203,9 +204,8 @@ export const useExam = create<ExamStore>()(
 				try {
 					await examApi.submit();
 				} catch (e) {
-					set(s => {
-						s.error = errorText(e);
-					});
+					// Shown where it was asked for: the desk, the result or the failure
+					toast.error(errorText(e));
 				}
 			},
 
@@ -213,9 +213,8 @@ export const useExam = create<ExamStore>()(
 				try {
 					await examApi.retry();
 				} catch (e) {
-					set(s => {
-						s.error = errorText(e);
-					});
+					// Shown where it was asked for: the desk, the result or the failure
+					toast.error(errorText(e));
 				}
 			},
 
@@ -223,9 +222,8 @@ export const useExam = create<ExamStore>()(
 				try {
 					await examApi.end();
 				} catch (e) {
-					set(s => {
-						s.error = errorText(e);
-					});
+					// Shown where it was asked for: the desk, the result or the failure
+					toast.error(errorText(e));
 				}
 			},
 
@@ -265,8 +263,8 @@ export const useExam = create<ExamStore>()(
 				} catch (e) {
 					set(s => {
 						delete s.checks[questionId];
-						s.error = errorText(e);
 					});
+					toast.error(errorText(e));
 				}
 			},
 
@@ -288,9 +286,7 @@ export const useExam = create<ExamStore>()(
 						s.solutions[questionId] = solution;
 					});
 				} catch (e) {
-					set(s => {
-						s.error = errorText(e);
-					});
+					toast.error(errorText(e));
 				}
 			},
 		})),
