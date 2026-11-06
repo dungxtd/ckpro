@@ -11,13 +11,14 @@ export function ClusterCard({ cluster }: { cluster: ClusterState }) {
 	const runJob = useEnvironment(s => s.runJob);
 	const busy = job !== null;
 	const needsRepair = cluster.nodes.some(n => n.container.state !== "running");
+	const workers = cluster.nodes.length - 1;
 
 	return (
 		<Card padding="sm">
 			<header className="mb-2 flex items-center gap-2">
 				<strong className="text-sm">{cluster.name}</strong>
 				<span className="text-muted-foreground text-xs">
-					1 control plane, {cluster.nodes.length - 1} workers
+					1 control plane, {workers} worker{workers === 1 ? "" : "s"}
 				</span>
 				<div className="ml-auto flex gap-1.5">
 					{needsRepair && (
