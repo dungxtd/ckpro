@@ -59,6 +59,9 @@ export const defaults: Record<string, Reply> = {
 		problem: null,
 		missing: [],
 	},
+	exam_progress: { current: 0, flagged: [], hints_shown: {} },
+	save_exam_progress: null,
+	desktop_session: null,
 	telemetry_configure: null,
 	"plugin:window|set_theme": null,
 };

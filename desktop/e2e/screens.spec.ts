@@ -32,3 +32,13 @@ test("an exam picked that was deleted says so, not another in its place", async 
 		page.getByRole("heading", { name: "CKA Practice Lab - Core Concepts" })
 	).toBeVisible();
 });
+
+test("History lists every attempt, newest first", async ({ page }) => {
+	await launch(page, "/history");
+	await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
+	const rows = page.getByRole("row");
+	// A header, then one row per attempt
+	await expect(rows).toHaveCount(sample.history.length + 1);
+	await expect(rows.nth(1)).toContainText("CKA Practice Lab - Core Concepts");
+	await expect(rows.nth(1)).toContainText("94%");
+});
