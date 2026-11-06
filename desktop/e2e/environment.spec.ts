@@ -24,6 +24,7 @@ test("the clusters show live; one is deleted only once confirmed", async ({ page
 		issues: [],
 	});
 	await expect(page.getByText("k8s-control-plane")).toBeVisible();
+	await expect(page.getByText("1 control plane, 1 worker", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Delete" }).click();
 	await expect(page.getByRole("alertdialog", { name: "Delete k8s?" })).toBeVisible();
 	await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
