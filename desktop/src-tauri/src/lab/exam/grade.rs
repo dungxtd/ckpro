@@ -31,7 +31,7 @@ impl Exams {
     pub(super) async fn grade_and_finish(&self, attempt: Attempt, started_at: f64, note: Option<String>) {
         // Graded once: the timer and the candidate may both submit, and
         // closing waits for the grade
-        let _busy = self.busy.lock().await;
+        let busy = self.busy.lock().await;
         let current = matches!(
             self.state(),
             ExamState::Running { attempt: ref a, .. } | ExamState::Resuming { attempt: ref a, .. } if a.id == attempt.id
@@ -46,6 +46,8 @@ impl Exams {
                 self.save_history(&attempt, &result);
                 let clusters = attempt.clusters.clone();
                 self.set(ExamState::Finished { attempt, result });
+                // Closing it need not wait for this
+                drop(busy);
                 self.measure_footprint(&clusters).await;
             }
             Err(e) => self.set(ExamState::Failed {

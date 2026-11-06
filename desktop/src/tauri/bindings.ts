@@ -16,9 +16,11 @@ export const commands = {
 	studioOpen: (session: number) => typedError<StudioConversation_Serialize, AppError>(__TAURI_INVOKE("studio_open", { session })),
 	/**
 	 *  Say something in a Create conversation; the answer streams as it is
-	 *  written (and Claude's tool uses), the draft's changes arrive as `StudioDraft`
+	 *  written (and Claude's tool uses), the draft's changes arrive as
+	 *  `StudioDraft`. `offset_minutes` east of UTC: the days Claude is told of
+	 *  are the candidate's own
 	 */
-	studioAsk: (session: number, text: string, model: ModelChoice, events: Channel<CoachEvent_Deserialize>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("studio_ask", { session, text, model, events })),
+	studioAsk: (session: number, text: string, model: ModelChoice, offsetMinutes: number, events: Channel<CoachEvent_Deserialize>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("studio_ask", { session, text, model, offsetMinutes, events })),
 	studioDelete: (session: number) => typedError<null, AppError>(__TAURI_INVOKE("studio_delete", { session })),
 	/**  Take a question out of the draft (by id, or a new one's key) */
 	studioRemove: (session: number, id: string) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_remove", { session, id })),
@@ -347,6 +349,8 @@ export type AppError =
 { code: "cluster"; message: string } | 
 /**  Bad input from the UI (names, paths, ...). */
 { code: "invalid"; message: string } | 
+/**  Clusters an exam needs already exist: starting it replaces them. */
+{ code: "clusters_exist"; message: string } | 
 /**  A session, cluster or file that does not exist. */
 { code: "not_found"; message: string } | 
 /**  Local filesystem or network failure. */

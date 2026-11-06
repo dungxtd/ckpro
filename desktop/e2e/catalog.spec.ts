@@ -23,7 +23,7 @@ test("clusters that exist already are replaced only once the candidate says so",
 	await launch(page, exam, {
 		start_exam: {
 			$error: {
-				code: "invalid",
+				code: "clusters_exist",
 				message: "cluster k8s already exists; starting the exam replaces it",
 			},
 		},

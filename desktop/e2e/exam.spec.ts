@@ -142,9 +142,7 @@ test("practice checks the work, shows hints and the solution, and Quit leaves un
 	expect(await calls(page, "submit_exam")).toHaveLength(0);
 });
 
-// The desk does not show the exam store's errors (only the catalog does):
-// a check that cannot run just stops spinning
-test.fixme("a check that fails to run says why and can be run again", async ({ page }) => {
+test("a check that fails to run says why and can be run again", async ({ page }) => {
 	await launch(page, "/exam", {
 		...desk,
 		exam_state: running("practice"),
@@ -249,6 +247,30 @@ test("a resume that failed keeps the attempt: Try Again resumes it", async ({ pa
 	await page.getByRole("button", { name: "Try Again" }).click();
 	expect(await calls(page, "retry_exam")).toHaveLength(1);
 	expect(await calls(page, "start_exam")).toHaveLength(0);
+});
+
+test("ending an attempt that cannot end yet says why on the result", async ({ page }) => {
+	await launch(page, "/exam", {
+		exam_state: { phase: "finished", attempt: attempt("exam"), result },
+		end_exam: {
+			$error: { code: "invalid", message: "wait for the exam to finish what it is doing" },
+		},
+	});
+	await page.getByRole("button", { name: "Close exam (deletes its clusters)" }).click();
+	await page.getByRole("alertdialog").getByRole("button", { name: "Close Exam" }).click();
+	await expect(page.getByText("wait for the exam to finish what it is doing")).toBeVisible();
+});
+
+test("a move made before the saved place is read back is kept", async ({ page }) => {
+	await launch(page, "/exam", {
+		exam_state: running("exam"),
+		// The saved place comes back late, after the candidate moved on
+		exam_progress: { $after: 1500, value: { current: 0, flagged: [], hints_shown: {} } },
+	});
+	await page.getByRole("button", { name: "Next question" }).click();
+	await expect(page.getByText("Question 2 of 2")).toBeVisible();
+	await page.waitForTimeout(2000);
+	await expect(page.getByText("Question 2 of 2")).toBeVisible();
 });
 
 test("a preparation that failed starts over as a new attempt of the exam", async ({ page }) => {
