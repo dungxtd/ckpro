@@ -244,7 +244,15 @@ export const studioApi = {
 	open: (session: number) => unwrap(commands.studioOpen(session)) as Promise<StudioConversation>,
 	/** Say something; `onEvent` gets the answer as it is written and the tools Claude uses */
 	ask: (session: number, text: string, model: ModelChoice, onEvent: (event: CoachEvent) => void) =>
-		unwrap(commands.studioAsk(session, text, model, channel<CoachEvent>(onEvent))),
+		unwrap(
+			commands.studioAsk(
+				session,
+				text,
+				model,
+				-new Date().getTimezoneOffset(),
+				channel<CoachEvent>(onEvent)
+			)
+		),
 	/** Claude changed a conversation's draft */
 	onDraft: (on: (session: number, draft: ExamDraft) => void) =>
 		events.studioDraft.listen(event => on(event.payload.session, event.payload.draft as ExamDraft)),

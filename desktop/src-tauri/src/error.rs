@@ -19,6 +19,9 @@ pub enum AppError {
     /// Bad input from the UI (names, paths, ...).
     #[error("{message}")]
     Invalid { message: String },
+    /// Clusters an exam needs already exist: starting it replaces them.
+    #[error("{message}")]
+    ClustersExist { message: String },
     /// A session, cluster or file that does not exist.
     #[error("{message}")]
     NotFound { message: String },

@@ -237,24 +237,25 @@ pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32) -> AppR
     let bank = exams.bank();
     draft.complete(&bank).map_err(AppError::invalid)?;
     let cert_title = bank.pack.certifications.get(&draft.certification).map(|c| c.title.clone()).unwrap_or_default();
-    let mut ids = Vec::new();
-    for item in &draft.items {
-        match item {
-            DraftItem::Existing { id, .. } => ids.push(id.clone()),
-            DraftItem::New(q) => {
-                let (id, path) = mine::new_question(data_dir, &draft.certification, &q.title);
-                let yaml = format!("# Written with Claude in Create and proven by `cktry lab verify`\n{}", q.yaml);
-                mine::save(data_dir, &draft.certification, &cert_title, &path, &yaml)?;
-                ids.push(id);
-            }
-        }
-    }
-    let id = mine::save_exam(data_dir, &draft.title, &draft.certification, draft.duration_minutes, &ids)?;
-    exams.reload_mine(data_dir);
-    ExamDraft::update(store, session, |now| {
-        if !now.items.iter().map(DraftItem::content).eq(draft.items.iter().map(DraftItem::content)) {
+    // Written while the draft is held: it cannot change between the files
+    // and being marked saved, and a draft that changed before is not written
+    let (_, id) = ExamDraft::update(store, session, |now| {
+        if now.saved.is_some() || !now.items.iter().map(DraftItem::content).eq(draft.items.iter().map(DraftItem::content)) {
             return Err(AppError::invalid("the exam changed while it was saved: save it again"));
         }
+        let mut ids = Vec::new();
+        for item in &draft.items {
+            match item {
+                DraftItem::Existing { id, .. } => ids.push(id.clone()),
+                DraftItem::New(q) => {
+                    let (id, path) = mine::new_question(data_dir, &draft.certification, &q.title);
+                    let yaml = format!("# Written with Claude in Create and proven by `cktry lab verify`\n{}", q.yaml);
+                    mine::save(data_dir, &draft.certification, &cert_title, &path, &yaml)?;
+                    ids.push(id);
+                }
+            }
+        }
+        let id = mine::save_exam(data_dir, &draft.title, &draft.certification, draft.duration_minutes, &ids)?;
         // Its new questions are the candidate's now: saved again (the exam
         // deleted), it lists them, not new copies
         for (item, id) in now.items.iter_mut().zip(&ids) {
@@ -270,8 +271,9 @@ pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32) -> AppR
             }
         }
         now.saved = Some(id.clone());
-        Ok(())
+        Ok(id)
     })?;
+    exams.reload_mine(data_dir);
     Ok(id)
 }
 

@@ -98,6 +98,8 @@ pub fn plans_between(
     to: String,
     offset_minutes: i32,
 ) -> AppResult<Vec<PlanView>> {
+    // The Create tools count days in it too
+    exams.set_offset_minutes(offset_minutes);
     exams.plans_between(&from, &to, offset_minutes)
 }
 
@@ -181,7 +183,13 @@ pub fn agent_settings(store: State<'_, Arc<Store>>) -> AppResult<AgentSettings> 
 
 #[tauri::command]
 #[specta::specta]
-pub async fn save_agent_settings(coach: State<'_, Coach>, store: State<'_, Arc<Store>>, settings: AgentSettings) -> AppResult<AgentSettings> {
+pub async fn save_agent_settings(
+    exams: State<'_, Arc<Exams>>,
+    coach: State<'_, Coach>,
+    store: State<'_, Arc<Store>>,
+    settings: AgentSettings,
+) -> AppResult<AgentSettings> {
+    no_exam(&exams)?;
     let settings = settings.normalized();
     settings.save(&store)?;
     coach.configure(&settings).await;
@@ -192,7 +200,8 @@ pub async fn save_agent_settings(coach: State<'_, Coach>, store: State<'_, Arc<S
 /// Mac has.
 #[tauri::command]
 #[specta::specta]
-pub async fn coach_runtime(coach: State<'_, Coach>) -> AppResult<RuntimeInfo> {
+pub async fn coach_runtime(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>) -> AppResult<RuntimeInfo> {
+    no_exam(&exams)?;
     Ok(coach.runtime().await)
 }
 
@@ -283,14 +292,16 @@ pub async fn coach_open_session(
 /// Every coach session of a past attempt, to read back.
 #[tauri::command]
 #[specta::specta]
-pub fn coach_transcripts(store: State<'_, Arc<Store>>, attempt_id: String) -> AppResult<Vec<CoachTranscript>> {
+pub fn coach_transcripts(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>, attempt_id: String) -> AppResult<Vec<CoachTranscript>> {
+    no_exam(&exams)?;
     Coach::transcripts(&store, &attempt_id)
 }
 
 /// The past attempts that have coach sessions (History shows a way to them).
 #[tauri::command]
 #[specta::specta]
-pub fn coached_attempts(store: State<'_, Arc<Store>>) -> AppResult<Vec<String>> {
+pub fn coached_attempts(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>) -> AppResult<Vec<String>> {
+    no_exam(&exams)?;
     Coach::coached_attempts(&store)
 }
 
@@ -370,7 +381,8 @@ pub async fn coach_sign_in(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>
 /// Type a line into the running sign-in (the code the browser shows).
 #[tauri::command]
 #[specta::specta]
-pub async fn coach_sign_in_input(coach: State<'_, Coach>, line: String) -> AppResult<()> {
+pub async fn coach_sign_in_input(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>, line: String) -> AppResult<()> {
+    no_exam(&exams)?;
     coach.sign_in_input(&line).await
 }
 
@@ -383,7 +395,8 @@ pub async fn coach_sign_in_cancel(coach: State<'_, Coach>) -> AppResult<()> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn coach_sign_out(coach: State<'_, Coach>) -> AppResult<()> {
+pub async fn coach_sign_out(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>) -> AppResult<()> {
+    no_exam(&exams)?;
     coach.sign_out().await
 }
 
@@ -391,7 +404,8 @@ pub async fn coach_sign_out(coach: State<'_, Coach>) -> AppResult<()> {
 /// (allow once, always, reject…), or none to cancel.
 #[tauri::command]
 #[specta::specta]
-pub fn coach_permit(coach: State<'_, Coach>, id: u32, option: Option<String>) -> AppResult<()> {
+pub fn coach_permit(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>, id: u32, option: Option<String>) -> AppResult<()> {
+    no_exam(&exams)?;
     coach.permit(id, option)
 }
 
@@ -561,9 +575,12 @@ pub fn studio_open(store: State<'_, Arc<Store>>, exams: State<'_, Arc<Exams>>, s
 }
 
 /// Say something in a Create conversation; the answer streams as it is
-/// written (and Claude's tool uses), the draft's changes arrive as `StudioDraft`
+/// written (and Claude's tool uses), the draft's changes arrive as
+/// `StudioDraft`. `offset_minutes` east of UTC: the days Claude is told of
+/// are the candidate's own
 #[tauri::command]
 #[specta::specta]
+#[allow(clippy::too_many_arguments)]
 pub async fn studio_ask(
     coach: State<'_, Coach>,
     exams: State<'_, Arc<Exams>>,
@@ -571,8 +588,10 @@ pub async fn studio_ask(
     session: i32,
     text: String,
     model: ModelChoice,
+    offset_minutes: i32,
     events: Channel<CoachEvent>,
 ) -> AppResult<CoachReply> {
+    exams.set_offset_minutes(offset_minutes);
     coach
         .studio_ask(&exams, &store, session, &text, &model.model, &model.effort, |e| {
             let _ = events.send(e);
