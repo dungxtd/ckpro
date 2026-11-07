@@ -10,6 +10,7 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { Check, Ellipsis, History, Plus, RotateCw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 import { MASK } from "@/analytics";
 import { AGENTS } from "@/components/assistant/agents";
 import { Answer, UserMessage } from "@/components/assistant/answer";
@@ -46,7 +47,30 @@ export function AssistantPane({
 	/** History: show another question's conversation */
 	onOpenQuestion?: (questionId: string) => void;
 }) {
-	const coach = useCoach();
+	// What the pane shows and does: not the rest of the store (usage, runtime…)
+	const coach = useCoach(
+		useShallow(s => ({
+			account: s.account,
+			ask: s.ask,
+			clear: s.clear,
+			enabledAgents: s.enabledAgents,
+			error: s.error,
+			listSessions: s.listSessions,
+			load: s.load,
+			model: s.model,
+			models: s.models,
+			newSession: s.newSession,
+			openSession: s.openSession,
+			permission: s.permission,
+			permit: s.permit,
+			rename: s.rename,
+			running: s.running,
+			sessions: s.sessions,
+			shown: s.shown,
+			titles: s.titles,
+			writing: s.writing,
+		}))
+	);
 	const lastCheck = useExam(s => s.checks[question.id]);
 	const checks = review?.checks ?? (Array.isArray(lastCheck) ? lastCheck : undefined);
 	const messages = coach.sessions[question.id] ?? [];

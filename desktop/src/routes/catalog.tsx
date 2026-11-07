@@ -13,7 +13,9 @@ import { useExam } from "@/stores/exam";
 
 /** The exam picked in the sidebar (the first until one is) */
 export function CatalogRoute() {
-	const { catalog, loadCatalog, error } = useExam();
+	const catalog = useExam(s => s.catalog);
+	const loadCatalog = useExam(s => s.loadCatalog);
+	const error = useExam(s => s.error);
 	const docker = useEnvironment(s => s.env?.docker);
 	// The exams once read (the list is kept between visits)
 	const [loaded, setLoaded] = useState(catalog.length > 0);

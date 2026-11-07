@@ -24,6 +24,7 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { ChevronRight, RotateCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 import { MASK } from "@/analytics";
 import { AGENTS, agentOf } from "@/components/assistant/agents";
 import { effortLabel, shortName } from "@/components/assistant/models";
@@ -54,7 +55,13 @@ const TIMEOUTS = [15, 30, 60, 120, 180, 300];
 export function AiSettings() {
 	const enabled = useAssistantEnabled();
 	const update = useSettings(s => s.update);
-	const coach = useCoach();
+	const coach = useCoach(
+		useShallow(s => ({
+			account: s.account,
+			runtime: s.runtime,
+			warm: s.warm,
+		}))
+	);
 	const [settings, setSettings] = useState<AgentSettings | null>(null);
 	// What was read as the app opened (no checking here); Recheck reads again
 	const runtime = coach.runtime;
@@ -242,7 +249,17 @@ function ClaudeCodePanel({
 	checking,
 	onRecheck,
 }: Section & { runtime: RuntimeInfo | null; checking: boolean; onRecheck: () => void }) {
-	const coach = useCoach();
+	const coach = useCoach(
+		useShallow(s => ({
+			account: s.account,
+			effort: s.effort,
+			efforts: s.efforts,
+			model: s.model,
+			models: s.models,
+			setEffort: s.setEffort,
+			setModel: s.setModel,
+		}))
+	);
 	const [path, setPath] = useState(settings.claude_path ?? "");
 	const [signingIn, setSigningIn] = useState(false);
 	const account = coach.account;
