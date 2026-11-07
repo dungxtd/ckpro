@@ -31,7 +31,15 @@ const tone =
 	(className: string) =>
 	({ children }: { children: React.ReactNode }) => <span className={className}>{children}</span>;
 
-/** A command's prompt and other quiet text */
+/** A command typed at the prompt: `$ ` in the prompt's colour, the command
+ * set heavier than what it prints */
+Terminal.Command = ({ children }: { children: React.ReactNode }) => (
+	<span>
+		<span className="text-terminal-prompt">$ </span>
+		<span className="font-semibold">{children}</span>
+	</span>
+);
+/** Quiet text: what a command found nothing of, a comment */
 Terminal.Muted = tone("text-terminal-muted");
 Terminal.Ok = tone("text-terminal-ok");
 Terminal.Warn = tone("text-terminal-warn");
@@ -69,7 +77,7 @@ function Prompt({
 	const faded = `${rest}${comment ? `  # ${comment}` : ""}`;
 	return (
 		<span className={cn("flex", className)}>
-			<span className="text-terminal-muted">$ </span>
+			<span className="text-terminal-prompt">$ </span>
 			<span className="relative min-w-0 flex-1">
 				<input
 					aria-label={label}
@@ -87,7 +95,7 @@ function Prompt({
 							onChange(suggestion);
 						} else if (e.key === "Escape") onChange(initial);
 					}}
-					className="w-full bg-transparent p-0 font-mono text-[length:inherit] text-terminal-foreground leading-[inherit] caret-terminal-foreground outline-none"
+					className="w-full bg-transparent p-0 font-mono font-semibold text-[length:inherit] text-terminal-foreground leading-[inherit] caret-terminal-foreground outline-none"
 				/>
 				{/* Monospace: the faded rest starts as many characters in as typed */}
 				<span

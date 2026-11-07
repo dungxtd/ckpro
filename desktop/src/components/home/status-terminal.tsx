@@ -77,7 +77,7 @@ export function StatusTerminal({
 	return (
 		<Terminal className="flex flex-col whitespace-pre-wrap">
 			<span>
-				<Terminal.Muted>$ kubectl get exam {target?.certification ?? ""}</Terminal.Muted>
+				<Terminal.Command>kubectl get exam {target?.certification ?? ""}</Terminal.Command>
 				{"\n"}
 				{target ? (
 					<>
@@ -97,7 +97,7 @@ export function StatusTerminal({
 					<Terminal.Muted>No resources found. Set the exam you prepare for below.</Terminal.Muted>
 				)}
 				{"\n\n"}
-				<Terminal.Muted>$ kubectl get events</Terminal.Muted>
+				<Terminal.Command>kubectl get events</Terminal.Command>
 				{"\n"}
 				{events.length === 0 ? (
 					<Terminal.Muted>No events yet: finish an attempt.</Terminal.Muted>
@@ -116,7 +116,7 @@ export function StatusTerminal({
 				{last && (
 					<>
 						{"\n"}
-						<Terminal.Muted>$ {last.line}</Terminal.Muted>
+						<Terminal.Command>{last.line}</Terminal.Command>
 						{"\n"}
 						{last.failed ? <Terminal.Bad>{last.output}</Terminal.Bad> : last.output}
 						{"\n"}

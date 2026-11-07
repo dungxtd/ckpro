@@ -2,7 +2,13 @@ import { Terminal } from "@cktry/ui/components/terminal";
 import type * as React from "react";
 import type { Line } from "./describe";
 
-const TONE = { muted: Terminal.Muted, ok: Terminal.Ok, warn: Terminal.Warn, note: Terminal.Note };
+const TONE = {
+	command: Terminal.Command,
+	muted: Terminal.Muted,
+	ok: Terminal.Ok,
+	warn: Terminal.Warn,
+	note: Terminal.Note,
+};
 
 /** `kubectl describe day`, as a terminal prints it */
 export function DescribeCard({ lines, ...props }: React.ComponentProps<"pre"> & { lines: Line[] }) {

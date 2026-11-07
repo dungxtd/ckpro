@@ -582,7 +582,7 @@ function Gallery() {
 						</HoverCardTrigger>
 						<HoverCardContent>
 							<Terminal className="w-72 shadow-[var(--shadow-float)]">
-								<Terminal.Muted>$ kubectl describe day 2026-11-02</Terminal.Muted>
+								<Terminal.Command>kubectl describe day 2026-11-02</Terminal.Command>
 								{"\nAttempts:  <none>\nPlans:     <none>"}
 							</Terminal>
 						</HoverCardContent>
@@ -633,7 +633,7 @@ function Gallery() {
 					note="Text as a terminal shows it, in the theme, tones for its parts; sm for a log under a row."
 				>
 					<Terminal>
-						<Terminal.Muted>$ kubectl get exam cka</Terminal.Muted>
+						<Terminal.Command>kubectl get exam cka</Terminal.Command>
 						{"\nNAME   DATE        PREDICTED  STATUS\ncka    2026-12-15  "}
 						<Terminal.Ok>71%</Terminal.Ok>
 						{"        "}
