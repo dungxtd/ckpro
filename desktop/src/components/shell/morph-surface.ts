@@ -29,17 +29,19 @@ export function useMorphSurface(folded: boolean, capsule: CapsuleBox | null) {
 	// inspector opening with a screen, the capsule fitting a narrower window)
 	// puts it in place at once, as the capsule itself is. Set as it renders,
 	// so the first frame of the new shape already has its transition
-	const [morphing, setMorphing] = useState(false);
-	const [was, setWas] = useState(folded);
-	if (was !== folded) {
-		setWas(folded);
-		setMorphing(true);
-	}
+	// Each fold or unfold is a new morph, its own time from its start (one
+	// that comes mid-morph restarts the clock)
+	const [morph, setMorph] = useState({ folded, n: 0, on: false });
+	if (morph.folded !== folded) setMorph({ folded, n: morph.n + 1, on: true });
 	useEffect(() => {
-		if (!morphing) return;
-		const done = setTimeout(() => setMorphing(false), MORPH_MS);
+		if (!morph.on) return;
+		const done = setTimeout(
+			() => setMorph(m => (m.n === morph.n ? { ...m, on: false } : m)),
+			MORPH_MS
+		);
 		return () => clearTimeout(done);
-	}, [morphing]);
+	}, [morph.n, morph.on]);
+	const morphing = morph.on;
 
 	const { width, height } = size;
 	// The capsule is placed in the window's pixels (capsule-nav.tsx), so its

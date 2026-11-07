@@ -26,7 +26,7 @@ import {
 	InspectorProvider,
 	useInspectorSlot,
 } from "@/components/shell/inspector";
-import { useMorphSurface } from "@/components/shell/morph-surface";
+import { MORPH_MS, useMorphSurface } from "@/components/shell/morph-surface";
 import { screenTitle } from "@/components/shell/sections";
 import { TitleBar } from "@/components/shell/title-bar";
 import { WindowFrame } from "@/components/shell/window";
@@ -96,9 +96,9 @@ function Layout() {
 				className={cn(
 					"pointer-events-none absolute inset-0 z-10 bg-sidebar-panel",
 					surface.morphing &&
-						"transition-[clip-path] duration-[450ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
+						"transition-[clip-path] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
 				)}
-				style={{ clipPath: surface.clip }}
+				style={{ clipPath: surface.clip, transitionDuration: `${MORPH_MS}ms` }}
 			/>
 			<div className="min-w-0 overflow-hidden">
 				<AppSidebar

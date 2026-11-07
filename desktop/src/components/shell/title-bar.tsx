@@ -51,7 +51,7 @@ export function TitleBar({
 	return (
 		<div
 			data-tauri-drag-region
-			className="relative flex h-12 shrink-0 select-none items-center justify-end gap-2 px-3"
+			className="relative flex h-12 shrink-0 items-center justify-end gap-2 px-3"
 		>
 			<span
 				aria-hidden={!title || folded}
