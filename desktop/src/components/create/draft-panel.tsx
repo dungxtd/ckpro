@@ -91,7 +91,7 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 							<div key={n} className="mb-2 h-14 rounded-lg border border-border bg-card" />
 						))}
 						title="The exam shows here"
-						description="Ask Claude for one: it picks questions and writes new ones"
+						description="Ask the assistant for one: it picks questions and writes new ones"
 					/>
 				) : (
 					items.map(item => (
@@ -212,10 +212,10 @@ function ProofFoot() {
 						<Button
 							size="push"
 							variant="push"
-							className="bg-claude/15 text-claude shadow-none hover:bg-claude/25"
+							className="bg-assistant/15 text-assistant shadow-none hover:bg-assistant/25"
 							onClick={askToFix}
 						>
-							<AssistantIcon className="size-3.5" /> Ask Claude to fix
+							<AssistantIcon className="size-3.5" /> Ask the assistant to fix
 						</Button>
 					</>
 				) : (

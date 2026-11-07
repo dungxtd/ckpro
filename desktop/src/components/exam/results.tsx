@@ -93,7 +93,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 								{/* Claude ran commands for it (Agent): the points were helped */}
 								{result.assisted?.includes(q.id) && (
 									<Badge variant="subtle" className="shrink-0 gap-1">
-										<AssistantIcon className="size-3 text-claude" /> Claude helped
+										<AssistantIcon className="size-3 text-assistant" /> Assistant helped
 									</Badge>
 								)}
 								<span
@@ -113,7 +113,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 									className="mt-2 text-highlight"
 									onClick={() => setCoached(q.id)}
 								>
-									<AssistantIcon className="text-claude" /> Review with Claude
+									<AssistantIcon className="text-assistant" /> Review with the assistant
 								</Button>
 							)}
 							<ReviewSolution questionId={q.id} />
@@ -125,7 +125,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 				<SheetContent className="w-[min(480px,92vw)] gap-0 overflow-hidden p-0 sm:max-w-none">
 					{/* For screen readers; the pane shows the session's title */}
 					<SheetHeader className="sr-only">
-						<SheetTitle>Review with Claude</SheetTitle>
+						<SheetTitle>Review with the assistant</SheetTitle>
 						<SheetDescription>{coachedQuestion?.title}</SheetDescription>
 					</SheetHeader>
 					{coachedQuestion && coachedResult && (

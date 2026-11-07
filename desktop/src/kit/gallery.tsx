@@ -823,7 +823,7 @@ function Gallery() {
 						</span>
 					</Row>
 					<Row>
-						<span className="flex items-center gap-3 text-claude">
+						<span className="flex items-center gap-3 text-assistant">
 							<AssistantIcon className="size-3.5" />
 							<AssistantIcon className="size-4" />
 							<AssistantIcon className="size-6" />

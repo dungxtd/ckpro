@@ -5,7 +5,10 @@
 @theme {
 	--color-exam-value: #f472b6;
 	--color-exam-concept: #38bdf8;
-	/* Claude's own colour, where its mark stands for the assistant */
+	/* The assistant's colour, whichever agent answers (its mark, what it
+	   did); not a vendor's */
+	--color-assistant: #7c6cf2;
+	/* Claude Code's own colour, beside its logo where the agent is named */
 	--color-claude: #d97757;
 	/* A certification's domains, heaviest first, where they are told apart
 	   (Create's coverage) */

@@ -80,7 +80,7 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 					<Mode
 						icon={<BookOpenCheck />}
 						title="Practice"
-						text={`Check each answer as you go, read hints and solutions,${assistant ? " ask Claude," : ""} and leave without grading.`}
+						text={`Check each answer as you go, read hints and solutions,${assistant ? " ask the assistant," : ""} and leave without grading.`}
 					>
 						<Button variant="outline" disabled={!ready} onClick={() => start(exam.id, "practice")}>
 							Practice

@@ -75,7 +75,7 @@ export function Chat() {
 	return (
 		<section className="flex h-full min-h-0 min-w-0 flex-col">
 			<header className="flex h-14 shrink-0 select-none items-center gap-2 border-border border-b px-5">
-				<AssistantIcon className="size-4 shrink-0 text-claude" />
+				<AssistantIcon className="size-4 shrink-0 text-assistant" />
 				<h2 className="min-w-0 flex-1 truncate font-semibold text-callout">{title}</h2>
 				<Popover open={listing} onOpenChange={setListing}>
 					<PopoverTrigger asChild>
@@ -139,12 +139,12 @@ export function Chat() {
 				<div className="mx-auto flex min-h-full max-w-3xl flex-col gap-3">
 					{shown.length === 0 && (
 						<div className="m-auto flex max-w-md flex-col items-center gap-3 text-center">
-							<AssistantIcon className="size-7 text-claude" />
+							<AssistantIcon className="size-7 text-assistant" />
 							<p className="font-semibold text-lead">What exam do you want?</p>
 							<p className="text-callout text-muted-foreground">
-								Claude reads your target, your attempts and what you got wrong, your plans and the
-								exams here, and builds an exam beside. New questions are proven on a cluster before
-								you save.
+								The assistant reads your target, your attempts and what you got wrong, your plans
+								and the exams here, and builds an exam beside. New questions are proven on a cluster
+								before you save.
 							</p>
 							<div className="mt-1 flex flex-wrap justify-center gap-1.5">
 								{STARTERS.map(s => (
@@ -162,7 +162,7 @@ export function Chat() {
 						) : (
 							// biome-ignore lint/suspicious/noArrayIndexKey: messages only grow
 							<div key={i} className="flex gap-2.5">
-								<AssistantIcon className="mt-1 size-4 shrink-0 text-claude" />
+								<AssistantIcon className="mt-1 size-4 shrink-0 text-assistant" />
 								<div className="flex min-w-0 flex-1 flex-col gap-1.5">
 									{/* What it looked at and changed, then what it says */}
 									<ToolUses tools={m.tools} />
@@ -186,7 +186,7 @@ export function Chat() {
 			{account?.signed_in === false ? (
 				<div className="flex items-center gap-3 border-border border-t px-5 py-3">
 					<span className="flex-1 text-muted-foreground text-xs">
-						Sign in with your Claude account to build exams with Claude.
+						Sign in with your Claude account to build exams.
 					</span>
 					<Button size="push" variant="pushDefault" onClick={() => setSigningIn(true)}>
 						Sign in
@@ -208,7 +208,7 @@ export function Chat() {
 								}
 							}}
 							placeholder="Say what exam you want, or what to change…"
-							aria-label="Message Claude"
+							aria-label="Message the assistant"
 							className="max-h-48"
 						/>
 						{writing ? (

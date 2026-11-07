@@ -121,7 +121,7 @@ export function AssistantComposer({
 						}
 					}}
 					rows={expanded ? 12 : 2}
-					placeholder={review ? "Ask Claude about your answer…" : "Ask Claude about this task…"}
+					placeholder={review ? "Ask about your answer…" : "Ask about this task…"}
 					aria-label="Ask the assistant"
 					className={cn("select-text pr-7 text-callout", expanded ? "min-h-64" : "max-h-32")}
 				/>
