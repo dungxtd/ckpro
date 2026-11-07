@@ -10,18 +10,22 @@ pub mod agent;
 pub mod generate;
 pub mod mcp;
 pub mod mcp_http;
+mod permissions;
 pub mod policy;
 mod prompt;
+mod sessions;
 mod studio;
 pub mod studio_tools;
 
 use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};
-use crate::lab::checks::CheckResult;
-use crate::lab::exam::{CoachSubject, Exams};
+use crate::lab::exam::Exams;
 use crate::store::{CoachMessage, Role, Store};
 use agent::{Agent, ContextUsage};
-use prompt::{followup, prompt, session_title, snapshot, system, AGENT, TITLE_SYSTEM};
+pub use permissions::PermissionOption;
+use permissions::Waiting;
+pub use sessions::{CoachHistory, CoachSession, CoachTranscript};
+use prompt::{session_title, snapshot, TITLE_SYSTEM};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -32,7 +36,6 @@ use tokio_util::sync::CancellationToken;
 pub const DEFAULT_MODEL: &str = "sonnet";
 /// Names a session from its first question: the quick model, and how
 const TITLE_MODEL: &str = "haiku";
-
 
 /// The coach's answer as it is written
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
@@ -53,15 +56,6 @@ pub enum CoachEvent {
     /// The agent asks to run a command: the candidate picks an option
     /// (`coach_permit`)
     Permission { id: u32, command: String, options: Vec<PermissionOption> },
-}
-
-/// One way to answer a permission request (ACP's options: allow once,
-/// allow always, reject once…)
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-pub struct PermissionOption {
-    pub id: String,
-    pub name: String,
-    pub kind: String,
 }
 
 /// Ask: the coach reads and answers. Agent: it may also run commands on the
@@ -115,35 +109,6 @@ pub struct CoachReply {
     pub title: Option<String>,
 }
 
-/// A coach session of the attempt: one per question asked about (the
-/// panel's history)
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-pub struct CoachSession {
-    pub question_id: String,
-    /// Which of the question's sessions (0 is its first)
-    pub session: u32,
-    /// Its own name, else its first question
-    pub title: String,
-    pub messages: u32,
-}
-
-/// A question's coach session: its own name (if renamed) and its messages
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-pub struct CoachHistory {
-    pub session: u32,
-    pub title: Option<String>,
-    pub messages: Vec<CoachMessage>,
-}
-
-/// A finished attempt's session, read back in History
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-pub struct CoachTranscript {
-    pub question_id: String,
-    pub session: u32,
-    pub title: String,
-    pub messages: Vec<CoachMessage>,
-}
-
 /// The practice coach: one ACP session per question's conversation, one
 /// answer at a time (a new one stops the one being written)
 pub struct Coach {
@@ -175,10 +140,6 @@ pub struct Coach {
     account: Mutex<Option<(account::Account, std::time::Instant)>>,
 }
 
-/// A permission request waiting for the candidate: the option ids offered,
-/// and where the answer goes
-type Waiting = (Vec<String>, tokio::sync::oneshot::Sender<serde_json::Value>);
-
 /// How long the agent's adapter runs unused before it is stopped: started
 /// only for the models or the login, and once something was asked
 const ADAPTER_IDLE: std::time::Duration = std::time::Duration::from_secs(60);
@@ -191,9 +152,6 @@ impl Drop for Busy<'_> {
         self.0.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
     }
 }
-
-/// How long a login read stays good (a sign-out in a terminal shows after it)
-const ACCOUNT_FRESH: std::time::Duration = std::time::Duration::from_secs(60);
 
 impl Coach {
     pub fn new() -> Self {
@@ -264,97 +222,6 @@ impl Coach {
         }
     }
 
-    /// Keep a permission request for the candidate; its id
-    fn next_permission(&self, offered: Vec<String>, reply: tokio::sync::oneshot::Sender<serde_json::Value>) -> u32 {
-        static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
-        let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        self.permissions.locked().insert(id, (offered, reply));
-        id
-    }
-
-    /// The candidate's answer to a permission request: one of its options,
-    /// or none to cancel
-    pub fn permit(&self, id: u32, option: Option<String>) -> AppResult<()> {
-        let mut waiting = self.permissions.locked();
-        let (offered, reply) =
-            waiting.remove(&id).ok_or_else(|| AppError::not_found("that request was already answered or stopped"))?;
-        if option.as_ref().is_some_and(|o| !offered.contains(o)) {
-            waiting.insert(id, (offered, reply));
-            return Err(AppError::invalid("that answer was not offered"));
-        }
-        drop(waiting);
-        let outcome = match option {
-            Some(option) => serde_json::json!({ "outcome": { "outcome": "selected", "optionId": option } }),
-            None => serde_json::json!({ "outcome": { "outcome": "cancelled" } }),
-        };
-        let _ = reply.send(outcome);
-        Ok(())
-    }
-
-    /// Who the assistant answers as
-    pub async fn account(&self) -> AppResult<account::Account> {
-        if let Some((account, read)) = self.account.locked().clone()
-            && read.elapsed() < ACCOUNT_FRESH
-        {
-            return Ok(account);
-        }
-        let account = account::account(&self.agent).await?;
-        *self.account.locked() = Some((account.clone(), std::time::Instant::now()));
-        Ok(account)
-    }
-
-    /// The login may have changed: read it again next time
-    fn forget_account(&self) {
-        self.account.locked().take();
-    }
-
-    /// Sign in to Claude; the login's output streams to `on_event`. A new
-    /// login stops one still running
-    pub async fn sign_in(&self, method: account::SignInMethod, on_event: impl Fn(account::SignInEvent)) -> AppResult<()> {
-        if let Some(earlier) = self.signing_in.lock().await.take() {
-            earlier.cancel();
-        }
-        let result = account::sign_in(
-            &self.agent,
-            method,
-            |login| {
-                // The slot was just emptied and only this call fills it
-                if let Ok(mut slot) = self.signing_in.try_lock() {
-                    *slot = Some(login);
-                }
-            },
-            on_event,
-        )
-        .await;
-        self.signing_in.lock().await.take();
-        self.forget_account();
-        // The conversations were opened on the earlier login's adapter
-        self.open.lock().await.clear();
-        result
-    }
-
-    /// A line typed into the running login (the code the browser shows)
-    pub async fn sign_in_input(&self, line: &str) -> AppResult<()> {
-        match self.signing_in.lock().await.as_mut() {
-            Some(login) => login.input(line).await,
-            None => Err(AppError::invalid("no sign-in is running")),
-        }
-    }
-
-    pub async fn sign_in_cancel(&self) {
-        if let Some(login) = self.signing_in.lock().await.take() {
-            login.cancel();
-        }
-    }
-
-    pub async fn sign_out(&self) -> AppResult<()> {
-        self.cancel();
-        let result = account::sign_out(&self.agent).await;
-        self.forget_account();
-        self.open.lock().await.clear();
-        result
-    }
-
     pub fn status(&self) -> CoachStatus {
         match self.agent.ready() {
             true => CoachStatus { ready: true, problem: None },
@@ -389,67 +256,6 @@ impl Coach {
     pub async fn runtime(&self) -> agent::RuntimeInfo {
         self.agent.info().await
     }
-
-
-    pub fn history(exams: &Exams, store: &Store, question_id: &str) -> AppResult<CoachHistory> {
-        let subject = exams.coach_subject(question_id)?;
-        let (session, messages) = store.coach_messages(&subject.attempt_id, question_id)?;
-        Ok(CoachHistory { session: session as u32, title: store.coach_session_title(&subject.attempt_id, question_id)?, messages })
-    }
-
-    /// A new session for the question; the earlier ones stay in History
-    pub async fn new_session(&self, exams: &Exams, store: &Store, question_id: &str) -> AppResult<()> {
-        let subject = exams.coach_subject(question_id)?;
-        self.forget_session(&subject.attempt_id, question_id).await;
-        store.new_coach_session(&subject.attempt_id, question_id).map(|_| ())
-    }
-
-    /// Go back to an earlier session of the question
-    pub async fn open_session(&self, exams: &Exams, store: &Store, question_id: &str, session: u32) -> AppResult<()> {
-        let subject = exams.coach_subject(question_id)?;
-        self.forget_session(&subject.attempt_id, question_id).await;
-        store.open_coach_session(&subject.attempt_id, question_id, i64::from(session))
-    }
-
-    /// The agent's conversation for the question ends: the next question
-    /// starts one from the session the pane shows
-    async fn forget_session(&self, attempt_id: &str, question_id: &str) {
-        let removed = self.open.lock().await.remove(&(attempt_id.to_string(), question_id.to_string()));
-        if let Some((session, ..)) = removed {
-            self.agent.close(&session).await;
-        }
-    }
-
-    /// The attempts that have sessions
-    pub fn coached_attempts(store: &Store) -> AppResult<Vec<String>> {
-        store.coached_attempts()
-    }
-
-    /// Every session of a past attempt, to read back (History)
-    pub fn transcripts(store: &Store, attempt_id: &str) -> AppResult<Vec<CoachTranscript>> {
-        Ok(store
-            .coach_transcripts(attempt_id)?
-            .into_iter()
-            .map(|(question_id, session, title, messages)| CoachTranscript { question_id, session: session as u32, title, messages })
-            .collect())
-    }
-
-    /// The attempt's coach sessions, one per question asked about
-    pub fn sessions(exams: &Exams, store: &Store) -> AppResult<Vec<CoachSession>> {
-        let Some(attempt) = exams.coach_attempt() else { return Ok(Vec::new()) };
-        Ok(store
-            .coach_sessions(&attempt)?
-            .into_iter()
-            .map(|(question_id, session, title, messages)| CoachSession { question_id, session: session as u32, title, messages })
-            .collect())
-    }
-
-    /// Name a question's coach session; empty: back to its first question
-    pub fn rename(exams: &Exams, store: &Store, question_id: &str, title: &str) -> AppResult<()> {
-        let subject = exams.coach_subject(question_id)?;
-        store.rename_coach_session(&subject.attempt_id, question_id, title)
-    }
-
     /// Answer `text` about the question in its conversation; the answer
     /// streams to `on_event` and is kept with the question once complete.
     #[allow(clippy::too_many_arguments)]
@@ -566,104 +372,6 @@ impl Coach {
         Ok(CoachReply { text: kept, usage: answer.usage, title })
     }
 
-    /// The agent's session for the question, and what to send it: the one
-    /// open (only what changed since), or a new one (the task and what was
-    /// said before). Another profile is another session (other tools)
-    #[allow(clippy::too_many_arguments)]
-    async fn session_for(
-        &self,
-        store: &Store,
-        subject: &CoachSubject,
-        question_id: &str,
-        profile: Profile,
-        model: &str,
-        effort: &str,
-        checks: &[CheckResult],
-        snapshot: Option<&str>,
-        text: &str,
-    ) -> AppResult<(String, String)> {
-        let key = (subject.attempt_id.clone(), question_id.to_string());
-        // Read, then let go: a `match` keeps the lock for its whole body
-        let existing = self.open.lock().await.get(&key).cloned();
-        let opened = match existing {
-            Some((session, .., open_profile)) if open_profile != profile => {
-                self.agent.close(&session).await;
-                None
-            }
-            opened => opened,
-        };
-        let (session, prompt) = match opened {
-            Some((session, current, current_effort, _)) => {
-                if current != model {
-                    self.agent.set_model(&session, model).await?;
-                }
-                if current != model || current_effort != effort {
-                    self.agent.set_effort(&session, model, effort).await?;
-                }
-                (session, followup(checks, snapshot, text))
-            }
-            None => {
-                let session = match profile {
-                    Profile::Ask => self.agent.new_session(&system(subject), model).await?,
-                    Profile::Agent => {
-                        let system = format!("{}\n{AGENT}", system(subject));
-                        let tools = self.tools.get().ok_or_else(|| AppError::assistant("the agent's tools are not ready yet; try again"))?;
-                        self.agent.new_session_with(&system, model, serde_json::json!([tools.server_for(question_id)])).await?
-                    }
-                };
-                self.agent.set_effort(&session, model, effort).await?;
-                let (_, history) = store.coach_messages(&subject.attempt_id, question_id)?;
-                (session, prompt(subject, checks, snapshot, &history, text))
-            }
-        };
-        self.open.lock().await.insert(key, (session.clone(), model.to_string(), effort.to_string(), profile));
-        Ok((session, prompt))
-    }
-
-    /// The agent asks to run a command: allowed at once when Tool access says
-    /// so, else shown to the candidate (its id, to answer with `permit`)
-    fn ask_permission(
-        &self,
-        settings: &policy::AgentSettings,
-        params: &serde_json::Value,
-        reply: tokio::sync::oneshot::Sender<serde_json::Value>,
-        on_event: &impl Fn(CoachEvent),
-    ) -> Option<u32> {
-        let command = params["toolCall"]["rawInput"]["command"]
-            .as_str()
-            .or(params["toolCall"]["title"].as_str())
-            .unwrap_or("a tool")
-            .to_string();
-        let once = params["options"].as_array().into_iter().flatten().find(|o| o["kind"] == "allow_once");
-        if let Some(once) = once.filter(|_| settings.runs_unasked(&command)) {
-            let _ = reply.send(serde_json::json!({ "outcome": { "outcome": "selected", "optionId": once["optionId"] } }));
-            return None;
-        }
-        // Not "always": Tool access in Settings decides what runs unasked,
-        // and a later change there must still hold
-        let options: Vec<PermissionOption> = params["options"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter(|o| o["kind"] != "allow_always")
-            .map(|o| PermissionOption {
-                id: o["optionId"].as_str().unwrap_or_default().to_string(),
-                name: o["name"].as_str().unwrap_or_default().to_string(),
-                kind: o["kind"].as_str().unwrap_or_default().to_string(),
-            })
-            .collect();
-        let id = self.next_permission(options.iter().map(|o| o.id.clone()).collect(), reply);
-        on_event(CoachEvent::Permission { id, command, options });
-        Some(id)
-    }
-
-    /// Delete the question's session shown (the panel's Delete Session)
-    pub async fn clear(&self, exams: &Exams, store: &Store, question_id: &str) -> AppResult<()> {
-        let subject = exams.coach_subject(question_id)?;
-        self.forget_session(&subject.attempt_id, question_id).await;
-        store.clear_coach_messages(&subject.attempt_id, question_id)
-    }
-
     /// Stop the adapter once unused for a while (nothing being answered or
     /// generated): soon when it only listed models or the login, later once
     /// a question was asked. The agent's sessions go with it; the next
@@ -719,6 +427,8 @@ impl Coach {
 mod tests {
     use super::*;
     use super::prompt::*;
+    use crate::lab::checks::CheckResult;
+    use crate::lab::exam::CoachSubject;
 
     /// The real quick model names sessions (needs Node and a Claude login)
     #[tokio::test]
@@ -815,8 +525,6 @@ mod tests {
         println!("--- {} chunks ---\n{answer}", chunks.into_inner());
         assert!(answer.to_lowercase().contains("standrad") || answer.to_lowercase().contains("storageclass"));
     }
-
-
 
     #[test]
     fn a_later_turn_sends_only_what_changed() {
