@@ -151,17 +151,20 @@ export function AiSettings() {
 										/>
 										<ChevronRight className="size-4 shrink-0 text-muted-foreground" />
 									</button>
-									<Switch
-										aria-label={`Turn ${a.name} on`}
-										checked={on}
-										onCheckedChange={next =>
-											save({
-												enabled: next
-													? [...settings.enabled, a.id]
-													: settings.enabled.filter(p => p !== a.id),
-											})
-										}
-									/>
+									{/* One agent: "Use the assistant" above is its switch */}
+									{AGENTS.length > 1 && (
+										<Switch
+											aria-label={`Turn ${a.name} on`}
+											checked={on}
+											onCheckedChange={next =>
+												save({
+													enabled: next
+														? [...settings.enabled, a.id]
+														: settings.enabled.filter(p => p !== a.id),
+												})
+											}
+										/>
+									)}
 								</div>
 							);
 						})}
