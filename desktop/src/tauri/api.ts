@@ -6,7 +6,6 @@ import {
 	type Activity_Serialize,
 	type AgentSettings_Serialize,
 	type AppError,
-	type CheckResult,
 	type CoachContext,
 	type CoachEvent,
 	commands,
@@ -198,23 +197,10 @@ export const coachApi = {
 	ask: (
 		questionId: string,
 		text: string,
-		checks: CheckResult[],
-		solutionOpened: boolean,
 		model: ModelChoice,
 		context: CoachContext,
 		onEvent: (event: CoachEvent) => void
-	) =>
-		unwrap(
-			commands.coachAsk(
-				questionId,
-				text,
-				checks,
-				solutionOpened,
-				model,
-				context,
-				channel<CoachEvent>(onEvent)
-			)
-		),
+	) => unwrap(commands.coachAsk(questionId, text, model, context, channel<CoachEvent>(onEvent))),
 	/** Answer a request to run a command: an option's id, or null to cancel */
 	permit: (id: number, option: string | null) => unwrap(commands.coachPermit(id, option)),
 	/** Stop the answer being written */

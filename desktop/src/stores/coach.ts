@@ -5,7 +5,6 @@ import {
 	type Account,
 	ApiError,
 	agentApi,
-	type CheckResult,
 	type CoachContext,
 	type CoachEvent,
 	type CoachMessage,
@@ -86,7 +85,9 @@ interface CoachStore {
 	setContext: (patch: Partial<CoachContext>) => void;
 	load: (questionId: string) => Promise<void>;
 	/** `checks`: the ones to explain (the result's in review), else the last "Check my work" */
-	ask: (questionId: string, text: string, checks?: CheckResult[]) => Promise<void>;
+	/** Ask about a question; Rust knows what the candidate saw of it (its
+	 * checks, its solution) */
+	ask: (questionId: string, text: string) => Promise<void>;
 	/** New Session: another session for the question (the earlier ones stay) */
 	newSession: (questionId: string) => Promise<void>;
 	/** Show one of the question's sessions (History) */
@@ -270,13 +271,11 @@ export const useCoach = create<CoachStore>()(
 					set({ error: errorText(e) });
 				}
 			},
-			ask: async (questionId, text, given) => {
+			ask: async (questionId, text) => {
 				set(forAttempt);
 				if (get().writing) coachApi.cancel();
 				if (!useSettings.getState().settings.assistant_open)
 					useSettings.getState().update({ assistant_open: true });
-				const { checks, solutions } = useExam.getState();
-				const checked = checks[questionId];
 				set(s => {
 					s.error = null;
 					s.writing = questionId;
@@ -301,12 +300,15 @@ export const useCoach = create<CoachStore>()(
 					});
 				try {
 					const { model, effort, profile, context } = get();
-					track("assistant_asked", { model, effort, profile, review: given !== undefined });
+					track("assistant_asked", {
+						model,
+						effort,
+						profile,
+						review: useExam.getState().state?.phase === "finished",
+					});
 					const reply = await coachApi.ask(
 						questionId,
 						text,
-						given ?? (Array.isArray(checked) ? checked : []),
-						questionId in solutions,
 						{ model, effort, profile },
 						context,
 						onEvent

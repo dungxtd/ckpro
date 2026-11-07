@@ -219,6 +219,9 @@ pub struct Exams {
     /// One reading of the packs at a time: one read before a change and
     /// swapped in after another's would put the change out again
     reloading: Mutex<()>,
+    /// What the candidate saw in the attempt: each question's last checks,
+    /// the solutions opened (the coach is told of them, not by the screen)
+    seen: Mutex<Seen>,
     /// The desktop came up: who waits for its session (desk) is told
     desktop_up: tokio::sync::Notify,
     /// The packs' files as last read (how many, their size, the newest
@@ -247,6 +250,15 @@ pub struct Exams {
     offset_minutes: std::sync::atomic::AtomicI32,
 }
 
+/// What the candidate saw in an attempt (`attempt`): each question's last
+/// checks, and the solutions opened
+#[derive(Default)]
+struct Seen {
+    attempt: String,
+    checks: std::collections::HashMap<String, Vec<CheckResult>>,
+    solutions: std::collections::HashSet<String>,
+}
+
 impl Exams {
     pub fn new(
         pack: LoadedPack,
@@ -263,6 +275,7 @@ impl Exams {
             pack: std::sync::RwLock::new(Arc::new(pack)),
             reloading: Mutex::default(),
             desktop_up: tokio::sync::Notify::new(),
+            seen: Mutex::default(),
             read_as: Mutex::default(),
             kind,
             infra,
@@ -336,6 +349,37 @@ impl Exams {
         }
         let _ = tokio::time::timeout(wait, up).await;
         desktop::session(&docker, &self.desktop).await
+    }
+
+    /// Note what the candidate saw in `attempt`: a question's checks, or
+    /// its solution opened
+    fn saw(&self, attempt: &str, f: impl FnOnce(&mut Seen)) {
+        let mut seen = self.seen.locked();
+        if seen.attempt != attempt {
+            *seen = Seen { attempt: attempt.to_string(), ..Seen::default() };
+        }
+        f(&mut seen);
+    }
+
+    /// A question's checks the candidate saw: the result's once graded, the
+    /// last "Check my work" while practising
+    pub fn checks_seen(&self, question_id: &str) -> Vec<CheckResult> {
+        match self.state() {
+            ExamState::Finished { result, .. } => {
+                result.questions.into_iter().find(|q| q.id == question_id).map(|q| q.checks).unwrap_or_default()
+            }
+            ExamState::Running { attempt, .. } => {
+                let seen = self.seen.locked();
+                if seen.attempt == attempt.id { seen.checks.get(question_id).cloned().unwrap_or_default() } else { Vec::new() }
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    /// Whether the candidate opened the question's solution in the attempt
+    pub fn solution_seen(&self, attempt: &str, question_id: &str) -> bool {
+        let seen = self.seen.locked();
+        seen.attempt == attempt && seen.solutions.contains(question_id)
     }
 
     /// The question bank as it is now

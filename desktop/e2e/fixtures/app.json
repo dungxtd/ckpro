@@ -390,7 +390,8 @@
 				"max_points": 0,
 				"questions": 0
 			}
-		]
+		],
+		"predict_at": 70
 	},
 	"settings": {
 		"desktop_zoom": 1,

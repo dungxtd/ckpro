@@ -86,7 +86,7 @@ export function AssistantPane({
 	const send = (text: string) => {
 		const t = text.trim();
 		if (!t || coach.writing) return false;
-		coach.ask(question.id, t, review?.checks);
+		coach.ask(question.id, t);
 		return true;
 	};
 	const title =

@@ -4,7 +4,7 @@ import { Placeholder } from "@cktry/ui/components/placeholder";
 import { Progress } from "@cktry/ui/components/progress";
 import { cn } from "@cktry/ui/lib/utils";
 import type * as React from "react";
-import { PREDICT_COVERAGE, predicted, scoreTone } from "@/components/study/data";
+import { predicted, scoreTone } from "@/components/study/data";
 import type { ExamReadiness } from "@/tauri/api";
 import { domainName } from "@/words";
 
@@ -41,7 +41,7 @@ export function Readiness({
 					<CardDescription
 						title={
 							score === null
-								? `A score is predicted once ${PREDICT_COVERAGE}% of the exam is measured`
+								? `A score is predicted once ${readiness?.predict_at ?? 70}% of the exam is measured`
 								: readiness?.window_days
 									? "From the last 30 days"
 									: "From all attempts"
