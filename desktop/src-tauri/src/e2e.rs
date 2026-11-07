@@ -19,7 +19,7 @@ fn fixture(name: &str) -> Fixture {
     Fixture {
         kind: Arc::new(cluster::kind::Kind::new(dir.clone())),
         infra: Arc::new(infra::Infra::new(dir.clone())),
-        jumphost: Arc::new(runtime::jumphost::Jumphost::for_run(&dir, &format!("test-{name}"))),
+        jumphost: Arc::new(runtime::jumphost::Jumphost::for_test(&dir, &format!("test-{name}"))),
     }
 }
 
@@ -322,7 +322,7 @@ async fn exam_engine_practice_and_exam_modes() {
     assert!(out.exit_code == 0 && lines.first() == Some(&cluster) && out.text.contains("mikefarah"), "{}", out.text);
     println!("ok: `ssh <cluster>` from base reaches the task host on its context, with yq");
     let out = on_base("cat /usr/share/firefox-esr/distribution/policies.json").await;
-    assert!(out.text.contains("https://kubernetes.io/docs*") && out.text.contains("https://gateway-api.sigs.k8s.io*"), "{}", out.text);
+    assert!(out.text.contains("https://kubernetes.io/docs*") && out.text.contains("https://gateway-api.sigs.k8s.io/*"), "{}", out.text);
     println!("ok: Firefox allows the CKA documentation only");
 
     // The candidate's day on base: ssh to the task host and the nodes, the
