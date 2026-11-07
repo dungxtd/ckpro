@@ -164,11 +164,15 @@ function Day({
 	const k = dayKey(day);
 	const examDay = k === exam?.date;
 	// A month's day keeps its height: the first things, then how many more
-	// (the grown week lists them all, the description too)
+	// (the grown week lists them all, the description too). Plans come first:
+	// they are still to do, and their tag and remove are on them
 	const total = (examDay ? 1 : 0) + attempts.length + plans.length;
 	const room = grown || total <= fits.all ? total : fits.withMore;
-	const shownAttempts = attempts.slice(0, Math.max(0, room - (examDay ? 1 : 0)));
-	const shownPlans = plans.slice(0, Math.max(0, room - (examDay ? 1 : 0) - shownAttempts.length));
+	const shownPlans = plans.slice(0, Math.max(0, room - (examDay ? 1 : 0)));
+	const shownAttempts = attempts.slice(
+		0,
+		Math.max(0, room - (examDay ? 1 : 0) - shownPlans.length)
+	);
 	const size = grown ? "text-callout" : "text-2xs";
 
 	return (
@@ -242,6 +246,17 @@ function Day({
 							<span className="truncate">{exam.certification.toUpperCase()} exam</span>
 						</span>
 					)}
+					{shownPlans.map(p => (
+						<Plan
+							key={p.id}
+							plan={p}
+							missed={p.day < today}
+							size={size}
+							onDragStart={() => onDrag({ plan: p, over: null })}
+							onDragEnd={() => onDrag({ plan: null, over: null })}
+							{...actions}
+						/>
+					))}
 					{shownAttempts.map(h => (
 						<span
 							key={h.attempt_id}
@@ -255,17 +270,6 @@ function Day({
 						>
 							{Math.round(scoreOf(h))}% {shortTitle(h.title)}
 						</span>
-					))}
-					{shownPlans.map(p => (
-						<Plan
-							key={p.id}
-							plan={p}
-							missed={p.day < today}
-							size={size}
-							onDragStart={() => onDrag({ plan: p, over: null })}
-							onDragEnd={() => onDrag({ plan: null, over: null })}
-							{...actions}
-						/>
 					))}
 					{total > room && (
 						<span className="mt-1 shrink-0 px-1.5 text-2xs text-muted-foreground">
