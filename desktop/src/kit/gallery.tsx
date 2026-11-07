@@ -25,7 +25,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@ckpro/ui/compone
 import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Input } from "@ckpro/ui/components/input";
 import { Loading } from "@ckpro/ui/components/loading";
-import { menu, menuRow } from "@ckpro/ui/components/menu";
+import { MenuCheck, menu, menuRow } from "@ckpro/ui/components/menu";
 import { Placeholder, SampleRows } from "@ckpro/ui/components/placeholder";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Progress, ProgressRing } from "@ckpro/ui/components/progress";
@@ -758,9 +758,7 @@ function Gallery() {
 							<PopoverContent className={`${menu.surface} w-56`}>
 								<div className={menu.header}>Section</div>
 								<button type="button" className={menuRow()}>
-									<span className={menu.check}>
-										<Check className="size-3" />
-									</span>
+									<MenuCheck />
 									Checked row
 								</button>
 								<button type="button" className={menuRow()}>
