@@ -2,7 +2,7 @@
 // in both themes. Development only (`pnpm vite` → /kit.html); the app build
 // does not include it. When a component or variant is added, add it here.
 import { Alert } from "@ckpro/ui/components/alert";
-import { Badge } from "@ckpro/ui/components/badge";
+import { Badge, BadgeButton } from "@ckpro/ui/components/badge";
 import { Button } from "@ckpro/ui/components/button";
 import { Capsule, CapsuleItem } from "@ckpro/ui/components/capsule";
 import { Card, CardDescription, CardHeader, CardTitle } from "@ckpro/ui/components/card";
@@ -375,7 +375,7 @@ function Gallery() {
 
 				<Section
 					title="Chip · Badge"
-					note="Chip: a pill you can pick or remove. Badge: a small status label."
+					note="Chip: a pill you can pick or remove. Badge: a small status label; BadgeButton one that acts (narrow in a calendar cell)."
 				>
 					<Row>
 						<Chip selected={chip} onClick={() => setChip(c => !c)}>
@@ -393,6 +393,14 @@ function Gallery() {
 								</Badge>
 							)
 						)}
+					</Row>
+					<Row>
+						<BadgeButton variant="accent" onClick={() => toast("Switched")}>
+							Exam
+						</BadgeButton>
+						<BadgeButton variant="accent" size="narrow" onClick={() => toast("Switched")}>
+							P
+						</BadgeButton>
 					</Row>
 				</Section>
 

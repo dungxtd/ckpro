@@ -1,5 +1,4 @@
-import { badgeVariants } from "@ckpro/ui/components/badge";
-import { cn } from "@ckpro/ui/lib/utils";
+import { BadgeButton } from "@ckpro/ui/components/badge";
 import type { PlanView } from "@/tauri/api";
 
 /**
@@ -19,16 +18,12 @@ export function ModeToggle({
 }) {
 	const word = plan.mode === "exam" ? "Exam" : "Practice";
 	return (
-		<button
-			type="button"
+		<BadgeButton
+			variant="accent"
+			size={narrow ? "narrow" : "default"}
 			aria-label={`${plan.title}: take it as ${plan.mode === "exam" ? "practice" : "an exam"}`}
 			onClick={() => onMode(plan)}
-			className={cn(
-				badgeVariants({ variant: "accent" }),
-				"cursor-pointer outline-none hover:bg-highlight/30 focus-visible:ring-1 focus-visible:ring-ring",
-				narrow && "px-1 py-px text-3xs",
-				className
-			)}
+			className={className}
 		>
 			{narrow ? (
 				<>
@@ -38,6 +33,6 @@ export function ModeToggle({
 			) : (
 				word
 			)}
-		</button>
+		</BadgeButton>
 	);
 }
