@@ -5,6 +5,7 @@
 
 use super::agent::Agent;
 use crate::error::{AppError, AppResult};
+use crate::sync::MutexExt;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsString;
 use std::process::Stdio;
@@ -217,6 +218,76 @@ fn strip_terminal_codes(text: &str) -> String {
         }
     }
     out
+}
+
+
+/// How long a login read stays good (a sign-out in a terminal shows after it)
+const ACCOUNT_FRESH: std::time::Duration = std::time::Duration::from_secs(60);
+
+impl super::Coach {
+    /// Who the assistant answers as
+    pub async fn account(&self) -> AppResult<Account> {
+        if let Some((account, read)) = self.account.locked().clone()
+            && read.elapsed() < ACCOUNT_FRESH
+        {
+            return Ok(account);
+        }
+        let account = account(&self.agent).await?;
+        *self.account.locked() = Some((account.clone(), std::time::Instant::now()));
+        Ok(account)
+    }
+
+    /// The login may have changed: read it again next time
+    pub(super) fn forget_account(&self) {
+        self.account.locked().take();
+    }
+
+    /// Sign in to Claude; the login's output streams to `on_event`. A new
+    /// login stops one still running
+    pub async fn sign_in(&self, method: SignInMethod, on_event: impl Fn(SignInEvent)) -> AppResult<()> {
+        if let Some(earlier) = self.signing_in.lock().await.take() {
+            earlier.cancel();
+        }
+        let result = sign_in(
+            &self.agent,
+            method,
+            |login| {
+                // The slot was just emptied and only this call fills it
+                if let Ok(mut slot) = self.signing_in.try_lock() {
+                    *slot = Some(login);
+                }
+            },
+            on_event,
+        )
+        .await;
+        self.signing_in.lock().await.take();
+        self.forget_account();
+        // The conversations were opened on the earlier login's adapter
+        self.open.lock().await.clear();
+        result
+    }
+
+    /// A line typed into the running login (the code the browser shows)
+    pub async fn sign_in_input(&self, line: &str) -> AppResult<()> {
+        match self.signing_in.lock().await.as_mut() {
+            Some(login) => login.input(line).await,
+            None => Err(AppError::invalid("no sign-in is running")),
+        }
+    }
+
+    pub async fn sign_in_cancel(&self) {
+        if let Some(login) = self.signing_in.lock().await.take() {
+            login.cancel();
+        }
+    }
+
+    pub async fn sign_out(&self) -> AppResult<()> {
+        self.cancel();
+        let result = sign_out(&self.agent).await;
+        self.forget_account();
+        self.open.lock().await.clear();
+        result
+    }
 }
 
 #[cfg(test)]
