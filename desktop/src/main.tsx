@@ -91,7 +91,11 @@ function Layout() {
 			    which morphs from the one shape into the other */}
 			<div
 				aria-hidden
-				className="pointer-events-none absolute inset-0 z-10 bg-sidebar-panel transition-[clip-path] duration-[450ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
+				className={cn(
+					"pointer-events-none absolute inset-0 z-10 bg-sidebar-panel",
+					surface.morphing &&
+						"transition-[clip-path] duration-[450ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
+				)}
 				style={{ clipPath: surface.clip }}
 			/>
 			<div className="min-w-0 overflow-hidden">
