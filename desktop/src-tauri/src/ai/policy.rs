@@ -73,8 +73,9 @@ pub const COMMAND_MAX_SECS: u32 = 300;
 
 impl AgentSettings {
     /// As kept in the app database (the defaults until saved)
+    /// As kept, within bounds (an empty list of agents is the one agent on)
     pub fn load(store: &crate::store::Store) -> crate::error::AppResult<Self> {
-        store.setting("agent")
+        store.setting::<Self>("agent").map(Self::normalized)
     }
 
     pub fn save(&self, store: &crate::store::Store) -> crate::error::AppResult<()> {
@@ -87,6 +88,11 @@ impl AgentSettings {
         self.never_run = self.never_run.into_iter().map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect();
         self.never_run.dedup();
         self.enabled.dedup();
+        // One agent: Settings' "Use the assistant" is its switch (a switch of
+        // its own comes with a second one)
+        if self.enabled.is_empty() {
+            self.enabled.push(Provider::Claude);
+        }
         self.claude_path = self.claude_path.map(|p| p.trim().to_string()).filter(|p| !p.is_empty());
         self
     }
