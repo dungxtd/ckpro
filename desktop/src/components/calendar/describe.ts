@@ -2,7 +2,7 @@ import { scoreOf, startedAt } from "@/components/study/data";
 import type { HistoryEntry, PlanView } from "@/tauri/api";
 
 /** One line of `kubectl describe day`, in parts of a tone */
-export type Part = [text: string, tone?: "muted" | "ok" | "warn" | "note"];
+export type Part = [text: string, tone?: "command" | "muted" | "ok" | "warn" | "note"];
 export type Line = Part[];
 
 /**
@@ -22,7 +22,7 @@ export function describe(
 	const before = history.filter(h => startedAt(h) < start);
 	const mine = plans.filter(p => p.day === day);
 	const open = mine.filter(p => p.done === null);
-	const lines: Line[] = [[[`$ kubectl describe day ${day}`, "muted"]]];
+	const lines: Line[] = [[[`kubectl describe day ${day}`, "command"]]];
 	lines.push([
 		["Attempts:  "],
 		onDay.length ? [`${onDay.length} Completed`, "ok"] : ["<none>", "muted"],
