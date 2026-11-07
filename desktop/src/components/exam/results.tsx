@@ -14,8 +14,8 @@ import {
 import { cn } from "@cktry/ui/lib/utils";
 import { ShieldAlert } from "lucide-react";
 import { useState } from "react";
+import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { AssistantPane } from "@/components/assistant/assistant-pane";
-import { ClaudeIcon } from "@/components/assistant/claude-icon";
 import { CheckList } from "@/components/exam/check-list";
 import { useSolution } from "@/components/exam/use-solution";
 import { CopyBlock } from "@/components/text/copy-text";
@@ -89,7 +89,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 								{/* Claude ran commands for it (Agent): the points were helped */}
 								{result.assisted?.includes(q.id) && (
 									<Badge variant="subtle" className="shrink-0 gap-1">
-										<ClaudeIcon className="size-3 text-claude" /> Claude helped
+										<AssistantIcon className="size-3 text-claude" /> Claude helped
 									</Badge>
 								)}
 								<span
@@ -109,7 +109,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 									className="mt-2 text-highlight"
 									onClick={() => setCoached(q.id)}
 								>
-									<ClaudeIcon className="text-claude" /> Review with Claude
+									<AssistantIcon className="text-claude" /> Review with Claude
 								</Button>
 							)}
 							<ReviewSolution questionId={q.id} />

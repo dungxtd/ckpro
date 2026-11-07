@@ -96,6 +96,7 @@ import { createRoot } from "react-dom/client";
 import { toast } from "sonner";
 import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";
 import { Answer } from "@/components/assistant/answer";
+import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { CheckList } from "@/components/exam/check-list";
 import { Timer } from "@/components/exam/timer";
 import { CopyBlock, CopyText } from "@/components/text/copy-text";
@@ -801,6 +802,17 @@ function Gallery() {
 						<span className="flex items-center gap-2 text-sm">
 							<ActivityStatusIcon status="running" /> <ActivityStatusIcon status="done" />{" "}
 							<ActivityStatusIcon status="failed" />
+						</span>
+					</Row>
+					<Row>
+						<span className="flex items-center gap-3 text-claude">
+							<AssistantIcon className="size-3.5" />
+							<AssistantIcon className="size-4" />
+							<AssistantIcon className="size-6" />
+							<AssistantIcon className="size-8" />
+						</span>
+						<span className="text-muted-foreground text-sm">
+							AssistantIcon: the assistant, whichever agent answers
 						</span>
 					</Row>
 					<Row>

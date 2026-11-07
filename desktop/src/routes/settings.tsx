@@ -1,6 +1,6 @@
 import { Monitor, Palette } from "lucide-react";
 import { Navigate, useNavigate, useParams } from "react-router";
-import { ClaudeIcon } from "@/components/assistant/claude-icon";
+import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { AboutSettings } from "@/components/settings/about-settings";
 import { AiSettings } from "@/components/settings/ai-settings";
 import { DeskSettings } from "@/components/settings/desk-settings";
@@ -47,7 +47,7 @@ export function SettingsRoute() {
 			</Group>
 			<Group title="Assistant">
 				<Row
-					icon={<ClaudeIcon />}
+					icon={<AssistantIcon />}
 					label="Assistant"
 					value={settings.assistant_enabled ? "On" : "Off"}
 					onClick={() => navigate("/settings/assistant")}

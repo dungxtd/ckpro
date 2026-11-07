@@ -1,9 +1,8 @@
 import type * as React from "react";
 
 /**
- * Claude's mark (simple-icons, CC0): the assistant is Claude, so it shows as
- * Claude rather than a generic AI sparkle. Coloured `text-claude` where it
- * stands for the assistant; it takes `currentColor`.
+ * Claude's mark (simple-icons, CC0), for Claude Code where an agent is named
+ * (`AGENTS`); the assistant itself is `AssistantIcon`. It takes `currentColor`.
  */
 export function ClaudeIcon(props: React.ComponentProps<"svg">) {
 	return (
