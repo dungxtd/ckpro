@@ -14,24 +14,16 @@ import {
 	DropdownMenuTrigger,
 } from "@cktry/ui/components/dropdown-menu";
 import { IconButton } from "@cktry/ui/components/icon-button";
-import { menu, menuRow } from "@cktry/ui/components/menu";
+import { MenuCheck, menu, menuRow } from "@cktry/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
 import { Textarea } from "@cktry/ui/components/textarea";
 import { Truncated } from "@cktry/ui/components/truncated";
 import { cn } from "@cktry/ui/lib/utils";
-import {
-	ArrowUp,
-	AtSign,
-	Check,
-	ChevronDown,
-	Maximize2,
-	Minimize2,
-	Square,
-	TriangleAlert,
-} from "lucide-react";
+import { AtSign, ChevronDown, Maximize2, Minimize2, TriangleAlert } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { blurb, effortLabel, shortName } from "@/components/assistant/models";
+import { SendButton, sendOnEnter } from "@/components/assistant/send-button";
 import { useCoach } from "@/stores/coach";
 import type { CheckResult, Profile } from "@/tauri/api";
 
@@ -114,12 +106,7 @@ export function AssistantComposer({
 					variant="bare"
 					value={draft}
 					onChange={e => setDraft(e.target.value)}
-					onKeyDown={e => {
-						if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-							e.preventDefault();
-							if (onSend(draft)) setDraft("");
-						}
-					}}
+					onKeyDown={sendOnEnter(() => onSend(draft) && setDraft(""))}
 					rows={expanded ? 12 : 2}
 					placeholder={review ? "Ask about your answer…" : "Ask about this task…"}
 					aria-label="Ask the assistant"
@@ -241,37 +228,16 @@ export function AssistantComposer({
 						{tokens(usage.used)} / {tokens(usage.size)}
 					</span>
 				)}
-				{writing ? (
-					<IconButton
-						variant="toolbar"
-						size="xs"
-						className="text-destructive"
-						aria-label="Stop"
-						onClick={coach.stop}
-					>
-						<Square className="fill-current" />
-					</IconButton>
-				) : (
-					<IconButton
-						variant="toolbar"
-						size="xs"
-						aria-label="Send"
-						disabled={!draft.trim() || !!coach.writing || !ready}
-						onClick={() => onSend(draft) && setDraft("")}
-					>
-						<ArrowUp />
-					</IconButton>
-				)}
+				<SendButton
+					writing={writing}
+					disabled={!draft.trim() || !!coach.writing || !ready}
+					onSend={() => onSend(draft) && setDraft("")}
+					onStop={coach.stop}
+				/>
 			</div>
 		</div>
 	);
 }
-
-const Checked = () => (
-	<span className={menu.check}>
-		<Check className="size-3" />
-	</span>
-);
 
 /** The composer's pickers (model, effort): their value and a chevron */
 /** A picker in the editor's row: its value, cut short when the pane is
@@ -313,7 +279,7 @@ function ContextRow({
 			data-disabled={disabled || undefined}
 			onClick={toggle}
 		>
-			{on && !disabled && <Checked />}
+			{on && !disabled && <MenuCheck />}
 			<span className={menu.label}>{label}</span>
 			{hint && <span className={menu.hint}>{hint}</span>}
 		</button>

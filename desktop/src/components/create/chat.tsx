@@ -1,20 +1,20 @@
 import { Alert } from "@cktry/ui/components/alert";
-import { Button } from "@cktry/ui/components/button";
 import { Chip } from "@cktry/ui/components/chip";
 import { ConfirmDialog } from "@cktry/ui/components/confirm-dialog";
 import { IconButton } from "@cktry/ui/components/icon-button";
-import { menu, menuRow } from "@cktry/ui/components/menu";
+import { MenuCheck, menu, menuRow } from "@cktry/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
 import { Spinner } from "@cktry/ui/components/spinner";
 import { Textarea } from "@cktry/ui/components/textarea";
 import { Truncated } from "@cktry/ui/components/truncated";
 import { useFollow } from "@cktry/ui/hooks/use-follow";
 import { cn } from "@cktry/ui/lib/utils";
-import { ArrowUp, Check, History, Plus, Square, Trash2 } from "lucide-react";
+import { History, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Answer, UserMessage } from "@/components/assistant/answer";
 import { AssistantIcon } from "@/components/assistant/assistant-icon";
-import { SignInDialog } from "@/components/assistant/sign-in-dialog";
+import { SendButton, sendOnEnter } from "@/components/assistant/send-button";
+import { SignInBar } from "@/components/assistant/sign-in-bar";
 import { useCoach } from "@/stores/coach";
 import { running, useStudio } from "@/stores/studio";
 import { ToolUses } from "./tool-uses";
@@ -54,7 +54,6 @@ export function Chat() {
 		: messages;
 	const { send, stop, newSession, open, remove } = useStudio.getState();
 	const account = useCoach(s => s.account);
-	const [signingIn, setSigningIn] = useState(false);
 	const [text, setText] = useState("");
 	// The conversation to delete, once confirmed
 	const [deleting, setDeleting] = useState<{ id: number; title: string } | null>(null);
@@ -100,11 +99,7 @@ export function Chat() {
 										open(s.id);
 									}}
 								>
-									{s.id === session && (
-										<span className={menu.check}>
-											<Check className="size-3" />
-										</span>
-									)}
+									{s.id === session && <MenuCheck />}
 									<Truncated>{s.title}</Truncated>
 									{/* Going on there: an answer being written, or its exam being proven */}
 									{(pending[s.id] || running({ last }, s.id)) && (
@@ -184,15 +179,7 @@ export function Chat() {
 			</div>
 
 			{account?.signed_in === false ? (
-				<div className="flex items-center gap-3 border-border border-t px-5 py-3">
-					<span className="flex-1 text-muted-foreground text-xs">
-						Sign in with your Claude account to build exams.
-					</span>
-					<Button size="push" variant="pushDefault" onClick={() => setSigningIn(true)}>
-						Sign in
-					</Button>
-					<SignInDialog open={signingIn} onOpenChange={setSigningIn} />
-				</div>
+				<SignInBar to="build exams" className="px-5" />
 			) : (
 				<div className="flex min-h-[5.75rem] shrink-0 flex-col justify-center border-border border-t px-5 py-3">
 					<div className="mx-auto flex w-full max-w-3xl items-end gap-2 rounded-xl border border-border bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring/50">
@@ -201,31 +188,18 @@ export function Chat() {
 							rows={2}
 							value={text}
 							onChange={e => setText(e.target.value)}
-							onKeyDown={e => {
-								if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-									e.preventDefault();
-									submit();
-								}
-							}}
+							onKeyDown={sendOnEnter(() => submit())}
 							placeholder="Say what exam you want, or what to change…"
 							aria-label="Message the assistant"
 							className="max-h-48"
 						/>
-						{writing ? (
-							<IconButton variant="toolbar" size="sm" aria-label="Stop" onClick={stop}>
-								<Square />
-							</IconButton>
-						) : (
-							<IconButton
-								variant="toolbar"
-								size="sm"
-								aria-label="Send"
-								disabled={!text.trim()}
-								onClick={() => submit()}
-							>
-								<ArrowUp />
-							</IconButton>
-						)}
+						<SendButton
+							size="sm"
+							writing={writing}
+							disabled={!text.trim()}
+							onSend={() => submit()}
+							onStop={stop}
+						/>
 					</div>
 				</div>
 			)}

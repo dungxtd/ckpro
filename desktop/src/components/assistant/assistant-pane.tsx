@@ -2,12 +2,12 @@ import { Alert } from "@cktry/ui/components/alert";
 import { Button } from "@cktry/ui/components/button";
 import { IconButton } from "@cktry/ui/components/icon-button";
 import { Input } from "@cktry/ui/components/input";
-import { menu, menuRow } from "@cktry/ui/components/menu";
+import { MenuCheck, menu, menuRow } from "@cktry/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
 import { Spinner } from "@cktry/ui/components/spinner";
 import { Truncated } from "@cktry/ui/components/truncated";
 import { cn } from "@cktry/ui/lib/utils";
-import { Check, Ellipsis, History, Plus, RotateCw, X } from "lucide-react";
+import { Ellipsis, History, Plus, RotateCw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
@@ -17,6 +17,7 @@ import { Answer, UserMessage } from "@/components/assistant/answer";
 import { AssistantComposer } from "@/components/assistant/assistant-composer";
 import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { PermissionCard } from "@/components/assistant/permission-card";
+import { SignInBar } from "@/components/assistant/sign-in-bar";
 import { SignInDialog } from "@/components/assistant/sign-in-dialog";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
@@ -203,7 +204,7 @@ export function AssistantPane({
 								}}
 							>
 								{t.question_id === question.id && t.session === coach.shown[question.id] && (
-									<Checked />
+									<MenuCheck />
 								)}
 								<Truncated>{t.title}</Truncated>
 								<span className={menu.hint}>{t.messages / 2}</span>
@@ -370,15 +371,7 @@ export function AssistantPane({
 				</div>
 			) : signedOut ? (
 				// Signed out: the place to type becomes the way in
-				<div className="flex items-center gap-3 border-border border-t bg-card/40 px-3 py-3">
-					<AssistantIcon className="size-4 shrink-0 text-assistant" />
-					<span className="flex-1 text-muted-foreground text-xs">
-						Sign in with your Claude account to ask about this task.
-					</span>
-					<Button size="push" variant="pushDefault" onClick={() => setSigningIn(true)}>
-						Sign in
-					</Button>
-				</div>
+				<SignInBar to="ask about this task" className="px-3" />
 			) : (
 				<AssistantComposer
 					questionId={question.id}
@@ -391,12 +384,6 @@ export function AssistantPane({
 		</aside>
 	);
 }
-
-const Checked = () => (
-	<span className={menu.check}>
-		<Check className="size-3" />
-	</span>
-);
 
 /**
  * The session's name, edited in place: Enter or leaving it keeps it (empty:

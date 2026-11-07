@@ -1,9 +1,9 @@
 import { IconButton } from "@cktry/ui/components/icon-button";
-import { menu, menuRow } from "@cktry/ui/components/menu";
+import { MenuCheck, menu, menuRow } from "@cktry/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
 import { Stepper } from "@cktry/ui/components/stepper";
 import { cn } from "@cktry/ui/lib/utils";
-import { Check, RotateCcw, Settings } from "lucide-react";
+import { RotateCcw, Settings } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
@@ -72,11 +72,7 @@ export function DesktopMenu({
 				className={menuRow()}
 				onClick={() => onResolution(value)}
 			>
-				{active && (
-					<span className={menu.check}>
-						<Check className="size-3" strokeWidth={3} />
-					</span>
-				)}
+				{active && <MenuCheck />}
 				{label}
 			</button>
 		);

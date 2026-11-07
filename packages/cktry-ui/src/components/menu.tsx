@@ -1,4 +1,5 @@
 import { cn } from "@cktry/ui/lib/utils";
+import { Check } from "lucide-react";
 
 /**
  * macOS system menu (NSMenu) base, shared by every menu in the app: the
@@ -37,4 +38,13 @@ export const menu = {
 
 export function menuRow(className?: string) {
 	return cn(menu.row, className);
+}
+
+/** The checkmark of a picked row in a popover menu, as Select draws it */
+export function MenuCheck() {
+	return (
+		<span className={menu.check}>
+			<Check className="size-3" strokeWidth={3} />
+		</span>
+	);
 }
