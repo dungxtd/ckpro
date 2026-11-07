@@ -5,7 +5,7 @@ test("an exam planned on a day can be undone", async ({ page }) => {
 	await launch(page, "/calendar", { plan_add: 9, plan_remove: null });
 	await expect(page.getByText("November 2026")).toBeVisible();
 	await page.getByRole("button", { name: "Plan an exam on 2026-11-05" }).click();
-	await page.getByRole("textbox", { name: "Plan an exam, 2026-11-05" }).fill("helm");
+	await page.getByRole("searchbox", { name: "Plan an exam, 2026-11-05" }).fill("helm");
 	await page.keyboard.press("Enter");
 	expect(await calls(page, "plan_add")).toEqual([
 		{ day: "2026-11-05", examId: "helm-001", mode: "practice" },
@@ -28,7 +28,7 @@ test("a plan that cannot be kept says why", async ({ page }) => {
 	await launch(page, "/calendar");
 	await reply(page, "plan_add", { $error: { code: "not_found", message: "no exam 'gone'" } });
 	await page.getByRole("button", { name: "Plan an exam on 2026-11-05" }).click();
-	await page.getByRole("textbox", { name: "Plan an exam, 2026-11-05" }).fill("Core");
+	await page.getByRole("searchbox", { name: "Plan an exam, 2026-11-05" }).fill("Core");
 	await page.keyboard.press("Enter");
 	await expect(page.getByText("no exam 'gone'")).toBeVisible();
 });
