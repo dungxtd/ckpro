@@ -13,6 +13,7 @@ pub mod mcp_http;
 pub mod policy;
 mod prompt;
 mod studio;
+pub mod studio_tools;
 
 use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};

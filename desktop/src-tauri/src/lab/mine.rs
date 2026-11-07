@@ -57,16 +57,35 @@ pub fn new_question(data_dir: &Path, certification: &str, title: &str) -> (Strin
 /// Keep a verified question, and list it in its certification's exam of
 /// the candidate's questions. Returns that exam's id.
 pub fn save(data_dir: &Path, certification: &str, certification_title: &str, path: &Path, yaml: &str) -> AppResult<String> {
-    let root = root(data_dir);
-    let io = |e: std::io::Error| AppError::io("saving the question", e);
-    std::fs::create_dir_all(path.parent().unwrap_or(&root)).map_err(io)?;
+    write_question(data_dir, path, yaml)?;
+    relist(data_dir, certification, certification_title)
+}
+
+/// The candidate's pack, made the first time something goes in it
+fn ensure_pack(root: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(root)?;
     let pack_file = root.join("pack.yaml");
     if !pack_file.exists() {
-        std::fs::write(&pack_file, "# The questions the coach generated and cktry verified\nid: mine\ntitle: My questions\nversion: 0.1.0\n")
-            .map_err(io)?;
+        std::fs::write(&pack_file, "# The questions the coach generated and cktry verified\nid: mine\ntitle: My questions\nversion: 0.1.0\n")?;
     }
-    std::fs::write(path, yaml).map_err(io)?;
+    Ok(())
+}
 
+/// Write a question's file into the candidate's pack (not listed yet: see
+/// `relist`)
+pub fn write_question(data_dir: &Path, path: &Path, yaml: &str) -> AppResult<()> {
+    let root = root(data_dir);
+    let io = |e: std::io::Error| AppError::io("saving the question", e);
+    ensure_pack(&root).map_err(io)?;
+    std::fs::create_dir_all(path.parent().unwrap_or(&root)).map_err(io)?;
+    std::fs::write(path, yaml).map_err(io)
+}
+
+/// Write the certification's exam of the candidate's questions again, from
+/// the files there now. Returns its id
+pub fn relist(data_dir: &Path, certification: &str, certification_title: &str) -> AppResult<String> {
+    let root = root(data_dir);
+    let io = |e: std::io::Error| AppError::io("saving the question", e);
     // The exam lists every question of the certification, oldest first; of
     // those that change the nodes for what follows (a drain, a taint) only the
     // newest, last: one of them mid-exam breaks the rest, two cannot both be
@@ -127,12 +146,8 @@ const CUSTOM: &str = "custom";
 pub fn save_exam(data_dir: &Path, title: &str, certification: &str, duration_minutes: Option<u32>, questions: &[String]) -> AppResult<String> {
     let dir = root(data_dir).join("exams").join(CUSTOM);
     let io = |e: std::io::Error| AppError::io("saving the exam", e);
+    ensure_pack(&root(data_dir)).map_err(io)?;
     std::fs::create_dir_all(&dir).map_err(io)?;
-    let pack_file = root(data_dir).join("pack.yaml");
-    if !pack_file.exists() {
-        std::fs::write(&pack_file, "# The questions the coach generated and cktry verified\nid: mine\ntitle: My questions\nversion: 0.1.0\n")
-            .map_err(io)?;
-    }
     let base = slug(title);
     let mut name = base.clone();
     let mut n = 2;
@@ -231,6 +246,23 @@ pub fn delete(deletion: &Deletion) -> AppResult<()> {
     Ok(())
 }
 
+/// A pack of new `questions` (id, path, question), with the bundled
+/// certifications, to lint and verify them without the rest
+pub fn staging(
+    bank: &crate::lab::load::LoadedPack,
+    data_dir: &Path,
+    questions: impl IntoIterator<Item = (String, PathBuf, crate::lab::model::Question)>,
+) -> crate::lab::load::LoadedPack {
+    let mut pack = bank.pack.clone();
+    pack.id = PACK_ID.into();
+    crate::lab::load::LoadedPack {
+        root: root(data_dir),
+        pack,
+        questions: questions.into_iter().map(|(id, path, value)| (id, crate::lab::load::Loaded { path, value })).collect(),
+        exams: std::collections::BTreeMap::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -309,5 +341,4 @@ mod tests {
         assert!(delete_exam(&dir, "mine/custom/../../x").is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
-
 }

@@ -1,5 +1,5 @@
 //! Create with Claude: the conversation that builds an exam. Claude learns
-//! about the candidate through the studio tools (`studio::tools`) and builds
+//! about the candidate through the studio tools (`studio_tools`) and builds
 //! the draft with them; it runs nothing. Off while an exam-mode attempt runs.
 
 use super::{Coach, CoachEvent, CoachReply, Profile, TITLE_MODEL, TITLE_SYSTEM, agent, policy, session_title};

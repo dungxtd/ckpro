@@ -7,7 +7,6 @@
 //! at most changes the nodes for the rest (`disrupts`), and it runs last.
 
 use super::proof::{CLUSTER, MAX_WORKERS};
-use crate::ai::generate::{lint_errors, staging_of};
 use crate::error::{AppError, AppResult};
 use crate::lab::load::LoadedPack;
 use crate::lab::mine;
@@ -533,8 +532,8 @@ impl ExamDraft {
         }
         if problems.is_empty() {
             let (id, path) = mine::new_question(data_dir, &self.certification, &question.title);
-            let staging = staging_of(bank, data_dir, [(id, path.clone(), question.clone())]);
-            problems.extend(lint_errors(&staging, &path));
+            let staging = crate::lab::mine::staging(bank, data_dir, [(id, path.clone(), question.clone())]);
+            problems.extend(crate::lab::lint::errors_in(&staging, &path));
         }
         if problems.is_empty() { Ok(question) } else { Err(problems) }
     }
