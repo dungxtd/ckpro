@@ -70,7 +70,7 @@ export function AttemptChats({
 										) : (
 											// biome-ignore lint/suspicious/noArrayIndexKey: a fixed list
 											<div key={i} className="my-1 flex min-w-0 flex-col gap-1.5">
-												<AssistantIcon className="size-3.5 text-claude" />
+												<AssistantIcon className="size-3.5 text-assistant" />
 												<Answer>{m.text}</Answer>
 											</div>
 										)

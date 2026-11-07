@@ -135,7 +135,7 @@ export function DraftMenu() {
 				open={clearing}
 				onOpenChange={setClearing}
 				title="Clear the draft?"
-				description="Every question leaves it, the new ones Claude wrote too. The conversation stays."
+				description="Every question leaves it, the new ones the assistant wrote too. The conversation stays."
 				action="Clear"
 				onConfirm={() => edit({ clear: true })}
 			/>

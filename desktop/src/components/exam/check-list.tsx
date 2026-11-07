@@ -37,7 +37,7 @@ export function CheckList({
 							className="shrink-0 text-highlight"
 							onClick={() => onWhy(check)}
 						>
-							<AssistantIcon className="text-claude" /> Why?
+							<AssistantIcon className="text-assistant" /> Why?
 						</Button>
 					)}
 				</li>

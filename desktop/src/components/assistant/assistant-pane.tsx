@@ -270,7 +270,7 @@ export function AssistantPane({
 					// Quiet: Claude's mark, and words only when
 					// something is needed (Docker); signing in takes the editor's place
 					<div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-						<AssistantIcon className="size-8 text-claude opacity-80" />
+						<AssistantIcon className="size-8 text-assistant opacity-80" />
 						{status && !status.ready && (
 							<span className="text-muted-foreground text-xs">{status.problem}</span>
 						)}
@@ -290,10 +290,10 @@ export function AssistantPane({
 							) : (
 								// biome-ignore lint/suspicious/noArrayIndexKey: append-only list
 								<div key={i} className="my-1 flex min-w-0 flex-col gap-1.5 px-2">
-									{/* Claude's mark; while it answers, a spinner beside it (and what it
+									{/* The assistant's mark; while it answers, a spinner beside it (and what it
 									    does before its first words) */}
 									<div className="flex h-4 items-center gap-1.5 text-2xs text-muted-foreground">
-										<AssistantIcon className="size-3.5 text-claude" />
+										<AssistantIcon className="size-3.5 text-assistant" />
 										{writing && i === messages.length - 1 && (
 											<>
 												<Spinner size="inline" className="size-3" />
@@ -347,7 +347,7 @@ export function AssistantPane({
 			) : signedOut ? (
 				// Signed out: the place to type becomes the way in
 				<div className="flex select-none items-center gap-3 border-border border-t bg-card/40 px-3 py-3">
-					<AssistantIcon className="size-4 shrink-0 text-claude" />
+					<AssistantIcon className="size-4 shrink-0 text-assistant" />
 					<span className="flex-1 text-muted-foreground text-xs">
 						Sign in with your Claude account to ask about this task.
 					</span>

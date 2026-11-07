@@ -47,7 +47,8 @@ Architecture: `docs/ARCHITECTURE.md`.
   `/kit.html`). New components and variants go there.
 - **Tokens, not colours**: theme tokens (`background`, `card`, `muted`,
   `border`, `highlight`, …) and app tokens in `desktop/src/index.css`
-  (`exam-value`, `exam-concept`, `claude`). No hex values in classNames.
+  (`exam-value`, `exam-concept`, `assistant`; `claude` only beside Claude Code's
+  own logo). No hex values in classNames.
 - **Nothing selects but content**: the body is `select-none`; what is
   there to read or copy opts in with `select-text` (Markdown, `CodeBlock`,
   `Terminal`, messages, `Alert`), and inputs select as they type.
