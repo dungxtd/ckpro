@@ -1,6 +1,7 @@
 // The only module that talks to Tauri. Wrappers unwrap specta `Result`s so a
 // failed command throws an `ApiError` carrying the Rust `AppError` code.
 import { Channel } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
 	type Account_Serialize,
 	type Activity_Serialize,
@@ -279,6 +280,18 @@ export const agentApi = {
 export const appApi = {
 	/** Where the app keeps its data, and its version */
 	info: () => commands.appInfo(),
+};
+
+/** The app's own window: its theme (title bar buttons, menus) and, on
+ * Windows, the caption buttons the title bar draws */
+export const windowApi = {
+	setTheme: (theme: "light" | "dark" | null) => getCurrentWindow().setTheme(theme),
+	isMaximized: () => getCurrentWindow().isMaximized(),
+	/** Follow resizes; resolves to what stops it */
+	onResized: (f: () => void) => getCurrentWindow().onResized(f),
+	minimize: () => getCurrentWindow().minimize(),
+	toggleMaximize: () => getCurrentWindow().toggleMaximize(),
+	close: () => getCurrentWindow().close(),
 };
 
 /** Web pages outside the exam desktop open in the system browser */

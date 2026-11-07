@@ -1,6 +1,6 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect } from "react";
 import { useSettings } from "@/stores/settings";
+import { windowApi } from "@/tauri/api";
 
 /**
  * The app in the theme the settings pick: light, dark, or as macOS is
@@ -16,7 +16,7 @@ export function useTheme() {
 				theme === "dark" || (theme === "system" && dark.matches) ? "dark" : "light";
 		};
 		apply();
-		getCurrentWindow()
+		windowApi
 			.setTheme(theme === "system" ? null : theme)
 			.catch(e => console.error("setting the window theme", e));
 		if (theme !== "system") return;
