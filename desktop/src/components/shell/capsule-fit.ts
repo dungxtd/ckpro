@@ -27,20 +27,6 @@ export function fitCapsule(fullWidth: number, count: number, room: number, m: Do
 	return { mode: "dock", shown };
 }
 
-/** The capsule's width as it fits */
-export const fitWidth = (fit: Fit, fullWidth: number, count: number, m: DockMetrics) =>
-	fit.mode === "full" ? fullWidth : dockWidth(m, fit.shown < count ? fit.shown + 1 : fit.shown);
-
-/**
- * Where the capsule's left edge goes: centred in the window when it fits
- * between `left` and `right` (what it must not cover: the window's buttons,
- * an inspector), else only as far from the centre as it must
- */
-export function placeCapsule(windowWidth: number, left: number, right: number, width: number) {
-	const centred = (windowWidth - width) / 2;
-	return Math.max(left, Math.min(centred, right - width));
-}
-
 /**
  * Which items fold first when there is no room: search, then Settings, the
  * exams, the screens from the last, the sidebar's button last; never `current`

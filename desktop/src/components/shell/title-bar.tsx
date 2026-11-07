@@ -1,53 +1,37 @@
+import { useElementSize } from "@cktry/ui/hooks/use-element-size";
 import { mac } from "@cktry/ui/lib/platform";
 import { cn } from "@cktry/ui/lib/utils";
-import { useLayoutEffect, useRef, useState } from "react";
+import type * as React from "react";
 import { ActivityChip } from "@/components/activity/activity-chip";
 import { useInspectorShown } from "@/components/shell/inspector";
 import { WindowControls } from "@/components/shell/window-controls";
-import { type CapsuleBox, CapsuleNav } from "./capsule-nav";
-
-/** What the capsule keeps clear of on the left: macOS's window buttons */
-const LEFT = mac ? 80 : 12;
+import { CapsuleNav } from "./capsule-nav";
 
 /**
  * The bar over the content: it moves the window and shows what is running.
  * With the sidebar hidden, the screens float in it as a capsule (centred in
- * the window, clear of the window's buttons and of an inspector); else the
- * screen's name, once its own title scrolled away
+ * the window, clear of the window's buttons, of what ends the bar and of an
+ * inspector: placed by CSS); else the screen's name, once its own title
+ * scrolled away
  */
 export function TitleBar({
 	folded,
 	title,
 	onUnfold,
 	onSearch,
-	onCapsule,
+	capsuleRef,
 }: {
 	folded: boolean;
 	title?: string;
-	/** Where the capsule is, which the window's surface takes the shape of while folded */
-	onCapsule: (box: CapsuleBox) => void;
+	/** The capsule, whose box the window's surface takes as it morphs */
+	capsuleRef: React.Ref<HTMLElement>;
 	onUnfold: () => void;
 	onSearch: () => void;
 }) {
 	const inspecting = useInspectorShown();
-	// The capsule's room: from the window's buttons to what is at the bar's end
-	// (what is running, Windows' buttons) or the inspector's edge
-	const end = useRef<HTMLDivElement>(null);
-	const [right, setRight] = useState(0);
-	useLayoutEffect(() => {
-		const el = end.current;
-		if (!el) return;
-		const measure = () => setRight(el.getBoundingClientRect().left - 8);
-		measure();
-		const watch = new ResizeObserver(measure);
-		watch.observe(el);
-		if (el.parentElement) watch.observe(el.parentElement);
-		window.addEventListener("resize", measure);
-		return () => {
-			watch.disconnect();
-			window.removeEventListener("resize", measure);
-		};
-	}, []);
+	// What ends the bar (what is running, Windows' buttons): the capsule keeps
+	// clear of it
+	const [end, { width: endWidth }] = useElementSize<HTMLDivElement>({ border: true });
 	return (
 		<div
 			data-tauri-drag-region
@@ -63,12 +47,11 @@ export function TitleBar({
 				{title}
 			</span>
 			<CapsuleNav
+				ref={capsuleRef}
 				folded={folded}
-				left={LEFT}
-				right={right}
+				clear={endWidth}
 				onUnfold={onUnfold}
 				onSearch={onSearch}
-				onBox={onCapsule}
 			/>
 			<div ref={end} className="flex items-center gap-2">
 				<ActivityChip compact={folded} />

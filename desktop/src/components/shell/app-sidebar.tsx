@@ -76,10 +76,11 @@ export function AppSidebar({
 					aria-label="Sidebar"
 					inert={folded}
 					onKeyDown={e => editing && e.key === "Escape" && setEditing(false)}
-					// Its panel is the window's morphing surface (main.tsx): only the
-					// rows fade, in once the surface has opened, out before it folds
+					// Its own panel, but while it morphs into the capsule or back
+					// (main.tsx's surface draws that): the rows fade, in once the
+					// surface has opened, out before it folds
 					className={cn(
-						"relative z-20 h-[calc(100%-1rem)] bg-transparent shadow-none transition-opacity motion-reduce:transition-none",
+						"relative z-20 h-[calc(100%-1rem)] shadow-none transition-opacity group-data-[morphing]/shell:bg-transparent motion-reduce:transition-none",
 						folded ? "opacity-0 duration-100" : "opacity-100 delay-150 duration-200"
 					)}
 				>
