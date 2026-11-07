@@ -20,7 +20,6 @@ import {
 import { toast } from "sonner";
 import { pageView, setAnalytics, track } from "@/analytics";
 import { AppSidebar } from "@/components/shell/app-sidebar";
-import type { CapsuleBox } from "@/components/shell/capsule-nav";
 import {
 	INSPECTOR_FROM_PX,
 	InspectorProvider,
@@ -52,7 +51,7 @@ function Layout() {
 	// The screen's own title scrolled away: the title bar shows it small
 	const [scrolled, setScrolled] = useState(false);
 	const main = useRef<HTMLElement>(null);
-	const [capsule, setCapsule] = useState<CapsuleBox | null>(null);
+	const capsule = useRef<HTMLElement>(null);
 	const surface = useMorphSurface(folded, capsule);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: each screen opens at its top
 	useEffect(() => {
@@ -82,8 +81,12 @@ function Layout() {
 		// capsule comes in as it goes
 		<div
 			ref={surface.root}
+			// What the shell's CSS follows: a morph under way (the sidebar and
+			// the capsule draw their own shapes between morphs), an inspector
+			data-morphing={surface.morphing || undefined}
+			data-inspecting={inspector.slot.shown || undefined}
 			className={cn(
-				"relative",
+				"group/shell relative",
 				// One row the window's height: the screen scrolls inside it
 				"grid h-full grid-rows-[minmax(0,1fr)] transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
 				folded ? "grid-cols-[0px_minmax(0,1fr)]" : "grid-cols-[256px_minmax(0,1fr)]"
@@ -93,11 +96,7 @@ function Layout() {
 			    which morphs from the one shape into the other */}
 			<div
 				aria-hidden
-				className={cn(
-					"pointer-events-none absolute inset-0 z-10 bg-sidebar-panel",
-					surface.morphing &&
-						"transition-[clip-path] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
-				)}
+				className="pointer-events-none absolute inset-0 z-10 bg-sidebar-panel opacity-0 transition-[clip-path] ease-[cubic-bezier(0.32,0.72,0,1)] group-data-[morphing]/shell:opacity-100 motion-reduce:transition-none"
 				style={{ clipPath: surface.clip, transitionDuration: `${MORPH_MS}ms` }}
 			/>
 			<div className="min-w-0 overflow-hidden">
@@ -113,7 +112,7 @@ function Layout() {
 				<div ref={area} className="flex min-h-0 min-w-0">
 					<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 						<TitleBar
-							onCapsule={setCapsule}
+							capsuleRef={capsule}
 							folded={folded}
 							title={scrolled ? screenTitle(pathname) : undefined}
 							onUnfold={() => update({ sidebar_folded: false })}

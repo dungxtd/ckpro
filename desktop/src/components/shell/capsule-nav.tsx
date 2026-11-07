@@ -20,26 +20,17 @@ import {
 	Search,
 	Settings,
 } from "lucide-react";
+import type * as React from "react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { ExamMenuItems } from "@/components/catalog/exam-list";
 import { SHORTCUTS } from "@/shortcuts";
 import { useAssistantEnabled, useSidebarLayout } from "@/stores/settings";
-import {
-	type DockMetrics,
-	type Fit,
-	fitCapsule,
-	fitWidth,
-	foldOrder,
-	placeCapsule,
-} from "./capsule-fit";
+import { type DockMetrics, type Fit, fitCapsule, foldOrder } from "./capsule-fit";
 import { arrangeScreens } from "./sections";
 
-/** The capsule's place in the window, which its surface takes the shape of */
-export type CapsuleBox = { left: number; top: number; width: number; height: number };
-
-const HEIGHT = 36;
-const TOP = (48 - HEIGHT) / 2;
+/** Between the capsule and what ends the bar: the bar's padding and a gap */
+const CLEAR_GAP = 20;
 
 type Item = {
 	key: string;
@@ -59,20 +50,18 @@ type Item = {
  * the pointer, their names in tooltips), the least used folded into a menu
  */
 export function CapsuleNav({
+	ref,
 	folded,
-	left,
-	right,
+	clear,
 	onUnfold,
 	onSearch,
-	onBox,
 }: {
+	ref: React.Ref<HTMLElement>;
 	folded: boolean;
-	/** What it must not cover, in the window's pixels */
-	left: number;
-	right: number;
+	/** The width of what ends the bar, which it keeps clear of */
+	clear: number;
 	onUnfold: () => void;
 	onSearch: () => void;
-	onBox: (box: CapsuleBox) => void;
 }) {
 	const { pathname } = useLocation();
 	const navigate = useNavigate();
@@ -131,11 +120,12 @@ export function CapsuleNav({
 	// they become names once the pointer leaves
 	const [over, setOver] = useState(false);
 	const held = useRef<Fit | null>(null);
-	const fits = fitCapsule(fullWidth, items.length, right - left, metrics);
+	// The room CSS leaves it, between the window's buttons and what ends the
+	// bar (or the inspector): which way fits is the only thing measured
+	const [room, { width: roomWidth }] = useElementSize<HTMLDivElement>();
+	const fits = fitCapsule(fullWidth, items.length, roomWidth, metrics);
 	const fit = over && held.current?.mode === "dock" && fits.mode === "full" ? held.current : fits;
 	held.current = fit;
-	const width = fitWidth(fit, fullWidth, items.length, metrics);
-	const x = placeCapsule(window.innerWidth, left, right, width);
 	const order = foldOrder(
 		items.map(i => i.key),
 		items.find(i => i.current)?.key
@@ -144,75 +134,75 @@ export function CapsuleNav({
 	const shown = items.filter(i => !folding.includes(i.key));
 	const inMenu = items.filter(i => folding.includes(i.key));
 
-	const nav = useRef<HTMLElement>(null);
-	// The pill (the window's surface) takes the capsule's box as laid out,
-	// not as estimated, so an item's hover never shows past its edge. A move
-	// (x) or a new way (width) changes it without resizing it: read again
-	// biome-ignore lint/correctness/useExhaustiveDependencies: x and width re-read the box
-	useLayoutEffect(() => {
-		const el = nav.current;
-		if (!el || !fullWidth) return;
-		const report = () => {
-			const r = el.getBoundingClientRect();
-			onBox({ left: r.left, top: r.top, width: r.width, height: r.height });
-		};
-		report();
-		const watch = new ResizeObserver(report);
-		watch.observe(el);
-		return () => watch.disconnect();
-	}, [x, width, fullWidth, onBox]);
-
 	const dock = fit.mode === "dock";
 	return (
 		<>
-			{/* Its pill is the window's morphing surface (main.tsx): only the
-			    items fade, in as the surface reaches its shape, out as it leaves */}
-			<Capsule
-				ref={nav}
-				aria-label="Screens"
-				inert={!folded}
-				onPointerEnter={() => setOver(true)}
-				onPointerLeave={() => setOver(false)}
-				style={{ left: x, top: TOP, height: HEIGHT }}
-				className={cn(
-					"fixed z-20 bg-transparent shadow-none backdrop-blur-none transition-opacity motion-reduce:transition-none",
-					folded
-						? "opacity-100 delay-200 duration-200"
-						: "pointer-events-none opacity-0 duration-100"
-				)}
+			{/* Placed by CSS: centred in the window while the sides have their
+			    room, else only as far off centre as the wider side needs (the
+			    window's buttons; what ends the bar, the inspector) */}
+			<div
+				className="pointer-events-none fixed inset-x-0 top-0 z-20 grid h-12 grid-cols-[minmax(var(--capsule-left),1fr)_auto_minmax(var(--capsule-right),1fr)] items-center"
+				style={
+					{
+						"--capsule-right": `calc(var(--inspector-space, 0px) + ${clear + CLEAR_GAP}px)`,
+					} as React.CSSProperties
+				}
 			>
-				{shown.map(item => (
-					<Destination key={item.key} item={item} dock={dock} />
-				))}
-				{inMenu.length > 0 && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<IconButton variant="capsule" size="bar" aria-label="More">
-								<ChevronsLeftRight />
-							</IconButton>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="center">
-							{inMenu.map(item => {
-								const Icon = item.icon;
-								return item.exams ? (
-									<DropdownMenuSub key={item.key}>
-										<DropdownMenuSubTrigger>
-											<Icon /> Exams
-										</DropdownMenuSubTrigger>
-										<DropdownMenuSubContent>
-											<ExamMenuItems />
-										</DropdownMenuSubContent>
-									</DropdownMenuSub>
-								) : (
-									<DropdownMenuItem key={item.key} onSelect={item.go}>
-										<Icon /> {item.label}
-									</DropdownMenuItem>
-								);
-							})}
-						</DropdownMenuContent>
-					</DropdownMenu>
-				)}
-			</Capsule>
+				{/* The room between the two sides, out of the grid (the capsule
+				    would widen it to its own width) */}
+				<div
+					ref={room}
+					aria-hidden
+					className="absolute top-0 right-(--capsule-right) left-(--capsule-left) h-0"
+				/>
+				{/* Its own pill but while it morphs (main.tsx's surface draws that):
+				    the items fade, in as the surface reaches its shape, out as it leaves */}
+				<Capsule
+					ref={ref}
+					aria-label="Screens"
+					inert={!folded}
+					onPointerEnter={() => setOver(true)}
+					onPointerLeave={() => setOver(false)}
+					className={cn(
+						"col-start-2 row-start-1 h-9 bg-sidebar-panel shadow-none backdrop-blur-none transition-opacity group-data-[morphing]/shell:bg-transparent motion-reduce:transition-none",
+						folded
+							? "pointer-events-auto opacity-100 delay-200 duration-200"
+							: "opacity-0 duration-100"
+					)}
+				>
+					{shown.map(item => (
+						<Destination key={item.key} item={item} dock={dock} />
+					))}
+					{inMenu.length > 0 && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<IconButton variant="capsule" size="bar" aria-label="More">
+									<ChevronsLeftRight />
+								</IconButton>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="center">
+								{inMenu.map(item => {
+									const Icon = item.icon;
+									return item.exams ? (
+										<DropdownMenuSub key={item.key}>
+											<DropdownMenuSubTrigger>
+												<Icon /> Exams
+											</DropdownMenuSubTrigger>
+											<DropdownMenuSubContent>
+												<ExamMenuItems />
+											</DropdownMenuSubContent>
+										</DropdownMenuSub>
+									) : (
+										<DropdownMenuItem key={item.key} onSelect={item.go}>
+											<Icon /> {item.label}
+										</DropdownMenuItem>
+									);
+								})}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)}
+				</Capsule>
+			</div>
 			{/* The names in full, out of sight: how wide the capsule would be */}
 			<Capsule
 				ref={measure}

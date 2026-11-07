@@ -58,7 +58,7 @@ export function Inspector({
 	return createPortal(
 		<aside
 			className={cn(
-				"flex h-full w-[clamp(18rem,30vw,24rem)] min-w-0 flex-col border-border border-l bg-foreground/[0.015]",
+				"flex h-full w-(--inspector-w) min-w-0 flex-col border-border border-l bg-foreground/[0.015]",
 				className
 			)}
 		>

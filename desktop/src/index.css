@@ -39,6 +39,19 @@ body,
    floating surfaces keep out of it (lib/utils floatingPadding) */
 :root[data-platform="mac"] {
 	--titlebar-h: 48px;
+	/* What the capsule keeps clear of on the left: the window's buttons */
+	--capsule-left: 80px;
+}
+
+/* The shell's layout: the inspector's width (shell/inspector.tsx), and the
+   room the capsule keeps clear of on each side, so it is placed by the
+   browser as the window resizes (shell/capsule-nav.tsx) */
+:root {
+	--inspector-w: clamp(18rem, 30vw, 24rem);
+	--capsule-left: 12px;
+}
+[data-inspecting] {
+	--inspector-space: var(--inspector-w);
 }
 
 @layer base {
