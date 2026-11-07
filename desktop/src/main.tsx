@@ -36,6 +36,7 @@ import { useCoach } from "@/stores/coach";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
+import { useStudy } from "@/stores/study";
 import { appApi, errorText } from "@/tauri/api";
 import { useTheme } from "@/theme";
 import "./index.css";
@@ -155,6 +156,7 @@ function App() {
 	const connectEnv = useEnvironment(s => s.connect);
 	const connectExam = useExam(s => s.connect);
 	const connectActivities = useActivities(s => s.connect);
+	const connectStudy = useStudy(s => s.connect);
 	useTheme();
 	const loadSettings = useSettings(s => s.load);
 	// Bumped by Try Again: everything is read and followed afresh
@@ -164,7 +166,7 @@ function App() {
 	useEffect(() => {
 		void boot;
 		loadSettings();
-		const stops = [connectEnv(), connectExam(), connectActivities()];
+		const stops = [connectEnv(), connectExam(), connectActivities(), connectStudy()];
 		return () => {
 			for (const stop of stops)
 				stop.then(
@@ -172,7 +174,7 @@ function App() {
 					() => {}
 				);
 		};
-	}, [connectEnv, connectExam, connectActivities, loadSettings, boot]);
+	}, [connectEnv, connectExam, connectActivities, connectStudy, loadSettings, boot]);
 	// Opened straight on the right screen: the settings and where the exam is
 	// are known before anything shows (no catalog flashing before a resume)
 	const settingsLoaded = useSettings(s => s.loaded);

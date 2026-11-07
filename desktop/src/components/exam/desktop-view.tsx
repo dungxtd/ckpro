@@ -57,11 +57,13 @@ export function DesktopView({
 
 		const connect = async () => {
 			if (stopped || !screen.current) return;
-			const session = await desktopApi.session().catch(() => null);
+			// Rust answers once the desktop is up (or after a while without it:
+			// asked again then); a failure waits a moment before asking again
+			const session = await desktopApi.session().catch(() => undefined);
 			// Closed while it was asked for: nothing to connect, nothing to retry
 			if (stopped || !screen.current) return;
 			if (!session) {
-				retry = setTimeout(connect, 1000);
+				retry = setTimeout(connect, session === undefined ? 2000 : 0);
 				return;
 			}
 			const rfb = new RFB(screen.current, `ws://127.0.0.1:${session.port}`, {

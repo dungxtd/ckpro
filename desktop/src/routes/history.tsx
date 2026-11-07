@@ -16,17 +16,20 @@ import { useEffect, useState } from "react";
 import { AttemptChats } from "@/components/history/attempt-chats";
 import { DomainScores } from "@/components/history/domain-scores";
 import { Screen } from "@/components/shell/screen";
-import { coachApi, examApi, type HistoryEntry } from "@/tauri/api";
+import { useStudy } from "@/stores/study";
+import { coachApi, type HistoryEntry } from "@/tauri/api";
 
 /** Past attempts, newest first. */
 export function HistoryRoute() {
-	const [history, setHistory] = useState<HistoryEntry[] | null>(null);
+	const history = useStudy(s => s.history);
 	// Attempts with assistant sessions, and the one being read back
 	const [chatted, setChatted] = useState<Set<string>>(new Set());
 	const [reading, setReading] = useState<HistoryEntry | null>(null);
 	useEffect(() => {
-		examApi.history().then(setHistory);
-		coachApi.coachedAttempts().then(ids => setChatted(new Set(ids)));
+		coachApi.coachedAttempts().then(
+			ids => setChatted(new Set(ids)),
+			() => {}
+		);
 	}, []);
 
 	if (history === null) return <Loading fill label="Loading your attempts…" />;

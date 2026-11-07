@@ -34,10 +34,11 @@ import { SHORTCUTS } from "@/shortcuts";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import { useSidebarLayout } from "@/stores/settings";
+import { useStudy } from "@/stores/study";
 import { type ExamSort, type ExamSummary, errorText, examApi } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 import { plural } from "@/words";
-import { memoryFit, useExamStats, useSelection } from "./exams";
+import { memoryFit, useSelection } from "./exams";
 import { arrange, moved, pinned, SORTS, stepped, toggled } from "./layout";
 
 /** Docker's memory when it is up */
@@ -49,13 +50,9 @@ const useDockerMb = () =>
 function useCatalog() {
 	const catalog = useExam(s => s.catalog);
 	const loadCatalog = useExam(s => s.loadCatalog);
-	const idle = useExam(s => !s.state || s.state.phase === "idle");
 	useEffect(() => {
 		if (useExam.getState().catalog.length === 0) loadCatalog();
 	}, [loadCatalog]);
-	useEffect(() => {
-		if (idle) useExamStats.getState().load();
-	}, [idle]);
 	return catalog;
 }
 
@@ -83,7 +80,7 @@ export function ExamList({
 }) {
 	const catalog = useCatalog();
 	const loadCatalog = useExam(s => s.loadCatalog);
-	const stats = useExamStats(s => s.stats);
+	const stats = useStudy(s => s.byExam);
 	const dockerMb = useDockerMb();
 	const [layout, setLayout] = useSidebarLayout();
 	const { exam: shown, select } = useSelection();
@@ -327,7 +324,7 @@ export function ExamList({
 /** The same, as a menu: the capsule's Exams, when the sidebar is folded */
 export function ExamMenuItems() {
 	const catalog = useCatalog();
-	const stats = useExamStats(s => s.stats);
+	const stats = useStudy(s => s.byExam);
 	const [layout] = useSidebarLayout();
 	const { exam: shown, select } = useSelection();
 	const onExams = useLocation().pathname === "/exams";
