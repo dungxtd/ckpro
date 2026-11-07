@@ -585,7 +585,7 @@ async fn create_proves_an_exam_as_it_goes_and_stops() {
     assert!(proven.proven(), "{:?}", proven.items);
     let results = seen.lock().unwrap().iter().filter_map(|(_, p)| p.as_ref().map(|(_, n)| *n)).max();
     assert_eq!(results, Some(1), "only the new one was checked");
-    let id = studio::save(&store, &exams, &dir, session).unwrap();
+    let id = studio::save(&store, &exams, &dir, session, || false).unwrap();
     assert!(dir.join("packs/mine/exams/custom/e2e-proof.yaml").exists(), "{id}");
     println!("ok: the change proven alone, saved as {id}");
 

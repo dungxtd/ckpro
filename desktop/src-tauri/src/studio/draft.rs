@@ -34,6 +34,15 @@ pub struct ExamDraft {
     /// The exam it was saved as
     #[serde(default)]
     pub saved: Option<String>,
+    /// What the candidate changed themselves since the assistant last
+    /// answered, told to it with their next message (it sees the draft only
+    /// when it asks for it)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changes: Vec<String>,
+    /// Its questions as they are were all proven in one run (Prove all):
+    /// not once one comes, goes or changes, though each stays proven
+    #[serde(default)]
+    pub together: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -44,6 +53,14 @@ pub struct DomainWeight {
 
 /// An exam's length the candidate or Claude may set, in minutes
 pub const LENGTH: std::ops::RangeInclusive<u32> = 10..=300;
+
+/// A question's content, to see that its file changed: a stable hash (FNV-1a)
+/// of it as read, the same from one run to the next
+pub fn version(q: &Question) -> String {
+    let text = serde_json::to_string(q).unwrap_or_default();
+    let hash = text.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3));
+    format!("{hash:016x}")
+}
 
 /// A question's suggested time, in whole minutes
 pub fn minutes(q: &Question) -> Option<u32> {
@@ -69,6 +86,15 @@ pub enum DraftItem {
         /// It changes the nodes for the questions after it
         #[serde(default)]
         disrupts: bool,
+        /// Its content when it was added or last proven (`version`): a file
+        /// changed since is proven again
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        version: String,
+        /// The YAML this draft wrote it from, when it was a new question
+        /// saved with the exam: if its file goes (the candidate's questions
+        /// deleted), the draft has it back as a new question
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        written: Option<String>,
     },
     /// A question Claude wrote for this exam
     New(NewQuestion),
@@ -286,7 +312,10 @@ impl ExamDraft {
         }
         self.title = title.trim().to_string();
         self.certification = certification.to_string();
-        self.duration_minutes = duration_minutes.map(|m| m.clamp(*LENGTH.start(), *LENGTH.end()));
+        // Left out, the length stays as it is (the candidate's own, perhaps)
+        if let Some(m) = duration_minutes {
+            self.duration_minutes = Some(m.clamp(*LENGTH.start(), *LENGTH.end()));
+        }
         let mut domains: Vec<DomainWeight> = bank.pack.certifications[certification]
             .domains
             .iter()
@@ -300,15 +329,93 @@ impl ExamDraft {
     /// The candidate's changes: a new title, another length, or every
     /// question out
     pub fn edit(&mut self, title: Option<&str>, duration_minutes: Option<u32>, clear: bool) {
-        if let Some(title) = title.map(str::trim).filter(|t| !t.is_empty()) {
+        if let Some(title) = title.map(str::trim).filter(|t| !t.is_empty() && *t != self.title) {
+            self.changes.push(format!("renamed the exam \"{title}\""));
             self.title = title.to_string();
         }
-        if let Some(minutes) = duration_minutes {
-            self.duration_minutes = Some(minutes.clamp(*LENGTH.start(), *LENGTH.end()));
+        if let Some(minutes) = duration_minutes.map(|m| m.clamp(*LENGTH.start(), *LENGTH.end()))
+            && self.duration_minutes != Some(minutes)
+        {
+            self.changes.push(match self.duration_minutes {
+                Some(was) => format!("set its length to {minutes} minutes (it was {was})"),
+                None => format!("set its length to {minutes} minutes"),
+            });
+            self.duration_minutes = Some(minutes);
         }
-        if clear {
+        if clear && !self.items.is_empty() {
+            self.changes.push("took every question out".into());
             self.items.clear();
         }
+    }
+
+    /// The questions it wrote whose files are gone (`exists` says which are
+    /// still there): new questions again, to be proven and saved anew
+    pub fn rewrite_gone(&mut self, exists: impl Fn(&str) -> bool) -> bool {
+        let mut any = false;
+        let mut keys = self.new_questions().filter_map(|q| q.key.strip_prefix('n')?.parse::<u32>().ok()).max().unwrap_or(0);
+        for item in &mut self.items {
+            if let DraftItem::Existing { id, title, domain, minutes, disrupts, written: Some(yaml), .. } = item
+                && !exists(id)
+            {
+                keys += 1;
+                *item = DraftItem::New(NewQuestion {
+                    key: format!("n{keys}"),
+                    title: title.clone(),
+                    domain: domain.clone(),
+                    yaml: yaml.clone(),
+                    minutes: *minutes,
+                    status: DraftStatus::Linted,
+                    disrupts: *disrupts,
+                });
+                any = true;
+            }
+        }
+        any
+    }
+
+    /// The packs' questions as they are now: one whose file changed since it
+    /// was added (its title, time, or whether it changes the nodes) is taken
+    /// as it is and proven again. Whether any changed
+    pub fn refresh(&mut self, bank: &LoadedPack) -> bool {
+        let mut changed = false;
+        let mut moved = Vec::new();
+        for item in &mut self.items {
+            let DraftItem::Existing { id, title, minutes: m, status, disrupts, version: was, .. } = item else { continue };
+            let Some(q) = bank.questions.get(id.as_str()) else { continue };
+            let now = version(&q.value);
+            // Added before versions were kept: as it is now, nothing to redo
+            if was.is_empty() {
+                *was = now;
+                continue;
+            }
+            if *was != now {
+                let flips = *disrupts != q.value.disrupts;
+                (*title, *m, *disrupts, *was) = (q.value.title.clone(), minutes(&q.value), q.value.disrupts, now);
+                *status = DraftStatus::Linted;
+                changed = true;
+                if flips {
+                    moved.push(id.clone());
+                }
+            }
+        }
+        // One that now changes the nodes goes last (or no longer, back among the rest)
+        for id in moved {
+            if let Some(at) = self.items.iter().position(|i| i.key() == id) {
+                let item = self.items.remove(at);
+                self.place(item);
+            }
+        }
+        changed
+    }
+
+    /// The candidate took a question out themselves; whether it was there
+    pub fn remove_by_candidate(&mut self, id_or_key: &str) -> bool {
+        let title = self.items.iter().find(|i| i.key() == id_or_key).map(|i| i.title().to_string());
+        let removed = self.remove(id_or_key);
+        if let Some(title) = title.filter(|_| removed) {
+            self.changes.push(format!("took \"{title}\" out"));
+        }
+        removed
     }
 
     /// Add questions of the packs; the ids not added, and why
@@ -338,6 +445,8 @@ impl ExamDraft {
                     minutes: minutes(&q.value),
                     status: DraftStatus::Linted,
                     disrupts: q.value.disrupts,
+                    version: version(&q.value),
+                    written: None,
                 });
             }
         }
@@ -365,7 +474,13 @@ impl ExamDraft {
             disrupts: question.disrupts,
         };
         match self.find_new(&key) {
-            Some(existing) => *existing = new,
+            // In its place, unless it now changes the nodes (or no longer
+            // does): then where `place` puts it, last or before the last
+            Some(existing) if existing.disrupts == new.disrupts => *existing = new,
+            Some(_) => {
+                self.remove(&key);
+                self.place(DraftItem::New(new));
+            }
             None => self.place(DraftItem::New(new)),
         }
         Ok(key)
@@ -384,7 +499,7 @@ impl ExamDraft {
         }
         let mut question: Question = serde_saphyr::from_str(yaml).map_err(|e| vec![format!("not valid question YAML: {e}")])?;
         // Known from its scripts, whatever it says
-        question.disrupts |= super::rules::disrupts(&question);
+        question.disrupts = question.changes_the_nodes();
         let mut problems = Vec::new();
         let Some(certification) = bank.pack.certifications.get(&self.certification) else {
             return Err(vec![format!("the exam's certification '{}' is not in the packs any more", self.certification)]);
@@ -477,6 +592,77 @@ hints:\n  - kubectl create deploy\n"
         assert!(draft.items.is_empty());
     }
 
+    /// A question of the packs changed on disk since it was added is taken
+    /// as it is now, to prove again; one as it was stays proven
+    #[test]
+    fn a_question_changed_on_disk_is_proven_again() {
+        let bank = bank();
+        let mut draft = ExamDraft::default();
+        draft.set_exam(&bank, "Mock", "cka", None).unwrap();
+        let mut ids = bank.questions.iter().filter(|(_, q)| q.value.certifications.contains_key("cka") && q.value.runnable() && !q.value.disrupts).map(|(id, _)| id.clone());
+        let (same, changed) = (ids.next().unwrap(), ids.next().unwrap());
+        draft.add_existing(&bank, &[same.clone(), changed.clone()]);
+        assert!(!draft.refresh(&bank), "as they were added");
+        for item in &mut draft.items {
+            if let DraftItem::Existing { id, title, status, version, .. } = item {
+                *status = DraftStatus::Proven;
+                if *id == changed {
+                    // Read before its file changed (its checks, say: the title alike)
+                    *title = "As it was".into();
+                    *version = "0000000000000000".into();
+                }
+            }
+        }
+        assert!(draft.refresh(&bank));
+        let status = |id: &str| draft.items.iter().find(|i| i.key() == id).map(|i| match i {
+            DraftItem::Existing { status, title, .. } => (status.clone(), title.clone()),
+            DraftItem::New(_) => unreachable!(),
+        });
+        assert_eq!(status(&same).unwrap().0, DraftStatus::Proven);
+        let (status, title) = status(&changed).unwrap();
+        assert_eq!(status, DraftStatus::Linted);
+        assert_eq!(title, bank.questions[changed.as_str()].value.title);
+        assert!(!draft.refresh(&bank), "once is enough");
+    }
+
+    /// What the candidate changes themselves is kept for the assistant (it
+    /// does not see the draft unless it asks); a change to the same is none
+    #[test]
+    fn the_candidates_changes_are_kept_for_the_assistant() {
+        let bank = bank();
+        let mut draft = ExamDraft::default();
+        draft.set_exam(&bank, "Mock", "cka", Some(90)).unwrap();
+        let cka = bank.questions.iter().find(|(_, q)| q.value.certifications.contains_key("cka") && q.value.runnable()).unwrap().0.clone();
+        draft.add_existing(&bank, std::slice::from_ref(&cka));
+        draft.edit(Some("Mock"), Some(90), false);
+        assert!(draft.changes.is_empty(), "nothing changed");
+        draft.edit(Some("Warm-up"), Some(60), false);
+        assert!(draft.remove_by_candidate(&cka));
+        assert_eq!(draft.changes.len(), 3, "{:?}", draft.changes);
+        assert!(draft.changes[1].contains("60 minutes (it was 90)"));
+        assert!(draft.changes[2].starts_with("took \""));
+    }
+
+    /// A question fixed into one that changes the nodes moves last, where
+    /// the rest cannot be broken by it; the length the candidate set stays
+    /// when the exam is set again without one
+    #[test]
+    fn a_fix_that_changes_the_nodes_moves_last() {
+        let bank = bank();
+        let dir = std::env::temp_dir().join(format!("cktry-draft-last-{}", std::process::id()));
+        let mut draft = ExamDraft::default();
+        draft.set_exam(&bank, "Mock", "cka", Some(90)).unwrap();
+        draft.edit(None, Some(60), false);
+        draft.set_exam(&bank, "Mock again", "cka", None).unwrap();
+        assert_eq!(draft.duration_minutes, Some(60), "kept");
+
+        let first = draft.propose(&bank, &dir, &question("A first deployment", ""), None).unwrap();
+        draft.propose(&bank, &dir, &question("A second deployment", ""), None).unwrap();
+        draft.propose(&bank, &dir, &question("A first deployment", "disrupts: true\n"), Some(&first)).unwrap();
+        assert_eq!(draft.items.last().map(DraftItem::key), Some(first.as_str()));
+        assert!(draft.items.last().is_some_and(DraftItem::disrupts));
+    }
+
     #[test]
     fn existing_questions_join_once_and_of_the_exam_only() {
         let bank = bank();
@@ -527,7 +713,7 @@ hints:\n  - kubectl create deploy\n"
         let bank = bank();
         let mut draft = ExamDraft::default();
         draft.set_exam(&bank, "Mock", "cka", None).unwrap();
-        draft.items.push(DraftItem::Existing { id: "mine/cka/gone".into(), title: "Gone".into(), domain: "storage".into(), minutes: None, status: DraftStatus::Proven, disrupts: false });
+        draft.items.push(DraftItem::Existing { id: "mine/cka/gone".into(), title: "Gone".into(), domain: "storage".into(), minutes: None, status: DraftStatus::Proven, disrupts: false, version: String::new(), written: None });
         assert_eq!(draft.missing(&bank), [("mine/cka/gone".to_string(), "Gone".to_string())]);
         assert!(draft.complete(&bank).unwrap_err().contains("Gone was deleted"));
         assert!(draft.remove("mine/cka/gone"));

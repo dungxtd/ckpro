@@ -67,7 +67,11 @@ pub fn save(data_dir: &Path, certification: &str, certification_title: &str, pat
     }
     std::fs::write(path, yaml).map_err(io)?;
 
-    // The exam lists every question of the certification, oldest first
+    // The exam lists every question of the certification, oldest first; of
+    // those that change the nodes for what follows (a drain, a taint) only the
+    // newest, last: one of them mid-exam breaks the rest, two cannot both be
+    // last. Create's are in the exams they were made for; an older one from
+    // `lab generate` is in none until the newer is deleted
     let dir = root.join("questions").join(certification);
     let mut files: Vec<_> = std::fs::read_dir(&dir)
         .map_err(io)?
@@ -76,6 +80,8 @@ pub fn save(data_dir: &Path, certification: &str, certification_title: &str, pat
         .filter(|p| p.extension().is_some_and(|e| e == "yaml"))
         .collect();
     files.sort_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
+    let (disrupting, mut files): (Vec<_>, Vec<_>) = files.into_iter().partition(|p| changes_the_nodes(p));
+    files.extend(disrupting.into_iter().last());
     let ids: Vec<String> = files
         .iter()
         .filter_map(|p| p.file_stem().map(|s| format!("  - {PACK_ID}/{certification}/{}", s.to_string_lossy())))
@@ -89,6 +95,28 @@ pub fn save(data_dir: &Path, certification: &str, certification_title: &str, pat
     std::fs::create_dir_all(&exams).map_err(io)?;
     std::fs::write(exams.join(format!("{certification}.yaml")), exam).map_err(io)?;
     Ok(format!("{PACK_ID}/{certification}"))
+}
+
+/// Whether the question at `path` changes the nodes for what follows (one
+/// that cannot be read is taken as not: the pack's lint reports it)
+fn changes_the_nodes(path: &Path) -> bool {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_saphyr::from_str::<crate::lab::model::Question>(&text).ok())
+        .is_some_and(|q| q.changes_the_nodes())
+}
+
+/// Whether the candidate's question or exam `id` has its file on disk
+/// (whatever reading it gives: one that does not parse is not gone).
+/// Another pack's id is not the candidate's to say: taken as there
+pub fn on_disk(data_dir: &Path, id: &str) -> bool {
+    let Some(rest) = id.strip_prefix(&format!("{PACK_ID}/")) else { return true };
+    let root = root(data_dir);
+    match rest.split_once('/') {
+        Some((CUSTOM, slug)) => root.join("exams").join(CUSTOM).join(format!("{slug}.yaml")).exists(),
+        Some((certification, name)) => root.join("questions").join(certification).join(format!("{name}.yaml")).exists(),
+        None => root.join("exams").join(format!("{rest}.yaml")).exists(),
+    }
 }
 
 /// Where the exams built in Create with Claude go: `mine/custom/<slug>`
@@ -228,6 +256,17 @@ mod tests {
         save(&data, "cka", "Certified Kubernetes Administrator", &path2, "title: y\n").unwrap();
         let exam_file = std::fs::read_to_string(root(&data).join("exams/cka.yaml")).unwrap();
         assert!(exam_file.contains("  - mine/cka/fix-a-pending-pvc\n  - mine/cka/fix-a-pending-pvc-2"), "{exam_file}");
+        // One that drains a node is listed last
+        let (id3, path3) = new_question(&data, "cka", "Drain a node");
+        let drains = "title: Drain a node\ncertifications:\n  cka: cluster-architecture\nnamespace: mine-test\nstatement: Drain the worker.\nsetup: kubectl get nodes\nchecks:\n  - name: Drained\n    weight: 1\n    run: kubectl get nodes\nsolution:\n  run: kubectl drain k8s-worker --ignore-daemonsets\n  explain: Drain it. See https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/\nhints:\n  - kubectl drain\n";
+        save(&data, "cka", "Certified Kubernetes Administrator", &path3, drains).unwrap();
+        assert!(path3.exists());
+        let exam_file = std::fs::read_to_string(root(&data).join("exams/cka.yaml")).unwrap();
+        assert!(exam_file.trim_end().ends_with(&format!("  - {id3}")), "{exam_file}");
+        // On disk is on disk, whatever reading it gives; other packs' are not the candidate's to say
+        std::fs::write(&path3, "not: [valid").unwrap();
+        assert!(on_disk(&data, &id3) && on_disk(&data, "mine/cka") && on_disk(&data, "core/cka/anything"));
+        assert!(!on_disk(&data, "mine/cka/never") && !on_disk(&data, "mine/custom/never"));
         assert!(root(&data).join("pack.yaml").exists());
         let _ = std::fs::remove_dir_all(&data);
     }

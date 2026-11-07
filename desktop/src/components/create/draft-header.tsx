@@ -1,4 +1,5 @@
 import { Badge } from "@cktry/ui/components/badge";
+import { Button } from "@cktry/ui/components/button";
 import { ConfirmDialog } from "@cktry/ui/components/confirm-dialog";
 import {
 	DropdownMenu,
@@ -20,7 +21,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@cktry/ui/components/to
 import { cn } from "@cktry/ui/lib/utils";
 import { Check, Ellipsis, Pencil, X } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { useStudio } from "@/stores/studio";
+import { AssistantIcon } from "@/components/assistant/assistant-icon";
+import { useProving, useStudio } from "@/stores/studio";
 import type { ExamDraft } from "@/tauri/api";
 import { domainName, plural } from "@/words";
 
@@ -95,6 +97,7 @@ export function ProofTabs() {
 export function DraftMenu() {
 	const draft = useStudio(s => s.draft);
 	const edit = useStudio(s => s.edit);
+	const proving = useProving();
 	const setRenaming = useStudio(s => s.setRenaming);
 	const [clearing, setClearing] = useState(false);
 	if (!draft) return null;
@@ -103,7 +106,14 @@ export function DraftMenu() {
 			{!draft.saved && draft.certification && (
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<IconButton variant="toolbar" size="xs" aria-label="Draft actions">
+						<IconButton
+							variant="toolbar"
+							size="xs"
+							aria-label={
+								proving ? "Draft actions (while it is proven, it stays as it is)" : "Draft actions"
+							}
+							disabled={proving}
+						>
 							<Ellipsis />
 						</IconButton>
 					</DropdownMenuTrigger>
@@ -160,6 +170,7 @@ export function DraftSummary({
 	const draft = useStudio(s => s.draft);
 	const editing = useStudio(s => s.renaming);
 	const setEditing = useStudio(s => s.setRenaming);
+	const proving = useProving();
 	if (!draft) return null;
 	const items = draft.items;
 	const minutes = items.reduce((sum, i) => sum + (i.minutes ?? 0), 0);
@@ -184,6 +195,7 @@ export function DraftSummary({
 								variant="toolbar"
 								size="xs"
 								aria-label="Rename the exam"
+								disabled={proving}
 								className="shrink-0"
 								onClick={() => setEditing(true)}
 							>
@@ -290,5 +302,60 @@ function TitleInput({ draft, onDone }: { draft: ExamDraft; onDone: () => void })
 			onBlur={() => done(true)}
 			className="h-7"
 		/>
+	);
+}
+
+/**
+ * How the questions' time fits the exam's length, when it does not: more
+ * than the length, or under half of it, and the steps from there (a length
+ * that holds them, the assistant to trim or add)
+ */
+export function LengthFit() {
+	const draft = useStudio(s => s.draft);
+	const edit = useStudio(s => s.edit);
+	const send = useStudio(s => s.send);
+	const proving = useProving();
+	if (!draft || draft.saved || !draft.duration_minutes) return null;
+	const length = draft.duration_minutes;
+	const minutes = draft.items.reduce((sum, i) => sum + (i.minutes ?? 0), 0);
+	const over = minutes > length;
+	if (minutes === 0 || (!over && minutes * 2 >= length)) return null;
+	// The shortest length that holds them, if it is another
+	const fits = LENGTHS.find(m => m >= minutes);
+	return (
+		<div className="flex shrink-0 flex-col gap-2 rounded-lg bg-foreground/[0.04] px-3 py-2.5 text-caption">
+			<span className={over ? "text-warning" : "text-muted-foreground"}>
+				{over
+					? `~${minutes} min of questions: more than the ${length} minutes`
+					: `~${minutes} min of questions: under half the ${length} minutes`}
+			</span>
+			<div className="flex flex-wrap gap-2">
+				{fits && fits !== length && (
+					<Button
+						size="push"
+						variant="push"
+						disabled={proving}
+						onClick={() => edit({ duration: fits })}
+					>
+						Set to {fits} min
+					</Button>
+				)}
+				<Button
+					size="push"
+					variant="push"
+					disabled={proving}
+					onClick={() =>
+						send(
+							over
+								? `Trim the exam to fit ${length} minutes: about ${minutes} minutes of questions now.`
+								: `Add questions to fill ${length} minutes: about ${minutes} minutes of questions now.`
+						)
+					}
+				>
+					<AssistantIcon className="text-assistant" />
+					{over ? "Ask to trim it" : "Ask for more"}
+				</Button>
+			</div>
+		</div>
 	);
 }

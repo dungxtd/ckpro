@@ -251,6 +251,7 @@ let proving = app.handle().clone();
             store.import_files(&data_dir);
             // The assistant runs where its settings say
             app.state::<ai::Coach>().apply(&ai::policy::AgentSettings::load(&store).unwrap_or_default().normalized());
+            app.state::<ai::Coach>().switch(store.settings().map(|s| s.assistant_enabled).unwrap_or(true));
             // Docker, the clusters and the guard; the attempt being resumed
             // starts its own clusters, task host and desktop
             let resuming = lab::exam::saved_running(&store).map(|(attempt, _)| attempt.clusters).unwrap_or_default();
@@ -275,9 +276,16 @@ let proving = app.handle().clone();
             {
                 let (handle, store) = (app.handle().clone(), store.clone());
                 let drafts = app.handle().clone();
-                let studio = Arc::new(studio::tools::Tools::new(exams.clone(), store.clone(), data_dir.clone(), move |session, draft| {
-                    let _ = StudioDraft { session, draft: draft.clone() }.emit(&drafts);
-                }));
+                let proofs = app.handle().clone();
+                let studio = Arc::new(studio::tools::Tools::new(
+                    exams.clone(),
+                    store.clone(),
+                    data_dir.clone(),
+                    move |session, draft| {
+                        let _ = StudioDraft { session, draft: draft.clone() }.emit(&drafts);
+                    },
+                    move |session| proofs.state::<studio::proof::Proofs>().proving(session),
+                ));
                 tauri::async_runtime::spawn(async move {
                     match ai::mcp_http::McpHttp::start(store, Some(studio)).await {
                         Ok(server) => handle.state::<ai::Coach>().serve_tools(server),

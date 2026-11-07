@@ -55,8 +55,21 @@ export function HomeRoute() {
 		examApi.plans(week, dayKey(addDays(parseDay(week), 6))).then(setPlans);
 	}, [idle, week, catalog]);
 	useEffect(() => {
-		if (certification && idle)
-			examApi.readiness(certification).then(setReadiness, () => setReadiness(null));
+		if (!idle) return;
+		// No certification to measure (the target deleted, no attempt): none shown
+		if (!certification) {
+			setReadiness(null);
+			return;
+		}
+		// An answer for a certification no longer measured is not shown
+		let current = true;
+		examApi.readiness(certification).then(
+			r => current && setReadiness(r),
+			() => current && setReadiness(null)
+		);
+		return () => {
+			current = false;
+		};
 	}, [certification, idle]);
 
 	if (history === null) return <Loading fill label="Loading your attempts…" />;

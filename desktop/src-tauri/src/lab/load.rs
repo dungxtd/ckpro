@@ -53,7 +53,9 @@ pub fn load(root: &Path) -> (Option<LoadedPack>, Vec<Finding>) {
     let mut questions = BTreeMap::new();
     for path in yaml_files(&root.join("questions")) {
         match parse::<Question>(&path) {
-            Ok(value) => {
+            Ok(mut value) => {
+                // Changing the nodes, by its word or its scripts: one flag to read
+                value.disrupts = value.changes_the_nodes();
                 questions.insert(id(&pack.id, &root.join("questions"), &path), Loaded { path, value });
             }
             Err(message) => error(&mut findings, &path, message),

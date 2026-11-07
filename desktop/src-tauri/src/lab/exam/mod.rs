@@ -216,6 +216,12 @@ pub struct Exams {
     /// The question bank: the core pack plus the candidate's own questions
     /// (replaced when a generated question is added)
     pack: std::sync::RwLock<Arc<LoadedPack>>,
+    /// One reading of the packs at a time: one read before a change and
+    /// swapped in after another's would put the change out again
+    reloading: Mutex<()>,
+    /// The packs' files as last read (how many, their size, the newest
+    /// change): read again only once they differ
+    read_as: Mutex<Option<(usize, u64, Option<std::time::SystemTime>)>>,
     kind: Arc<Kind>,
     infra: Arc<Infra>,
     jumphost: Arc<Jumphost>,
@@ -253,6 +259,8 @@ impl Exams {
     ) -> Self {
         Self {
             pack: std::sync::RwLock::new(Arc::new(pack)),
+            reloading: Mutex::default(),
+            read_as: Mutex::default(),
             kind,
             infra,
             jumphost,
@@ -288,7 +296,27 @@ impl Exams {
         *self.pack.write_ok() = Arc::new(pack);
     }
 
-    /// The question bank as it is now
+    /// The YAML files under `roots`: how many, their size, the newest change
+fn files_as(roots: &[std::path::PathBuf]) -> (usize, u64, Option<std::time::SystemTime>) {
+    let mut seen = (0, 0, None);
+    let mut dirs: Vec<std::path::PathBuf> = roots.to_vec();
+    while let Some(dir) = dirs.pop() {
+        for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+            let path = entry.path();
+            let Ok(meta) = entry.metadata() else { continue };
+            if meta.is_dir() {
+                dirs.push(path);
+            } else if path.extension().is_some_and(|e| e == "yaml") {
+                seen.0 += 1;
+                seen.1 += meta.len();
+                seen.2 = seen.2.max(meta.modified().ok());
+            }
+        }
+    }
+    seen
+}
+
+/// The question bank as it is now
     pub fn bank(&self) -> Arc<LoadedPack> {
         self.pack()
     }
@@ -296,6 +324,25 @@ impl Exams {
     /// Read the candidate's questions again (one was added or deleted), over
     /// the bundled pack read again from where it came from
     pub fn reload_mine(&self, data_dir: &std::path::Path) {
+        let _one = self.reloading.locked();
+        self.reload(data_dir);
+    }
+
+    /// Read the packs again if their files changed since they were read (a
+    /// question edited on disk): a look at the files, not a parse, otherwise
+    pub fn reload_if_changed(&self, data_dir: &std::path::Path) {
+        let _one = self.reloading.locked();
+        let now = Self::files_as(&[self.bank().root.clone(), crate::lab::mine::root(data_dir)]);
+        let mut read_as = self.read_as.locked();
+        // The first look reads them too: they may have changed since the start
+        if *read_as != Some(now) {
+            *read_as = Some(now);
+            drop(read_as);
+            self.reload(data_dir);
+        }
+    }
+
+    fn reload(&self, data_dir: &std::path::Path) {
         match crate::lab::load::load(&self.bank().root).0 {
             Some(core) => self.replace_pack(crate::lab::mine::merged(core, data_dir)),
             None => tracing::warn!("could not reload the bundled pack: the change shows after a restart"),

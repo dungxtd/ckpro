@@ -584,7 +584,18 @@ minutes?: number | null;
 /**  Where it stands in this exam (proven alone in its pack, not with these) */
 status?: DraftStatus; 
 /**  It changes the nodes for the questions after it */
-disrupts?: boolean } | 
+disrupts?: boolean; 
+/**
+ *  Its content when it was added or last proven (`version`): a file
+ *  changed since is proven again
+ */
+version?: string; 
+/**
+ *  The YAML this draft wrote it from, when it was a new question
+ *  saved with the exam: if its file goes (the candidate's questions
+ *  deleted), the draft has it back as a new question
+ */
+written?: string | null } | 
 /**  A question Claude wrote for this exam */
 {
 	kind: "new",
@@ -598,7 +609,18 @@ minutes: number | null;
 /**  Where it stands in this exam (proven alone in its pack, not with these) */
 status: DraftStatus; 
 /**  It changes the nodes for the questions after it */
-disrupts: boolean } | 
+disrupts: boolean; 
+/**
+ *  Its content when it was added or last proven (`version`): a file
+ *  changed since is proven again
+ */
+version?: string; 
+/**
+ *  The YAML this draft wrote it from, when it was a new question
+ *  saved with the exam: if its file goes (the candidate's questions
+ *  deleted), the draft has it back as a new question
+ */
+written?: string } | 
 /**  A question Claude wrote for this exam */
 {
 	kind: "new",
@@ -649,6 +671,17 @@ export type ExamDraft_Deserialize = {
 	domains?: DomainWeight[],
 	/**  The exam it was saved as */
 	saved?: string | null,
+	/**
+	 *  What the candidate changed themselves since the assistant last
+	 *  answered, told to it with their next message (it sees the draft only
+	 *  when it asks for it)
+	 */
+	changes?: string[],
+	/**
+	 *  Its questions as they are were all proven in one run (Prove all):
+	 *  not once one comes, goes or changes, though each stays proven
+	 */
+	together?: boolean,
 };
 
 export type ExamDraft_Serialize = {
@@ -664,6 +697,17 @@ export type ExamDraft_Serialize = {
 	domains: DomainWeight[],
 	/**  The exam it was saved as */
 	saved: string | null,
+	/**
+	 *  What the candidate changed themselves since the assistant last
+	 *  answered, told to it with their next message (it sees the draft only
+	 *  when it asks for it)
+	 */
+	changes?: string[],
+	/**
+	 *  Its questions as they are were all proven in one run (Prove all):
+	 *  not once one comes, goes or changes, though each stays proven
+	 */
+	together: boolean,
 };
 
 /**

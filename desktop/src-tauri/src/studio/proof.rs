@@ -181,6 +181,11 @@ impl Proofs {
         }
     }
 
+    /// Whether the conversation's exam is being proven now
+    pub fn proving(&self, session: i32) -> bool {
+        self.running.locked().contains_key(&session)
+    }
+
     /// Memory the proofs running take, in MB: their clusters are not among
     /// the app's that Docker's free memory is reckoned with
     pub fn reserved_mb(&self) -> u32 {
