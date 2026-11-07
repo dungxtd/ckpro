@@ -19,7 +19,7 @@ const DAY_HEAD = 36;
 const DAY_ITEM = 24;
 const DAY_MORE = 18;
 
-export interface GridActions {
+interface GridActions {
 	onOpen: (day: string) => void;
 	onAdd: (day: string, examId: string) => void;
 	onMove: (plan: PlanView, day: string) => void;

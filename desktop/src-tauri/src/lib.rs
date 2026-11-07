@@ -117,7 +117,6 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::coach_sign_in,
         commands::coach_sign_in_input,
         commands::coach_sign_in_cancel,
-        commands::coach_sign_out,
         commands::coach_clear,
         commands::coach_new_session,
         commands::coach_open_session,

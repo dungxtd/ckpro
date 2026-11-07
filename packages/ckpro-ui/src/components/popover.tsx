@@ -1,4 +1,3 @@
-import { useThemeScope } from "@ckpro/ui/components/theme-scope";
 import { cn } from "@ckpro/ui/lib/utils";
 import { useDismissableLayerSurface } from "@radix-ui/react-dismissable-layer";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
@@ -16,12 +15,10 @@ function PopoverContent({
 	onOpenAutoFocus,
 	...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
-	const theme = useThemeScope();
 	return (
 		<PopoverPrimitive.Portal>
 			<PopoverPrimitive.Content
 				data-slot="popover-content"
-				data-theme={theme}
 				align={align}
 				sideOffset={sideOffset}
 				collisionPadding={collisionPadding}

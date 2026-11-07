@@ -21,7 +21,6 @@ export const monday = (d: Date) => {
 export const parseDay = (key: string) => new Date(`${key}T00:00`);
 
 /** A month as `YYYY-MM` */
-export const monthKey = (d: Date) => dayKey(d).slice(0, 7);
 
 /** The first day of a `YYYY-MM` month; null when it is not one */
 export function parseMonth(key: string | null): Date | null {

@@ -1,5 +1,4 @@
 import { menu } from "@ckpro/ui/components/menu";
-import { useThemeScope } from "@ckpro/ui/components/theme-scope";
 import { cn } from "@ckpro/ui/lib/utils";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { CheckIcon, ChevronDownIcon, ChevronsUpDownIcon, ChevronUpIcon } from "lucide-react";
@@ -82,12 +81,10 @@ function SelectContent({
 	position = "item-aligned",
 	...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
-	const theme = useThemeScope();
 	return (
 		<SelectPrimitive.Portal>
 			<SelectPrimitive.Content
 				data-slot="select-content"
-				data-theme={theme}
 				className={cn(
 					menu.surface,
 					"relative z-floating max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-y-auto overflow-x-hidden p-0 data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",

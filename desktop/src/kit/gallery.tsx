@@ -29,7 +29,6 @@ import { menu, menuRow } from "@ckpro/ui/components/menu";
 import { Placeholder, SampleRows } from "@ckpro/ui/components/placeholder";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Progress, ProgressRing } from "@ckpro/ui/components/progress";
-import { Range } from "@ckpro/ui/components/range";
 import { ResizeHandle } from "@ckpro/ui/components/resize-handle";
 import { SectionTitle } from "@ckpro/ui/components/section-title";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
@@ -57,7 +56,6 @@ import {
 	SidebarLabel,
 	SidebarRemove,
 } from "@ckpro/ui/components/sidebar";
-import { Skeleton } from "@ckpro/ui/components/skeleton";
 import { Toaster } from "@ckpro/ui/components/sonner";
 import { Spinner } from "@ckpro/ui/components/spinner";
 import { Stat, StatGroup } from "@ckpro/ui/components/stat";
@@ -72,7 +70,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ckpro/ui/components/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ckpro/ui/components/tabs";
 import { Terminal } from "@ckpro/ui/components/terminal";
 import { Textarea } from "@ckpro/ui/components/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckpro/ui/components/tooltip";
@@ -136,7 +133,6 @@ function Gallery() {
 	const [theme, setTheme] = useState<"dark" | "light">("dark");
 	const [seg, setSeg] = useState("desktop");
 	const [step, setStep] = useState(100);
-	const [range, setRange] = useState(40);
 	const [on, setOn] = useState(true);
 	const [chip, setChip] = useState(true);
 	const [select, setSelect] = useState("1");
@@ -372,9 +368,6 @@ function Gallery() {
 						<Textarea placeholder="Textarea (grows with its text)" className="max-w-64" />
 						<div className="w-64 rounded-xl border border-border p-2">
 							<Textarea variant="bare" rows={2} placeholder="bare: inside a composer's frame" />
-						</div>
-						<div className="w-48">
-							<Range value={range} min={0} max={100} onValueChange={setRange} aria-label="Range" />
 						</div>
 					</Row>
 				</Section>
@@ -669,35 +662,13 @@ function Gallery() {
 					<PromptSample />
 				</Section>
 
-				<Section title="Tabs" note="Sections of one page with a sidebar.">
-					<div className="flex h-36 overflow-hidden rounded-lg border border-border">
-						<Tabs defaultValue="a">
-							<TabsList aria-label="Example">
-								<TabsTrigger value="a">
-									<Monitor /> Exam desk
-								</TabsTrigger>
-								<TabsTrigger value="b">
-									<Sparkles /> AI
-								</TabsTrigger>
-							</TabsList>
-							<TabsContent value="a" className="p-4 text-sm">
-								The first section
-							</TabsContent>
-							<TabsContent value="b" className="p-4 text-sm">
-								The second section
-							</TabsContent>
-						</Tabs>
-					</div>
-				</Section>
-
 				<Section
 					title="Feedback"
-					note="Spinner, Loading (a line, or fill for a page or panel), Skeleton, toasts, Separator."
+					note="Spinner, Loading (a line, or fill for a page or panel), toasts, Separator."
 				>
 					<Row>
 						<Spinner size="inline" />
 						<Spinner size="small" />
-						<Skeleton className="h-6 w-40" />
 						<Button
 							size="push"
 							variant="push"
