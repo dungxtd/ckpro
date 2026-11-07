@@ -26,10 +26,11 @@ import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Input } from "@ckpro/ui/components/input";
 import { Loading } from "@ckpro/ui/components/loading";
 import { menu, menuRow } from "@ckpro/ui/components/menu";
-import { Placeholder } from "@ckpro/ui/components/placeholder";
+import { Placeholder, SampleRows } from "@ckpro/ui/components/placeholder";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Progress, ProgressRing } from "@ckpro/ui/components/progress";
 import { Range } from "@ckpro/ui/components/range";
+import { SectionTitle } from "@ckpro/ui/components/section-title";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
 import {
 	Select,
@@ -188,8 +189,9 @@ function Gallery() {
 
 				<Section title="Type" note="Geist; tabular-nums for numbers that change.">
 					<div className="flex flex-col gap-1">
-						<span className="text-2xl">text-2xl · page title</span>
-						<span className="text-lg">text-lg · section</span>
+						<span className="font-bold text-title">text-title · a screen's title</span>
+						<SectionTitle>SectionTitle · a section</SectionTitle>
+						<SectionTitle size="group">SectionTitle group · over a group of rows</SectionTitle>
 						<span className="text-base">text-base · body</span>
 						<span className="text-sm">text-sm · default UI text</span>
 						<span className="text-callout">text-callout · controls</span>
@@ -199,7 +201,10 @@ function Gallery() {
 					</div>
 				</Section>
 
-				<Section title="Button" note="Text actions. Icon-only actions use IconButton.">
+				<Section
+					title="Button"
+					note="Text actions: pushDefault for an area's main action (one), push for the others, quiet for small ones. Icon-only actions use IconButton."
+				>
 					<Row>
 						{(
 							[
@@ -373,11 +378,13 @@ function Gallery() {
 						<Chip>Static</Chip>
 					</Row>
 					<Row>
-						{(["subtle", "solid", "success", "destructive", "overlay"] as const).map(v => (
-							<Badge key={v} variant={v}>
-								{v}
-							</Badge>
-						))}
+						{(["subtle", "accent", "solid", "success", "destructive", "overlay"] as const).map(
+							v => (
+								<Badge key={v} variant={v}>
+									{v}
+								</Badge>
+							)
+						)}
 					</Row>
 				</Section>
 
@@ -415,6 +422,9 @@ function Gallery() {
 						</Alert>
 						<Alert variant="destructive">
 							<CircleAlert /> destructive
+						</Alert>
+						<Alert variant="warning" size="sm">
+							size sm · in a narrow pane or under a control
 						</Alert>
 					</div>
 				</Section>
@@ -600,6 +610,11 @@ function Gallery() {
 							}
 						/>
 					</Card>
+					<Placeholder
+						sample={<SampleRows rows={3} />}
+						title="No attempts yet"
+						description="SampleRows: the sample for a list or a table"
+					/>
 				</Section>
 
 				<Section
@@ -615,7 +630,7 @@ function Gallery() {
 
 				<Section
 					title="Terminal"
-					note="Text as a terminal shows it: dark in both themes, tones for its parts."
+					note="Text as a terminal shows it, in the theme, tones for its parts; sm for a log under a row."
 				>
 					<Terminal>
 						<Terminal.Muted>$ kubectl get exam cka</Terminal.Muted>
@@ -626,6 +641,9 @@ function Gallery() {
 						{"\n"}
 						<Terminal.Warn>Warning</Terminal.Warn>
 						{"  BelowPass  storage 58%"}
+					</Terminal>
+					<Terminal size="sm">
+						{"Creating cluster k8s-v7f3a\nWaiting for the nodes… ready in 31 s"}
 					</Terminal>
 					<PromptSample />
 				</Section>
