@@ -1,6 +1,7 @@
 import { Badge } from "@cktry/ui/components/badge";
 import { IconButton } from "@cktry/ui/components/icon-button";
 import { Loading } from "@cktry/ui/components/loading";
+import { Placeholder, SampleRows } from "@cktry/ui/components/placeholder";
 import { SectionTitle } from "@cktry/ui/components/section-title";
 import {
 	Table,
@@ -32,7 +33,11 @@ export function HistoryRoute() {
 	if (history.length === 0)
 		return (
 			<Screen title="History" width="wide">
-				<p className="text-muted-foreground text-sm">No attempts yet.</p>
+				<Placeholder
+					sample={<SampleRows rows={6} />}
+					title="No attempts yet"
+					description="Your exams and practice show here, with what to work on."
+				/>
 			</Screen>
 		);
 	return (

@@ -15,7 +15,7 @@ export function DeskSettings() {
 	const desktop = useDesktopSettings();
 	const resolution = desktop.resolution ? desktop.resolution.join("x") : "fit";
 	return (
-		<Group title="Exam desk" description="Also changed from the desk itself, as on the exam.">
+		<Group description="Also changed from the desk itself, as on the exam.">
 			<Row icon={<Type />} label="Question text size">
 				<TextSize />
 			</Row>
