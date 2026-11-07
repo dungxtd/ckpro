@@ -11,7 +11,7 @@ import { X } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { ClaudeIcon } from "@/components/assistant/claude-icon";
+import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { useStudio } from "@/stores/studio";
 import type { DraftItem, Proof } from "@/tauri/api";
 import { domainName, gb, plural } from "@/words";
@@ -215,7 +215,7 @@ function ProofFoot() {
 							className="bg-claude/15 text-claude shadow-none hover:bg-claude/25"
 							onClick={askToFix}
 						>
-							<ClaudeIcon className="size-3.5" /> Ask Claude to fix
+							<AssistantIcon className="size-3.5" /> Ask Claude to fix
 						</Button>
 					</>
 				) : (

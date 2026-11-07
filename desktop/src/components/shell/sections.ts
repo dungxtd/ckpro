@@ -1,12 +1,12 @@
 import { CalendarDays, Container, History, House } from "lucide-react";
-import { ClaudeIcon } from "@/components/assistant/claude-icon";
+import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import type { SidebarLayout } from "@/tauri/api";
 
 /** The app's screens, in the sidebar and the capsule (Settings apart, at the end) */
 export const SECTIONS = [
 	{ path: "/", label: "Home", icon: House },
 	{ path: "/calendar", label: "Calendar", icon: CalendarDays },
-	{ path: "/create", label: "Create", icon: ClaudeIcon },
+	{ path: "/create", label: "Create", icon: AssistantIcon },
 	{ path: "/history", label: "History", icon: History },
 	{ path: "/environment", label: "Environment", icon: Container },
 ];

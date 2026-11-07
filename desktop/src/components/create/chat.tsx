@@ -12,7 +12,7 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { ArrowUp, Check, History, Plus, Square, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Answer, UserMessage } from "@/components/assistant/answer";
-import { ClaudeIcon } from "@/components/assistant/claude-icon";
+import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { SignInDialog } from "@/components/assistant/sign-in-dialog";
 import { useCoach } from "@/stores/coach";
 import { running, useStudio } from "@/stores/studio";
@@ -74,7 +74,7 @@ export function Chat() {
 	return (
 		<section className="flex h-full min-h-0 min-w-0 flex-col">
 			<header className="flex h-14 shrink-0 select-none items-center gap-2 border-border border-b px-5">
-				<ClaudeIcon className="size-4 shrink-0 text-claude" />
+				<AssistantIcon className="size-4 shrink-0 text-claude" />
 				<h2 className="min-w-0 flex-1 truncate font-semibold text-callout">{title}</h2>
 				<Popover open={listing} onOpenChange={setListing}>
 					<PopoverTrigger asChild>
@@ -138,7 +138,7 @@ export function Chat() {
 				<div className="mx-auto flex min-h-full max-w-3xl flex-col gap-3">
 					{shown.length === 0 && (
 						<div className="m-auto flex max-w-md flex-col items-center gap-3 text-center">
-							<ClaudeIcon className="size-7 text-claude" />
+							<AssistantIcon className="size-7 text-claude" />
 							<p className="font-semibold text-lead">What exam do you want?</p>
 							<p className="text-callout text-muted-foreground">
 								Claude reads your target, your attempts and what you got wrong, your plans and the
@@ -161,7 +161,7 @@ export function Chat() {
 						) : (
 							// biome-ignore lint/suspicious/noArrayIndexKey: messages only grow
 							<div key={i} className="flex gap-2.5">
-								<ClaudeIcon className="mt-1 size-4 shrink-0 text-claude" />
+								<AssistantIcon className="mt-1 size-4 shrink-0 text-claude" />
 								<div className="flex min-w-0 flex-1 flex-col gap-1.5">
 									{/* What it looked at and changed, then what it says */}
 									<ToolUses tools={m.tools} />
