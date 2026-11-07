@@ -285,8 +285,9 @@ async fn exam_engine_practice_and_exam_modes() {
     println!("ok: an outside exec is noted; a desktop stopped outside is started again");
 
     // The practice coach answers about the failing check (the real model,
-    // when Claude Code is installed) and keeps the conversation
-    if runtime::docker::cli().is_some() {
+    // when Claude Code and Node.js are installed: not on CI) and keeps the
+    // conversation
+    if ai::agent::detect_claude().is_some() && ai::agent::detect_npx().is_some() {
         let streamed = std::sync::Mutex::new(String::new());
         let coach = ai::Coach::new();
         let context = ai::CoachContext { checks: true, cluster: true };
