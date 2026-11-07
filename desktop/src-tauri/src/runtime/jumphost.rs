@@ -53,6 +53,13 @@ impl Jumphost {
         Self { name: APP_NAME.into(), network: NETWORK.into(), dir: data_dir.join("jumphost") }
     }
 
+    /// A jumphost of the tests' own, on the app's network beside the
+    /// clusters they make there
+    #[cfg(test)]
+    pub fn for_test(data_dir: &Path, name: &str) -> Self {
+        Self { name: format!("{RUN_PREFIX}{name}"), network: NETWORK.into(), dir: data_dir.join("runs").join(name).join("jumphost") }
+    }
+
     /// A jumphost of its own for one verify run
     pub fn for_run(data_dir: &Path, run: &str) -> Self {
         Self { name: format!("{RUN_PREFIX}{run}"), network: run_network(run), dir: data_dir.join("runs").join(run).join("jumphost") }
