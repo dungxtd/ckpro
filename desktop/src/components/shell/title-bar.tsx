@@ -1,47 +1,53 @@
-import { Capsule, CapsuleItem } from "@ckpro/ui/components/capsule";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuTrigger,
-} from "@ckpro/ui/components/dropdown-menu";
-import { IconButton } from "@ckpro/ui/components/icon-button";
 import { mac } from "@ckpro/ui/lib/platform";
 import { cn } from "@ckpro/ui/lib/utils";
-import { ChevronDown, PanelLeft, Search } from "lucide-react";
-import type * as React from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useLayoutEffect, useRef, useState } from "react";
 import { ActivityChip } from "@/components/activity/activity-chip";
-import { ExamMenuItems } from "@/components/catalog/exam-list";
 import { useInspectorShown } from "@/components/shell/inspector";
 import { WindowControls } from "@/components/shell/window-controls";
-import { SHORTCUTS } from "@/shortcuts";
-import { useAssistantEnabled, useSidebarLayout } from "@/stores/settings";
-import { arrangeScreens } from "./sections";
+import { type CapsuleBox, CapsuleNav } from "./capsule-nav";
+
+/** What the capsule keeps clear of on the left: macOS's window buttons */
+const LEFT = mac ? 80 : 12;
 
 /**
  * The bar over the content: it moves the window and shows what is running.
- * With the sidebar hidden, the screens float in it as a capsule, beside the
- * window's buttons; else the screen's name, once its own title scrolled away
+ * With the sidebar hidden, the screens float in it as a capsule (centred in
+ * the window, clear of the window's buttons and of an inspector); else the
+ * screen's name, once its own title scrolled away
  */
 export function TitleBar({
 	folded,
 	title,
 	onUnfold,
 	onSearch,
-	capsuleRef,
+	onCapsule,
 }: {
 	folded: boolean;
 	title?: string;
-	/** The capsule, which the window's surface takes the shape of while folded */
-	capsuleRef?: React.Ref<HTMLElement>;
+	/** Where the capsule is, which the window's surface takes the shape of while folded */
+	onCapsule: (box: CapsuleBox) => void;
 	onUnfold: () => void;
 	onSearch: () => void;
 }) {
-	const { pathname } = useLocation();
-	const navigate = useNavigate();
-	const [layout] = useSidebarLayout();
-	const assistant = useAssistantEnabled();
 	const inspecting = useInspectorShown();
+	// The capsule's room: from the window's buttons to what is at the bar's end
+	// (what is running, Windows' buttons) or the inspector's edge
+	const end = useRef<HTMLDivElement>(null);
+	const [right, setRight] = useState(0);
+	useLayoutEffect(() => {
+		const el = end.current;
+		if (!el) return;
+		const measure = () => setRight(el.getBoundingClientRect().left - 8);
+		measure();
+		const watch = new ResizeObserver(measure);
+		watch.observe(el);
+		if (el.parentElement) watch.observe(el.parentElement);
+		window.addEventListener("resize", measure);
+		return () => {
+			watch.disconnect();
+			window.removeEventListener("resize", measure);
+		};
+	}, []);
 	return (
 		<div
 			data-tauri-drag-region
@@ -56,64 +62,19 @@ export function TitleBar({
 			>
 				{title}
 			</span>
-			{/* Its pill is the window's morphing surface (main.tsx): only the
-			    items fade, in as the surface reaches its shape, out as it leaves */}
-			<Capsule
-				ref={capsuleRef}
-				aria-label="Screens"
-				inert={!folded}
-				className={cn(
-					"absolute left-1/2 z-20 -translate-x-1/2 bg-transparent shadow-none backdrop-blur-none transition-opacity motion-reduce:transition-none",
-					folded
-						? "opacity-100 delay-200 duration-200"
-						: "pointer-events-none opacity-0 duration-100"
-				)}
-			>
-				<IconButton
-					variant="toolbar"
-					size="bar"
-					className="rounded-full"
-					aria-label={`Show sidebar (${SHORTCUTS.sidebar.label})`}
-					onClick={onUnfold}
-				>
-					<PanelLeft />
-				</IconButton>
-				{arrangeScreens(layout, { assistant }).map(({ path, label }) => (
-					<CapsuleItem key={path} current={pathname === path} onClick={() => navigate(path)}>
-						{label}
-					</CapsuleItem>
-				))}
-				{/* The exams, which the sidebar lists, as a menu */}
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<CapsuleItem current={pathname === "/exams"}>
-							Exams
-							<ChevronDown />
-						</CapsuleItem>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="center">
-						<ExamMenuItems />
-					</DropdownMenuContent>
-				</DropdownMenu>
-				<CapsuleItem
-					current={pathname.startsWith("/settings")}
-					onClick={() => navigate("/settings")}
-				>
-					Settings
-				</CapsuleItem>
-				<IconButton
-					variant="toolbar"
-					size="bar"
-					className="rounded-full"
-					aria-label="Search exams"
-					onClick={onSearch}
-				>
-					<Search />
-				</IconButton>
-			</Capsule>
-			<ActivityChip compact={folded} />
-			{/* Windows' buttons at the window's corner: the inspector's, when one shows */}
-			{!mac && !inspecting && <WindowControls />}
+			<CapsuleNav
+				folded={folded}
+				left={LEFT}
+				right={right}
+				onUnfold={onUnfold}
+				onSearch={onSearch}
+				onBox={onCapsule}
+			/>
+			<div ref={end} className="flex items-center gap-2">
+				<ActivityChip compact={folded} />
+				{/* Windows' buttons at the window's corner: the inspector's, when one shows */}
+				{!mac && !inspecting && <WindowControls />}
+			</div>
 		</div>
 	);
 }

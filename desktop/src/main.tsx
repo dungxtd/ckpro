@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import { pageView, setAnalytics, track } from "@/analytics";
 import { AppSidebar } from "@/components/shell/app-sidebar";
+import type { CapsuleBox } from "@/components/shell/capsule-nav";
 import {
 	INSPECTOR_FROM_PX,
 	InspectorProvider,
@@ -51,7 +52,8 @@ function Layout() {
 	// The screen's own title scrolled away: the title bar shows it small
 	const [scrolled, setScrolled] = useState(false);
 	const main = useRef<HTMLElement>(null);
-	const surface = useMorphSurface(folded);
+	const [capsule, setCapsule] = useState<CapsuleBox | null>(null);
+	const surface = useMorphSurface(folded, capsule);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: each screen opens at its top
 	useEffect(() => {
 		main.current?.scrollTo({ top: 0 });
@@ -111,7 +113,7 @@ function Layout() {
 				<div ref={area} className="flex min-h-0 min-w-0">
 					<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 						<TitleBar
-							capsuleRef={surface.capsule}
+							onCapsule={setCapsule}
 							folded={folded}
 							title={scrolled ? screenTitle(pathname) : undefined}
 							onUnfold={() => update({ sidebar_folded: false })}
