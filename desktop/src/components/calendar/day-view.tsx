@@ -9,6 +9,7 @@ import type { ExamTarget, HistoryEntry, PlanView } from "@/tauri/api";
 import { describe } from "./describe";
 import { DescribeCard } from "./describe-card";
 import { ExamPicker } from "./exam-picker";
+import { ModeToggle } from "./mode-toggle";
 import { MiniMonth } from "./month";
 
 const time = (ms: number) =>
@@ -89,14 +90,7 @@ export function DayView({
 						>
 							<div className="min-w-0 flex-1">
 								<div className="truncate font-medium">{p.title}</div>
-								<button
-									type="button"
-									onClick={() => onMode(p)}
-									className="mt-0.5 rounded bg-highlight/20 px-1.5 font-bold text-[10px] text-highlight outline-none hover:bg-highlight/35 focus-visible:ring-1 focus-visible:ring-ring"
-									aria-label={`${p.title}: take it as ${p.mode === "exam" ? "practice" : "an exam"}`}
-								>
-									{p.mode === "exam" ? "EXAM" : "PRACTICE"}
-								</button>
+								<ModeToggle plan={p} onMode={onMode} className="mt-0.5" />
 							</div>
 							<Button size="sm" variant="outline" onClick={() => onRemove(p)}>
 								Remove
@@ -128,7 +122,7 @@ export function DayView({
 							<div className="text-right">
 								<div className="font-semibold text-xl tabular-nums">{Math.round(scoreOf(h))}%</div>
 								<Badge variant={scoreOf(h) >= h.pass_score ? "success" : "destructive"}>
-									{scoreOf(h) >= h.pass_score ? "Pass" : "Fail"}
+									{scoreOf(h) >= h.pass_score ? "Passed" : "Failed"}
 								</Badge>
 							</div>
 						</div>

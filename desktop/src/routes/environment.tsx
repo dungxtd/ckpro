@@ -11,14 +11,15 @@ import { IssuesPanel } from "@/components/environment/issues-panel";
 import { Screen } from "@/components/shell/screen";
 import { useEnvironment } from "@/stores/environment";
 import { type EnvState, envApi } from "@/tauri/api";
+import { gb, plural } from "@/words";
 
 function DockerStatus({ docker }: { docker: EnvState["docker"] }) {
 	switch (docker.state) {
 		case "up":
 			return (
 				<Badge variant="success">
-					<StatusDot tone="ok" /> Docker {docker.version} · {docker.cpus} CPU ·{" "}
-					{(docker.memory_mb / 1024).toFixed(1)} GB
+					<StatusDot tone="ok" /> Docker {docker.version}, {plural(docker.cpus, "CPU")},{" "}
+					{gb(docker.memory_mb)}
 				</Badge>
 			);
 		case "down":

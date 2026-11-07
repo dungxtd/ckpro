@@ -272,7 +272,7 @@ function Item({
 	const status = deleted ? (
 		<Badge variant="destructive">Deleted</Badge>
 	) : running ? (
-		<Badge className="bg-highlight/15 text-highlight tabular-nums">
+		<Badge variant="accent" className="tabular-nums">
 			Running · {clock(now - (running.since ?? now))}
 		</Badge>
 	) : !shown ? null : shown.state === "proven" ? (

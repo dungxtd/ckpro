@@ -10,6 +10,7 @@ import { shortTitle } from "@/titles";
 import { describe } from "./describe";
 import { DescribeCard } from "./describe-card";
 import { ExamPicker } from "./exam-picker";
+import { ModeToggle } from "./mode-toggle";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /** A day's number and padding, a thing listed under it, and the "+N more"
@@ -329,16 +330,7 @@ function Plan({
 				<GripVertical />
 			</span>
 			<span className="min-w-0 flex-1 truncate">{shortTitle(p.title)}</span>
-			<button
-				type="button"
-				aria-label={`${p.title}: take it as ${p.mode === "exam" ? "practice" : "an exam"}`}
-				onClick={() => onMode(p)}
-				className="shrink-0 rounded bg-highlight/20 px-1 font-bold text-[9px] outline-none hover:bg-highlight/35 focus-visible:ring-1 focus-visible:ring-ring"
-			>
-				{/* A letter in a narrow calendar, the word in a wide one */}
-				<span className="@4xl:hidden">{p.mode === "exam" ? "E" : "P"}</span>
-				<span className="hidden @4xl:inline">{p.mode === "exam" ? "EXAM" : "PRACTICE"}</span>
-			</button>
+			<ModeToggle plan={p} onMode={onMode} narrow className="shrink-0" />
 			<button
 				type="button"
 				aria-label={`Remove ${p.title}`}

@@ -58,5 +58,5 @@ test("Docker down says so, and Retry now asks again", async ({ page }) => {
 	await page.getByRole("button", { name: "Retry now" }).click();
 	expect(await calls(page, "env_retry")).toHaveLength(1);
 	await emit(page, "env-changed", { docker: up, clusters: [], issues: [] });
-	await expect(page.getByText("Docker 28 · 8 CPU · 5.8 GB")).toBeVisible();
+	await expect(page.getByText("Docker 28, 8 CPUs, 5.8 GB")).toBeVisible();
 });

@@ -65,7 +65,7 @@ export function HistoryRoute() {
 							<TableCell className="tabular-nums">{h.result.score}%</TableCell>
 							<TableCell>
 								<Badge variant={h.result.passed ? "success" : "destructive"}>
-									{h.result.passed ? "Pass" : "Fail"}
+									{h.result.passed ? "Passed" : "Failed"}
 								</Badge>
 							</TableCell>
 							<TableCell className="w-10 text-right">
