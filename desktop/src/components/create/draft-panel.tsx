@@ -167,7 +167,7 @@ function ProofFoot() {
 	return (
 		<>
 			{plan?.problem ? (
-				<Alert variant="warning" className="py-2 text-caption">
+				<Alert variant="warning" size="sm" className="py-2">
 					{plan.problem}
 				</Alert>
 			) : failed > 0 ? (

@@ -26,7 +26,7 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 		<div className="flex flex-col gap-7">
 			<header className="flex flex-col gap-2">
 				<Badge className="self-start">{exam.certification.toUpperCase()}</Badge>
-				<h1 className="min-w-0 break-words font-bold text-[26px] leading-tight">{exam.title}</h1>
+				<h1 className="min-w-0 break-words font-bold text-title leading-tight">{exam.title}</h1>
 				<Description text={exam.description} />
 			</header>
 
@@ -106,10 +106,7 @@ function Description({ text }: { text: string }) {
 	}, [text, open]);
 	return (
 		<div className="flex min-h-11 max-w-[62ch] flex-col items-start">
-			<p
-				ref={ref}
-				className={cn("text-[14px] text-muted-foreground leading-[22px]", !open && "line-clamp-2")}
-			>
+			<p ref={ref} className={cn("text-muted-foreground text-sm/[22px]", !open && "line-clamp-2")}>
 				{text}
 			</p>
 			{(long || open) && (

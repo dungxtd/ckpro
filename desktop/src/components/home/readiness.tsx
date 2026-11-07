@@ -122,7 +122,7 @@ function Bars({ children }: { children: React.ReactNode }) {
 
 const Name = ({ name, weight }: { name: string; weight: number }) => (
 	<span className="truncate capitalize">
-		{name} <span className="hidden text-muted-foreground @[17rem]:inline">{weight}%</span>
+		{name} <span className="sr-only text-muted-foreground @[17rem]:not-sr-only">{weight}%</span>
 	</span>
 );
 

@@ -27,7 +27,7 @@ export function HistoryRoute() {
 		coachApi.coachedAttempts().then(ids => setChatted(new Set(ids)));
 	}, []);
 
-	if (history === null) return <Loading fill label="Loading history…" />;
+	if (history === null) return <Loading fill label="Loading your attempts…" />;
 	if (history.length === 0)
 		return (
 			<Screen title="History" className="max-w-6xl">

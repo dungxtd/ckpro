@@ -316,7 +316,7 @@ export function AssistantPane({
 					</div>
 				)}
 				{coach.error && (
-					<Alert variant="warning" className="mt-2 px-3 py-1.5 text-xs">
+					<Alert variant="warning" size="sm" className="mt-2">
 						{coach.error}
 					</Alert>
 				)}

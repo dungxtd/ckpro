@@ -233,7 +233,7 @@ function Coverage({ draft, className }: { draft: ExamDraft; className?: string }
 				<div className="flex flex-col gap-1">
 					{counts.map((d, i) => (
 						<span key={d.domain} className="flex items-center gap-2">
-							<span className={cn("size-2 rounded-[2px]", DOMAIN[i % DOMAIN.length])} />
+							<span className={cn("size-2 rounded-xs", DOMAIN[i % DOMAIN.length])} />
 							<span className="flex-1 capitalize">{domainName(d.domain)}</span>
 							<span className="tabular-nums">
 								{d.count} · {Math.round((d.count * 100) / total)}% (exam {d.weight}%)

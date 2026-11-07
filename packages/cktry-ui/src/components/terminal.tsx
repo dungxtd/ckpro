@@ -5,11 +5,21 @@ import type * as React from "react";
  * Text as a terminal shows it: monospace on a dark ground in both themes,
  * lines kept as written. Spans inside take the tones (`Terminal.Ok`, …)
  */
-export function Terminal({ className, ...props }: React.ComponentProps<"pre">) {
+export function Terminal({
+	size = "md",
+	className,
+	...props
+}: React.ComponentProps<"pre"> & {
+	/** sm: a log under a row, its lines wrapped */
+	size?: "md" | "sm";
+}) {
 	return (
 		<pre
 			className={cn(
-				"overflow-x-auto whitespace-pre rounded-xl border border-white/5 bg-terminal p-4 font-mono text-[12.5px] text-terminal-foreground leading-relaxed",
+				"overflow-auto border border-white/5 bg-terminal font-mono text-terminal-foreground leading-relaxed",
+				size === "md"
+					? "whitespace-pre rounded-xl p-4 text-[12.5px]"
+					: "whitespace-pre-wrap break-words rounded-md px-2.5 py-2 text-2xs text-terminal-foreground/80",
 				className
 			)}
 			{...props}

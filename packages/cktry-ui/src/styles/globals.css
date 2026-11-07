@@ -31,6 +31,9 @@
 	--warning: #ff9500;
 	--highlight: #3478f6; /* macOS menu selection blue (measured) */
 	--highlight-foreground: #ffffff;
+	/* What sits on a solid success or destructive fill */
+	--success-foreground: #000000;
+	--destructive-foreground: #ffffff;
 	--glass: #ffffff; /* pills/fields: white with an edge, like the toolbar back/forward pill */
 	--glass-border: rgb(60 60 67 / 0.18);
 	--glass-highlight: transparent;
@@ -140,6 +143,8 @@
 	--color-glass-selected-foreground: var(--glass-selected-foreground);
 	--color-highlight: var(--highlight);
 	--color-highlight-foreground: var(--highlight-foreground);
+	--color-success-foreground: var(--success-foreground);
+	--color-destructive-foreground: var(--destructive-foreground);
 	--color-border: var(--border);
 	--color-sidebar-panel: var(--sidebar-panel);
 	--color-sidebar-selected: var(--sidebar-selected);
@@ -304,6 +309,8 @@
 	--text-caption: 12px;
 	--text-callout: 13px;
 	--text-lead: 15px;
+	/* A screen's title */
+	--text-title: 26px;
 }
 
 /* Corner radii that repeat across the app. */

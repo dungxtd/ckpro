@@ -50,7 +50,7 @@ export function AttemptChats({
 					{error ? (
 						<p className="text-muted-foreground text-sm">{error}</p>
 					) : chats === null ? (
-						<Loading fill />
+						<Loading fill label="Loading the conversations…" />
 					) : (
 						<div className="flex flex-col gap-8">
 							{chats.map(chat => (
