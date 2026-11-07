@@ -49,9 +49,7 @@ impl Server {
         let (attempt, questions) =
             exam::saved_running(&self.store).ok_or_else(|| AppError::not_found("no practice attempt is running in ckpro"))?;
         if attempt.mode == exam::Mode::Exam {
-            return Err(AppError::invalid(
-                "An exam-mode attempt is running in ckpro: the assistant is off until it ends, as in the real exam.",
-            ));
+            return Err(AppError::exam_mode());
         }
         questions
             .into_iter()

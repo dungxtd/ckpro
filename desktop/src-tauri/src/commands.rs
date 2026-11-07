@@ -489,8 +489,12 @@ pub async fn start_exam(
     // Before anything is created: this machine can run it, beside the proofs
     // running (their clusters are not among the app's)
     if let Some(summary) = exams.catalog().into_iter().find(|e| e.id == id) {
-        preflight::exam_fits(&env.snapshot(), summary.minimum_mb + proofs.reserved_mb(), &summary.clusters)
-            .map_err(AppError::invalid)?;
+        preflight::exam_fits(&env.snapshot(), summary.minimum_mb + proofs.reserved_mb(), &summary.clusters)?;
+    }
+    // An exam has no assistant: what it was doing stops (answers, proofs)
+    if mode == Mode::Exam {
+        coach.stop_answers();
+        proofs.stop_all();
     }
     coach.end_attempt().await;
     exams.inner().start(&id, mode, replace).await
@@ -540,10 +544,7 @@ pub fn exam_history(exams: State<'_, Arc<Exams>>) -> Vec<HistoryEntry> {
 /// The assistant is off while an exam-mode attempt is under way: not even its
 /// login or models are read then
 fn no_exam(exams: &Exams) -> AppResult<()> {
-    if exams.exam_in_progress() {
-        return Err(AppError::invalid("the assistant is off during an exam"));
-    }
-    Ok(())
+    exams.assistant_allowed()
 }
 
 /// Send the core's errors to PostHog as the interface's person and session,
@@ -703,7 +704,7 @@ pub async fn studio_verify(
 
 /// Whether a proof's run of so many MB fits in what Docker has left, the
 /// proofs running counted (their clusters are not among the app's)
-fn proof_fits<'a>(env: &'a Env, proofs: &'a Proofs) -> impl Fn(u32) -> Result<(), String> + 'a {
+fn proof_fits<'a>(env: &'a Env, proofs: &'a Proofs) -> impl Fn(u32) -> AppResult<()> + 'a {
     move |mb| preflight::fits(&env.snapshot(), "Proving the exam", mb + proofs.reserved_mb(), &[])
 }
 

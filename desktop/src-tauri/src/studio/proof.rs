@@ -56,7 +56,7 @@ pub struct ProofPlan {
 impl ProofPlan {
     /// The plan for `draft` (its questions in `bank`), its workers by
     /// question; `fits` says whether Docker has room for so many megabytes
-    pub fn of(draft: &ExamDraft, bank: &crate::lab::load::LoadedPack, workers: u8, fits: impl Fn(u32) -> Result<(), String>) -> Self {
+    pub fn of(draft: &ExamDraft, bank: &crate::lab::load::LoadedPack, workers: u8, fits: impl Fn(u32) -> crate::error::AppResult<()>) -> Self {
         let total = draft.items.len() as u32;
         let changed = draft.statuses().filter(|(_, s)| **s != DraftStatus::Proven).count() as u32;
         let mb = run_mb(workers);
@@ -70,7 +70,7 @@ impl ProofPlan {
             total,
             minutes_all: minutes(total),
             minutes_changed: minutes(changed),
-            problem: draft.complete(bank).err().or_else(|| draft.disrupting().err()).or_else(|| fits(mb).err()),
+            problem: draft.complete(bank).err().or_else(|| draft.disrupting().err()).or_else(|| fits(mb).err().map(|e| e.to_string())),
             missing: draft.missing(bank).into_iter().map(|(id, _)| id).collect(),
         }
     }
@@ -170,6 +170,15 @@ impl Proofs {
             r.proof.ended_at = Some(crate::runtime::activity::now_ms());
             (self.changed)(session, Some(&r.proof));
             (self.changed)(session, None);
+        }
+    }
+
+    /// Every proof stopped (an exam-mode attempt starts: no assistant's work
+    /// goes on beside it)
+    pub fn stop_all(&self) {
+        for r in self.running.locked().values_mut() {
+            r.proof.stopped = true;
+            r.cancel.cancel();
         }
     }
 

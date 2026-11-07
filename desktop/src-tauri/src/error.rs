@@ -19,6 +19,20 @@ pub enum AppError {
     /// Bad input from the UI (names, paths, ...).
     #[error("{message}")]
     Invalid { message: String },
+    /// Something is under way that this has to wait for: an attempt, a
+    /// proof, a save.
+    #[error("{message}")]
+    Busy { message: String },
+    /// An exam-mode attempt runs: the assistant (any AI) is off until it
+    /// ends, as in the real exam.
+    #[error("{message}")]
+    ExamMode { message: String },
+    /// The assistant is turned off in Settings: the app has no AI.
+    #[error("{message}")]
+    AssistantOff { message: String },
+    /// This machine cannot run it now: Docker's memory or CPUs.
+    #[error("{message}")]
+    Preflight { message: String },
     /// Clusters an exam needs already exist: starting it replaces them.
     #[error("{message}")]
     ClustersExist { message: String },
@@ -53,6 +67,21 @@ impl AppError {
     }
     pub fn not_found(message: impl Into<String>) -> Self {
         Self::NotFound { message: message.into() }
+    }
+    pub fn busy(message: impl Into<String>) -> Self {
+        Self::Busy { message: message.into() }
+    }
+    /// The one way an exam-mode attempt refuses the assistant
+    pub fn exam_mode() -> Self {
+        Self::ExamMode {
+            message: "An exam-mode attempt is running: the assistant is off until it ends, as in the real exam.".into(),
+        }
+    }
+    pub fn assistant_off() -> Self {
+        Self::AssistantOff { message: "The assistant is turned off in Settings.".into() }
+    }
+    pub fn preflight(message: impl Into<String>) -> Self {
+        Self::Preflight { message: message.into() }
     }
     pub fn assistant(message: impl Into<String>) -> Self {
         Self::Assistant { message: message.into() }
