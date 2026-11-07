@@ -100,18 +100,6 @@ pub fn problems(q: &Question) -> Vec<String> {
     problems
 }
 
-/// Its scripts change the nodes for the questions after it: they cordon,
-/// drain or taint one
-pub fn disrupts(q: &Question) -> bool {
-    scripts(q).iter().any(|(_, s)| {
-        s.lines().any(|line| {
-            let words: Vec<&str> = line.split_whitespace().collect();
-            words.windows(2).any(|w| w[0] == "kubectl" && matches!(w[1], "cordon" | "drain" | "taint"))
-                || words.windows(3).any(|w| w[0] == "kubectl" && w[2] == "taint")
-        })
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,15 +151,15 @@ mod tests {
         for (id, q) in &pack.questions {
             assert!(problems(&q.value).is_empty(), "{id}: {:?}", problems(&q.value));
             if q.value.disrupts {
-                assert!(disrupts(&q.value), "{id} is marked but its scripts do not show it");
+                assert!(q.value.scripts_change_the_nodes(), "{id} is marked but its scripts do not show it");
             }
         }
     }
 
     #[test]
     fn a_question_that_changes_the_nodes_is_known() {
-        assert!(disrupts(&question("kubectl taint node w1 a=b:NoSchedule", "echo")));
-        assert!(disrupts(&question("echo", "kubectl drain w1 --ignore-daemonsets")));
-        assert!(!disrupts(&question("kubectl get nodes", "kubectl describe node w1 | grep Taints")));
+        assert!(question("kubectl taint node w1 a=b:NoSchedule", "echo").scripts_change_the_nodes());
+        assert!(question("echo", "kubectl drain w1 --ignore-daemonsets").scripts_change_the_nodes());
+        assert!(!question("kubectl get nodes", "kubectl describe node w1 | grep Taints").scripts_change_the_nodes());
     }
 }

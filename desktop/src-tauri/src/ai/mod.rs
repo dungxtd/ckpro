@@ -156,6 +156,9 @@ pub struct Coach {
     open: tokio::sync::Mutex<HashMap<(String, String), (String, String, String, Profile)>>,
     /// Claude Code is turned on (Settings > AI): off, nothing asks it
     enabled: std::sync::atomic::AtomicBool,
+    /// The assistant is on at all (Settings > Assistant, "Use the
+    /// assistant"): off, the app has no AI anywhere
+    on: std::sync::atomic::AtomicBool,
     /// The tools agent sessions get, once their server listens
     tools: std::sync::OnceLock<mcp_http::McpHttp>,
     /// Permission requests waiting for the candidate, by id: the options
@@ -201,6 +204,7 @@ impl Coach {
             permissions: Default::default(),
             tools: Default::default(),
             enabled: std::sync::atomic::AtomicBool::new(true),
+            on: std::sync::atomic::AtomicBool::new(true),
             signing_in: Default::default(),
             account: Default::default(),
             active: Default::default(),
@@ -228,10 +232,28 @@ impl Coach {
 
     /// Refuse when Claude Code is turned off in Settings
     fn require_enabled(&self) -> AppResult<()> {
+        if !self.on.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(AppError::assistant("The assistant is turned off in Settings"));
+        }
         if self.enabled.load(std::sync::atomic::Ordering::SeqCst) {
             Ok(())
         } else {
             Err(AppError::assistant("Claude Code is turned off in Settings > AI"))
+        }
+    }
+
+    /// The assistant turned on or off as a whole (Settings' "Use the
+    /// assistant"). Off, the answers being written stop: it has no AI
+    /// anywhere, nothing goes on changing a draft
+    pub fn switch(&self, on: bool) {
+        self.on.store(on, std::sync::atomic::Ordering::SeqCst);
+        if !on {
+            if let Some(cancel) = self.running.locked().take() {
+                cancel.cancel();
+            }
+            for (_, cancel) in self.studio_running.locked().drain() {
+                cancel.cancel();
+            }
         }
     }
 

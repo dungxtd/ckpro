@@ -29,14 +29,26 @@ fn proving_id(certification: &str, key: &str) -> String {
 }
 
 /// Change a conversation's draft, not saved yet (a saved one is an exam
-/// now): the candidate's changes and Claude's alike. The draft as kept, and
-/// what `f` returns
-pub fn edit<T>(store: &Store, session: i32, f: impl FnOnce(&mut ExamDraft) -> AppResult<T>) -> AppResult<(ExamDraft, T)> {
+/// now) nor being proven (`proving`, asked inside the draft's transaction:
+/// a proof begun after it reads the draft as changed; its results would be
+/// thrown away at its end otherwise): the candidate's changes and the
+/// assistant's alike. The draft as kept, and what `f` returns
+pub fn edit<T>(store: &Store, session: i32, proving: impl Fn() -> bool, f: impl FnOnce(&mut ExamDraft) -> AppResult<T>) -> AppResult<(ExamDraft, T)> {
     ExamDraft::update(store, session, |draft| {
+        if proving() {
+            return Err(AppError::invalid(
+                "the exam is being proven: wait for the proof to end, or stop it, before changing the exam",
+            ));
+        }
         if draft.saved.is_some() {
             return Err(AppError::invalid("this exam is saved; start a new conversation for another"));
         }
-        f(draft)
+        let before: Vec<(String, String)> = draft.items.iter().map(|i| { let (a, b) = i.content(); (a.to_string(), b.to_string()) }).collect();
+        let result = f(draft)?;
+        if !draft.items.iter().map(DraftItem::content).eq(before.iter().map(|(a, b)| (a.as_str(), b.as_str()))) {
+            draft.together = false;
+        }
+        Ok(result)
     })
 }
 
@@ -101,7 +113,9 @@ pub fn plan(store: &Store, exams: &Exams, data_dir: &Path, session: i32, fits: i
 /// candidate can stop it. Their results, in the draft returned; none if
 /// the exam changed meanwhile, or it was stopped
 pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(u32) -> Result<(), String>) -> AppResult<ExamDraft> {
-    let mut draft = ExamDraft::load(app.store, session)?;
+    // Proven against the questions as they are on disk now (not if a proof
+    // runs: then `begin` below refuses this one)
+    let mut draft = opened(app.store, app.exams, app.data_dir, session, || app.proofs.proving(session))?;
     if draft.saved.is_some() || draft.items.is_empty() {
         return Ok(draft);
     }
@@ -140,6 +154,14 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
     let Some(cancel) = app.proofs.begin(session, proof, mb) else {
         return Err(AppError::invalid("this exam is being proven already"));
     };
+    // Changed between being read and the proof begun (edits are refused from
+    // here): not proven as it was read
+    let now = ExamDraft::load(app.store, session);
+    if !now.as_ref().is_ok_and(|now| now.items.iter().map(DraftItem::content).eq(draft.items.iter().map(DraftItem::content))) {
+        app.proofs.end(session);
+        now?;
+        return Err(AppError::invalid("the exam changed as the proof began: prove it again"));
+    }
     let op = app.activities.begin(title, steps);
     app.proofs.update(session, |p| p.activity = op.id());
     let handle = app.activities.handle(op.id());
@@ -191,23 +213,28 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
         reports
     }
     .await;
+    // The proof ends once its results are kept: edits wait till then
+    let kept = op.end(proved).and_then(|reports| keep(app.store, session, scope, &draft, &ids, &reports));
     app.proofs.end(session);
-    let reports = op.end(proved)?;
+    kept
+}
 
-    // The results are of the exam proven: not if it changed meanwhile
-    let (now, ()) = ExamDraft::update(app.store, session, |now| {
+/// Keep a proof's results in the draft: not if it changed meanwhile
+fn keep(store: &Store, session: i32, scope: Scope, draft: &ExamDraft, ids: &[(String, String)], reports: &[Report]) -> AppResult<ExamDraft> {
+    let (now, ()) = ExamDraft::update(store, session, |now| {
         if !now.items.iter().map(DraftItem::content).eq(draft.items.iter().map(DraftItem::content)) {
             return Err(AppError::invalid("the exam changed while it was proven: prove it again"));
         }
         if scope == Scope::All {
             now.unprove();
         }
-        for report in &reports {
+        for report in reports {
             let Some((_, key)) = ids.iter().find(|(id, _)| *id == report.question) else { continue };
             if let Some(status) = now.status_mut(key) {
                 *status = status_of(report);
             }
         }
+        now.together = scope == Scope::All && now.proven();
         Ok(())
     })?;
     Ok(now)
@@ -220,8 +247,13 @@ fn status_of(report: &Report) -> DraftStatus {
 /// Save the draft as an exam of the candidate's pack: its new questions
 /// (all proven) as theirs, then the exam listing every question in order.
 /// Its id
-pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32) -> AppResult<String> {
-    let draft = ExamDraft::load(store, session)?;
+pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32, proving: impl Fn() -> bool) -> AppResult<String> {
+    // Saved as the questions are on disk now: one changed since its proof is
+    // not proven any more
+    let draft = opened(store, exams, data_dir, session, &proving)?;
+    if proving() {
+        return Err(AppError::invalid("the exam is being proven: save it once the proof ends"));
+    }
     if let Some(id) = &draft.saved {
         return Ok(id.clone());
     }
@@ -267,6 +299,9 @@ pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32) -> AppR
                     minutes: q.minutes,
                     status: q.status.clone(),
                     disrupts: q.disrupts,
+                    // Taken from the file as the packs read it, next it is opened
+                    version: String::new(),
+                    written: Some(q.yaml.clone()),
                 };
             }
         }
@@ -278,33 +313,66 @@ pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32) -> AppR
 }
 
 /// Exams were deleted: the conversations that saved them hold drafts again,
-/// to change and save anew
-pub fn exams_deleted(store: &Store, exam_ids: &[String]) -> AppResult<()> {
+/// to change and save anew; the questions any draft wrote that went with
+/// them (`on_disk` says which files are still there) new ones again. A
+/// draft being proven (`proving`) is left as the proof read it
+pub fn exams_deleted(store: &Store, exam_ids: &[String], on_disk: impl Fn(&str) -> bool, proving: impl Fn(i32) -> bool) -> AppResult<()> {
     for (session, text) in store.studio_drafts()? {
         let Ok(draft) = serde_json::from_str::<ExamDraft>(&text) else { continue };
-        if draft.saved.as_ref().is_some_and(|id| exam_ids.contains(id)) {
-            ExamDraft::update(store, session, |draft| {
-                draft.saved = None;
-                Ok(())
-            })?;
+        let unsaved = draft.saved.as_ref().is_some_and(|id| exam_ids.contains(id));
+        let mut check = draft.clone();
+        if !unsaved && !(draft.saved.is_none() && check.rewrite_gone(&on_disk)) {
+            continue;
         }
+        ExamDraft::update(store, session, |draft| {
+            if proving(session) {
+                return Ok(());
+            }
+            if unsaved {
+                draft.saved = None;
+            }
+            if draft.saved.is_none() && draft.rewrite_gone(&on_disk) {
+                draft.together = false;
+            }
+            Ok(())
+        })?;
     }
     Ok(())
 }
 
-/// A conversation's draft as it is opened: saved as an exam that is not
-/// there any more (deleted before this was kept, or its files removed), it
-/// is a draft again
-pub fn opened(store: &Store, exams: &Exams, session: i32) -> AppResult<ExamDraft> {
-    let draft = ExamDraft::load(store, session)?;
-    match &draft.saved {
-        Some(id) if !exams.bank().exams.contains_key(id) => ExamDraft::update(store, session, |draft| {
+/// A conversation's draft as it is opened, proven or saved, over the packs
+/// read again (if their files changed): saved as an exam whose file is gone,
+/// it is a draft again; the questions it wrote whose files are gone are new
+/// ones again; a question changed on disk is taken as it is, to prove
+/// again. A draft being proven (`proving`, asked inside the draft's
+/// transaction) stays as the proof read it
+pub fn opened(store: &Store, exams: &Exams, data_dir: &Path, session: i32, proving: impl Fn() -> bool) -> AppResult<ExamDraft> {
+    exams.reload_if_changed(data_dir);
+    let bank = exams.bank();
+    let on_disk = |id: &str| mine::on_disk(data_dir, id);
+    let current = |draft: &mut ExamDraft| {
+        let gone = draft.saved.as_ref().is_some_and(|id| !on_disk(id));
+        if gone {
             draft.saved = None;
-            Ok(())
-        })
-        .map(|(draft, ())| draft),
-        _ => Ok(draft),
+        }
+        if draft.saved.is_none() && (draft.rewrite_gone(on_disk) | draft.refresh(&bank) || gone) {
+            draft.together = false;
+        }
+    };
+    let draft = ExamDraft::load(store, session)?;
+    let mut check = draft.clone();
+    current(&mut check);
+    // As it was (a first version noted counts: it is kept)
+    if check == draft {
+        return Ok(draft);
     }
+    ExamDraft::update(store, session, |draft| {
+        if !proving() {
+            current(draft);
+        }
+        Ok(())
+    })
+    .map(|(draft, ())| draft)
 }
 
 #[cfg(test)]
@@ -317,12 +385,52 @@ mod tests {
     fn a_deleted_exam_gives_its_draft_back() {
         let store = Store::open(&std::env::temp_dir().join(format!("ckpro-studio-deleted-{}.db", std::process::id()))).unwrap();
         let (a, b) = (store.studio_new().unwrap(), store.studio_new().unwrap());
+        // A question it wrote went with the candidate's questions; one of the packs stays
+        let wrote = |id: &str, yaml: Option<&str>| DraftItem::Existing {
+            id: id.into(),
+            title: id.into(),
+            domain: "storage".into(),
+            minutes: Some(5),
+            status: DraftStatus::Proven,
+            disrupts: false,
+            version: String::new(),
+            written: yaml.map(String::from),
+        };
         for (session, saved) in [(a, "mine/custom/gone"), (b, "mine/custom/kept")] {
-            ExamDraft { title: "Mock".into(), saved: Some(saved.into()), ..Default::default() }.save(&store, session).unwrap();
+            ExamDraft {
+                title: "Mock".into(),
+                saved: Some(saved.into()),
+                items: vec![wrote("mine/cka/mine-1", Some("title: Mine\n")), wrote("core/cka/kept", None)],
+                ..Default::default()
+            }
+            .save(&store, session)
+            .unwrap();
         }
-        exams_deleted(&store, &["mine/custom/gone".into(), "mine/cka".into()]).unwrap();
-        assert_eq!(ExamDraft::load(&store, a).unwrap().saved, None);
+        exams_deleted(&store, &["mine/custom/gone".into(), "mine/cka".into()], |id| id.starts_with("core/"), |_| false).unwrap();
+        let back = ExamDraft::load(&store, a).unwrap();
+        assert_eq!(back.saved, None);
+        assert!(
+            matches!(back.items.as_slice(), [DraftItem::New(q), DraftItem::Existing { .. }] if q.yaml == "title: Mine\n" && q.status == DraftStatus::Linted && q.key == "n1"),
+            "{:?}",
+            back.items
+        );
         assert_eq!(ExamDraft::load(&store, b).unwrap().saved.as_deref(), Some("mine/custom/kept"));
+    }
+
+    /// Being proven, a draft is not changed, by the candidate or the assistant
+    #[test]
+    fn a_draft_being_proven_stays_as_it_is() {
+        let store = Store::open(&std::env::temp_dir().join(format!("ckpro-studio-proving-{}.db", std::process::id()))).unwrap();
+        let session = store.studio_new().unwrap();
+        ExamDraft { title: "Mock".into(), ..Default::default() }.save(&store, session).unwrap();
+        let rename = |d: &mut ExamDraft| {
+            d.edit(Some("Other"), None, false);
+            Ok(())
+        };
+        let refused = edit(&store, session, || true, rename).unwrap_err();
+        assert!(refused.to_string().contains("being proven"), "{refused}");
+        assert_eq!(ExamDraft::load(&store, session).unwrap().title, "Mock");
+        assert!(edit(&store, session, || false, rename).is_ok());
     }
 
     /// A saved exam is not changed by edits; a draft that cannot be read is
@@ -333,7 +441,7 @@ mod tests {
         let session = store.studio_new().unwrap();
         ExamDraft { title: "Mock".into(), saved: Some("mine/custom/mock".into()), ..Default::default() }.save(&store, session).unwrap();
         assert!(
-            edit(&store, session, |d| {
+            edit(&store, session, || false, |d| {
                 d.edit(Some("Other"), None, false);
                 Ok(())
             })
@@ -342,7 +450,7 @@ mod tests {
         assert_eq!(ExamDraft::load(&store, session).unwrap().title, "Mock");
         store.studio_update_draft(session, |_| Ok(("{not json".to_string(), ()))).unwrap();
         assert!(ExamDraft::load(&store, session).is_err());
-        assert!(edit(&store, session, |_| Ok(())).is_err());
+        assert!(edit(&store, session, || false, |_| Ok(())).is_err());
         assert_eq!(store.studio_draft(session).unwrap(), "{not json", "left as it was");
     }
 }

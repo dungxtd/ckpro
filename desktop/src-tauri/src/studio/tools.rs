@@ -27,11 +27,19 @@ pub struct Tools {
     data_dir: PathBuf,
     /// The draft of a conversation changed
     changed: Box<dyn Fn(i32, &ExamDraft) + Send + Sync>,
+    /// Whether a conversation's exam is being proven (then it is not changed)
+    proving: Box<dyn Fn(i32) -> bool + Send + Sync>,
 }
 
 impl Tools {
-    pub fn new(exams: Arc<Exams>, store: Arc<Store>, data_dir: PathBuf, changed: impl Fn(i32, &ExamDraft) + Send + Sync + 'static) -> Self {
-        Self { exams, store, data_dir, changed: Box::new(changed) }
+    pub fn new(
+        exams: Arc<Exams>,
+        store: Arc<Store>,
+        data_dir: PathBuf,
+        changed: impl Fn(i32, &ExamDraft) + Send + Sync + 'static,
+        proving: impl Fn(i32) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        Self { exams, store, data_dir, changed: Box::new(changed), proving: Box::new(proving) }
     }
 
     /// The reply to an MCP message of conversation `session`
@@ -42,6 +50,9 @@ impl Tools {
     fn call(&self, session: i32, name: &str, args: &Value) -> AppResult<String> {
         if self.exams.exam_in_progress() {
             return Err(AppError::invalid("An exam-mode attempt is running in ckpro: the assistant is off until it ends."));
+        }
+        if !self.store.settings().is_ok_and(|s| s.assistant_enabled) {
+            return Err(AppError::invalid("The assistant is turned off in ckpro's Settings."));
         }
         let text = |key: &str| args[key].as_str().unwrap_or_default().to_string();
         match name {
@@ -85,7 +96,7 @@ impl Tools {
     /// Change the draft with `f`, keep it and tell the screen
     fn edit(&self, session: i32, f: impl FnOnce(&mut ExamDraft, &crate::lab::load::LoadedPack, &std::path::Path) -> AppResult<String>) -> AppResult<String> {
         let bank = self.exams.bank();
-        let (draft, result) = super::edit(&self.store, session, |draft| f(draft, &bank, &self.data_dir))?;
+        let (draft, result) = super::edit(&self.store, session, || (self.proving)(session), |draft| f(draft, &bank, &self.data_dir))?;
         (self.changed)(session, &draft);
         Ok(result)
     }
@@ -215,7 +226,7 @@ pub fn list() -> Value {
         { "name": "read_question", "description": "A question's YAML: its statement, setup, checks and solution.", "inputSchema": id("A question id"), "annotations": read },
         { "name": "list_plans", "description": "The exams they planned on days between two YYYY-MM-DD days (their calendar), and the score when done.", "inputSchema": { "type": "object", "properties": { "from": { "type": "string" }, "to": { "type": "string" } }, "required": ["from", "to"] }, "annotations": read },
         { "name": "get_draft", "description": "The exam being built in this conversation.", "inputSchema": none, "annotations": read },
-        { "name": "set_exam", "description": "Set the draft exam's title, certification and length (minutes; else the certification's).", "inputSchema": { "type": "object", "properties": { "title": { "type": "string" }, "certification": { "type": "string" }, "duration_minutes": { "type": "integer" } }, "required": ["title", "certification"] }, "annotations": draft },
+        { "name": "set_exam", "description": "Set the draft exam's title, certification and length (minutes; left out, the length stays as it is).", "inputSchema": { "type": "object", "properties": { "title": { "type": "string" }, "certification": { "type": "string" }, "duration_minutes": { "type": "integer" } }, "required": ["title", "certification"] }, "annotations": draft },
         { "name": "add_questions", "description": "Add questions of the packs to the draft, by id.", "inputSchema": { "type": "object", "properties": { "ids": { "type": "array", "items": { "type": "string" } } }, "required": ["ids"] }, "annotations": draft },
         { "name": "propose_question", "description": "Add a new question (its YAML, in the question format) to the draft. It is checked at once; the reply says what to fix.", "inputSchema": { "type": "object", "properties": { "yaml": { "type": "string" } }, "required": ["yaml"] }, "annotations": draft },
         { "name": "update_question", "description": "Replace a new question of the draft (by its key, n1…) with a fixed or changed YAML.", "inputSchema": { "type": "object", "properties": { "key": { "type": "string" }, "yaml": { "type": "string" } }, "required": ["key", "yaml"] }, "annotations": draft },

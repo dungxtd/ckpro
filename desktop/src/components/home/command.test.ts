@@ -24,6 +24,12 @@ describe("Home's kubectl", () => {
 		});
 	});
 
+	it("moves a target's day gone by to the default when set again", () => {
+		const past = { ...current, date: "2026-10-20" };
+		const r = runCommand("kubectl set exam cks", { ...context, current: past });
+		expect(r.kind === "set" && r.target.date).toBe("2026-12-31");
+	});
+
 	it("reads the day and the rest days, either way flags are written", () => {
 		const r = runCommand("kubectl set exam ckad --date=2027-01-20 --rest sat,Sunday", context);
 		expect(r.kind === "set" && r.target).toMatchObject({ date: "2027-01-20", rest_days: [5, 6] });

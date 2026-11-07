@@ -81,7 +81,8 @@ interface StudioStore {
 	removeItem: (id: string) => Promise<void>;
 	/** Prove the exam on a cluster made for it, every question together (the
 	 * candidate's go): all, or those not proven. Then save it if they all proved */
-	proveAndSave: (scope: ProofScope) => Promise<void>;
+	/** Prove the exam, and save it once every question proves (`save`) */
+	proveAndSave: (scope: ProofScope, save?: boolean) => Promise<void>;
 	/** Send Claude the questions that did not prove, to fix or replace */
 	askToFix: () => Promise<void>;
 	/** Stop proving the shown conversation's exam */
@@ -335,7 +336,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 				failed(session, e);
 			}
 		},
-		proveAndSave: async scope => {
+		proveAndSave: async (scope, save = true) => {
 			const { session } = get();
 			if (session === null || running(get(), session)) return;
 			// Its steps as they go
@@ -349,7 +350,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 					set({ draft, tab: "exam" });
 					replan();
 				}
-				if (draft.items.every(i => i.status.state === "proven")) await get().save(session);
+				if (save && draft.items.every(i => i.status.state === "proven")) await get().save(session);
 			} catch (e) {
 				// Stopped: its last state says so
 				if ((e as { code?: string }).code !== "cancelled") failed(session, e);
@@ -388,3 +389,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		},
 	};
 });
+
+/** Whether the conversation shown has its exam being proven: then nothing
+ * changes it (Rust refuses; the screen does not offer it) */
+export const useProving = () => useStudio(s => !!running(s, s.session));

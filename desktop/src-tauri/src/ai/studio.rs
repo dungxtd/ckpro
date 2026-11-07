@@ -7,6 +7,7 @@ use crate::error::{AppError, AppResult};
 use crate::lab::exam::Exams;
 use crate::lab::load::LoadedPack;
 use crate::store::{Role, Store, StudioMessage, ToolUse};
+use crate::studio::draft::ExamDraft;
 use crate::studio::proof::{CLUSTER, MAX_WORKERS};
 use crate::sync::MutexExt;
 use std::fmt::Write as _;
@@ -74,6 +75,17 @@ impl Coach {
     ) -> AppResult<CoachReply> {
         let history = store.studio_messages(session)?;
         let (agent_session, prompt) = self.studio_session(&exams.bank(), session, model, effort, &history, text).await?;
+        // What the candidate changed in the draft since the last answer goes
+        // first: the assistant would build on a draft that is not there
+        let changes = ExamDraft::load(store, session).map(|d| d.changes).unwrap_or_default();
+        let prompt = if changes.is_empty() {
+            prompt
+        } else {
+            format!(
+                "Since your last answer the candidate changed the draft themselves: {}. get_draft shows it as it is now.\n\n{prompt}",
+                changes.join("; ")
+            )
+        };
 
         let settings = policy::AgentSettings::load(store).unwrap_or_default();
         let first = settings.auto_titles && history.is_empty();
@@ -152,6 +164,13 @@ impl Coach {
         )?;
         if let Some(t) = &title {
             store.studio_rename(session, t)?;
+        }
+        // Told: not again; those made while it answered wait for the next turn
+        if !changes.is_empty() {
+            ExamDraft::update(store, session, |d| {
+                d.changes.drain(..changes.len().min(d.changes.len()));
+                Ok(())
+            })?;
         }
         Ok(CoachReply { text: kept, usage: answer.usage, title })
     }

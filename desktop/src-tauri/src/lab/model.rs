@@ -120,6 +120,29 @@ impl Capability {
 }
 
 impl Question {
+    /// Whether it changes the nodes for the questions after it: it says so
+    /// (`disrupts`), or its scripts do (they cordon, drain or taint a node).
+    /// The one test the app uses; the packs' questions have it in `disrupts`
+    /// once loaded
+    pub fn changes_the_nodes(&self) -> bool {
+        self.disrupts || self.scripts_change_the_nodes()
+    }
+
+    /// Its scripts (setup, checks, solution) cordon, drain or taint a node
+    pub fn scripts_change_the_nodes(&self) -> bool {
+        let checks = self.checks.iter().filter_map(|c| match &c.kind {
+            CheckKind::Run(run) => Some(run.as_str()),
+            _ => None,
+        });
+        self.setup.iter().map(String::as_str).chain(checks).chain([self.solution.run.as_str()]).any(|script| {
+            script.lines().any(|line| {
+                let words: Vec<&str> = line.split_whitespace().collect();
+                words.windows(2).any(|w| w[0] == "kubectl" && matches!(w[1], "cordon" | "drain" | "taint"))
+                    || words.windows(3).any(|w| w[0] == "kubectl" && w[2] == "taint")
+            })
+        })
+    }
+
     /// Every capability it needs is available
     pub fn runnable(&self) -> bool {
         self.requires.iter().all(|c| c.available())

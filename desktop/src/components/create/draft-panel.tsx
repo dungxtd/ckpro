@@ -16,7 +16,7 @@ import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { useStudio } from "@/stores/studio";
 import type { DraftItem, Proof } from "@/tauri/api";
 import { domainName, gb, plural } from "@/words";
-import { DraftMenu, DraftSummary, ProofTabs } from "./draft-header";
+import { DraftMenu, DraftSummary, LengthFit, ProofTabs } from "./draft-header";
 import { NewScripts, ProofPreview, ProofSteps } from "./proof-steps";
 
 const key = (item: DraftItem) => (item.kind === "new" ? item.key : item.id);
@@ -108,16 +108,19 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 						description="Ask the assistant for one: it picks questions and writes new ones"
 					/>
 				) : (
-					items.map(item => (
-						<Item
-							key={key(item)}
-							item={item}
-							proof={proof}
-							partly={partly}
-							deleted={!!plan?.missing.includes(key(item))}
-							onRemove={() => removeItem(key(item))}
-						/>
-					))
+					<>
+						<LengthFit />
+						{items.map(item => (
+							<Item
+								key={key(item)}
+								item={item}
+								proof={proof}
+								partly={partly}
+								deleted={!!plan?.missing.includes(key(item))}
+								onRemove={() => removeItem(key(item))}
+							/>
+						))}
+					</>
 				)}
 			</div>
 
@@ -210,14 +213,33 @@ function ProofFoot() {
 				line(
 					`Saved once every question proves together: ~${plan?.minutes_all ?? "?"} min on ${cluster}, made for it and removed after`
 				)
-			) : (
+			) : draft?.together ? (
 				line("Every question proved together")
+			) : (
+				line("Every question proved, not all in one run since the last change")
 			)}
 			<div className="flex items-center justify-end gap-2">
 				{changed === 0 ? (
-					<Button size="push" variant="pushDefault" disabled={!draft?.title} onClick={() => save()}>
-						Save exam
-					</Button>
+					<>
+						{!draft?.together && (
+							<Button
+								size="push"
+								variant="push"
+								disabled={blocked}
+								onClick={() => onProve("all", false)}
+							>
+								Prove all together
+							</Button>
+						)}
+						<Button
+							size="push"
+							variant="pushDefault"
+							disabled={!draft?.title}
+							onClick={() => save()}
+						>
+							Save exam
+						</Button>
+					</>
 				) : failed > 0 ? (
 					<>
 						<Button

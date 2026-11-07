@@ -137,10 +137,16 @@ pub fn readiness(exams: State<'_, Arc<Exams>>, certification: String) -> AppResu
 /// saved them hold drafts again. The exams gone
 #[tauri::command]
 #[specta::specta]
-pub fn delete_exam(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>, id: String) -> AppResult<Vec<String>> {
+pub fn delete_exam(
+    exams: State<'_, Arc<Exams>>,
+    store: State<'_, Arc<Store>>,
+    proofs: State<'_, Proofs>,
+    id: String,
+) -> AppResult<Vec<String>> {
     let gone = exams.delete_exam(&id, &crate::data_dir())?;
     store.remove_plans_of(&gone)?;
-    crate::studio::exams_deleted(&store, &gone)?;
+    let data_dir = crate::data_dir();
+    crate::studio::exams_deleted(&store, &gone, |id| crate::lab::mine::on_disk(&data_dir, id), |session| proofs.proving(session))?;
     Ok(gone)
 }
 
@@ -438,8 +444,10 @@ pub fn settings(store: State<'_, Arc<Store>>) -> AppResult<Settings> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_settings(store: State<'_, Arc<Store>>, settings: Settings) -> AppResult<()> {
-    store.save_settings(&settings)
+pub fn save_settings(store: State<'_, Arc<Store>>, coach: State<'_, Coach>, settings: Settings) -> AppResult<()> {
+    store.save_settings(&settings)?;
+    coach.switch(settings.assistant_enabled);
+    Ok(())
 }
 
 /// The last long operations, with their logs (later changes arrive as
@@ -473,13 +481,16 @@ pub async fn start_exam(
     exams: State<'_, Arc<Exams>>,
     env: State<'_, Arc<Env>>,
     coach: State<'_, Coach>,
+    proofs: State<'_, Proofs>,
     id: String,
     mode: Mode,
     replace: bool,
 ) -> AppResult<()> {
-// Before anything is created: this machine can run it
+    // Before anything is created: this machine can run it, beside the proofs
+    // running (their clusters are not among the app's)
     if let Some(summary) = exams.catalog().into_iter().find(|e| e.id == id) {
-        preflight::exam_fits(&env.snapshot(), summary.minimum_mb, &summary.clusters).map_err(AppError::invalid)?;
+        preflight::exam_fits(&env.snapshot(), summary.minimum_mb + proofs.reserved_mb(), &summary.clusters)
+            .map_err(AppError::invalid)?;
     }
     coach.end_attempt().await;
     exams.inner().start(&id, mode, replace).await
@@ -569,8 +580,13 @@ pub fn studio_new(store: State<'_, Arc<Store>>) -> AppResult<StudioConversation>
 /// A Create conversation, with its messages and draft
 #[tauri::command]
 #[specta::specta]
-pub fn studio_open(store: State<'_, Arc<Store>>, exams: State<'_, Arc<Exams>>, session: i32) -> AppResult<StudioConversation> {
-    let draft = crate::studio::opened(&store, &exams, session)?;
+pub fn studio_open(
+    store: State<'_, Arc<Store>>,
+    exams: State<'_, Arc<Exams>>,
+    proofs: State<'_, Proofs>,
+    session: i32,
+) -> AppResult<StudioConversation> {
+    let draft = crate::studio::opened(&store, &exams, &crate::data_dir(), session, || proofs.proving(session))?;
     Ok(StudioConversation { id: session, messages: store.studio_messages(session)?, draft })
 }
 
@@ -612,8 +628,14 @@ pub async fn studio_delete(coach: State<'_, Coach>, proofs: State<'_, Proofs>, s
 /// Take a question out of the draft (by id, or a new one's key)
 #[tauri::command]
 #[specta::specta]
-pub fn studio_remove(store: State<'_, Arc<Store>>, session: i32, id: String) -> AppResult<crate::studio::draft::ExamDraft> {
-    crate::studio::edit(&store, session, |draft| Ok(draft.remove(&id))).map(|(draft, _)| draft)
+pub fn studio_remove(
+    store: State<'_, Arc<Store>>,
+    proofs: State<'_, Proofs>,
+    session: i32,
+    id: String,
+) -> AppResult<crate::studio::draft::ExamDraft> {
+    crate::studio::edit(&store, session, || proofs.proving(session), |draft| Ok(draft.remove_by_candidate(&id)))
+        .map(|(draft, _)| draft)
 }
 
 /// The candidate's changes to the draft: its title, its length, or every
@@ -622,12 +644,13 @@ pub fn studio_remove(store: State<'_, Arc<Store>>, session: i32, id: String) -> 
 #[specta::specta]
 pub fn studio_edit(
     store: State<'_, Arc<Store>>,
+    proofs: State<'_, Proofs>,
     session: i32,
     title: Option<String>,
     duration_minutes: Option<u32>,
     clear: bool,
 ) -> AppResult<crate::studio::draft::ExamDraft> {
-    crate::studio::edit(&store, session, |draft| {
+    crate::studio::edit(&store, session, || proofs.proving(session), |draft| {
         draft.edit(title.as_deref(), duration_minutes, clear);
         Ok(())
     })
@@ -708,6 +731,6 @@ pub fn studio_stop(coach: State<'_, Coach>, session: i32) {
 /// Save the draft as the candidate's exam; its id
 #[tauri::command]
 #[specta::specta]
-pub fn studio_save(store: State<'_, Arc<Store>>, exams: State<'_, Arc<Exams>>, session: i32) -> AppResult<String> {
-    crate::studio::save(&store, &exams, &crate::data_dir(), session)
+pub fn studio_save(store: State<'_, Arc<Store>>, exams: State<'_, Arc<Exams>>, proofs: State<'_, Proofs>, session: i32) -> AppResult<String> {
+    crate::studio::save(&store, &exams, &crate::data_dir(), session, || proofs.proving(session))
 }

@@ -61,7 +61,8 @@ export function runCommand(
 	if (verb !== "set") return { kind: "error", output: `error: unknown command "${verb}"` };
 
 	let certification: string | null = null;
-	let date = current?.date ?? defaultDate;
+	// A target's day gone by is no day to keep: set again, it moves to the default
+	let date = current?.date && current.date > today ? current.date : defaultDate;
 	let restDays = current?.rest_days ?? [];
 	for (let i = 0; i < rest.length; i++) {
 		const word = rest[i];
