@@ -1,5 +1,6 @@
 import { Card } from "@ckpro/ui/components/card";
 import { Disclosure } from "@ckpro/ui/components/disclosure";
+import { Placeholder, SampleRows } from "@ckpro/ui/components/placeholder";
 import { clock } from "@ckpro/ui/lib/time";
 import { cn } from "@ckpro/ui/lib/utils";
 import { useState } from "react";
@@ -16,7 +17,13 @@ export function ActivityList() {
 	const [open, setOpen] = useState<number | null>(null);
 
 	if (list.length === 0) {
-		return <div className="text-muted-foreground text-sm">Nothing yet.</div>;
+		return (
+			<Placeholder
+				sample={<SampleRows rows={2} />}
+				title="Nothing yet"
+				description="Clusters made and removed, and exams set up, show here with their logs."
+			/>
+		);
 	}
 	return (
 		<Card padding="none" className="divide-y divide-border overflow-hidden">

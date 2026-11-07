@@ -1,6 +1,7 @@
 import { Badge } from "@ckpro/ui/components/badge";
 import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Loading } from "@ckpro/ui/components/loading";
+import { Placeholder, SampleRows } from "@ckpro/ui/components/placeholder";
 import { SectionTitle } from "@ckpro/ui/components/section-title";
 import {
 	Table,
@@ -32,7 +33,11 @@ export function HistoryRoute() {
 	if (history.length === 0)
 		return (
 			<Screen title="History" width="wide">
-				<p className="text-muted-foreground text-sm">No attempts yet.</p>
+				<Placeholder
+					sample={<SampleRows rows={6} />}
+					title="No attempts yet"
+					description="Your exams and practice show here, with what to work on."
+				/>
 			</Screen>
 		);
 	return (

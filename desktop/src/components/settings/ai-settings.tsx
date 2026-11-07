@@ -98,7 +98,7 @@ export function AiSettings() {
 
 	return (
 		<>
-			<Group title="Assistant" description="Agents help while you practise. Never in an exam.">
+			<Group description="Agents help while you practise. Never in an exam.">
 				<Row label="Use the assistant" detail="Off: the app has no AI anywhere, as in the exam">
 					<Switch
 						aria-label="Use the assistant"

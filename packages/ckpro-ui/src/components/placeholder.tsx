@@ -32,3 +32,19 @@ export function Placeholder({
 		</div>
 	);
 }
+
+/** A sample for a list or a table that has no rows yet: a card of rows */
+export function SampleRows({ rows = 4 }: { rows?: number }) {
+	return (
+		<div className="divide-y divide-border rounded-xl border border-border bg-card">
+			{Array.from({ length: rows }, (_, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: a fixed sample
+				<div key={i} className="flex items-center gap-4 px-4 py-3">
+					<span className="h-2.5 w-28 rounded-full bg-foreground/15" />
+					<span className="h-2.5 flex-1 rounded-full bg-foreground/10" />
+					<span className="h-2.5 w-10 rounded-full bg-foreground/15" />
+				</div>
+			))}
+		</div>
+	);
+}

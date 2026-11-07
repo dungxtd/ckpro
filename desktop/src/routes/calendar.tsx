@@ -230,13 +230,13 @@ export function CalendarRoute() {
 					</>
 				) : (
 					<>
-						<Stat value={`${studied} / ${span.length}`} label="days studied" />
+						<Stat value={`${studied} of ${span.length}`} label="days studied" />
 						<Stat
-							value={`${attempts.length} / ${attempts.length + planned.length}`}
-							label="done of done and planned"
+							value={`${attempts.length} of ${attempts.length + planned.length}`}
+							label="taken, of all planned"
 						/>
 						<Stat value={average === null ? "–" : `${average}%`} label="average score" />
-						<Stat value={planned.length} label="planned" />
+						<Stat value={planned.length} label="still planned" />
 					</>
 				)}
 			</StatGroup>

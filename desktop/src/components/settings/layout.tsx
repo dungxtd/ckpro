@@ -5,19 +5,20 @@ import type * as React from "react";
 import type { ReactNode } from "react";
 
 /** A titled group of rows on one rounded card, as macOS settings group them:
- * its name above, a line about it under the card */
+ * its name above (none when the page's title says it), a line about it
+ * under the card */
 export function Group({
 	title,
 	description,
 	children,
 }: {
-	title: ReactNode;
+	title?: ReactNode;
 	description?: string;
 	children: ReactNode;
 }) {
 	return (
 		<section className="flex flex-col gap-1.5">
-			<SectionTitle size="group">{title}</SectionTitle>
+			{title && <SectionTitle size="group">{title}</SectionTitle>}
 			<div className="overflow-hidden rounded-2xl border border-border bg-card">{children}</div>
 			{description && <p className="px-1 text-caption text-muted-foreground">{description}</p>}
 		</section>
