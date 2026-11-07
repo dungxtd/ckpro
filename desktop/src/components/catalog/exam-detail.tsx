@@ -72,7 +72,7 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 						title="Exam"
 						text="Timed and graded when you submit, as on the day. No hints, solutions or assistant."
 					>
-						<Button disabled={!ready} onClick={() => start(exam.id, "exam")}>
+						<Button variant="pushDefault" disabled={!ready} onClick={() => start(exam.id, "exam")}>
 							Start exam
 						</Button>
 					</Mode>

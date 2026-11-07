@@ -16,13 +16,14 @@ const buttonVariants = cva(
 				// A destructive action that should not shout (End Exam)
 				outlineDestructive:
 					"border border-destructive/60 bg-transparent text-destructive hover:bg-destructive/10",
-				// macOS push button (System Settings "Change…"): raised, hairline shadow.
+				// macOS push button (System Settings "Change…"): a secondary action, raised
+				// white in light, an edge on a faint fill in dark.
 				// macOS default button (the action Return triggers): accent fill.
 				// Hover and press tint the fill: a `filter` (brightness) puts the
 				// button on its own layer in WebKit and its text visibly shifts
 				pushDefault:
 					"bg-highlight text-highlight-foreground shadow-[0_0_0_0.5px_rgb(0_0_0/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-[color-mix(in_oklab,var(--highlight),white_10%)] active:bg-[color-mix(in_oklab,var(--highlight),black_12%)]",
-				push: "bg-[var(--seg-on)] text-foreground shadow-[0_0_0_0.5px_rgb(0_0_0/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-[color-mix(in_oklab,var(--seg-on),var(--foreground)_6%)] active:bg-[color-mix(in_oklab,var(--seg-on),var(--foreground)_12%)]",
+				push: "bg-[var(--push)] text-foreground shadow-[inset_0_0_0_1px_var(--push-edge),0_1px_2px_rgb(0_0_0/0.08)] hover:bg-[color-mix(in_oklab,var(--push),var(--foreground)_6%)] active:bg-[color-mix(in_oklab,var(--push),var(--foreground)_12%)]",
 				// Over a picture: solid white primary, glass secondary.
 				// Both grow slightly on hover and shrink on press, like IconButton.
 				solid:

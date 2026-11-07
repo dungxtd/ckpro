@@ -65,7 +65,11 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 					</Alert>
 				)}
 				<div className="mt-4 flex justify-center gap-2">
-					{!review && <Button onClick={() => setReview(true)}>Review answers</Button>}
+					{!review && (
+						<Button variant="pushDefault" onClick={() => setReview(true)}>
+							Review answers
+						</Button>
+					)}
 					<ConfirmDialog
 						title="Close this exam?"
 						description="Its clusters, task host files and desktop are deleted. The result stays in History."

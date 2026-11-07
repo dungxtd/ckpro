@@ -44,6 +44,7 @@ export function Today({
 					{next ? (
 						<Button
 							size="sm"
+							variant="pushDefault"
 							className="mt-2 max-w-full"
 							onClick={() => start(next.exam_id, next.mode)}
 						>
@@ -71,7 +72,11 @@ export function Today({
 						</div>
 						<div className="text-2xs text-muted-foreground">Suggested: {suggested.reason}</div>
 					</div>
-					<Button size="push" variant="push" onClick={() => start(suggested.exam.id, "practice")}>
+					<Button
+						size="push"
+						variant="pushDefault"
+						onClick={() => start(suggested.exam.id, "practice")}
+					>
 						<Play /> Start
 					</Button>
 				</Card>

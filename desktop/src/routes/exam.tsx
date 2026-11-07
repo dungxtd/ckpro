@@ -97,7 +97,7 @@ function ExamPhase() {
 						Close and clean up
 					</Button>
 					{retry && (
-						<Button size="sm" onClick={retry}>
+						<Button size="sm" variant="pushDefault" onClick={retry}>
 							{state.resumable ? "Try Again" : "Start Over"}
 						</Button>
 					)}
