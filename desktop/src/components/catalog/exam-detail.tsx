@@ -7,6 +7,7 @@ import { Stat, StatGroup } from "@ckpro/ui/components/stat";
 import { cn } from "@ckpro/ui/lib/utils";
 import { BookOpenCheck, ListChecks, Server, Target, Timer } from "lucide-react";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { ScreenTitle } from "@/components/shell/screen";
 import { useExam } from "@/stores/exam";
 import { useAssistantEnabled } from "@/stores/settings";
 import type { ExamSummary } from "@/tauri/api";
@@ -27,7 +28,7 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 		<div className="flex flex-col gap-7">
 			<header className="flex flex-col gap-2">
 				<Badge className="self-start">{exam.certification.toUpperCase()}</Badge>
-				<h1 className="min-w-0 break-words font-bold text-title leading-tight">{exam.title}</h1>
+				<ScreenTitle className="min-w-0 break-words">{exam.title}</ScreenTitle>
 				<Description text={exam.description} />
 			</header>
 
@@ -107,7 +108,10 @@ function Description({ text }: { text: string }) {
 	}, [text, open]);
 	return (
 		<div className="flex min-h-11 max-w-[62ch] flex-col items-start">
-			<p ref={ref} className={cn("text-muted-foreground text-sm/[22px]", !open && "line-clamp-2")}>
+			<p
+				ref={ref}
+				className={cn("select-text text-muted-foreground text-sm/[22px]", !open && "line-clamp-2")}
+			>
 				{text}
 			</p>
 			{(long || open) && (

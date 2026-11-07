@@ -27,7 +27,7 @@ export function CheckList({
 							· {check.weight} pt
 						</span>
 						{!check.passed && check.detail && (
-							<div className="text-muted-foreground text-xs">{check.detail}</div>
+							<div className="select-text text-muted-foreground text-xs">{check.detail}</div>
 						)}
 					</div>
 					{!check.passed && onWhy && (

@@ -138,7 +138,7 @@ export function RunningExam({
 				{/* Nothing to select: the question's values copy on click, as on the exam */}
 				<section
 					// Narrow windows shrink the panels first: the desktop keeps a third
-					className="@container flex min-w-[300px] max-w-[70%] shrink select-none flex-col"
+					className="@container flex min-w-[300px] max-w-[70%] shrink flex-col"
 					style={{ width: `${task.size}%` }}
 				>
 					{/* Question navigation together at the start, the text size at the end:

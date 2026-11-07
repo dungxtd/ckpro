@@ -63,6 +63,10 @@ period, at most 72 characters; a body of plain prose for the why. No
 trailers, no tool or AI mentions, no references to other projects. Local
 only until asked to push.
 
+Commit only what is settled: a change the user has agreed to keep, as one
+commit per finished piece of work. Not after every exchange; work still
+being tried or reviewed stays uncommitted until it is settled.
+
 ## Checks
 
 ```bash
