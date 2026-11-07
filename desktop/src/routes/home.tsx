@@ -1,6 +1,7 @@
 import { Loading } from "@ckpro/ui/components/loading";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import { DockerBanner } from "@/components/environment/docker-banner";
 import { PrepMap } from "@/components/home/prep-map";
 import { Readiness } from "@/components/home/readiness";
 import { StatusTerminal } from "@/components/home/status-terminal";
@@ -108,6 +109,7 @@ export function HomeRoute() {
 			width="wide"
 			className="@container gap-4"
 		>
+			<DockerBanner />
 			<div className="grid gap-4 @3xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
 				<StatusTerminal
 					target={target}

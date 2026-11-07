@@ -19,6 +19,7 @@ import {
 } from "react-router";
 import { toast } from "sonner";
 import { pageView, setAnalytics, track } from "@/analytics";
+import { StartPrompt } from "@/components/exam/start-prompt";
 import { AppSidebar } from "@/components/shell/app-sidebar";
 import {
 	INSPECTOR_FROM_PX,
@@ -232,6 +233,8 @@ function App() {
 					</Routes>
 				</Suspense>
 			</HashRouter>
+			{/* Starting an exam whose clusters exist asks first, from any screen */}
+			<StartPrompt />
 			<Toaster />
 		</>
 	);

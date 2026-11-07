@@ -6,18 +6,15 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { ExamDetail } from "@/components/catalog/exam-detail";
 import { useSelection } from "@/components/catalog/exams";
+import { DockerBanner } from "@/components/environment/docker-banner";
 import { screenPage } from "@/components/shell/screen";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
-import { envApi } from "@/tauri/api";
 
 /** The exam picked in the sidebar (the first until one is) */
 export function CatalogRoute() {
-	const { catalog, loadCatalog, pendingReplace, start, cancelReplace, error } = useExam();
-	// Live, not a remembered error: it clears itself when Docker is back
+	const { catalog, loadCatalog, error } = useExam();
 	const docker = useEnvironment(s => s.env?.docker);
-	// How to start it on this system, as Rust words it
-	const dockerHint = useEnvironment(s => s.env?.issues.find(i => i.component === "docker")?.hint);
 	// The exams once read (the list is kept between visits)
 	const [loaded, setLoaded] = useState(catalog.length > 0);
 	useEffect(() => {
@@ -29,33 +26,7 @@ export function CatalogRoute() {
 	// Laid out as a `Screen` (reading)
 	return (
 		<div className={screenPage()}>
-			{pendingReplace && (
-				<Alert variant="warning" className="items-center gap-3">
-					<span className="flex-1">{pendingReplace.message}</span>
-					<Button
-						size="sm"
-						variant="pushDefault"
-						onClick={() => start(pendingReplace.id, pendingReplace.mode, true)}
-					>
-						Replace and start
-					</Button>
-					<Button size="sm" variant="ghost" onClick={cancelReplace}>
-						Cancel
-					</Button>
-				</Alert>
-			)}
-			{docker?.state === "down" && (
-				<Alert variant="warning" className="items-center">
-					<span className="flex-1">
-						<strong>Docker is not running.</strong>{" "}
-						{dockerHint ?? "ckpro connects as soon as it is up."}
-					</span>
-					<Button size="push" variant="push" onClick={() => envApi.retry()}>
-						Retry now
-					</Button>
-				</Alert>
-			)}
-			{docker?.state === "connecting" && <Alert>Connecting to Docker…</Alert>}
+			<DockerBanner />
 			{error && <Alert variant="destructive">{error}</Alert>}
 			{exam ? (
 				// Each exam fades in, its description folded again
