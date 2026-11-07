@@ -2,6 +2,7 @@ import { Badge } from "@ckpro/ui/components/badge";
 import { Button } from "@ckpro/ui/components/button";
 import { Card } from "@ckpro/ui/components/card";
 import { Progress } from "@ckpro/ui/components/progress";
+import { SectionTitle } from "@ckpro/ui/components/section-title";
 import { Stat, StatGroup } from "@ckpro/ui/components/stat";
 import { cn } from "@ckpro/ui/lib/utils";
 import { BookOpenCheck, ListChecks, Server, Target, Timer } from "lucide-react";
@@ -65,7 +66,7 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 			</div>
 
 			<section>
-				<h2 className="mb-3 font-bold text-lead">Start</h2>
+				<SectionTitle className="mb-3">Start</SectionTitle>
 				<div className="grid grid-cols-2 gap-3">
 					<Mode
 						icon={<Timer />}

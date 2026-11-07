@@ -1,6 +1,7 @@
 import { Badge } from "@ckpro/ui/components/badge";
 import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Loading } from "@ckpro/ui/components/loading";
+import { SectionTitle } from "@ckpro/ui/components/section-title";
 import {
 	Table,
 	TableBody,
@@ -37,7 +38,7 @@ export function HistoryRoute() {
 	return (
 		<Screen title="History" width="wide">
 			<DomainScores />
-			<h2 className="-mb-3 font-semibold">Attempts</h2>
+			<SectionTitle className="-mb-3">Attempts</SectionTitle>
 			<Table>
 				<TableHeader>
 					<TableRow>

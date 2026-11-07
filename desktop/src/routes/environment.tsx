@@ -2,6 +2,7 @@ import { Alert } from "@ckpro/ui/components/alert";
 import { Badge } from "@ckpro/ui/components/badge";
 import { Button } from "@ckpro/ui/components/button";
 import { Loading } from "@ckpro/ui/components/loading";
+import { SectionTitle } from "@ckpro/ui/components/section-title";
 import { StatusDot } from "@ckpro/ui/components/status-dot";
 import { useEffect } from "react";
 import { useLocation } from "react-router";
@@ -74,7 +75,7 @@ export function EnvironmentRoute() {
 				<ClusterCard key={cluster.name} cluster={cluster} />
 			))}
 			<section id="activity" className="flex flex-col gap-2">
-				<h2 className="font-semibold text-sm">Activity</h2>
+				<SectionTitle>Activity</SectionTitle>
 				<ActivityList />
 			</section>
 		</Screen>

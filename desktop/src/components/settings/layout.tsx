@@ -1,3 +1,4 @@
+import { SectionTitle } from "@ckpro/ui/components/section-title";
 import { cn } from "@ckpro/ui/lib/utils";
 import { ChevronRight } from "lucide-react";
 import type * as React from "react";
@@ -16,7 +17,7 @@ export function Group({
 }) {
 	return (
 		<section className="flex flex-col gap-1.5">
-			<h2 className="select-none px-1 font-semibold text-caption text-muted-foreground">{title}</h2>
+			<SectionTitle size="group">{title}</SectionTitle>
 			<div className="overflow-hidden rounded-2xl border border-border bg-card">{children}</div>
 			{description && <p className="px-1 text-caption text-muted-foreground">{description}</p>}
 		</section>
