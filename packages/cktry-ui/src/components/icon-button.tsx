@@ -1,9 +1,10 @@
+import { capsuleTint } from "@cktry/ui/components/capsule";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@cktry/ui/components/tooltip";
 import { cn } from "@cktry/ui/lib/utils";
 import type * as React from "react";
 import { useRef, useState } from "react";
 
-export type IconButtonVariant = "glass" | "plain" | "toolbar";
+export type IconButtonVariant = "glass" | "plain" | "toolbar" | "capsule";
 export type IconButtonSize = "xs" | "bar" | "sm" | "md" | "lg" | "auto";
 
 export interface IconButtonOptions {
@@ -11,6 +12,8 @@ export interface IconButtonOptions {
 	 * glass: round dark-glass circle with a lit rim (actions over a picture:
 	 * close, remove). plain: no wrap, just the icon (the top bar, navigation).
 	 * toolbar: a dense panel's buttons: square, a tint on hover, no growing.
+	 * capsule: a destination in the floating capsule, round, its tint the
+	 * capsule's (`aria-current`: the screen shown).
 	 */
 	variant?: IconButtonVariant;
 	/** xs 24px · bar 28px (the top bars) · sm 32px · md 40px · lg 48px · auto: caller sizes the box and icon. */
@@ -30,10 +33,13 @@ export function iconButtonVariants({
 	active,
 }: IconButtonOptions = {}) {
 	return cn(
-		"hover-glow inline-flex shrink-0 transition-[transform,scale,background-color,opacity,filter] duration-200 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95 disabled:pointer-events-none disabled:opacity-50 [@media(hover:hover)]:hover:scale-110",
+		"inline-flex shrink-0 transition-[transform,scale,background-color,opacity,filter] duration-200 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95 disabled:pointer-events-none disabled:opacity-50 [@media(hover:hover)]:hover:scale-110",
+		// A glow under it, but in the capsule, whose pill holds it close
+		variant !== "capsule" && "hover-glow",
 		variant === "glass" &&
 			"glass-blur bg-black/35 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3),inset_0_0_0_0.5px_rgb(255_255_255/0.12)] hover:bg-black/55",
 		variant === "plain" && "opacity-80 hover:opacity-100",
+		variant === "capsule" && capsuleTint,
 		variant === "toolbar" &&
 			"rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground active:scale-100 [@media(hover:hover)]:hover:scale-100 disabled:opacity-40",
 		size === "xs" && "size-6 [&_svg]:size-3.5",

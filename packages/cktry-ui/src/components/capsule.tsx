@@ -17,6 +17,11 @@ export function Capsule({ className, ...props }: React.ComponentProps<"nav">) {
 	);
 }
 
+/** A destination's tint in the capsule, a name or an icon (icon-button's
+ * `capsule`): the screen shown (`aria-current`) and an open menu tinted */
+export const capsuleTint =
+	"text-foreground/75 hover:bg-sidebar-selected hover:text-foreground aria-[current]:bg-sidebar-selected aria-[current]:text-foreground data-[state=open]:bg-sidebar-selected";
+
 /** One destination in the capsule; `current`: the one shown now */
 export function CapsuleItem({
 	current,
@@ -29,7 +34,8 @@ export function CapsuleItem({
 			type={type}
 			aria-current={current ? "page" : undefined}
 			className={cn(
-				"inline-flex h-7 items-center gap-1 rounded-full px-3 font-semibold text-callout text-foreground/75 outline-none hover:bg-sidebar-selected hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-[current]:bg-sidebar-selected aria-[current]:text-foreground data-[state=open]:bg-sidebar-selected [&_svg]:size-3.5",
+				"inline-flex h-7 items-center gap-1 rounded-full px-3 font-semibold text-callout outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5",
+				capsuleTint,
 				className
 			)}
 			{...props}

@@ -4,14 +4,13 @@
  * the least used folded into a menu when even the icons do not fit
  */
 
-/** A Dock item's width, the gap between two and the capsule's own padding */
-export const DOCK_ITEM = 28;
-export const DOCK_GAP = 2;
-export const DOCK_PAD = 4;
+/** An icon's width, the gap between two and the capsule's own padding, as
+ * laid out (capsule-nav.tsx measures them) */
+export type DockMetrics = { item: number; gap: number; pad: number };
 
 /** The capsule's width with `n` icons */
-export const dockWidth = (n: number) =>
-	2 * DOCK_PAD + n * DOCK_ITEM + Math.max(0, n - 1) * DOCK_GAP;
+export const dockWidth = (m: DockMetrics, n: number) =>
+	2 * m.pad + n * m.item + Math.max(0, n - 1) * m.gap;
 
 export type Fit =
 	| { mode: "full" }
@@ -19,18 +18,18 @@ export type Fit =
 	| { mode: "dock"; shown: number };
 
 /** The way the capsule shows in `room` px, its names taking `fullWidth`, with `count` items */
-export function fitCapsule(fullWidth: number, count: number, room: number): Fit {
+export function fitCapsule(fullWidth: number, count: number, room: number, m: DockMetrics): Fit {
 	if (fullWidth <= room) return { mode: "full" };
-	if (dockWidth(count) <= room) return { mode: "dock", shown: count };
+	if (dockWidth(m, count) <= room) return { mode: "dock", shown: count };
 	// One slot goes to the menu of the folded ones; the current one always stays
 	let shown = count - 1;
-	while (shown > 1 && dockWidth(shown + 1) > room) shown--;
+	while (shown > 1 && dockWidth(m, shown + 1) > room) shown--;
 	return { mode: "dock", shown };
 }
 
 /** The capsule's width as it fits */
-export const fitWidth = (fit: Fit, fullWidth: number, count: number) =>
-	fit.mode === "full" ? fullWidth : dockWidth(fit.shown < count ? fit.shown + 1 : fit.shown);
+export const fitWidth = (fit: Fit, fullWidth: number, count: number, m: DockMetrics) =>
+	fit.mode === "full" ? fullWidth : dockWidth(m, fit.shown < count ? fit.shown + 1 : fit.shown);
 
 /**
  * Where the capsule's left edge goes: centred in the window when it fits
