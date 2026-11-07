@@ -1,9 +1,9 @@
 import { useNavigate, useSearchParams } from "react-router";
-import { create } from "zustand";
 import { useExam } from "@/stores/exam";
 import { useSidebarLayout } from "@/stores/settings";
-import { type ExamSummary, examApi } from "@/tauri/api";
-import { arrange, type ExamStats, examStats, pinned } from "./layout";
+import { useStudy } from "@/stores/study";
+import type { ExamSummary } from "@/tauri/api";
+import { arrange, pinned } from "./layout";
 
 export const gb = (mb: number) => (mb / 1024).toFixed(1);
 
@@ -30,7 +30,7 @@ export function useSelection() {
 	const navigate = useNavigate();
 	const catalog = useExam(s => s.catalog);
 	const [layout] = useSidebarLayout();
-	const stats = useExamStats(s => s.stats);
+	const stats = useStudy(s => s.byExam);
 	const picked = params.get("exam");
 	const shown = [
 		...pinned(catalog, layout),
@@ -45,12 +45,3 @@ export function useSelection() {
 		select: (id: string) => navigate(`/exams?exam=${encodeURIComponent(id)}`),
 	};
 }
-
-/** Each exam's last attempt, for the sidebar's sorts: read again once an
- * attempt is over (`load`) */
-export const useExamStats = create<{ stats: ExamStats; load: () => void }>()(set => ({
-	stats: new Map(),
-	load: () => {
-		examApi.history().then(history => set({ stats: examStats(history) }));
-	},
-}));

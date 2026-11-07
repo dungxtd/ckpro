@@ -219,6 +219,8 @@ pub struct Exams {
     /// One reading of the packs at a time: one read before a change and
     /// swapped in after another's would put the change out again
     reloading: Mutex<()>,
+    /// The desktop came up: who waits for its session (desk) is told
+    desktop_up: tokio::sync::Notify,
     /// The packs' files as last read (how many, their size, the newest
     /// change): read again only once they differ
     read_as: Mutex<Option<(usize, u64, Option<std::time::SystemTime>)>>,
@@ -260,6 +262,7 @@ impl Exams {
         Self {
             pack: std::sync::RwLock::new(Arc::new(pack)),
             reloading: Mutex::default(),
+            desktop_up: tokio::sync::Notify::new(),
             read_as: Mutex::default(),
             kind,
             infra,
@@ -297,26 +300,45 @@ impl Exams {
     }
 
     /// The YAML files under `roots`: how many, their size, the newest change
-fn files_as(roots: &[std::path::PathBuf]) -> (usize, u64, Option<std::time::SystemTime>) {
-    let mut seen = (0, 0, None);
-    let mut dirs: Vec<std::path::PathBuf> = roots.to_vec();
-    while let Some(dir) = dirs.pop() {
-        for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
-            let path = entry.path();
-            let Ok(meta) = entry.metadata() else { continue };
-            if meta.is_dir() {
-                dirs.push(path);
-            } else if path.extension().is_some_and(|e| e == "yaml") {
-                seen.0 += 1;
-                seen.1 += meta.len();
-                seen.2 = seen.2.max(meta.modified().ok());
+    fn files_as(roots: &[std::path::PathBuf]) -> (usize, u64, Option<std::time::SystemTime>) {
+        let mut seen = (0, 0, None);
+        let mut dirs: Vec<std::path::PathBuf> = roots.to_vec();
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+                let path = entry.path();
+                let Ok(meta) = entry.metadata() else { continue };
+                if meta.is_dir() {
+                    dirs.push(path);
+                } else if path.extension().is_some_and(|e| e == "yaml") {
+                    seen.0 += 1;
+                    seen.1 += meta.len();
+                    seen.2 = seen.2.max(meta.modified().ok());
+                }
             }
         }
+        seen
     }
-    seen
-}
 
-/// The question bank as it is now
+    /// Start the attempt's desktop, and tell who waits for it
+    async fn start_desktop(&self, docker: &bollard::Docker, allowed: &[String], clusters: &[String]) -> AppResult<()> {
+        desktop::start(docker, &self.desktop, allowed, clusters, &self.jumphost.name).await?;
+        self.desktop_up.notify_waiters();
+        Ok(())
+    }
+
+    /// The desktop's session (its VNC), waiting up to `wait` for it to come
+    /// up: the desk asks once, Rust says when, nothing polls
+    pub async fn desktop_session(&self, wait: std::time::Duration) -> AppResult<Option<desktop::DesktopSession>> {
+        let up = self.desktop_up.notified();
+        let docker = docker::connect().await?;
+        if let Some(session) = desktop::session(&docker, &self.desktop).await? {
+            return Ok(Some(session));
+        }
+        let _ = tokio::time::timeout(wait, up).await;
+        desktop::session(&docker, &self.desktop).await
+    }
+
+    /// The question bank as it is now
     pub fn bank(&self) -> Arc<LoadedPack> {
         self.pack()
     }
@@ -400,7 +422,7 @@ fn files_as(roots: &[std::path::PathBuf]) -> (usize, u64, Option<std::time::Syst
         // cktry's own: the guard does not report the old one going away
         self.guard.expect(&self.desktop);
         let docker = docker::connect().await?;
-        desktop::start(&docker, &self.desktop, &allowed, &attempt.clusters, &self.jumphost.name).await
+        self.start_desktop(&docker, &allowed, &attempt.clusters).await
     }
 
     /// Keep a running attempt; anything else has nothing to resume. While
@@ -508,7 +530,7 @@ fn files_as(roots: &[std::path::PathBuf]) -> (usize, u64, Option<std::time::Syst
             op.log("the desktop was removed: making a new one".to_string());
             let questions = self.session.locked().clone();
             let allowed = self.allowed_docs(&attempt.certification, &questions);
-            desktop::start(&docker, &self.desktop, &allowed, &attempt.clusters, &self.jumphost.name).await?;
+            self.start_desktop(&docker, &allowed, &attempt.clusters).await?;
         }
         step += 1;
         op.step(step, None);
@@ -690,7 +712,7 @@ fn files_as(roots: &[std::path::PathBuf]) -> (usize, u64, Option<std::time::Syst
         self.jumphost.reset(&docker, &log).await?;
         self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await?;
         next(None);
-        desktop::start(&docker, &self.desktop, allowed, &attempt.clusters, &self.jumphost.name).await?;
+        self.start_desktop(&docker, allowed, &attempt.clusters).await?;
         if !setups.is_empty() {
             next(None);
         }

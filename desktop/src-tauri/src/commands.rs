@@ -106,22 +106,28 @@ pub fn plans_between(
 /// Plan an exam on a day; returns the plan's id.
 #[tauri::command]
 #[specta::specta]
-pub fn plan_add(exams: State<'_, Arc<Exams>>, day: String, exam_id: String, mode: Mode) -> AppResult<i32> {
-    exams.plan_add(&day, &exam_id, mode)
+pub fn plan_add(app: tauri::AppHandle, exams: State<'_, Arc<Exams>>, day: String, exam_id: String, mode: Mode) -> AppResult<i32> {
+    let id = exams.plan_add(&day, &exam_id, mode)?;
+    crate::study_changed(&app, false);
+    Ok(id)
 }
 
 /// Move a plan to another day, or take it the other way.
 #[tauri::command]
 #[specta::specta]
-pub fn plan_update(exams: State<'_, Arc<Exams>>, id: i32, day: Option<String>, mode: Option<Mode>) -> AppResult<()> {
-    exams.plan_update(id, day, mode)
+pub fn plan_update(app: tauri::AppHandle, exams: State<'_, Arc<Exams>>, id: i32, day: Option<String>, mode: Option<Mode>) -> AppResult<()> {
+    exams.plan_update(id, day, mode)?;
+    crate::study_changed(&app, false);
+    Ok(())
 }
 
 /// Remove a plan.
 #[tauri::command]
 #[specta::specta]
-pub fn plan_remove(exams: State<'_, Arc<Exams>>, id: i32) -> AppResult<()> {
-    exams.plan_remove(id)
+pub fn plan_remove(app: tauri::AppHandle, exams: State<'_, Arc<Exams>>, id: i32) -> AppResult<()> {
+    exams.plan_remove(id)?;
+    crate::study_changed(&app, false);
+    Ok(())
 }
 
 /// How ready the candidate is for a certification: per domain, and the
@@ -138,6 +144,7 @@ pub fn readiness(exams: State<'_, Arc<Exams>>, certification: String) -> AppResu
 #[tauri::command]
 #[specta::specta]
 pub fn delete_exam(
+    app: tauri::AppHandle,
     exams: State<'_, Arc<Exams>>,
     store: State<'_, Arc<Store>>,
     proofs: State<'_, Proofs>,
@@ -147,6 +154,7 @@ pub fn delete_exam(
     store.remove_plans_of(&gone)?;
     let data_dir = crate::data_dir();
     crate::studio::exams_deleted(&store, &gone, |id| crate::lab::mine::on_disk(&data_dir, id), |session| proofs.proving(session))?;
+    crate::study_changed(&app, true);
     Ok(gone)
 }
 
@@ -444,9 +452,14 @@ pub fn settings(store: State<'_, Arc<Store>>) -> AppResult<Settings> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_settings(store: State<'_, Arc<Store>>, coach: State<'_, Coach>, settings: Settings) -> AppResult<()> {
+pub fn save_settings(app: tauri::AppHandle, store: State<'_, Arc<Store>>, coach: State<'_, Coach>, settings: Settings) -> AppResult<()> {
+    let target = store.settings().ok().map(|s| s.target);
     store.save_settings(&settings)?;
     coach.switch(settings.assistant_enabled);
+    // A new target is another readiness to read
+    if target.as_ref() != Some(&settings.target) {
+        crate::study_changed(&app, false);
+    }
     Ok(())
 }
 
@@ -462,8 +475,9 @@ pub fn activities(activities: State<'_, Arc<Activities>>) -> Vec<crate::runtime:
 /// or nothing when no attempt has one.
 #[tauri::command]
 #[specta::specta]
-pub async fn desktop_session() -> AppResult<Option<crate::runtime::desktop::DesktopSession>> {
-    crate::runtime::desktop::session(&crate::runtime::docker::connect().await?, crate::runtime::desktop::NAME).await
+pub async fn desktop_session(exams: State<'_, Arc<Exams>>) -> AppResult<Option<crate::runtime::desktop::DesktopSession>> {
+    // Not up yet: answered as it comes up (or after a while, to ask again)
+    exams.desktop_session(std::time::Duration::from_secs(30)).await
 }
 
 /// Current attempt; later changes arrive as `ExamChanged` events.
@@ -732,6 +746,14 @@ pub fn studio_stop(coach: State<'_, Coach>, session: i32) {
 /// Save the draft as the candidate's exam; its id
 #[tauri::command]
 #[specta::specta]
-pub fn studio_save(store: State<'_, Arc<Store>>, exams: State<'_, Arc<Exams>>, proofs: State<'_, Proofs>, session: i32) -> AppResult<String> {
-    crate::studio::save(&store, &exams, &crate::data_dir(), session, || proofs.proving(session))
+pub fn studio_save(
+    app: tauri::AppHandle,
+    store: State<'_, Arc<Store>>,
+    exams: State<'_, Arc<Exams>>,
+    proofs: State<'_, Proofs>,
+    session: i32,
+) -> AppResult<String> {
+    let id = crate::studio::save(&store, &exams, &crate::data_dir(), session, || proofs.proving(session))?;
+    crate::study_changed(&app, true);
+    Ok(id)
 }

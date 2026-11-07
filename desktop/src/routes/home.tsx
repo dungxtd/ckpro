@@ -20,19 +20,22 @@ import {
 import { addDays, dayKey, monday, parseDay } from "@/days";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
-import { type ExamReadiness, examApi, type HistoryEntry, type PlanView } from "@/tauri/api";
+import { useStudy } from "@/stores/study";
+import { type ExamReadiness, examApi, type PlanView } from "@/tauri/api";
 
 /**
  * Home: where the preparation stands (as kubectl would print it), today's
  * session, the prep map, readiness per domain and this week's plans (the
  * week in figures is the Calendar's). All of it from the attempts and the
- * plans, without AI; read again whenever an attempt is over
+ * plans, without AI; read again whenever Rust says the study changed
  */
 export function HomeRoute() {
 	const target = useSettings(s => s.settings.target);
 	const catalog = useExam(s => s.catalog);
-	const idle = useExam(s => !s.state || s.state.phase === "idle");
-	const [history, setHistory] = useState<HistoryEntry[] | null>(null);
+	const history = useStudy(s => s.history);
+	// Bumped when Rust says the study changed: the week's plans and the
+	// readiness are read again then
+	const version = useStudy(s => s.version);
 	const [plans, setPlans] = useState<PlanView[]>([]);
 	const [readiness, setReadiness] = useState<ExamReadiness | null>(null);
 	const navigate = useNavigate();
@@ -45,17 +48,21 @@ export function HomeRoute() {
 	const certification =
 		target?.certification ?? (history?.find(h => h.certification)?.certification || null) ?? null;
 
-	// Read again whenever an attempt is over, the exams change (one deleted
-	// takes its plans) and for a new week
+	// The week's plans: again as the study changes, and for a new week
 	const week = dayKey(weekStart);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: the exams changing is the cue
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new version is the cue
 	useEffect(() => {
-		if (!idle) return;
-		examApi.history().then(setHistory);
-		examApi.plans(week, dayKey(addDays(parseDay(week), 6))).then(setPlans);
-	}, [idle, week, catalog]);
+		let current = true;
+		examApi.plans(week, dayKey(addDays(parseDay(week), 6))).then(
+			p => current && setPlans(p),
+			() => current && setPlans([])
+		);
+		return () => {
+			current = false;
+		};
+	}, [week, version]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new version is the cue
 	useEffect(() => {
-		if (!idle) return;
 		// No certification to measure (the target deleted, no attempt): none shown
 		if (!certification) {
 			setReadiness(null);
@@ -70,7 +77,7 @@ export function HomeRoute() {
 		return () => {
 			current = false;
 		};
-	}, [certification, idle]);
+	}, [certification, version]);
 
 	if (history === null) return <Loading fill label="Loading your attempts…" />;
 	const measured = certification ? history.filter(h => h.certification === certification) : history;

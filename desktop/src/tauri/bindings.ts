@@ -193,6 +193,7 @@ export const events = {
 	guardNotice: makeEvent<GuardNotice, GuardNotice>("guard-notice"),
 	studioDraft: makeEvent<StudioDraft_Serialize, StudioDraft_Deserialize>("studio-draft"),
 	studioProof: makeEvent<StudioProof_Serialize, StudioProof_Deserialize>("studio-proof"),
+	studyChanged: makeEvent<StudyChanged, StudyChanged>("study-changed"),
 };
 
 /* Types */
@@ -1477,6 +1478,16 @@ export type StudioSessionRow = {
 	id: number,
 	title: string,
 	updated_at: number | null,
+};
+
+/**
+ *  The candidate's study changed: an attempt finished, a plan or the target
+ *  changed, or (`catalog`) the exams themselves (one saved or deleted).
+ *  What the screens read of it (history, plans, readiness, the exams) is
+ *  read again on it, not polled
+ */
+export type StudyChanged = {
+	catalog: boolean,
 };
 
 /**  One certification's results so far */

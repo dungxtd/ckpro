@@ -11,9 +11,10 @@ import {
 	TableRow,
 } from "@cktry/ui/components/table";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { scoreTone } from "@/components/study/data";
-import { type DomainStat, examApi, type StudyStats } from "@/tauri/api";
+import { useStudy } from "@/stores/study";
+import type { DomainStat } from "@/tauri/api";
 import { domainName } from "@/words";
 
 /** Passing is 66% on the CKA/CKAD/CKS */
@@ -34,14 +35,9 @@ export const focus = (domains: DomainStat[]) =>
 
 /** Where the candidate stands per curriculum domain, from every finished attempt */
 export function DomainScores() {
-	const [stats, setStats] = useState<StudyStats[]>([]);
-	const [cert, setCert] = useState<string | null>(null);
-	useEffect(() => {
-		examApi.studyStats().then(all => {
-			setStats(all);
-			setCert(c => c ?? all[0]?.certification ?? null);
-		});
-	}, []);
+	const stats = useStudy(s => s.stats);
+	const [picked, setCert] = useState<string | null>(null);
+	const cert = picked ?? stats[0]?.certification ?? null;
 
 	const current = stats.find(s => s.certification === cert);
 	if (!current) return null;

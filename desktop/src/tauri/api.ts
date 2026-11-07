@@ -331,6 +331,10 @@ export const examApi = {
 	delete: (id: string) => unwrap(commands.deleteExam(id)),
 	/** Results per curriculum domain, per certification attempted */
 	studyStats: () => commands.studyStats(),
+	/** The study changed (an attempt over, a plan, the target; `catalog`:
+	 * the exams too); returns the unsubscribe */
+	onStudyChanged: async (on: (change: { catalog: boolean }) => void) =>
+		events.studyChanged.listen(event => on(event.payload)),
 };
 
 export const telemetryApi = {

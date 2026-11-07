@@ -51,6 +51,20 @@ pub struct StudioDraft {
     pub draft: studio::draft::ExamDraft,
 }
 
+/// The candidate's study changed: an attempt finished, a plan or the target
+/// changed, or (`catalog`) the exams themselves (one saved or deleted).
+/// What the screens read of it (history, plans, readiness, the exams) is
+/// read again on it, not polled
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct StudyChanged {
+    pub catalog: bool,
+}
+
+/// Tell the screens the study changed (`catalog`: the exams too)
+pub fn study_changed(app: &tauri::AppHandle, catalog: bool) {
+    let _ = StudyChanged { catalog }.emit(app);
+}
+
 /// Pushed to the UI on every environment change.
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct EnvChanged(EnvState);
@@ -58,7 +72,7 @@ pub struct EnvChanged(EnvState);
 /// Typed IPC: debug builds regenerate `desktop/src/tauri/bindings.ts`.
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ActivityChanged, ActivityLog,GuardNotice, StudioDraft, StudioProof])
+        .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ActivityChanged, ActivityLog, GuardNotice, StudioDraft, StudioProof, StudyChanged])
         .commands(tauri_specta::collect_commands![
         commands::env_state,
         commands::studio_sessions,
@@ -267,6 +281,10 @@ let proving = app.handle().clone();
                 store.clone(),
                 move |state| {
                     let _ = ExamChanged(state.clone()).emit(&exams_handle);
+                    // A result in, or an attempt gone: the history moved
+                    if matches!(state, lab::exam::ExamState::Finished { .. } | lab::exam::ExamState::Idle) {
+                        study_changed(&exams_handle, false);
+                    }
                 },
                 activities,
                 guard,

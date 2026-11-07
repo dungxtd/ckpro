@@ -16,7 +16,8 @@ import { daysUntil, scoreOf, startedAt } from "@/components/study/data";
 import { addDays, dayKey, monday, monthWeeks, parseDay, streak } from "@/days";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
-import { errorText, examApi, type HistoryEntry, type Mode, type PlanView } from "@/tauri/api";
+import { useStudy } from "@/stores/study";
+import { errorText, examApi, type Mode, type PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 
 type View = "month" | "week" | "day";
@@ -37,8 +38,8 @@ const short = (d: Date) =>
 export function CalendarRoute() {
 	const [params, setParams] = useSearchParams();
 	const target = useSettings(s => s.settings.target);
-	const idle = useExam(s => !s.state || s.state.phase === "idle");
-	const [history, setHistory] = useState<HistoryEntry[] | null>(null);
+	const history = useStudy(s => s.history);
+	const version = useStudy(s => s.version);
 	const [plans, setPlans] = useState<PlanView[]>([]);
 
 	const now = new Date();
@@ -69,15 +70,15 @@ export function CalendarRoute() {
 		});
 	};
 
-	const reload = useCallback(() => examApi.plans(from, to).then(setPlans), [from, to]);
-	// Again when the exams change: one deleted takes its plans
-	const catalog = useExam(s => s.catalog);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: the exams changing is the cue
+	const reload = useCallback(
+		() => examApi.plans(from, to).then(setPlans, () => setPlans([])),
+		[from, to]
+	);
+	// Again as the study changes (a plan, an exam deleted with its plans)
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new version is the cue
 	useEffect(() => {
-		if (!idle) return;
-		examApi.history().then(setHistory);
 		reload();
-	}, [idle, reload, catalog]);
+	}, [reload, version]);
 
 	/** Do a change, read the plans again, and offer to undo it */
 	const change = async (
