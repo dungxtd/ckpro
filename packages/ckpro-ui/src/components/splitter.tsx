@@ -2,7 +2,7 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { type RefObject, useState } from "react";
 
 /** A border dragged to resize the panels beside it */
-const RESIZE_HANDLE =
+const SPLITTER =
 	"relative z-10 w-px shrink-0 cursor-col-resize bg-border transition-colors before:absolute before:inset-y-0 before:-inset-x-1 before:content-[''] hover:bg-highlight active:bg-highlight";
 
 /**
@@ -41,8 +41,9 @@ function dragBorder(
 	window.addEventListener("pointercancel", onCancel);
 }
 
-/** A panel border: dragged, or moved with the arrow keys once focused */
-export function ResizeHandle({
+/** The border between two columns: dragged, or moved with the arrow keys
+ * once focused. Its props come from `usePanelSize` */
+export function Splitter({
 	label,
 	value,
 	min,
@@ -74,19 +75,19 @@ export function ResizeHandle({
 					onStep(e.key === "ArrowLeft" ? -1 : 1);
 				}
 			}}
-			className={cn(RESIZE_HANDLE, "outline-none focus-visible:bg-highlight")}
+			className={cn(SPLITTER, "outline-none focus-visible:bg-highlight")}
 		/>
 	);
 }
 
 /**
- * A panel's size along the desk, kept in the settings: what is saved, what
+ * A column's width beside a `Splitter`, kept where `save` puts it: what is saved, what
  * a drag shows meanwhile, and the border's handle (drag, or arrows by
- * `step`). `fromPointer` turns the pointer's x into a size, given the desk's
+ * `step`). `fromPointer` turns the pointer's x into a size, given the `area`'s
  * box; every size stays within `min` and `max`.
  */
 export function usePanelSize({
-	desk,
+	area,
 	saved,
 	save,
 	min,
@@ -94,7 +95,7 @@ export function usePanelSize({
 	step,
 	fromPointer,
 }: {
-	desk: RefObject<HTMLElement | null>;
+	area: RefObject<HTMLElement | null>;
 	saved: number;
 	save: (size: number) => void;
 	min: number;
@@ -113,11 +114,11 @@ export function usePanelSize({
 			min,
 			max,
 			onPointerDown: (event: React.PointerEvent) => {
-				const area = desk.current?.getBoundingClientRect();
-				if (!area) return;
+				const box = area.current?.getBoundingClientRect();
+				if (!box) return;
 				dragBorder(
 					event,
-					x => clamp(fromPointer(x, area)),
+					x => clamp(fromPointer(x, box)),
 					setDragged,
 					last => {
 						save(last);
