@@ -21,7 +21,7 @@ const LABELS = 34;
 /**
  * The preparation day by day, as a contribution graph: a few weeks at least,
  * from its first day to the exam (or today, without one), each day tinted by
- * its best score; today ringed, the exam day flagged; its figures beside it.
+ * its best score; today ringed inside its square (a ring outside runs into the gaps), the exam day flagged; its figures beside it.
  * No day studied yet: the graph faded, and what it will show
  */
 export function PrepMap({
@@ -84,7 +84,7 @@ export function PrepMap({
 								className={cn(
 									"size-3 rounded-[3px]",
 									key > today ? "bg-foreground/[0.03]" : LEVELS[level(score, pass)],
-									key === today && "ring-[1.5px] ring-foreground"
+									key === today && "ring-[1.5px] ring-foreground ring-inset"
 								)}
 							/>
 						);
