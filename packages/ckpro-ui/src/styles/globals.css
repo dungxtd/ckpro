@@ -68,9 +68,17 @@
 	--capsule: rgb(250 250 250 / 0.72);
 	--capsule-edge: rgb(0 0 0 / 0.12);
 	--capsule-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
-	/* A terminal's ground: dark in both themes, as terminals are */
-	--terminal: #0d0d0e;
-	--terminal-foreground: #d4d4d4;
+	/* A terminal, in the theme: light on a light page, its tones darker to
+	   read on it */
+	--terminal: #f7f7f6;
+	--terminal-foreground: #1d1d1f;
+	--terminal-edge: rgb(0 0 0 / 0.1);
+	--terminal-muted: rgb(0 0 0 / 0.45);
+	--terminal-faint: rgb(0 0 0 / 0.3);
+	--terminal-ok: #248a3d;
+	--terminal-warn: #c93400;
+	--terminal-bad: #d70015;
+	--terminal-note: #0a5fd8;
 }
 
 [data-theme="dark"] {
@@ -123,6 +131,15 @@
 	--capsule: rgb(44 44 46 / 0.72);
 	--capsule-edge: rgb(255 255 255 / 0.14);
 	--capsule-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+	--terminal: #0d0d0e;
+	--terminal-foreground: #d4d4d4;
+	--terminal-edge: rgb(255 255 255 / 0.05);
+	--terminal-muted: rgb(255 255 255 / 0.45);
+	--terminal-faint: rgb(255 255 255 / 0.3);
+	--terminal-ok: var(--success);
+	--terminal-warn: var(--warning);
+	--terminal-bad: var(--destructive);
+	--terminal-note: var(--highlight);
 }
 
 @theme inline {
@@ -160,6 +177,13 @@
 	--color-capsule-edge: var(--capsule-edge);
 	--color-terminal: var(--terminal);
 	--color-terminal-foreground: var(--terminal-foreground);
+	--color-terminal-edge: var(--terminal-edge);
+	--color-terminal-muted: var(--terminal-muted);
+	--color-terminal-faint: var(--terminal-faint);
+	--color-terminal-ok: var(--terminal-ok);
+	--color-terminal-warn: var(--terminal-warn);
+	--color-terminal-bad: var(--terminal-bad);
+	--color-terminal-note: var(--terminal-note);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
 }

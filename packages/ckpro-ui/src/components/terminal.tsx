@@ -2,7 +2,7 @@ import { cn } from "@ckpro/ui/lib/utils";
 import type * as React from "react";
 
 /**
- * Text as a terminal shows it: monospace on a dark ground in both themes,
+ * Text as a terminal shows it: monospace on its own ground, in the theme,
  * lines kept as written. Spans inside take the tones (`Terminal.Ok`, …)
  */
 export function Terminal({
@@ -16,7 +16,7 @@ export function Terminal({
 	return (
 		<pre
 			className={cn(
-				"select-text overflow-auto border border-white/5 bg-terminal font-mono text-terminal-foreground leading-relaxed",
+				"select-text overflow-auto border border-terminal-edge bg-terminal font-mono text-terminal-foreground leading-relaxed",
 				size === "md"
 					? "whitespace-pre rounded-xl p-4 text-[12.5px]"
 					: "whitespace-pre-wrap break-words rounded-md px-2.5 py-2 text-2xs text-terminal-foreground/80",
@@ -32,11 +32,11 @@ const tone =
 	({ children }: { children: React.ReactNode }) => <span className={className}>{children}</span>;
 
 /** A command's prompt and other quiet text */
-Terminal.Muted = tone("text-white/45");
-Terminal.Ok = tone("text-success");
-Terminal.Warn = tone("text-warning");
-Terminal.Bad = tone("text-destructive");
-Terminal.Note = tone("text-highlight");
+Terminal.Muted = tone("text-terminal-muted");
+Terminal.Ok = tone("text-terminal-ok");
+Terminal.Warn = tone("text-terminal-warn");
+Terminal.Bad = tone("text-terminal-bad");
+Terminal.Note = tone("text-terminal-note");
 
 /**
  * A prompt to type a command at: `$ `, the line, and after the caret the
@@ -69,7 +69,7 @@ function Prompt({
 	const faded = `${rest}${comment ? `  # ${comment}` : ""}`;
 	return (
 		<span className={cn("flex", className)}>
-			<span className="text-white/45">$ </span>
+			<span className="text-terminal-muted">$ </span>
 			<span className="relative min-w-0 flex-1">
 				<input
 					aria-label={label}
@@ -92,7 +92,7 @@ function Prompt({
 				{/* Monospace: the faded rest starts as many characters in as typed */}
 				<span
 					aria-hidden
-					className="pointer-events-none absolute inset-y-0 right-0 overflow-hidden whitespace-pre text-white/30"
+					className="pointer-events-none absolute inset-y-0 right-0 overflow-hidden whitespace-pre text-terminal-faint"
 					style={{ left: `${value.length}ch` }}
 				>
 					{faded}

@@ -29,7 +29,7 @@ const DOMAIN = ["bg-domain-1", "bg-domain-2", "bg-domain-3", "bg-domain-4", "bg-
 const LENGTHS = [30, 45, 60, 90, 120];
 
 /**
- * The draft's top strip: what it is, or once it was proven its two views
+ * The draft's top strip: whether it was saved, or once it has questions its two views
  * (the questions, the proof's steps), and what can be done to it
  */
 export function DraftStrip() {
@@ -43,9 +43,8 @@ export function DraftStrip() {
 					<ProofTabs />
 				</span>
 			) : (
-				<span className="flex-1 truncate font-bold text-2xs text-muted-foreground tracking-wide">
-					{draft?.saved ? "SAVED EXAM" : "DRAFT EXAM"}
-				</span>
+				// Its name shows under it: only whether it was saved
+				<span className="flex-1">{draft?.saved && <Badge variant="success">Saved</Badge>}</span>
 			)}
 			<DraftMenu />
 		</>
