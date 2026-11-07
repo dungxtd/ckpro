@@ -27,6 +27,7 @@ export function CodeBlock({
 			data-slot="code-block"
 			className={cn(
 				codeBlock,
+				"select-text",
 				wrap && "whitespace-pre-wrap break-words",
 				framed && "rounded-none border-0 bg-transparent p-2.5",
 				className

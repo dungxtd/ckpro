@@ -4,7 +4,7 @@ import type * as React from "react";
 
 /** An inline message: a tinted box, with an optional leading icon. */
 export const alertVariants = cva(
-	"flex gap-2 rounded-lg border [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:shrink-0",
+	"flex select-text gap-2 rounded-lg border [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:shrink-0",
 	{
 		variants: {
 			variant: {

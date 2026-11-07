@@ -80,7 +80,7 @@ export function Markdown({
 	className?: string;
 }) {
 	return (
-		<div className={cn(PROSE, MARKDOWN, className)}>
+		<div className={cn(PROSE, MARKDOWN, "select-text", className)}>
 			<ReactMarkdown remarkPlugins={[remarkGfm]} components={copy ? COPY : BROWSER}>
 				{children}
 			</ReactMarkdown>

@@ -48,7 +48,9 @@ Architecture: `docs/ARCHITECTURE.md`.
 - **Tokens, not colours**: theme tokens (`background`, `card`, `muted`,
   `border`, `highlight`, …) and app tokens in `desktop/src/index.css`
   (`exam-value`, `exam-concept`, `claude`). No hex values in classNames.
-- **App chrome is not selectable** (`select-none`); content is.
+- **Nothing selects but content**: the body is `select-none`; what is
+  there to read or copy opts in with `select-text` (Markdown, `CodeBlock`,
+  `Terminal`, messages, `Alert`), and inputs select as they type.
 - **Accessible names** on icon-only controls; `sr-only`, not `hidden`.
 - Areas that stop pointer events (the VNC canvas) register with
   `useDismissSurface` so menus still close.

@@ -16,7 +16,7 @@ export function Terminal({
 	return (
 		<pre
 			className={cn(
-				"overflow-auto border border-white/5 bg-terminal font-mono text-terminal-foreground leading-relaxed",
+				"select-text overflow-auto border border-white/5 bg-terminal font-mono text-terminal-foreground leading-relaxed",
 				size === "md"
 					? "whitespace-pre rounded-xl p-4 text-[12.5px]"
 					: "whitespace-pre-wrap break-words rounded-md px-2.5 py-2 text-2xs text-terminal-foreground/80",

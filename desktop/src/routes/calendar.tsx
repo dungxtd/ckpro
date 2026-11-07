@@ -201,7 +201,7 @@ export function CalendarRoute() {
 		>
 			{/* The toolbar on a line of its own, so a longer title moves nothing: where
 			    the calendar is on the left, the view on the right */}
-			<div className="-mt-2 flex select-none items-center gap-2">
+			<div className="-mt-2 flex items-center gap-2">
 				<IconButton variant="toolbar" size="sm" aria-label="Back" onClick={() => shift(-1)}>
 					<ChevronLeft />
 				</IconButton>
