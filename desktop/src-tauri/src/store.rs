@@ -458,6 +458,18 @@ impl Store {
         Ok(())
     }
 
+    /// Exams gone: the sidebar no longer lists or pins them
+    pub fn forget_in_sidebar(&self, exam_ids: &[String]) -> AppResult<()> {
+        let mut settings = self.settings()?;
+        let before = settings.sidebar.clone();
+        settings.sidebar.pinned.retain(|id| !exam_ids.contains(id));
+        settings.sidebar.exams.retain(|id| !exam_ids.contains(id));
+        if settings.sidebar != before {
+            self.save_settings(&settings)?;
+        }
+        Ok(())
+    }
+
     pub fn remove_plan(&self, id: i32) -> AppResult<()> {
         self.conn().execute("DELETE FROM plan WHERE id = ?1", params![id]).map_err(db)?;
         Ok(())

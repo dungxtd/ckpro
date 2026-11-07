@@ -391,21 +391,21 @@ impl Coach {
 
 
     pub fn history(exams: &Exams, store: &Store, question_id: &str) -> AppResult<CoachHistory> {
-        let subject = exams.coach_subject(question_id, false)?;
+        let subject = exams.coach_subject(question_id)?;
         let (session, messages) = store.coach_messages(&subject.attempt_id, question_id)?;
         Ok(CoachHistory { session: session as u32, title: store.coach_session_title(&subject.attempt_id, question_id)?, messages })
     }
 
     /// A new session for the question; the earlier ones stay in History
     pub async fn new_session(&self, exams: &Exams, store: &Store, question_id: &str) -> AppResult<()> {
-        let subject = exams.coach_subject(question_id, false)?;
+        let subject = exams.coach_subject(question_id)?;
         self.forget_session(&subject.attempt_id, question_id).await;
         store.new_coach_session(&subject.attempt_id, question_id).map(|_| ())
     }
 
     /// Go back to an earlier session of the question
     pub async fn open_session(&self, exams: &Exams, store: &Store, question_id: &str, session: u32) -> AppResult<()> {
-        let subject = exams.coach_subject(question_id, false)?;
+        let subject = exams.coach_subject(question_id)?;
         self.forget_session(&subject.attempt_id, question_id).await;
         store.open_coach_session(&subject.attempt_id, question_id, i64::from(session))
     }
@@ -445,7 +445,7 @@ impl Coach {
 
     /// Name a question's coach session; empty: back to its first question
     pub fn rename(exams: &Exams, store: &Store, question_id: &str, title: &str) -> AppResult<()> {
-        let subject = exams.coach_subject(question_id, false)?;
+        let subject = exams.coach_subject(question_id)?;
         store.rename_coach_session(&subject.attempt_id, question_id, title)
     }
 
@@ -458,8 +458,6 @@ impl Coach {
         store: &Store,
         question_id: &str,
         text: &str,
-        checks: &[CheckResult],
-        solution_opened: bool,
         model: &str,
         effort: &str,
         profile: Profile,
@@ -472,7 +470,10 @@ impl Coach {
         }
         self.require_enabled()?;
         let _busy = self.busy();
-        let subject = exams.coach_subject(question_id, solution_opened)?;
+        let subject = exams.coach_subject(question_id)?;
+        // The checks the candidate saw (the result's in review), as Rust ran them
+        let seen = exams.checks_seen(question_id);
+        let checks = seen.as_slice();
         // Commands only while practising: never in review (the environment
         // is graded) and never in an exam (coach_subject refuses it anyway)
         let profile = if subject.review { Profile::Ask } else { profile };
@@ -657,7 +658,7 @@ impl Coach {
 
     /// Delete the question's session shown (the panel's Delete Session)
     pub async fn clear(&self, exams: &Exams, store: &Store, question_id: &str) -> AppResult<()> {
-        let subject = exams.coach_subject(question_id, false)?;
+        let subject = exams.coach_subject(question_id)?;
         self.forget_session(&subject.attempt_id, question_id).await;
         store.clear_coach_messages(&subject.attempt_id, question_id)
     }

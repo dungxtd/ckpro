@@ -115,7 +115,7 @@ export const commands = {
 	 *  Ask the coach about a question (practice mode, or after the result); the
 	 *  answer streams on `events` and resolves to the whole answer.
 	 */
-	coachAsk: (questionId: string, text: string, checks: CheckResult[], solutionOpened: boolean, model: ModelChoice, context: CoachContext, events: Channel<CoachEvent_Deserialize>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("coach_ask", { questionId, text, checks, solutionOpened, model, context, events })),
+	coachAsk: (questionId: string, text: string, model: ModelChoice, context: CoachContext, events: Channel<CoachEvent_Deserialize>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("coach_ask", { questionId, text, model, context, events })),
 	/**  Stop the answer being written. */
 	coachCancel: () => __TAURI_INVOKE<void>("coach_cancel"),
 	/**
@@ -739,10 +739,15 @@ export type ExamReadiness_Deserialize = {
 	certification: string,
 	title: string,
 	pass_score: number,
-	/**  Weighted by the domains with results; none before any attempt */
+	/**
+	 *  Weighted by the domains with results; none until they cover
+	 *  `predict_at` percent of the exam (less means too little to go on)
+	 */
 	predicted?: number | null,
 	/**  Share of the exam's weight the results cover, in percent */
 	coverage: number,
+	/**  The coverage a score is predicted from, in percent */
+	predict_at: number,
 	/**  The days the results come from (30), or 0 for all time */
 	window_days: number,
 	/**  Heaviest domain first */
@@ -757,10 +762,15 @@ export type ExamReadiness_Serialize = {
 	certification: string,
 	title: string,
 	pass_score: number,
-	/**  Weighted by the domains with results; none before any attempt */
+	/**
+	 *  Weighted by the domains with results; none until they cover
+	 *  `predict_at` percent of the exam (less means too little to go on)
+	 */
 	predicted: number | null,
 	/**  Share of the exam's weight the results cover, in percent */
 	coverage: number,
+	/**  The coverage a score is predicted from, in percent */
+	predict_at: number,
 	/**  The days the results come from (30), or 0 for all time */
 	window_days: number,
 	/**  Heaviest domain first */

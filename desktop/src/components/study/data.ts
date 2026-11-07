@@ -9,11 +9,10 @@ export const scoreOf = (h: HistoryEntry): number => h.result.score ?? 0;
  * it stays in History, and the study figures leave it out (as Rust does) */
 export const worked = (h: HistoryEntry): boolean => scoreOf(h) > 0;
 
-/** The weight of the exam that must be measured before a score is predicted */
-export const PREDICT_COVERAGE = 70;
-/** The predicted score, once enough of the exam is measured to mean something */
+/** The predicted score: Rust gives one once enough of the exam is measured
+ * (`predict_at`) */
 export const predicted = (readiness: ExamReadiness | null): number | null =>
-	readiness && readiness.coverage >= PREDICT_COVERAGE ? (readiness.predicted ?? null) : null;
+	readiness?.predicted ?? null;
 
 /** Each day's best score, by YYYY-MM-DD (worked attempts only) */
 export function bestByDay(history: HistoryEntry[]): Map<string, number> {

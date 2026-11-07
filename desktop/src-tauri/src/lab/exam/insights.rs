@@ -48,8 +48,8 @@ impl Exams {
     /// What the practice coach may know about a question: only while a
     /// practice attempt runs, or once an attempt has its result. Never during
     /// an exam-mode attempt (the real exam has no assistant). The solution
-    /// comes along only if the candidate has opened it.
-    pub fn coach_subject(&self, question_id: &str, solution_opened: bool) -> AppResult<CoachSubject> {
+    /// comes along only if the candidate has opened it (Exams notes it).
+    pub fn coach_subject(&self, question_id: &str) -> AppResult<CoachSubject> {
         let pack = self.pack();
         let (attempt, review) = match self.state() {
             ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => (attempt, false),
@@ -73,7 +73,7 @@ impl Exams {
             kubernetes: certification.map(|c| c.kubernetes.clone()).unwrap_or_default(),
             domain: question.certifications.get(&attempt.certification).cloned(),
             docs: self.allowed_docs(&attempt.certification, &session),
-            solution: (solution_opened || review).then(|| question.solution.clone()),
+            solution: (review || self.solution_seen(&attempt.id, question_id)).then(|| question.solution.clone()),
             review,
             cluster: question.cluster.clone(),
             jumphost: self.jumphost.name.clone(),

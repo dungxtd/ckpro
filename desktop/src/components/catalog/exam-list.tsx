@@ -33,7 +33,7 @@ import { toast } from "sonner";
 import { SHORTCUTS } from "@/shortcuts";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
-import { useSidebarLayout } from "@/stores/settings";
+import { useSettings, useSidebarLayout } from "@/stores/settings";
 import { useStudy } from "@/stores/study";
 import { type ExamSort, type ExamSummary, errorText, examApi } from "@/tauri/api";
 import { shortTitle } from "@/titles";
@@ -143,13 +143,9 @@ export function ExamList({
 	const remove = async (exam: ExamSummary) => {
 		try {
 			// It, and the custom exams that used its questions
+			// Rust takes them out of the sidebar's layout too: read it again
 			const gone = await examApi.delete(exam.id);
-			const kept = (ids?: string[]) => ids?.filter(id => !gone.includes(id));
-			setLayout({
-				pinned: kept(layout.pinned),
-				exams: kept(layout.exams),
-				hidden: kept(layout.hidden),
-			});
+			await useSettings.getState().load();
 			// The one shown went: the list's first instead (none picked)
 			const picked = new URLSearchParams(here.search).get("exam");
 			if (onExams && picked && gone.includes(picked)) navigate("/exams");

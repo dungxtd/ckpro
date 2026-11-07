@@ -51,6 +51,7 @@ const readiness = {
 	pass_score: 66,
 	predicted: 70,
 	coverage: 60,
+	predict_at: 70,
 	window_days: 30,
 	domains: [
 		{ domain: "troubleshooting", weight: 30, points: 8, max_points: 10, questions: 1 },
@@ -123,9 +124,9 @@ describe("home figures", () => {
 		]);
 	});
 
-	it("predicts a score only once most of the exam is measured", () => {
-		expect(predicted(readiness)).toBeNull();
-		expect(predicted({ ...readiness, coverage: 75 })).toBe(70);
+	it("shows the score Rust predicts, none when it gives none", () => {
+		expect(predicted({ ...readiness, predicted: null })).toBeNull();
+		expect(predicted({ ...readiness, predicted: 70 })).toBe(70);
 		expect(predicted(null)).toBeNull();
 	});
 

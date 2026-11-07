@@ -292,7 +292,7 @@ async fn exam_engine_practice_and_exam_modes() {
         let coach = ai::Coach::new();
         let context = ai::CoachContext { checks: true, cluster: true };
         let answer = coach
-            .ask(&exams, &store, question, "Why do my checks fail? One sentence.", &failing, false, "haiku", "default", ai::Profile::Ask, context, |event| {
+            .ask(&exams, &store, question, "Why do my checks fail? One sentence.", "haiku", "default", ai::Profile::Ask, context, |event| {
                 if let ai::CoachEvent::Text { text } = event {
                     streamed.lock().unwrap().push_str(&text)
                 }
@@ -423,7 +423,7 @@ async fn exam_engine_practice_and_exam_modes() {
     let ExamState::Running { attempt, ends_at, .. } = exams.state() else { unreachable!() };
     assert!(ends_at.is_some() && attempt.questions[0].hints.is_empty());
     assert!(exams.check_question(question).await.is_err() && exams.solution(question).is_err());
-    assert!(exams.coach_subject(question, false).is_err());
+    assert!(exams.coach_subject(question).is_err());
     println!("ok: exam mode hides hints, checks, solutions and the coach");
     // Quitting the app mid-exam: work in progress on the task host and in
     // the cluster, everything stopped (as on quit), then a new engine on

@@ -162,14 +162,23 @@ impl Exams {
         }
         let question = self.question(question_id)?;
         let docker = docker::connect().await?;
-        checks::run_checks(&docker, &self.jumphost.name, question.checks.iter().map(|c| (question.cluster.as_str(), c)), |_, _| {})
-            .await
+        let results =
+            checks::run_checks(&docker, &self.jumphost.name, question.checks.iter().map(|c| (question.cluster.as_str(), c)), |_, _| {})
+                .await?;
+        self.saw(&attempt.id, |seen| {
+            seen.checks.insert(question_id.to_string(), results.clone());
+        });
+        Ok(results)
     }
 
     /// The reference answer: in practice mode, or once the result is in.
     pub fn solution(&self, question_id: &str) -> AppResult<Solution> {
         match self.state() {
-            ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => {}
+            ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => {
+                self.saw(&attempt.id, |seen| {
+                    seen.solutions.insert(question_id.to_string());
+                });
+            }
             ExamState::Finished { .. } => {}
             _ => return Err(AppError::invalid("solutions are shown after the exam")),
         }

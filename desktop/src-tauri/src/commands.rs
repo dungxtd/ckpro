@@ -152,6 +152,7 @@ pub fn delete_exam(
 ) -> AppResult<Vec<String>> {
     let gone = exams.delete_exam(&id, &crate::data_dir())?;
     store.remove_plans_of(&gone)?;
+    store.forget_in_sidebar(&gone)?;
     let data_dir = crate::data_dir();
     crate::studio::exams_deleted(&store, &gone, |id| crate::lab::mine::on_disk(&data_dir, id), |session| proofs.proving(session))?;
     crate::study_changed(&app, true);
@@ -253,14 +254,12 @@ pub async fn coach_ask(
     store: State<'_, Arc<Store>>,
     question_id: String,
     text: String,
-    checks: Vec<CheckResult>,
-    solution_opened: bool,
     model: ModelChoice,
     context: CoachContext,
     events: Channel<CoachEvent>,
 ) -> AppResult<CoachReply> {
     coach
-        .ask(&exams, &store, &question_id, &text, &checks, solution_opened, &model.model, &model.effort, model.profile, context, |e| {
+        .ask(&exams, &store, &question_id, &text, &model.model, &model.effort, model.profile, context, |e| {
             let _ = events.send(e);
         })
         .await

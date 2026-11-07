@@ -29,10 +29,13 @@ pub struct ExamReadiness {
     pub certification: String,
     pub title: String,
     pub pass_score: u32,
-    /// Weighted by the domains with results; none before any attempt
+    /// Weighted by the domains with results; none until they cover
+    /// `predict_at` percent of the exam (less means too little to go on)
     pub predicted: Option<f64>,
     /// Share of the exam's weight the results cover, in percent
     pub coverage: u32,
+    /// The coverage a score is predicted from, in percent
+    pub predict_at: u32,
     /// The days the results come from (30), or 0 for all time
     pub window_days: u32,
     /// Heaviest domain first
@@ -41,6 +44,8 @@ pub struct ExamReadiness {
 
 /// Recent results first: a month back, or all of them when the month has none
 const WINDOW_DAYS: u32 = 30;
+/// The share of an exam's weight measured before a score is predicted
+pub const PREDICT_AT: u32 = 70;
 
 /// The day (YYYY-MM-DD) a moment (Unix ms) falls on, `offset_minutes` east of UTC
 pub fn day_of(ms: f64, offset_minutes: i32) -> String {
@@ -168,12 +173,14 @@ pub fn readiness(
             * 100.0
     });
     let total: u32 = domains.iter().map(|d| d.weight).sum::<u32>().max(1);
+    let coverage = covered * 100 / total;
     Ok(ExamReadiness {
         certification: certification.to_string(),
         title: cert.title.clone(),
         pass_score: cert.pass_score,
-        predicted,
-        coverage: covered * 100 / total,
+        predicted: predicted.filter(|_| coverage >= PREDICT_AT),
+        coverage,
+        predict_at: PREDICT_AT,
         window_days,
         domains,
     })
@@ -241,12 +248,18 @@ mod tests {
         let history = [entry(now - day, &[(&trouble, 9)]), entry(now - 2.0 * day, &[(&storage, 4)])];
         let r = readiness(&pack, &history, "cka", now).unwrap();
         assert_eq!(r.window_days, 30);
-        // troubleshooting 30% at 90%, storage 10% at 40%: (27 + 4) / 40
-        assert!((r.predicted.unwrap() - 77.5).abs() < 0.01, "{:?}", r.predicted);
-        assert_eq!(r.coverage, 40);
+        // troubleshooting 30% at 90%, storage 10% at 40%: 40% measured, too
+        // little to predict from
+        assert_eq!((r.predicted, r.coverage), (None, 40));
+        // With 85% measured it is: each domain weighed as on the exam,
+        // (27 + 4 + 25 + 10) / 85
+        let (arch, net) = (of("cluster-architecture"), of("services-networking"));
+        let wide = readiness(&pack, &[entry(now - day, &[(&trouble, 9), (&storage, 4), (&arch, 10), (&net, 5)])], "cka", now).unwrap();
+        assert_eq!(wide.coverage, 85);
+        assert!((wide.predicted.unwrap() - 77.647).abs() < 0.01, "{:?}", wide.predicted);
         // Older than a month only: all time is used instead
         let old = readiness(&pack, &[entry(now - 90.0 * day, &[(&storage, 4)])], "cka", now).unwrap();
-        assert_eq!((old.window_days, old.predicted.map(f64::round)), (0, Some(40.0)));
+        assert_eq!((old.window_days, old.coverage), (0, 10));
         assert!(readiness(&pack, &[], "cka", now).unwrap().predicted.is_none());
         // An attempt ended before any point measures nothing
         let unworked = readiness(&pack, &[entry(now - day, &[(&trouble, 0)])], "cka", now).unwrap();
