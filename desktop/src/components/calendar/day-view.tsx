@@ -1,6 +1,7 @@
 import { Badge } from "@cktry/ui/components/badge";
 import { Button } from "@cktry/ui/components/button";
 import { CardTitle } from "@cktry/ui/components/card";
+import { SectionTitle } from "@cktry/ui/components/section-title";
 import { Flag, Play, Plus } from "lucide-react";
 import { scoreOf, startedAt } from "@/components/study/data";
 import { byDay, dayKey, parseDay } from "@/days";
@@ -77,9 +78,9 @@ export function DayView({
 						<Flag /> {exam.certification.toUpperCase()} exam day
 					</div>
 				)}
-				<h3 className="font-semibold text-caption text-muted-foreground">
+				<SectionTitle as="h3" size="group">
 					{day < today && open.length ? "Planned, missed" : "Planned"}
-				</h3>
+				</SectionTitle>
 				{open.length === 0 ? (
 					<p className="text-callout text-muted-foreground">Nothing planned.</p>
 				) : (
@@ -101,7 +102,9 @@ export function DayView({
 						</div>
 					))
 				)}
-				<h3 className="font-semibold text-caption text-muted-foreground">Done</h3>
+				<SectionTitle as="h3" size="group">
+					Done
+				</SectionTitle>
 				{onDay.length === 0 ? (
 					<p className="text-callout text-muted-foreground">No attempt on this day.</p>
 				) : (

@@ -1,5 +1,6 @@
 import { Badge } from "@cktry/ui/components/badge";
 import { Progress } from "@cktry/ui/components/progress";
+import { SectionTitle } from "@cktry/ui/components/section-title";
 import { SegmentedControl } from "@cktry/ui/components/segmented-control";
 import {
 	Table,
@@ -49,7 +50,7 @@ export function DomainScores() {
 	return (
 		<section className="flex flex-col gap-3">
 			<div className="flex flex-wrap items-center gap-3">
-				<h2 className="font-semibold">By domain</h2>
+				<SectionTitle>By domain</SectionTitle>
 				{stats.length > 1 && (
 					<SegmentedControl
 						label="Certification"
