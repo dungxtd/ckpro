@@ -25,8 +25,9 @@ export function CatalogRoute() {
 	const { exam, missing } = useSelection();
 	const navigate = useNavigate();
 
+	// Laid out as a `Screen` (reading): the same left edge as every screen
 	return (
-		<div className="mx-auto flex max-w-3xl flex-col gap-6 px-8 pt-2 pb-10">
+		<div className="flex max-w-3xl flex-col gap-6 px-8 pt-1 pb-10">
 			{pendingReplace && (
 				<Alert variant="warning" className="items-center gap-3">
 					<span className="flex-1">{pendingReplace.message}</span>

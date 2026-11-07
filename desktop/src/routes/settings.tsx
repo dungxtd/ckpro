@@ -27,7 +27,7 @@ export function SettingsRoute() {
 		const title = SETTINGS_PARTS[part];
 		if (!title) return <Navigate to="/settings" replace />;
 		return (
-			<Screen title={title} onBack={() => navigate("/settings")} className="max-w-3xl gap-8">
+			<Screen title={title} onBack={() => navigate("/settings")} className="gap-8">
 				{part === "interface" && <InterfaceSettings />}
 				{part === "desk" && <DeskSettings />}
 				{part === "assistant" && <AiSettings />}
@@ -35,7 +35,7 @@ export function SettingsRoute() {
 		);
 	}
 	return (
-		<Screen title="Settings" className="max-w-3xl gap-8">
+		<Screen title="Settings" className="gap-8">
 			<Group title="App preferences">
 				<Row
 					icon={<Palette />}
