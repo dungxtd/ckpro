@@ -1,5 +1,6 @@
 import { Alert } from "@cktry/ui/components/alert";
 import { Button } from "@cktry/ui/components/button";
+import { Chip } from "@cktry/ui/components/chip";
 import { ConfirmDialog } from "@cktry/ui/components/confirm-dialog";
 import { IconButton } from "@cktry/ui/components/icon-button";
 import { menu, menuRow } from "@cktry/ui/components/menu";
@@ -145,11 +146,11 @@ export function Chat() {
 								exams here, and builds an exam beside. New questions are proven on a cluster before
 								you save.
 							</p>
-							<div className="mt-1 flex flex-col gap-1.5">
+							<div className="mt-1 flex flex-wrap justify-center gap-1.5">
 								{STARTERS.map(s => (
-									<Button key={s} size="push" variant="push" onClick={() => submit(s)}>
+									<Chip key={s} onClick={() => submit(s)}>
 										{s}
-									</Button>
+									</Chip>
 								))}
 							</div>
 						</div>

@@ -66,7 +66,7 @@ export function DayView({
 				<div className="flex items-center justify-between">
 					<CardTitle>{date.toLocaleDateString(undefined, { dateStyle: "full" })}</CardTitle>
 					<ExamPicker label={`Plan an exam, ${day}`} onPick={id => onAdd(day, id)}>
-						<Button size="sm">
+						<Button size="push" variant="push">
 							<Plus /> Add
 						</Button>
 					</ExamPicker>
@@ -101,7 +101,7 @@ export function DayView({
 							<Button size="sm" variant="outline" onClick={() => onRemove(p)}>
 								Remove
 							</Button>
-							<Button size="sm" onClick={() => start(p.exam_id, p.mode)}>
+							<Button size="push" variant="push" onClick={() => start(p.exam_id, p.mode)}>
 								<Play /> Start
 							</Button>
 						</div>

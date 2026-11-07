@@ -31,7 +31,11 @@ export function CatalogRoute() {
 			{pendingReplace && (
 				<Alert variant="warning" className="items-center gap-3">
 					<span className="flex-1">{pendingReplace.message}</span>
-					<Button size="sm" onClick={() => start(pendingReplace.id, pendingReplace.mode, true)}>
+					<Button
+						size="sm"
+						variant="pushDefault"
+						onClick={() => start(pendingReplace.id, pendingReplace.mode, true)}
+					>
 						Replace and start
 					</Button>
 					<Button size="sm" variant="ghost" onClick={cancelReplace}>

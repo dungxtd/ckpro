@@ -61,11 +61,7 @@ export function EnvironmentRoute() {
 	if (!env) return <Loading fill label="Loading the environment…" />;
 
 	return (
-		<Screen
-			title="Environment"
-			actions={<DockerStatus docker={env.docker} />}
-			className="gap-3"
-		>
+		<Screen title="Environment" actions={<DockerStatus docker={env.docker} />} className="gap-3">
 			<IssuesPanel issues={env.issues} />
 			{error && <Alert variant="destructive">{error}</Alert>}
 			{env.clusters.length === 0 && (

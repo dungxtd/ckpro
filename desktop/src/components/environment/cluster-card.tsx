@@ -22,7 +22,12 @@ export function ClusterCard({ cluster }: { cluster: ClusterState }) {
 				</span>
 				<div className="ml-auto flex gap-1.5">
 					{needsRepair && (
-						<Button size="sm" disabled={busy} onClick={() => runJob("repair", cluster.name)}>
+						<Button
+							size="sm"
+							variant="pushDefault"
+							disabled={busy}
+							onClick={() => runJob("repair", cluster.name)}
+						>
 							Repair
 						</Button>
 					)}

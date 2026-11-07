@@ -51,6 +51,9 @@
 	--switch-off: #e5e5ea;
 	--seg-bg: rgb(0 0 0 / 0.06);
 	--seg-on: #ffffff;
+	/* A push button (a secondary action): raised white */
+	--push: #ffffff;
+	--push-edge: rgb(0 0 0 / 0.12);
 	--range-track: rgb(0 0 0 / 0.12);
 	--menu-bg: linear-gradient(rgb(252 252 252 / 0.82), rgb(244 244 245 / 0.82));
 	--menu-edge: rgb(0 0 0 / 0.16); /* outer hairline */
@@ -104,6 +107,10 @@
 	--switch-off: #4a4a4c;
 	--seg-bg: rgb(0 0 0 / 0.28); /* recessed track, reads on any dark surface */
 	--seg-on: #76767b; /* raised thumb, clearly lighter than the track */
+	/* A push button: an edge on a faint fill, so a grey block never reads
+	   as a disabled one */
+	--push: rgb(255 255 255 / 0.04);
+	--push-edge: rgb(255 255 255 / 0.16);
 	--range-track: rgb(255 255 255 / 0.18);
 	--menu-bg: linear-gradient(rgb(112 111 109 / 0.78), rgb(96 95 93 / 0.78));
 	--menu-edge: rgb(0 0 0 / 0.85); /* near-black outer hairline (#070707) */
