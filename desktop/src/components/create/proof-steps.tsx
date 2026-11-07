@@ -133,7 +133,7 @@ function StepIcon({ state }: { state: "done" | "failed" | "running" | "waiting" 
 function StepLog({ lines, follow }: { lines: string[]; follow: boolean }) {
 	const box = useFollow<HTMLPreElement>(follow ? lines.length : 0);
 	return (
-		<Terminal ref={box} size="sm" className="mt-0.5 mb-1.5 ml-6 max-h-40 select-text">
+		<Terminal ref={box} size="sm" className="mt-0.5 mb-1.5 ml-6 max-h-40">
 			{lines.map((line, i) => (
 				<span
 					// biome-ignore lint/suspicious/noArrayIndexKey: lines only grow

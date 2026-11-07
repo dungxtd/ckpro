@@ -42,7 +42,7 @@ export function UserMessage({ children, className }: { children: string; classNa
 	return (
 		<div
 			className={cn(
-				"my-1 ml-10 w-fit max-w-full self-end whitespace-pre-wrap rounded-xl rounded-br-sm bg-highlight/15 px-3 py-1.5 text-callout [overflow-wrap:anywhere]",
+				"my-1 ml-10 w-fit max-w-full select-text self-end whitespace-pre-wrap rounded-xl rounded-br-sm bg-highlight/15 px-3 py-1.5 text-callout [overflow-wrap:anywhere]",
 				className
 			)}
 		>

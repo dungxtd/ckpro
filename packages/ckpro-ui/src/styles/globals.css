@@ -170,8 +170,11 @@
 	html {
 		@apply scroll-smooth;
 	}
+	/* An app, not a page: nothing selects but what is there to read or
+	 * copy, which opts in with `select-text` (Markdown, code, terminals,
+	 * messages, alerts) and what is typed into */
 	body {
-		@apply bg-background text-foreground overscroll-none;
+		@apply bg-background text-foreground overscroll-none select-none;
 		font-synthesis-weight: none;
 		text-rendering: optimizeSpeed;
 	}
@@ -180,6 +183,11 @@
 	 * as-is; re-resolve it so text follows the subtree's theme. */
 	[data-theme] {
 		color: var(--foreground);
+	}
+	input,
+	textarea,
+	[contenteditable="true"] {
+		@apply select-text;
 	}
 }
 

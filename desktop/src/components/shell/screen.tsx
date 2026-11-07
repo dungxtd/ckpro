@@ -25,7 +25,7 @@ export function Screen({
 	return (
 		<div className={cn("mx-auto flex max-w-4xl flex-col gap-6 px-8 pt-1 pb-10", className)}>
 			{/* The actions go under the title when the page is too narrow for both */}
-			<header className="flex select-none flex-wrap items-center gap-x-2 gap-y-3">
+			<header className="flex flex-wrap items-center gap-x-2 gap-y-3">
 				{onBack && (
 					<IconButton
 						variant="toolbar"
