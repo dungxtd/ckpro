@@ -222,3 +222,13 @@ fn placeholders(text: &str) -> BTreeSet<String> {
     }
     found
 }
+
+/// The errors lint finds in `staging`'s file at `path` (one question checked
+/// on its own, as it joins)
+pub fn errors_in(staging: &LoadedPack, path: &std::path::Path) -> Vec<String> {
+    lint(staging)
+        .into_iter()
+        .filter(|f| f.level == Level::Error && std::path::Path::new(&f.file).file_stem() == path.file_stem())
+        .map(|f| f.message)
+        .collect()
+}

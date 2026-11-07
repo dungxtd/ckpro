@@ -4,7 +4,6 @@
 pub mod draft;
 pub mod proof;
 pub mod rules;
-pub mod tools;
 
 use crate::error::{AppError, AppResult};
 use crate::lab::exam::Exams;
@@ -85,7 +84,7 @@ fn staged(bank: &LoadedPack, data_dir: &Path, draft: &ExamDraft) -> AppResult<St
             }
         }
     }
-    let mut staging = crate::ai::generate::staging_of(bank, data_dir, new);
+    let mut staging = crate::lab::mine::staging(bank, data_dir, new);
     for (id, _) in &ids {
         if let Some(q) = bank.questions.get(id) {
             staging.questions.insert(id.clone(), Loaded { path: q.path.clone(), value: q.value.clone() });
@@ -273,19 +272,40 @@ pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32, proving
         if now.saved.is_some() || !now.items.iter().map(DraftItem::content).eq(draft.items.iter().map(DraftItem::content)) {
             return Err(AppError::invalid("the exam changed while it was saved: save it again"));
         }
+        // The files first; any step failing takes back those written (the
+        // draft is not marked saved either: the transaction rolls back)
         let mut ids = Vec::new();
-        for item in &draft.items {
-            match item {
-                DraftItem::Existing { id, .. } => ids.push(id.clone()),
-                DraftItem::New(q) => {
-                    let (id, path) = mine::new_question(data_dir, &draft.certification, &q.title);
-                    let yaml = format!("# Written with Claude in Create and proven by `ckpro lab verify`\n{}", q.yaml);
-                    mine::save(data_dir, &draft.certification, &cert_title, &path, &yaml)?;
-                    ids.push(id);
+        let mut written = Vec::new();
+        let files = (|| {
+            for item in &draft.items {
+                match item {
+                    DraftItem::Existing { id, .. } => ids.push(id.clone()),
+                    DraftItem::New(q) => {
+                        let (id, path) = mine::new_question(data_dir, &draft.certification, &q.title);
+                        let yaml = format!("# Written with Claude in Create and proven by `ckpro lab verify`\n{}", q.yaml);
+                        mine::write_question(data_dir, &path, &yaml)?;
+                        written.push(path);
+                        ids.push(id);
+                    }
                 }
             }
-        }
-        let id = mine::save_exam(data_dir, &draft.title, &draft.certification, draft.duration_minutes, &ids)?;
+            if !written.is_empty() {
+                mine::relist(data_dir, &draft.certification, &cert_title)?;
+            }
+            mine::save_exam(data_dir, &draft.title, &draft.certification, draft.duration_minutes, &ids)
+        })();
+        let id = match files {
+            Ok(id) => id,
+            Err(e) => {
+                for path in &written {
+                    let _ = std::fs::remove_file(path);
+                }
+                if !written.is_empty() {
+                    let _ = mine::relist(data_dir, &draft.certification, &cert_title);
+                }
+                return Err(e);
+            }
+        };
         // Its new questions are the candidate's now: saved again (the exam
         // deleted), it lists them, not new copies
         for (item, id) in now.items.iter_mut().zip(&ids) {

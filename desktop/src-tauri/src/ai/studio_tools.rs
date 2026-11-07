@@ -5,7 +5,7 @@
 //!
 //! Like every assistant tool, off while an exam-mode attempt runs.
 
-use super::draft::ExamDraft;
+use crate::studio::draft::ExamDraft;
 use crate::error::{AppError, AppResult};
 use crate::lab::exam::Exams;
 use crate::runtime::activity::now_ms;
@@ -44,7 +44,7 @@ impl Tools {
 
     /// The reply to an MCP message of conversation `session`
     pub async fn handle(&self, session: i32, message: &Value) -> Option<Value> {
-        crate::ai::mcp::answer(message, list(), |name, args| async move { self.call(session, &name, &args) }).await
+        super::mcp::answer(message, list(), |name, args| async move { self.call(session, &name, &args) }).await
     }
 
     fn call(&self, session: i32, name: &str, args: &Value) -> AppResult<String> {
@@ -94,7 +94,7 @@ impl Tools {
     /// Change the draft with `f`, keep it and tell the screen
     fn edit(&self, session: i32, f: impl FnOnce(&mut ExamDraft, &crate::lab::load::LoadedPack, &std::path::Path) -> AppResult<String>) -> AppResult<String> {
         let bank = self.exams.bank();
-        let (draft, result) = super::edit(&self.store, session, || (self.proving)(session), |draft| f(draft, &bank, &self.data_dir))?;
+        let (draft, result) = crate::studio::edit(&self.store, session, || (self.proving)(session), |draft| f(draft, &bank, &self.data_dir))?;
         (self.changed)(session, &draft);
         Ok(result)
     }
@@ -185,7 +185,7 @@ impl Tools {
                 (domain.is_none_or(|x| x == d) && q.value.runnable())
                     .then(|| json!({
                         "id": id, "title": q.value.title, "domain": d, "difficulty": q.value.difficulty,
-                        "minutes": super::draft::minutes(&q.value),
+                        "minutes": crate::studio::draft::minutes(&q.value),
                     }))
             })
             .collect();

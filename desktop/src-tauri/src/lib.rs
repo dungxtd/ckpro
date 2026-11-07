@@ -295,7 +295,7 @@ let proving = app.handle().clone();
                 let (handle, store) = (app.handle().clone(), store.clone());
                 let drafts = app.handle().clone();
                 let proofs = app.handle().clone();
-                let studio = Arc::new(studio::tools::Tools::new(
+                let studio = Arc::new(ai::studio_tools::Tools::new(
                     exams.clone(),
                     store.clone(),
                     data_dir.clone(),

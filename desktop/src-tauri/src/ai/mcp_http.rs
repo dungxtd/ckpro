@@ -2,10 +2,10 @@
 //! by the app itself over HTTP (Streamable HTTP, JSON replies). Only the
 //! app's loopback, and only with this run's token. The path says whose:
 //! `/mcp/<question>` a practice question's session, `/studio/<conversation>`
-//! a Create conversation (`studio::tools`).
+//! a Create conversation (`ai::studio_tools`).
 
 use super::mcp::Server;
-use crate::studio::tools::Tools as Studio;
+use super::studio_tools::Tools as Studio;
 use crate::error::{AppError, AppResult};
 use crate::store::Store;
 use http_body_util::{BodyExt, Full, Limited};

@@ -8,13 +8,12 @@
 
 use super::agent::Agent;
 use crate::error::{AppError, AppResult};
-use crate::lab::load::{Level, Loaded, LoadedPack};
+use crate::lab::load::{Loaded, LoadedPack};
 use crate::lab::model::{Difficulty, Question};
 use crate::lab::{lint, mine, verify};
 use crate::runtime::activity::Activities;
 use crate::runtime::infra::Infra;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::Path;
 use std::sync::Arc;
@@ -113,7 +112,7 @@ pub async fn generate(
             }
             let (id, path) = mine::new_question(data_dir, &request.certification, &question.title);
             let staging = staging(bank, data_dir, &id, &path, question.clone());
-            let errors = lint_errors(&staging, &path);
+            let errors = lint::errors_in(&staging, &path);
             if !errors.is_empty() {
                 op.log(format!("lint: {}", errors.join("; ")));
                 feedback.push(format!("`ckpro lab lint` found errors:\n- {}", errors.join("\n- ")));
@@ -159,35 +158,10 @@ pub async fn generate(
     op.end(result)
 }
 
-pub(crate) fn lint_errors(staging: &LoadedPack, path: &Path) -> Vec<String> {
-    lint::lint(staging)
-        .into_iter()
-        .filter(|f| f.level == Level::Error && Path::new(&f.file).file_stem() == path.file_stem())
-        .map(|f| f.message)
-        .collect()
-}
-
 /// A pack of just the new question, with the bundled certifications, to lint
 /// and verify it alone
 fn staging(bank: &LoadedPack, data_dir: &Path, id: &str, path: &Path, question: Question) -> LoadedPack {
-    staging_of(bank, data_dir, [(id.to_string(), path.to_path_buf(), question)])
-}
-
-/// A pack of new `questions` (id, path, question), with the bundled
-/// certifications, to lint and verify them without the rest
-pub(crate) fn staging_of(
-    bank: &LoadedPack,
-    data_dir: &Path,
-    questions: impl IntoIterator<Item = (String, std::path::PathBuf, Question)>,
-) -> LoadedPack {
-    let mut pack = bank.pack.clone();
-    pack.id = mine::PACK_ID.into();
-    LoadedPack {
-        root: mine::root(data_dir),
-        pack,
-        questions: questions.into_iter().map(|(id, path, value)| (id, Loaded { path, value })).collect(),
-        exams: BTreeMap::new(),
-    }
+    mine::staging(bank, data_dir, [(id.to_string(), path.to_path_buf(), question)])
 }
 
 /// What a question is and the rules it is proven against (enforced on a
