@@ -175,7 +175,8 @@ export function CalendarRoute() {
 		<Screen
 			title="Calendar"
 			// The month and the week fill the window's height (the day lists)
-			className={cn("@container max-w-[1440px] gap-4", view !== "day" && "min-h-full")}
+			width="wide"
+			className={cn("@container gap-4", view !== "day" && "min-h-full")}
 			actions={
 				<div className="flex flex-wrap items-center gap-2">
 					{target && daysUntil(target.date, now) >= 0 && (

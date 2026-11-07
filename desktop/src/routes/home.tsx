@@ -85,7 +85,8 @@ export function HomeRoute() {
 				</span>
 			}
 			// Wider windows give the cards room; narrow ones stack them
-			className="@container max-w-[1440px] gap-4"
+			width="wide"
+			className="@container gap-4"
 		>
 			<div className="grid gap-4 @3xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
 				<StatusTerminal

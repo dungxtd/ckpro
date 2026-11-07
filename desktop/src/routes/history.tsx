@@ -30,12 +30,12 @@ export function HistoryRoute() {
 	if (history === null) return <Loading fill label="Loading your attempts…" />;
 	if (history.length === 0)
 		return (
-			<Screen title="History" className="max-w-6xl">
+			<Screen title="History" width="wide">
 				<p className="text-muted-foreground text-sm">No attempts yet.</p>
 			</Screen>
 		);
 	return (
-		<Screen title="History" className="max-w-6xl">
+		<Screen title="History" width="wide">
 			<DomainScores />
 			<h2 className="-mb-3 font-semibold">Attempts</h2>
 			<Table>
