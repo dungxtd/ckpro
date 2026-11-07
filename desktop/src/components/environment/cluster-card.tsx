@@ -49,7 +49,7 @@ export function ClusterCard({ cluster }: { cluster: ClusterState }) {
 					return (
 						<li key={node.name} className="flex items-center gap-2 py-1 text-sm">
 							<StatusDot tone={status.tone} />
-							<span className="font-mono">{node.name}</span>
+							<span className="select-text font-mono">{node.name}</span>
 							<span className="text-muted-foreground text-xs">
 								{node.role === "control_plane" ? "control plane" : "worker"} · {status.label}
 							</span>

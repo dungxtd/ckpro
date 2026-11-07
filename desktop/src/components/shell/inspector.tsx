@@ -62,10 +62,7 @@ export function Inspector({
 				className
 			)}
 		>
-			<div
-				data-tauri-drag-region
-				className="flex h-12 shrink-0 select-none items-center gap-2 px-4"
-			>
+			<div data-tauri-drag-region className="flex h-12 shrink-0 items-center gap-2 px-4">
 				<div className="flex min-w-0 flex-1 items-center gap-2">{top}</div>
 				{!mac && <WindowControls />}
 			</div>

@@ -100,7 +100,7 @@ export function AssistantPane({
 			className={cn("flex h-full w-full min-w-0 flex-col overflow-hidden bg-background", MASK)}
 		>
 			{/* Toolbar: the session (double-click to rename), then new, history, more, close */}
-			<div className="flex h-9 shrink-0 select-none items-center gap-0.5 border-border border-b pr-1.5 pl-3">
+			<div className="flex h-9 shrink-0 items-center gap-0.5 border-border border-b pr-1.5 pl-3">
 				{renaming ? (
 					<SessionTitleInput
 						title={title}
@@ -341,12 +341,12 @@ export function AssistantPane({
 
 			{!claudeOn ? (
 				// No agent turned on: nothing to ask
-				<div className="flex select-none items-center gap-3 border-border border-t bg-card/40 px-3 py-3 text-muted-foreground text-xs">
+				<div className="flex items-center gap-3 border-border border-t bg-card/40 px-3 py-3 text-muted-foreground text-xs">
 					No agent is turned on. Turn one on in Settings › AI.
 				</div>
 			) : signedOut ? (
 				// Signed out: the place to type becomes the way in
-				<div className="flex select-none items-center gap-3 border-border border-t bg-card/40 px-3 py-3">
+				<div className="flex items-center gap-3 border-border border-t bg-card/40 px-3 py-3">
 					<AssistantIcon className="size-4 shrink-0 text-assistant" />
 					<span className="flex-1 text-muted-foreground text-xs">
 						Sign in with your Claude account to ask about this task.

@@ -1,12 +1,22 @@
 import { IconButton } from "@cktry/ui/components/icon-button";
 import { cn } from "@cktry/ui/lib/utils";
 import { ChevronLeft } from "lucide-react";
+import type * as React from "react";
 import type { ReactNode } from "react";
 
 /** How wide a screen grows: `wide` for what spreads out (Home, the
  * Calendar, History), from the left edge; `reading` for a column of rows
  * and text, centred in the window so it leaves no empty side */
 const WIDTHS = { wide: "max-w-[1440px]", reading: "mx-auto w-full max-w-3xl" };
+
+/** A screen's page box, for a screen laid out without `Screen` (Exams) */
+export const screenPage = (width: keyof typeof WIDTHS = "reading") =>
+	cn("flex flex-col gap-6 px-8 pt-1 pb-10", WIDTHS[width]);
+
+/** A screen's title, set large */
+export function ScreenTitle({ className, ...props }: React.ComponentProps<"h1">) {
+	return <h1 className={cn("font-bold text-title leading-tight", className)} {...props} />;
+}
 
 /**
  * A screen's page: its title set large at the top, as macOS apps do (the
@@ -30,7 +40,7 @@ export function Screen({
 	children: ReactNode;
 }) {
 	return (
-		<div className={cn("flex flex-col gap-6 px-8 pt-1 pb-10", WIDTHS[width], className)}>
+		<div className={cn(screenPage(width), className)}>
 			{/* The actions go under the title when the page is too narrow for both */}
 			<header className="flex flex-wrap items-center gap-x-2 gap-y-3">
 				{onBack && (
@@ -44,7 +54,7 @@ export function Screen({
 						<ChevronLeft />
 					</IconButton>
 				)}
-				<h1 className="flex-1 font-bold text-title leading-tight">{title}</h1>
+				<ScreenTitle className="flex-1">{title}</ScreenTitle>
 				{actions}
 			</header>
 			{children}

@@ -74,7 +74,7 @@ export function Chat() {
 
 	return (
 		<section className="flex h-full min-h-0 min-w-0 flex-col">
-			<header className="flex h-14 shrink-0 select-none items-center gap-2 border-border border-b px-5">
+			<header className="flex h-14 shrink-0 items-center gap-2 border-border border-b px-5">
 				<AssistantIcon className="size-4 shrink-0 text-assistant" />
 				<h2 className="min-w-0 flex-1 truncate font-semibold text-callout">{title}</h2>
 				<Popover open={listing} onOpenChange={setListing}>

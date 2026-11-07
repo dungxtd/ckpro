@@ -51,7 +51,7 @@ export function AboutSettings() {
 				</Row>
 			</Group>
 			{/* Who the app is, at the end of the page */}
-			<footer className="flex select-none flex-col items-center gap-1 pt-4 text-center">
+			<footer className="flex flex-col items-center gap-1 pt-4 text-center">
 				<img src={appIcon} alt="" className="size-16" />
 				<div className="font-semibold">CKtry</div>
 				<div className="text-caption text-muted-foreground tabular-nums">

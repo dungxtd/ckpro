@@ -95,7 +95,7 @@ export function AssistantComposer({
 	return (
 		// The editor: context, the text, then one row of controls. The
 		// profile: Ask reads and answers; Agent may also run commands (practice)
-		<div className="flex select-none flex-col gap-2 border-border border-t bg-card/40 p-2.5">
+		<div className="flex flex-col gap-2 border-border border-t bg-card/40 p-2.5">
 			<div className="flex flex-wrap gap-1">
 				<Chip size="xs">Task</Chip>
 				{checks && coach.shared.checks && coach.context.checks && (
