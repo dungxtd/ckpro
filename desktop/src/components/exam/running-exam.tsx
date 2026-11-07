@@ -8,6 +8,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@cktry/ui/components/select";
+import { Splitter, usePanelSize } from "@cktry/ui/components/splitter";
 import { cn } from "@cktry/ui/lib/utils";
 import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -16,7 +17,6 @@ import { useShallow } from "zustand/react/shallow";
 import { AssistantPane } from "@/components/assistant/assistant-pane";
 import { useDesktopSettings } from "@/components/exam/desktop-menu";
 import { DesktopView } from "@/components/exam/desktop-view";
-import { ResizeHandle, usePanelSize } from "@/components/exam/panel-border";
 import {
 	type PanelView,
 	PracticeActions,
@@ -100,7 +100,7 @@ export function RunningExam({
 
 	// The task panel's right border: its share of the desk, in percent
 	const task = usePanelSize({
-		desk,
+		area: desk,
 		saved: settings.task_width ?? 33,
 		save: task_width => update({ task_width }),
 		min: 20,
@@ -110,7 +110,7 @@ export function RunningExam({
 	});
 	// The assistant pane's left border: its width in pixels
 	const assistant = usePanelSize({
-		desk,
+		area: desk,
 		saved: settings.assistant_width,
 		save: assistant_width => update({ assistant_width: Math.round(assistant_width) }),
 		min: 300,
@@ -240,7 +240,7 @@ export function RunningExam({
 						</div>
 					)}
 				</section>
-				<ResizeHandle label="Task panel width" {...task.handle} />
+				<Splitter label="Task panel width" {...task.handle} />
 				<section className="relative min-w-[30%] flex-1">
 					{/* Stays connected behind the Readme; a new attempt is a new desktop */}
 					<div className={cn("absolute inset-0", tab !== "desktop" && "invisible")}>
@@ -252,9 +252,7 @@ export function RunningExam({
 						</div>
 					)}
 				</section>
-				{assistantOpen && question && (
-					<ResizeHandle label="Assistant width" {...assistant.handle} />
-				)}
+				{assistantOpen && question && <Splitter label="Assistant width" {...assistant.handle} />}
 				{assistantOpen && question && (
 					<div className="min-w-[260px] max-w-[40%] shrink" style={{ width: assistant.size }}>
 						<AssistantPane

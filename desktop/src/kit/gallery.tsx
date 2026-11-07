@@ -58,6 +58,7 @@ import {
 } from "@cktry/ui/components/sidebar";
 import { Toaster } from "@cktry/ui/components/sonner";
 import { Spinner } from "@cktry/ui/components/spinner";
+import { Splitter, usePanelSize } from "@cktry/ui/components/splitter";
 import { Stat, StatGroup } from "@cktry/ui/components/stat";
 import { StatusDot } from "@cktry/ui/components/status-dot";
 import { Stepper } from "@cktry/ui/components/stepper";
@@ -90,7 +91,7 @@ import {
 	TriangleAlert,
 	X,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { toast } from "sonner";
 import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";
@@ -604,6 +605,13 @@ function Gallery() {
 				</Section>
 
 				<Section
+					title="Splitter"
+					note="The border between two columns: drag it, or arrows once focused. usePanelSize keeps the width and saves it when let go."
+				>
+					<SplitterSample />
+				</Section>
+
+				<Section
 					title="Placeholder"
 					note="What a surface will show, faded, while it has nothing yet: a line and an action over it."
 				>
@@ -932,6 +940,32 @@ function HandleSample() {
 				/>
 				<span className="text-caption text-muted-foreground">{height}px</span>
 			</div>
+		</div>
+	);
+}
+
+function SplitterSample() {
+	const area = useRef<HTMLDivElement>(null);
+	const [saved, setSaved] = useState(40);
+	const column = usePanelSize({
+		area,
+		saved,
+		save: setSaved,
+		min: 20,
+		max: 80,
+		step: 2,
+		fromPointer: (x, box) => ((x - box.left) / box.width) * 100,
+	});
+	return (
+		<div ref={area} className="flex h-32 overflow-hidden rounded-xl border border-border">
+			<div
+				className="bg-card p-3 text-caption text-muted-foreground"
+				style={{ width: `${column.size}%` }}
+			>
+				{Math.round(column.size)}%
+			</div>
+			<Splitter label="Resize the column" {...column.handle} />
+			<div className="flex-1 bg-muted/40" />
 		</div>
 	);
 }
