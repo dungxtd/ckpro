@@ -178,7 +178,7 @@ export function SidebarRemove({ name, onRemove }: { name: string; onRemove: () =
 			type="button"
 			aria-label={`Delete ${name}`}
 			onClick={onRemove}
-			className="grid size-4 shrink-0 place-items-center rounded-full bg-destructive text-white outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			className="grid size-4 shrink-0 place-items-center rounded-full bg-destructive text-destructive-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
 		>
 			<Minus className="size-3" strokeWidth={3} />
 		</button>

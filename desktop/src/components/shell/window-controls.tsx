@@ -48,7 +48,7 @@ export function WindowControls() {
 				type="button"
 				aria-label="Close"
 				onClick={() => current.close()}
-				className={cn(button, "hover:bg-window-close hover:text-white")}
+				className={cn(button, "hover:bg-window-close hover:text-window-close-foreground")}
 			>
 				<X />
 			</button>

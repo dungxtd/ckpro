@@ -2,6 +2,13 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { ChevronRight } from "lucide-react";
 import type * as React from "react";
 
+/**
+ * A compact row that opens something under it (a step's log, a tool call):
+ * its hover and focus, for rows laid out by their own screen
+ */
+export const disclosureRow =
+	"flex items-center gap-2 rounded-md px-1.5 text-left outline-none hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring";
+
 /** A row that shows or hides what is under it (a log, details). */
 export function Disclosure({
 	summary,

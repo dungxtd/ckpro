@@ -1,6 +1,8 @@
 import { Button } from "@ckpro/ui/components/button";
+import { disclosureRow } from "@ckpro/ui/components/disclosure";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Spinner } from "@ckpro/ui/components/spinner";
+import { Terminal } from "@ckpro/ui/components/terminal";
 import { useFollow } from "@ckpro/ui/hooks/use-follow";
 import { useNow } from "@ckpro/ui/hooks/use-now";
 import { clock } from "@ckpro/ui/lib/time";
@@ -85,7 +87,8 @@ export function ProofSteps({ proof }: { proof: Proof }) {
 							aria-expanded={open}
 							onClick={() => setOpened(o => ({ ...o, [i]: !open }))}
 							className={cn(
-								"flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-callout outline-none hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring disabled:hover:bg-transparent",
+								disclosureRow,
+								"w-full py-1 text-callout disabled:hover:bg-transparent",
 								s === "running" && "font-semibold",
 								s === "waiting" && "text-muted-foreground"
 							)}
@@ -130,10 +133,7 @@ function StepIcon({ state }: { state: "done" | "failed" | "running" | "waiting" 
 function StepLog({ lines, follow }: { lines: string[]; follow: boolean }) {
 	const box = useFollow<HTMLPreElement>(follow ? lines.length : 0);
 	return (
-		<pre
-			ref={box}
-			className="mt-0.5 mb-1.5 ml-6 max-h-40 select-text overflow-auto whitespace-pre-wrap break-words rounded-md border border-white/5 bg-terminal px-2.5 py-2 font-mono text-[11px] text-terminal-foreground/80 leading-relaxed"
-		>
+		<Terminal ref={box} size="sm" className="mt-0.5 mb-1.5 ml-6 max-h-40 select-text">
 			{lines.map((line, i) => (
 				<span
 					// biome-ignore lint/suspicious/noArrayIndexKey: lines only grow
@@ -147,7 +147,7 @@ function StepLog({ lines, follow }: { lines: string[]; follow: boolean }) {
 					{line}
 				</span>
 			))}
-		</pre>
+		</Terminal>
 	);
 }
 
@@ -208,7 +208,7 @@ export function NewScripts() {
 						type="button"
 						aria-expanded={open === q.key}
 						onClick={() => setOpen(o => (o === q.key ? null : q.key))}
-						className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-callout outline-none hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring"
+						className={cn(disclosureRow, "w-full py-1 text-callout")}
 					>
 						<span className="min-w-0 flex-1 truncate">{q.title}</span>
 						<span className="text-caption text-muted-foreground">

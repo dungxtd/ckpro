@@ -58,7 +58,7 @@ export function EnvironmentRoute() {
 		if (hash === "#activity")
 			document.getElementById("activity")?.scrollIntoView({ behavior: "smooth" });
 	}, [hash]);
-	if (!env) return <Loading fill label="Reading the environment…" />;
+	if (!env) return <Loading fill label="Loading the environment…" />;
 
 	return (
 		<Screen

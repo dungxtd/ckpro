@@ -1,4 +1,5 @@
 import { CodeBlock } from "@ckpro/ui/components/code-block";
+import { disclosureRow } from "@ckpro/ui/components/disclosure";
 import { Spinner } from "@ckpro/ui/components/spinner";
 import { useNow } from "@ckpro/ui/hooks/use-now";
 import { cn } from "@ckpro/ui/lib/utils";
@@ -97,7 +98,8 @@ function ToolLine({
 			aria-expanded={open}
 			onClick={onToggle}
 			className={cn(
-				"flex max-w-full items-center gap-2 rounded-md px-1.5 py-0.5 text-left text-caption text-muted-foreground outline-none hover:bg-foreground/5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+				disclosureRow,
+				"max-w-full py-0.5 text-caption text-muted-foreground hover:text-foreground",
 				open && "bg-foreground/5 text-foreground"
 			)}
 		>

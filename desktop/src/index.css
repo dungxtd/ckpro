@@ -16,6 +16,7 @@
 	--color-domain-5: #b197fc;
 	/* Windows' close button under the pointer (shell/window-controls.tsx) */
 	--color-window-close: #c42b1c;
+	--color-window-close-foreground: #ffffff;
 	/* Around the exam desktop's picture while it connects or letterboxes
 	   (desktop-view.tsx gives noVNC the same) */
 	--color-desktop: #1e1e1e;

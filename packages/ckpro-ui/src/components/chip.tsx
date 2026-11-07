@@ -45,7 +45,7 @@ export function Chip({
 		<span
 			className={cn(
 				"min-w-5 rounded-full px-1.5 text-center text-2xs tabular-nums",
-				selected ? "bg-white/25" : "bg-foreground/8 text-muted-foreground"
+				selected ? "bg-glass-selected-foreground/25" : "bg-foreground/8 text-muted-foreground"
 			)}
 		>
 			{count}

@@ -81,7 +81,9 @@ export function Today({
 					<span
 						className={cn(
 							"grid size-[18px] shrink-0 place-items-center rounded-full",
-							p.done !== null ? "bg-success text-black" : "ring-2 ring-muted-foreground ring-inset"
+							p.done !== null
+								? "bg-success text-success-foreground"
+								: "ring-2 ring-muted-foreground ring-inset"
 						)}
 					>
 						{p.done !== null && <Check className="size-3" strokeWidth={3} />}

@@ -33,7 +33,7 @@ function ExamPhase() {
 		start,
 		retry: tryAgain,
 	} = useExam(useShallow(s => ({ state: s.state, end: s.end, start: s.start, retry: s.retry })));
-	if (!state) return <Loading fill />;
+	if (!state) return <Loading fill label="Loading the exam…" />;
 
 	switch (state.phase) {
 		case "idle":

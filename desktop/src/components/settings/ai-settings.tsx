@@ -21,7 +21,7 @@ import { StatusDot } from "@ckpro/ui/components/status-dot";
 import { Stepper } from "@ckpro/ui/components/stepper";
 import { Switch } from "@ckpro/ui/components/switch";
 import { cn } from "@ckpro/ui/lib/utils";
-import { ChevronRight, RotateCw, X } from "lucide-react";
+import { ChevronRight, RotateCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { MASK } from "@/analytics";
@@ -120,7 +120,7 @@ export function AiSettings() {
 					</Row>
 				)}
 			</Group>
-			{enabled && !settings && <Loading fill />}
+			{enabled && !settings && <Loading fill label="Loading the agents…" />}
 			{enabled && settings && (
 				<>
 					<Group
@@ -413,16 +413,13 @@ function ToolAccess({ settings, save }: Section) {
 				{settings.never_run.length > 0 && (
 					<div className="flex flex-wrap gap-1.5">
 						{settings.never_run.map(p => (
-							<Chip key={p} size="xs" className="gap-1 font-mono">
+							<Chip
+								key={p}
+								size="xs"
+								className="font-mono"
+								onRemove={() => save({ never_run: settings.never_run.filter(x => x !== p) })}
+							>
 								{p}
-								<button
-									type="button"
-									aria-label={`Remove ${p}`}
-									className="text-muted-foreground hover:text-foreground"
-									onClick={() => save({ never_run: settings.never_run.filter(x => x !== p) })}
-								>
-									<X className="size-3" />
-								</button>
 							</Chip>
 						))}
 					</div>

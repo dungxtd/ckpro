@@ -59,7 +59,7 @@ export function Row({
 		</div>
 	);
 	const row = cn(
-		"group/row flex w-full items-center gap-3 pl-4 text-left [&>svg]:size-5 [&>svg]:shrink-0 [&>svg]:text-muted-foreground",
+		"group/row flex w-full select-none items-center gap-3 pl-4 text-left [&>svg]:size-5 [&>svg]:shrink-0 [&>svg]:text-muted-foreground",
 		className
 	);
 	return onClick ? (

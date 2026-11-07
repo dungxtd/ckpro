@@ -16,7 +16,7 @@ export function AboutSettings() {
 	useEffect(() => {
 		appApi.info().then(setInfo);
 	}, []);
-	if (!info) return <Loading fill />;
+	if (!info) return <Loading fill label="Loading…" />;
 	return (
 		<>
 			<Group title="App">

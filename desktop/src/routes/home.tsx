@@ -59,7 +59,7 @@ export function HomeRoute() {
 			examApi.readiness(certification).then(setReadiness, () => setReadiness(null));
 	}, [certification, idle]);
 
-	if (history === null) return <Loading fill label="Reading your attempts…" />;
+	if (history === null) return <Loading fill label="Loading your attempts…" />;
 	const measured = certification ? history.filter(h => h.certification === certification) : history;
 	const weak = weakest(readiness);
 	// The certification's longest exam measures the most domains at once
