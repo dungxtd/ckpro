@@ -140,3 +140,24 @@ test("a draft that cannot be proven says why and keeps the button off", async ({
 	await expect(page.getByText(/needs at least 2.1 GB/)).toBeVisible();
 	await expect(page.getByRole("button", { name: "Prove & save" })).toBeDisabled();
 });
+
+test("on a narrow window the draft is a panel dragged up and down", async ({ page }) => {
+	await page.setViewportSize({ width: 1000, height: 760 });
+	await openCreate(page);
+	const handle = page.getByRole("separator", { name: "Resize the exam" });
+	const question = page.getByText("Fix a Deployment");
+	await expect(question).toBeVisible();
+	// Dragged down to the bottom: only its head and foot are left
+	const box = await handle.boundingBox();
+	if (!box) throw new Error("the handle is on screen");
+	await page.mouse.move(box.x + box.width / 2, box.y + 4);
+	await page.mouse.down();
+	await page.mouse.move(box.x + box.width / 2, 755, { steps: 8 });
+	await page.mouse.up();
+	await expect(question).toBeHidden();
+	await expect(page.getByRole("button", { name: "Prove & save" })).toBeVisible();
+	// And open again from the keyboard
+	await handle.focus();
+	await page.keyboard.press("Enter");
+	await expect(question).toBeVisible();
+});
