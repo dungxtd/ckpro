@@ -19,7 +19,7 @@ import { Spinner } from "@ckpro/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckpro/ui/components/tooltip";
 import { cn } from "@ckpro/ui/lib/utils";
 import { Check, Ellipsis, Pencil, X } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useStudio } from "@/stores/studio";
 import type { ExamDraft } from "@/tauri/api";
 import { domainName, plural } from "@/words";
@@ -148,7 +148,15 @@ export function DraftMenu() {
  * its measures: questions, length, the time its questions suggest (orange
  * past the length) and its domains against the real exam's weights
  */
-export function DraftSummary({ className }: { className?: string }) {
+export function DraftSummary({
+	trailing,
+	className,
+}: {
+	/** At the end of its title's line (the bar's tabs and menu), so its
+	 * measures' line, coverage at the end, sits under them */
+	trailing?: ReactNode;
+	className?: string;
+}) {
 	const draft = useStudio(s => s.draft);
 	const editing = useStudio(s => s.renaming);
 	const setEditing = useStudio(s => s.setRenaming);
@@ -184,6 +192,9 @@ export function DraftSummary({ className }: { className?: string }) {
 						)}
 					</>
 				)}
+				{trailing && (
+					<div className="ml-auto flex shrink-0 items-center gap-2 pl-2">{trailing}</div>
+				)}
 			</div>
 			{draft.certification && (
 				<div className="flex min-w-0 items-center gap-3 text-caption text-muted-foreground">
@@ -194,7 +205,12 @@ export function DraftSummary({ className }: { className?: string }) {
 							<span className={cn(over && "text-warning")}> · ~{minutes} min est.</span>
 						)}
 					</span>
-					<Coverage draft={draft} className="ml-auto w-24 shrink-0" />
+					<Coverage
+						draft={draft}
+						// In the bar it opens over the questions, not over its own tabs
+						side={trailing ? "bottom" : "top"}
+						className={cn("ml-auto shrink-0", trailing ? "w-32" : "w-24")}
+					/>
 				</div>
 			)}
 		</div>
@@ -202,7 +218,15 @@ export function DraftSummary({ className }: { className?: string }) {
 }
 
 /** The exam's questions by domain, coloured, beside the real exam's weights (on hover) */
-function Coverage({ draft, className }: { draft: ExamDraft; className?: string }) {
+function Coverage({
+	draft,
+	side,
+	className,
+}: {
+	draft: ExamDraft;
+	side: "top" | "bottom";
+	className?: string;
+}) {
 	const counts = draft.domains.map(d => ({
 		...d,
 		count: draft.items.filter(i => i.domain === d.domain).length,
@@ -228,7 +252,7 @@ function Coverage({ draft, className }: { draft: ExamDraft; className?: string }
 					)}
 				</div>
 			</TooltipTrigger>
-			<TooltipContent className="whitespace-normal">
+			<TooltipContent side={side} align="end" className="whitespace-normal">
 				<div className="flex flex-col gap-1">
 					{counts.map((d, i) => (
 						<span key={d.domain} className="flex items-center gap-2">

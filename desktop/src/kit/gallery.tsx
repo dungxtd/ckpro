@@ -30,6 +30,7 @@ import { Placeholder, SampleRows } from "@ckpro/ui/components/placeholder";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Progress, ProgressRing } from "@ckpro/ui/components/progress";
 import { Range } from "@ckpro/ui/components/range";
+import { ResizeHandle } from "@ckpro/ui/components/resize-handle";
 import { SectionTitle } from "@ckpro/ui/components/section-title";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
 import {
@@ -259,6 +260,19 @@ function Gallery() {
 						<IconButton variant="plain" size="sm" active aria-label="Active">
 							<Sparkles />
 						</IconButton>
+						<span className="flex items-center gap-0.5 rounded-full bg-sidebar-panel p-1">
+							<IconButton
+								variant="capsule"
+								size="bar"
+								aria-current="page"
+								aria-label="Capsule, the screen shown"
+							>
+								<Plus />
+							</IconButton>
+							<IconButton variant="capsule" size="bar" aria-label="Capsule">
+								<X />
+							</IconButton>
+						</span>
 					</Row>
 				</Section>
 
@@ -590,6 +604,13 @@ function Gallery() {
 				</Section>
 
 				<Section
+					title="ResizeHandle"
+					note="A panel's top edge that sets its height: drag it, double-click or Enter to fold and open, arrows to move it."
+				>
+					<HandleSample />
+				</Section>
+
+				<Section
 					title="Placeholder"
 					note="What a surface will show, faded, while it has nothing yet: a line and an action over it."
 				>
@@ -900,7 +921,12 @@ function PromptSample() {
 	const [ran, setRan] = useState("");
 	return (
 		<Terminal className="flex flex-col">
-			{ran && <Terminal.Muted>{`$ ${ran}\n`}</Terminal.Muted>}
+			{ran && (
+				<>
+					<Terminal.Command>{ran}</Terminal.Command>
+					{"\n"}
+				</>
+			)}
 			<Terminal.Prompt
 				label="Command"
 				value={line}
@@ -914,5 +940,27 @@ function PromptSample() {
 				comment="Tab fills it in, Enter sets it"
 			/>
 		</Terminal>
+	);
+}
+
+function HandleSample() {
+	const [height, setHeight] = useState(120);
+	return (
+		<div className="flex h-64 flex-col justify-end rounded-xl border border-border bg-muted/40">
+			<div
+				style={{ height }}
+				className="relative overflow-hidden rounded-b-xl border-border border-t bg-card px-4 pt-4"
+			>
+				<ResizeHandle
+					label="Resize the panel"
+					value={height}
+					min={48}
+					max={240}
+					onChange={setHeight}
+					className="absolute inset-x-0 top-0"
+				/>
+				<span className="text-caption text-muted-foreground">{height}px</span>
+			</div>
+		</div>
 	);
 }

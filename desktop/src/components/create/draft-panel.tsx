@@ -4,11 +4,12 @@ import { Button } from "@ckpro/ui/components/button";
 import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Placeholder } from "@ckpro/ui/components/placeholder";
 import { Progress } from "@ckpro/ui/components/progress";
+import { FOLD_SLACK, ResizeHandle } from "@ckpro/ui/components/resize-handle";
 import { useNow } from "@ckpro/ui/hooks/use-now";
 import { clock } from "@ckpro/ui/lib/time";
 import { cn } from "@ckpro/ui/lib/utils";
 import { X } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { AssistantIcon } from "@/components/assistant/assistant-icon";
@@ -21,8 +22,8 @@ import { NewScripts, ProofPreview, ProofSteps } from "./proof-steps";
 const key = (item: DraftItem) => (item.kind === "new" ? item.key : item.id);
 
 /**
- * The exam being built, beside the conversation (`bar`: under it, its
- * questions folded, on a narrow window): its questions (from the packs, or
+ * The exam being built, beside the conversation (`bar`: under it on a
+ * narrow window, as tall as the candidate drags it): its questions (from the packs, or
  * new ones Claude wrote, each with where it stands) and the candidate's
  * step: prove it on a cluster made for it, every question together (their
  * scripts held to the script rules, nothing to read first), and save it
@@ -36,43 +37,56 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 	const shownProof = useStudio(s => (s.session === null ? undefined : s.last[s.session]));
 	const proof = shownProof && !shownProof.ended_at ? shownProof : undefined;
 	const { removeItem } = useStudio.getState();
-	// On a narrow window the questions fold under the draft's bar
-	const [unfolded, setUnfolded] = useState(false);
 	const items = draft?.items ?? [];
+	// On a narrow window: a panel under the chat, as tall as the candidate
+	// drags it (its head and foot at the least, the chat kept readable)
+	const sheet = useSheet(bar, items.length > 0);
 	// Some proved, and some came or changed since: those keep what they proved
 	const partly =
 		items.some(i => i.status.state === "proven") && items.some(i => i.status.state === "linted");
 
 	return (
 		<div
+			ref={sheet.panel}
+			style={bar ? { height: sheet.height } : undefined}
 			className={cn(
-				"flex min-h-0 flex-1 flex-col",
-				bar && "border-border border-t bg-foreground/[0.015]"
+				"flex min-h-0 flex-col",
+				bar
+					? "relative flex-none overflow-hidden border-border border-t bg-foreground/[0.015]"
+					: "flex-1"
 			)}
 		>
+			{bar && (
+				<ResizeHandle
+					label="Resize the exam"
+					value={sheet.height}
+					min={sheet.min}
+					max={sheet.max}
+					onChange={sheet.setHeight}
+					className="absolute inset-x-0 top-0 z-10"
+				/>
+			)}
 			{/* Under the inspector's strip (its tabs and menu), as tall as the
 			    conversation's header so their lines meet; in the bar, its menu here */}
 			<div className="flex h-14 shrink-0 items-center gap-2 border-border border-b px-4">
-				<DraftSummary className="min-w-0 flex-1" />
-				{bar && items.length > 0 && (
-					<Button
-						size="push"
-						variant="push"
-						aria-expanded={unfolded}
-						onClick={() => setUnfolded(u => !u)}
-					>
-						Questions {unfolded ? "▴" : "▾"}
-					</Button>
-				)}
-				{bar && <ProofTabs />}
-				{bar && <DraftMenu />}
+				<DraftSummary
+					className="min-w-0 flex-1"
+					trailing={
+						bar && (
+							<>
+								<ProofTabs />
+								<DraftMenu />
+							</>
+						)
+					}
+				/>
 			</div>
 
 			<div
 				className={cn(
 					"min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 py-3",
-					// In the bar: folded, or a part of the height when opened
-					!bar ? "flex" : unfolded ? "flex max-h-[45vh]" : "hidden"
+					// In the bar: there once it is dragged open
+					!bar || sheet.open ? "flex" : "hidden"
 				)}
 			>
 				{tab === "proof" && items.length > 0 ? (
@@ -110,9 +124,14 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 			{/* As tall as the composer at rest, so their lines meet (in the bar, as
 			    tall as it needs) */}
 			<div
+				ref={sheet.foot}
 				className={cn(
-					"flex shrink-0 flex-col justify-center gap-2 border-border border-t px-4 py-3",
-					!bar && "min-h-[5.75rem]"
+					"flex shrink-0 justify-center gap-2 border-border border-t px-4",
+					// Beside the composer, as tall as it; in the bar one line, the
+					// step at its end, so the panel folds small
+					bar
+						? "flex-row flex-wrap items-center justify-between py-2 [&>*:last-child]:ml-auto"
+						: "min-h-[5.75rem] flex-col py-3"
 				)}
 			>
 				{proof ? <ProofProgress proof={proof} /> : <ProofFoot />}
@@ -365,4 +384,40 @@ function ProofProgress({ proof }: { proof: Proof }) {
 			</div>
 		</>
 	);
+}
+
+/** The head's height (`h-14`), and the room the chat keeps above the panel:
+ * its header, the composer and a few lines of the conversation */
+const HEAD = 56;
+const CHAT_KEEPS = 260;
+
+/**
+ * The narrow window's panel height: its head and foot at the least, the
+ * window less the chat's room at the most; to start, half of it once the
+ * draft has questions, folded before (the chat is where it starts)
+ */
+function useSheet(on: boolean, filled: boolean) {
+	const panel = useRef<HTMLDivElement>(null);
+	const foot = useRef<HTMLDivElement>(null);
+	const [room, setRoom] = useState({ total: 0, foot: 0 });
+	const [chosen, setHeight] = useState<number | null>(null);
+	useLayoutEffect(() => {
+		if (!on) return;
+		const outer = panel.current?.parentElement;
+		const f = foot.current;
+		if (!outer || !f) return;
+		const measure = () => setRoom({ total: outer.clientHeight, foot: f.offsetHeight });
+		measure();
+		const watch = new ResizeObserver(measure);
+		watch.observe(outer);
+		watch.observe(f);
+		return () => watch.disconnect();
+	}, [on]);
+	const min = HEAD + room.foot;
+	const max = Math.max(min, room.total - CHAT_KEEPS);
+	const height = Math.min(
+		max,
+		Math.max(min, chosen ?? (filled ? Math.round(room.total / 2) : min))
+	);
+	return { panel, foot, height, min, max, setHeight, open: height > min + FOLD_SLACK };
 }
