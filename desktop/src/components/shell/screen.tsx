@@ -4,14 +4,13 @@ import { ChevronLeft } from "lucide-react";
 import type { ReactNode } from "react";
 
 /** How wide a screen grows: `wide` for what spreads out (Home, the
- * Calendar, History), `reading` for a column of rows and text */
-const WIDTHS = { wide: "max-w-[1440px]", reading: "max-w-3xl" };
+ * Calendar, History), from the left edge; `reading` for a column of rows
+ * and text, centred in the window so it leaves no empty side */
+const WIDTHS = { wide: "max-w-[1440px]", reading: "mx-auto w-full max-w-3xl" };
 
 /**
  * A screen's page: its title set large at the top, as macOS apps do (the
- * title bar shows it small once it scrolls away), and its content under it.
- * Every screen starts at the same left edge, so its title stays put from
- * one screen to the next; only how far it grows differs
+ * title bar shows it small once it scrolls away), and its content under it
  */
 export function Screen({
 	title,
