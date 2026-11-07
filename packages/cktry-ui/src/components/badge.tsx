@@ -4,7 +4,8 @@ import type * as React from "react";
 
 /** Small label chip: a status, a kind, in sentence case (a name in capitals,
  * CKA, stays so); `tag` and `warningTag` are the outlined notes beside a
- * choice (Recommended, More usage). */
+ * choice (Recommended, More usage). `BadgeButton` is one that acts (a plan's
+ * mode it switches); `size="narrow"` fits a calendar cell. */
 export const badgeVariants = cva(
 	"inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-[3px] font-medium text-2xs leading-none",
 	{
@@ -20,8 +21,12 @@ export const badgeVariants = cva(
 				tag: "border border-current/35 opacity-75",
 				warningTag: "border border-warning/60 bg-warning/10 text-warning",
 			},
+			size: {
+				default: "",
+				narrow: "px-1 py-px text-3xs",
+			},
 		},
-		defaultVariants: { variant: "subtle" },
+		defaultVariants: { variant: "subtle", size: "default" },
 	}
 );
 
@@ -31,4 +36,26 @@ export function Badge({
 	...props
 }: React.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
 	return <span className={cn(badgeVariants({ variant }), className)} {...props} />;
+}
+
+/** A badge that acts when clicked: the same look, a hover and a focus ring */
+export function BadgeButton({
+	variant,
+	size,
+	className,
+	...props
+}: React.ComponentProps<"button"> & VariantProps<typeof badgeVariants>) {
+	return (
+		<button
+			type="button"
+			className={cn(
+				badgeVariants({ variant, size }),
+				"cursor-pointer outline-none transition-colors hover:opacity-80 focus-visible:ring-1 focus-visible:ring-ring",
+				// Accent deepens instead, as a selected row's tint does
+				variant === "accent" && "hover:bg-highlight/30 hover:opacity-100",
+				className
+			)}
+			{...props}
+		/>
+	);
 }
