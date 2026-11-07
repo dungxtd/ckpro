@@ -36,9 +36,7 @@ impl Coach {
         if text.is_empty() {
             return Err(AppError::invalid("say what exam you want"));
         }
-        if exams.exam_in_progress() {
-            return Err(AppError::invalid("the assistant is off during an exam"));
-        }
+        exams.assistant_allowed()?;
         self.require_enabled()?;
         let _busy = self.busy();
         // Its own: answers in other conversations go on

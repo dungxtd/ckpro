@@ -349,6 +349,20 @@ export type AppError =
 { code: "cluster"; message: string } | 
 /**  Bad input from the UI (names, paths, ...). */
 { code: "invalid"; message: string } | 
+/**
+ *  Something is under way that this has to wait for: an attempt, a
+ *  proof, a save.
+ */
+{ code: "busy"; message: string } | 
+/**
+ *  An exam-mode attempt runs: the assistant (any AI) is off until it
+ *  ends, as in the real exam.
+ */
+{ code: "exam_mode"; message: string } | 
+/**  The assistant is turned off in Settings: the app has no AI. */
+{ code: "assistant_off"; message: string } | 
+/**  This machine cannot run it now: Docker's memory or CPUs. */
+{ code: "preflight"; message: string } | 
 /**  Clusters an exam needs already exist: starting it replaces them. */
 { code: "clusters_exist"; message: string } | 
 /**  A session, cluster or file that does not exist. */

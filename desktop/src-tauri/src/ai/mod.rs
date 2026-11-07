@@ -233,7 +233,7 @@ impl Coach {
     /// Refuse when Claude Code is turned off in Settings
     fn require_enabled(&self) -> AppResult<()> {
         if !self.on.load(std::sync::atomic::Ordering::SeqCst) {
-            return Err(AppError::assistant("The assistant is turned off in Settings"));
+            return Err(AppError::assistant_off());
         }
         if self.enabled.load(std::sync::atomic::Ordering::SeqCst) {
             Ok(())
@@ -248,12 +248,18 @@ impl Coach {
     pub fn switch(&self, on: bool) {
         self.on.store(on, std::sync::atomic::Ordering::SeqCst);
         if !on {
-            if let Some(cancel) = self.running.locked().take() {
-                cancel.cancel();
-            }
-            for (_, cancel) in self.studio_running.locked().drain() {
-                cancel.cancel();
-            }
+            self.stop_answers();
+        }
+    }
+
+    /// Stop every answer being written: the coach's and Create's (the
+    /// assistant turned off, an exam-mode attempt starting)
+    pub fn stop_answers(&self) {
+        if let Some(cancel) = self.running.locked().take() {
+            cancel.cancel();
+        }
+        for (_, cancel) in self.studio_running.locked().drain() {
+            cancel.cancel();
         }
     }
 

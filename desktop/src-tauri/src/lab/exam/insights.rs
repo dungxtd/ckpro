@@ -55,6 +55,7 @@ impl Exams {
             ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => (attempt, false),
             // The exam is over: the review may show everything
             ExamState::Finished { attempt, .. } => (attempt, true),
+            ExamState::Running { attempt, .. } if attempt.mode == Mode::Exam => return Err(AppError::exam_mode()),
             _ => return Err(AppError::invalid("the coach is available in practice mode and after the exam")),
         };
         let question = self.question(question_id)?;
@@ -90,6 +91,12 @@ impl Exams {
     /// An exam-mode attempt is under way (no assistant then, as on the real exam)
     pub fn exam_in_progress(&self) -> bool {
         self.state().exam_in_progress()
+    }
+
+    /// The one guard of every assistant entry: refused while an exam-mode
+    /// attempt runs, as in the real exam
+    pub fn assistant_allowed(&self) -> AppResult<()> {
+        if self.exam_in_progress() { Err(AppError::exam_mode()) } else { Ok(()) }
     }
 
     /// How the candidate did per curriculum domain, per certification they

@@ -48,11 +48,9 @@ impl Tools {
     }
 
     fn call(&self, session: i32, name: &str, args: &Value) -> AppResult<String> {
-        if self.exams.exam_in_progress() {
-            return Err(AppError::invalid("An exam-mode attempt is running in cktry: the assistant is off until it ends."));
-        }
+        self.exams.assistant_allowed()?;
         if !self.store.settings().is_ok_and(|s| s.assistant_enabled) {
-            return Err(AppError::invalid("The assistant is turned off in cktry's Settings."));
+            return Err(AppError::assistant_off());
         }
         let text = |key: &str| args[key].as_str().unwrap_or_default().to_string();
         match name {

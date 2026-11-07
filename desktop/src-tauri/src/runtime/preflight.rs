@@ -101,32 +101,37 @@ fn in_use_mb(state: &EnvState, except: &[String]) -> u32 {
 /// Whether an exam needing at least `needed_mb` (`exam_minimum_mb`) fits in
 /// what Docker has left: the reason when it does not, before anything is
 /// created. Its own `clusters`, if they run, are replaced by it: not counted
-pub fn exam_fits(state: &EnvState, needed_mb: u32, clusters: &[String]) -> Result<(), String> {
+pub fn exam_fits(state: &EnvState, needed_mb: u32, clusters: &[String]) -> crate::error::AppResult<()> {
     fits(state, "This exam", needed_mb, clusters)
 }
 
 /// Whether `what` (a sentence's subject: "This exam") needing `needed_mb`
 /// fits in what Docker has left, but `clusters`: the reason when it does not
-pub fn fits(state: &EnvState, what: &str, needed_mb: u32, clusters: &[String]) -> Result<(), String> {
+pub fn fits(state: &EnvState, what: &str, needed_mb: u32, clusters: &[String]) -> crate::error::AppResult<()> {
+    use crate::error::AppError;
     let (cpus, memory_mb) = match state.docker {
         DockerState::Up { cpus, memory_mb, .. } => (cpus, memory_mb),
         // The app has not reached it yet: not a reason to start Docker
-        DockerState::Connecting => return Err("Connecting to Docker…".into()),
-        DockerState::Down { .. } => return Err(format!("Docker is not running. {}.", super::docker::START)),
+        DockerState::Connecting => {
+            return Err(AppError::DockerUnavailable { message: "Connecting to Docker…".into() });
+        }
+        DockerState::Down { .. } => {
+            return Err(AppError::DockerUnavailable { message: format!("Docker is not running. {}.", super::docker::START) });
+        }
     };
     if cpus < 2 {
-        return Err(format!("{what} needs at least 2 CPUs for Docker; it has {cpus}."));
+        return Err(AppError::preflight(format!("{what} needs at least 2 CPUs for Docker; it has {cpus}.")));
     }
     let in_use = in_use_mb(state, clusters);
     let free = memory_mb.saturating_sub(in_use);
     if free < needed_mb {
-        return Err(format!(
+        return Err(AppError::preflight(format!(
             "{what} needs at least {:.1} GB of memory; Docker has {:.1} GB free ({:.1} GB in all, ~{:.1} GB used by running clusters). Raise the memory limit in OrbStack or Docker Desktop, or delete a cluster.",
             gb(needed_mb),
             gb(free),
             gb(memory_mb),
             gb(in_use)
-        ));
+        )));
     }
     Ok(())
 }
@@ -152,9 +157,9 @@ mod tests {
         let idle = Footprint::default();
         assert_eq!(exam_minimum_mb(&one, &idle), 550 + 3 * 150 + 1050 + 50);
         assert!(exam_fits(&docker(3072, 4), exam_minimum_mb(&one, &idle), &[]).is_ok());
-        let small = exam_fits(&docker(2048, 4), exam_minimum_mb(&one, &idle), &[]).unwrap_err();
+        let small = exam_fits(&docker(2048, 4), exam_minimum_mb(&one, &idle), &[]).unwrap_err().to_string();
         assert!(small.contains("at least 2.1 GB") && small.contains("2.0 GB free"), "{small}");
-        assert!(exam_fits(&docker(8192, 1), 1000, &[]).unwrap_err().contains("2 CPUs"));
+        assert!(exam_fits(&docker(8192, 1), 1000, &[]).unwrap_err().to_string().contains("2 CPUs"));
     }
 
     #[test]

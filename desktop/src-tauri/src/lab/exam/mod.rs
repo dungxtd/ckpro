@@ -538,7 +538,7 @@ fn files_as(roots: &[std::path::PathBuf]) -> (usize, u64, Option<std::time::Syst
     pub async fn start(self: &Arc<Self>, exam_id: &str, mode: Mode, replace: bool) -> AppResult<()> {
         // Until it is Preparing: a second start (a double click) is refused
         let Ok(_busy) = self.busy.try_lock() else {
-            return Err(AppError::invalid("an exam is already in progress"));
+            return Err(AppError::busy("an exam is already in progress"));
         };
         let pack = self.pack();
         if matches!(
@@ -549,7 +549,7 @@ fn files_as(roots: &[std::path::PathBuf]) -> (usize, u64, Option<std::time::Syst
                 | ExamState::Grading { .. }
                 | ExamState::Ending { .. }
         ) {
-            return Err(AppError::invalid("an exam is already in progress"));
+            return Err(AppError::busy("an exam is already in progress"));
         }
         // Whatever a guard noted before belongs to an earlier attempt
         self.guard.take_outside();

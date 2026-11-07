@@ -36,9 +36,7 @@ fn proving_id(certification: &str, key: &str) -> String {
 pub fn edit<T>(store: &Store, session: i32, proving: impl Fn() -> bool, f: impl FnOnce(&mut ExamDraft) -> AppResult<T>) -> AppResult<(ExamDraft, T)> {
     ExamDraft::update(store, session, |draft| {
         if proving() {
-            return Err(AppError::invalid(
-                "the exam is being proven: wait for the proof to end, or stop it, before changing the exam",
-            ));
+            return Err(AppError::busy("the exam is being proven: wait for the proof to end, or stop it, before changing the exam"));
         }
         if draft.saved.is_some() {
             return Err(AppError::invalid("this exam is saved; start a new conversation for another"));
@@ -99,7 +97,7 @@ fn staged(bank: &LoadedPack, data_dir: &Path, draft: &ExamDraft) -> AppResult<St
 
 /// What proving the conversation's exam takes: its cluster, the time, and
 /// why it cannot run now if so
-pub fn plan(store: &Store, exams: &Exams, data_dir: &Path, session: i32, fits: impl Fn(u32) -> Result<(), String>) -> AppResult<ProofPlan> {
+pub fn plan(store: &Store, exams: &Exams, data_dir: &Path, session: i32, fits: impl Fn(u32) -> AppResult<()>) -> AppResult<ProofPlan> {
     let draft = ExamDraft::load(store, session)?;
     let bank = exams.bank();
     Ok(ProofPlan::of(&draft, &bank, staged(&bank, data_dir, &draft)?.workers, fits))
@@ -112,7 +110,7 @@ pub fn plan(store: &Store, exams: &Exams, data_dir: &Path, session: i32, fits: i
 /// proven (`scope`). Where it is shows as it goes (`proofs`), and the
 /// candidate can stop it. Their results, in the draft returned; none if
 /// the exam changed meanwhile, or it was stopped
-pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(u32) -> Result<(), String>) -> AppResult<ExamDraft> {
+pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(u32) -> AppResult<()>) -> AppResult<ExamDraft> {
     // Proven against the questions as they are on disk now (not if a proof
     // runs: then `begin` below refuses this one)
     let mut draft = opened(app.store, app.exams, app.data_dir, session, || app.proofs.proving(session))?;
@@ -131,7 +129,7 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
     draft.disrupting().map_err(AppError::invalid)?;
     let Staged { pack: staging, ids, workers } = staged(&bank, app.data_dir, &draft)?;
     let mb = proof::run_mb(workers);
-    fits(mb).map_err(AppError::invalid)?;
+    fits(mb)?;
 
     // The plan: a cluster, the setups, then each question checked
     let steps: Vec<String> = [format!("Make a cluster with {workers} worker{}", if workers == 1 { "" } else { "s" }), "Set up every question".into()]
@@ -152,7 +150,7 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
     };
     // One at a time per conversation: refused before anything is begun
     let Some(cancel) = app.proofs.begin(session, proof, mb) else {
-        return Err(AppError::invalid("this exam is being proven already"));
+        return Err(AppError::busy("this exam is being proven already"));
     };
     // Changed between being read and the proof begun (edits are refused from
     // here): not proven as it was read
@@ -252,7 +250,7 @@ pub fn save(store: &Store, exams: &Exams, data_dir: &Path, session: i32, proving
     // not proven any more
     let draft = opened(store, exams, data_dir, session, &proving)?;
     if proving() {
-        return Err(AppError::invalid("the exam is being proven: save it once the proof ends"));
+        return Err(AppError::busy("the exam is being proven: save it once the proof ends"));
     }
     if let Some(id) = &draft.saved {
         return Ok(id.clone());
