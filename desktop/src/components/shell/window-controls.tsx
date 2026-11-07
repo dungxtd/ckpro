@@ -1,9 +1,7 @@
 import { cn } from "@ckpro/ui/lib/utils";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Minus, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
-
-const current = getCurrentWindow();
+import { windowApi } from "@/tauri/api";
 
 /**
  * Windows' caption buttons, drawn in the app's own title bar (the window has
@@ -16,9 +14,9 @@ export function WindowControls() {
 	// Maximised from the button, a double click on the bar or a snap: the
 	// window says so on every resize
 	useEffect(() => {
-		const read = () => current.isMaximized().then(setMaximized);
+		const read = () => windowApi.isMaximized().then(setMaximized);
 		read();
-		const stop = current.onResized(read);
+		const stop = windowApi.onResized(read);
 		return () => {
 			stop.then(fn => fn());
 		};
@@ -31,7 +29,7 @@ export function WindowControls() {
 			<button
 				type="button"
 				aria-label="Minimise"
-				onClick={() => current.minimize()}
+				onClick={() => windowApi.minimize()}
 				className={cn(button, "hover:bg-foreground/10")}
 			>
 				<Minus />
@@ -39,7 +37,7 @@ export function WindowControls() {
 			<button
 				type="button"
 				aria-label={maximized ? "Restore" : "Maximise"}
-				onClick={() => current.toggleMaximize()}
+				onClick={() => windowApi.toggleMaximize()}
 				className={cn(button, "hover:bg-foreground/10 [&_svg]:size-3.5")}
 			>
 				{maximized ? <Copy className="-scale-x-100" /> : <Square />}
@@ -47,7 +45,7 @@ export function WindowControls() {
 			<button
 				type="button"
 				aria-label="Close"
-				onClick={() => current.close()}
+				onClick={() => windowApi.close()}
 				className={cn(button, "hover:bg-window-close hover:text-window-close-foreground")}
 			>
 				<X />
