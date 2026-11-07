@@ -133,7 +133,6 @@ export const commands = {
 	/**  Type a line into the running sign-in (the code the browser shows). */
 	coachSignInInput: (line: string) => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_in_input", { line })),
 	coachSignInCancel: () => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_in_cancel")),
-	coachSignOut: () => typedError<null, AppError>(__TAURI_INVOKE("coach_sign_out")),
 	/**  Delete the question's current coach session (Delete Session). */
 	coachClear: (questionId: string) => typedError<null, AppError>(__TAURI_INVOKE("coach_clear", { questionId })),
 	/**  A new coach session for the question (New Session); the earlier ones stay. */

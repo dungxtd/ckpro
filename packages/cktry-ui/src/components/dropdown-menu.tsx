@@ -1,5 +1,4 @@
 import { menu } from "@cktry/ui/components/menu";
-import { useThemeScope } from "@cktry/ui/components/theme-scope";
 import { cn } from "@cktry/ui/lib/utils";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight } from "lucide-react";
@@ -27,12 +26,10 @@ function DropdownMenuContent({
 	collisionPadding = 8,
 	...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
-	const theme = useThemeScope();
 	return (
 		<DropdownMenuPrimitive.Portal>
 			<DropdownMenuPrimitive.Content
 				data-slot="dropdown-menu-content"
-				data-theme={theme}
 				sideOffset={sideOffset}
 				collisionPadding={collisionPadding}
 				className={cn(surface, className)}
@@ -102,11 +99,9 @@ function DropdownMenuSubContent({
 	collisionPadding = 8,
 	...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
-	const theme = useThemeScope();
 	return (
 		<DropdownMenuPrimitive.Portal>
 			<DropdownMenuPrimitive.SubContent
-				data-theme={theme}
 				collisionPadding={collisionPadding}
 				className={cn(surface, className)}
 				{...props}

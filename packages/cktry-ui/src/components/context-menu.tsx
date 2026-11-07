@@ -1,5 +1,4 @@
 import { menu } from "@cktry/ui/components/menu";
-import { useThemeScope } from "@cktry/ui/components/theme-scope";
 import { cn } from "@cktry/ui/lib/utils";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import { Check, ChevronRight } from "lucide-react";
@@ -15,12 +14,10 @@ function ContextMenuContent({
 	className,
 	...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
-	const theme = useThemeScope();
 	return (
 		<ContextMenuPrimitive.Portal>
 			<ContextMenuPrimitive.Content
 				data-slot="context-menu-content"
-				data-theme={theme}
 				className={cn(
 					menu.surface,
 					"z-floating min-w-48 fade-in-0 zoom-in-95 animate-in duration-100 outline-none",
@@ -112,11 +109,9 @@ function ContextMenuSubContent({
 	collisionPadding = 8,
 	...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
-	const theme = useThemeScope();
 	return (
 		<ContextMenuPrimitive.Portal>
 			<ContextMenuPrimitive.SubContent
-				data-theme={theme}
 				collisionPadding={collisionPadding}
 				className={cn(menu.surface, "z-floating min-w-44 outline-none", className)}
 				{...props}

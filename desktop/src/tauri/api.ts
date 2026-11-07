@@ -219,7 +219,6 @@ export const coachApi = {
 	/** Type a line into the running login (the browser's code) */
 	signInInput: (line: string) => unwrap(commands.coachSignInInput(line)),
 	signInCancel: () => unwrap(commands.coachSignInCancel()),
-	signOut: () => unwrap(commands.coachSignOut()),
 	/** The Claude CLI and Node.js this Mac has */
 	runtime: () => unwrap(commands.coachRuntime()),
 };

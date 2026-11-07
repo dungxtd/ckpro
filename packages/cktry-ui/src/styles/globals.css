@@ -8,7 +8,7 @@
 
 /* Apple system colours (iOS / macOS): plain backgrounds, grouped cards, solid
  * menus and sheets, hairline separators, system blue for selection/focus.
- * `[data-theme="light"]` lets a light ThemeScope sit inside a dark page. */
+ * `data-theme` on the root picks light or dark. */
 :root,
 [data-theme="light"] {
 	--radius: 0.65rem;

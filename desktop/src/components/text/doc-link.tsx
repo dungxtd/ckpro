@@ -7,7 +7,7 @@ import { desktopApi, errorText } from "@/tauri/api";
 
 /** Documentation opens where the candidate reads it, as on the exam: the
  * desktop's Firefox (allowed documentation only) */
-export function openOnDesktop(url: string) {
+function openOnDesktop(url: string) {
 	return desktopApi
 		.openUrl(url)
 		.then(() =>
@@ -38,7 +38,7 @@ export function DocLink({ href, className, children }: React.ComponentProps<"a">
  * (`…/persistent-volumes/#persistentvolumeclaims` → "Persistent volumes ›
  * Persistentvolumeclaims"). The site shows when it is not kubernetes.io
  */
-export function docTitle(url: string): { title: string; site: string | null } {
+function docTitle(url: string): { title: string; site: string | null } {
 	try {
 		const u = new URL(url);
 		const words = (s: string) => {

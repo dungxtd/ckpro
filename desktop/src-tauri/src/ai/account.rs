@@ -162,20 +162,6 @@ impl SigningIn {
     }
 }
 
-pub async fn sign_out(agent: &Agent) -> AppResult<()> {
-    let mut command = agent.adapter(&["--cli", "auth", "logout"], false).await?;
-    command.stdin(Stdio::null());
-    let output = tokio::time::timeout(CLI_TIMEOUT, command.output())
-        .await
-        .map_err(|_| AppError::assistant("signing out timed out"))?
-        .map_err(|e| AppError::assistant(format!("signing out: {e}")))?;
-    agent.restart().await;
-    if !output.status.success() {
-        return Err(AppError::assistant(format!("signing out failed: {}", String::from_utf8_lossy(&output.stderr).trim())));
-    }
-    Ok(())
-}
-
 /// Text without terminal control sequences (colours, cursor moves, titles)
 /// and carriage returns
 fn strip_terminal_codes(text: &str) -> String {
@@ -279,14 +265,6 @@ impl super::Coach {
         if let Some(login) = self.signing_in.lock().await.take() {
             login.cancel();
         }
-    }
-
-    pub async fn sign_out(&self) -> AppResult<()> {
-        self.cancel();
-        let result = sign_out(&self.agent).await;
-        self.forget_account();
-        self.open.lock().await.clear();
-        result
     }
 }
 

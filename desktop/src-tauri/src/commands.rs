@@ -406,13 +406,6 @@ pub async fn coach_sign_in_cancel(coach: State<'_, Coach>) -> AppResult<()> {
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn coach_sign_out(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>) -> AppResult<()> {
-    no_exam(&exams)?;
-    coach.sign_out().await
-}
-
 /// Answer the assistant's request to run a command: one of its options
 /// (allow once, always, reject…), or none to cancel.
 #[tauri::command]

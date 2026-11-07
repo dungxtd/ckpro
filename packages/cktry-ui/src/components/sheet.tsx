@@ -1,7 +1,6 @@
 "use client";
 
 import { iconButtonVariants } from "@cktry/ui/components/icon-button";
-import { useThemeScope } from "@cktry/ui/components/theme-scope";
 import { cn } from "@cktry/ui/lib/utils";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
@@ -47,13 +46,11 @@ function SheetContent({
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
 	side?: "top" | "right" | "bottom" | "left";
 }) {
-	const theme = useThemeScope();
 	return (
 		<SheetPortal>
 			<SheetOverlay />
 			<SheetPrimitive.Content
 				data-slot="sheet-content"
-				data-theme={theme}
 				className={cn(
 					"glass data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-modal flex flex-col gap-4 transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
 					side === "right" &&

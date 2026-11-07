@@ -1,4 +1,3 @@
-import { useThemeScope } from "@cktry/ui/components/theme-scope";
 import { cn, floatingPadding } from "@cktry/ui/lib/utils";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import type * as React from "react";
@@ -28,12 +27,10 @@ function TooltipContent({
 	collisionPadding,
 	...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
-	const theme = useThemeScope();
 	return (
 		<TooltipPrimitive.Portal>
 			<TooltipPrimitive.Content
 				data-slot="tooltip-content"
-				data-theme={theme}
 				sideOffset={sideOffset}
 				// Placement is the tooltip's own business: it opens on top by default and
 				// flips below when the room above is the title-bar strip (window buttons),

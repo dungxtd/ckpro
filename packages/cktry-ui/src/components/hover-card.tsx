@@ -1,4 +1,3 @@
-import { useThemeScope } from "@cktry/ui/components/theme-scope";
 import { cn, floatingPadding } from "@cktry/ui/lib/utils";
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
 import type * as React from "react";
@@ -28,12 +27,10 @@ function HoverCardContent({
 	collisionPadding,
 	...props
 }: React.ComponentProps<typeof HoverCardPrimitive.Content>) {
-	const theme = useThemeScope();
 	return (
 		<HoverCardPrimitive.Portal>
 			<HoverCardPrimitive.Content
 				data-slot="hover-card-content"
-				data-theme={theme}
 				side={side}
 				align={align}
 				sideOffset={sideOffset}
