@@ -1,3 +1,5 @@
+import { Input } from "@ckpro/ui/components/input";
+import { menu, menuRow } from "@ckpro/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { cn } from "@ckpro/ui/lib/utils";
 import { type ReactNode, useRef, useState } from "react";
@@ -47,8 +49,9 @@ export function ExamPicker({
 					field.current?.focus();
 				}}
 			>
-				<input
+				<Input
 					ref={field}
+					type="search"
 					aria-label={label}
 					placeholder={label}
 					value={query}
@@ -56,13 +59,11 @@ export function ExamPicker({
 					onKeyDown={e => {
 						if (e.key === "Enter" && matches[0]) pick(matches[0].id);
 					}}
-					className="w-full rounded-md bg-foreground/10 px-2.5 py-1.5 text-callout outline-none placeholder:text-muted-foreground"
+					className="h-8"
 				/>
 				{certs.map(cert => (
 					<div key={cert}>
-						<div className="px-2 pt-2 pb-0.5 font-semibold text-2xs text-muted-foreground">
-							{cert.toUpperCase()}
-						</div>
+						<div className={menu.header}>{cert.toUpperCase()}</div>
 						{matches
 							.filter(e => e.certification === cert)
 							.map(e => (
@@ -70,12 +71,10 @@ export function ExamPicker({
 									key={e.id}
 									type="button"
 									onClick={() => pick(e.id)}
-									className={cn(
-										"block w-full truncate rounded-md px-2 py-1 text-left text-callout outline-none hover:bg-highlight hover:text-highlight-foreground focus-visible:bg-highlight focus-visible:text-highlight-foreground",
-										e === matches[0] && q && "bg-highlight/20"
-									)}
+									// What Enter would plan is marked while typing
+									className={menuRow(cn("pl-2.5", e === matches[0] && q && "bg-highlight/20"))}
 								>
-									{shortTitle(e.title)}
+									<span className={menu.label}>{shortTitle(e.title)}</span>
 								</button>
 							))}
 					</div>
