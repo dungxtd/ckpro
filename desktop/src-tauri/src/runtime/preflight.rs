@@ -81,7 +81,7 @@ impl Footprint {
 }
 
 /// Memory in use, without the page cache the kernel gives back under pressure
-fn used_mb(memory: &bollard::models::ContainerMemoryStats) -> u32 {
+pub(crate) fn used_mb(memory: &bollard::models::ContainerMemoryStats) -> u32 {
     let cache = memory.stats.as_ref().and_then(|s| s.get("inactive_file").or_else(|| s.get("cache"))).copied().unwrap_or(0);
     (memory.usage.unwrap_or(0).saturating_sub(cache) / (1024 * 1024)) as u32
 }
@@ -178,10 +178,11 @@ mod tests {
     #[test]
     fn running_clusters_count_unless_the_exam_replaces_them() {
         let mut state = docker(4096, 4);
-        let node = |name: &str, role| NodeState { name: name.into(), role, container: ContainerStatus::Running, ready: Readiness::Unknown };
+        let node = |name: &str, role| NodeState { name: name.into(), role, container: ContainerStatus::Running, ready: Readiness::Unknown, version: None };
         state.clusters = vec![ClusterState {
             name: "k8s".into(),
             nodes: vec![node("k8s-control-plane", NodeRole::ControlPlane), node("k8s-worker", NodeRole::Worker)],
+            guarded: false,
         }];
         // 4096 - 1000 in use = 3096 free: a 3324 MB exam does not fit...
         assert!(exam_fits(&state, 3324, &[]).is_err());
