@@ -51,6 +51,11 @@ export const commands = {
 	/**  Try Docker again now (Retry), not at the monitor's next backoff. */
 	envRetry: () => __TAURI_INVOKE<void>("env_retry"),
 	/**
+	 *  Empty the image mirror's cache (the Environment page): refused while an
+	 *  attempt or a proof runs, both of which pull through it.
+	 */
+	envClearCache: () => typedError<null, AppError>(__TAURI_INVOKE("env_clear_cache")),
+	/**
 	 *  Show node readiness (the Environment page opens) or stop (it closes): the
 	 *  clusters' Kubernetes node watches are kept open only meanwhile.
 	 */
@@ -704,12 +709,22 @@ export type EnvState_Deserialize = {
 	clusters: ClusterState_Deserialize[],
 	issues: Issue[],
 	/**
+	 *  The checks of Docker's machine that pass, in words (the ones that
+	 *  fail are issues); derived, like the issues
+	 */
+	passed?: string[],
+	/**
 	 *  What each running container takes, measured while the Environment
 	 *  page is open (none otherwise, or before the first measurement)
 	 */
 	usage?: ContainerUse_Deserialize[] | null,
 	/**  The exam images not here yet (`Infra::missing_images`) */
 	images_missing?: string[],
+	/**
+	 *  Docker's disk and kernel limits, read in the image mirror while the
+	 *  Environment page is open (none while it does not run)
+	 */
+	host?: HostFacts | null,
 };
 
 export type EnvState_Serialize = {
@@ -721,12 +736,22 @@ export type EnvState_Serialize = {
 	clusters: ClusterState_Serialize[],
 	issues: Issue[],
 	/**
+	 *  The checks of Docker's machine that pass, in words (the ones that
+	 *  fail are issues); derived, like the issues
+	 */
+	passed: string[],
+	/**
 	 *  What each running container takes, measured while the Environment
 	 *  page is open (none otherwise, or before the first measurement)
 	 */
 	usage: ContainerUse_Serialize[] | null,
 	/**  The exam images not here yet (`Infra::missing_images`) */
 	images_missing: string[],
+	/**
+	 *  Docker's disk and kernel limits, read in the image mirror while the
+	 *  Environment page is open (none while it does not run)
+	 */
+	host: HostFacts | null,
 };
 
 /**  Pushed to the UI on every exam state change. */
@@ -1014,6 +1039,20 @@ export type HistoryEntry_Serialize = {
 	mode: Mode,
 	pass_score: number,
 	result: ExamResult_Serialize,
+};
+
+/**  What the Docker machine has, as its own tools report it */
+export type HostFacts = {
+	/**  Free space on Docker's disk (`df`), in MB */
+	disk_free_mb: number,
+	/**  What the image mirror's cache holds, in MB */
+	cache_mb: number,
+	/**
+	 *  `fs.inotify.max_user_watches` and `max_user_instances` of the kernel
+	 *  every container shares: kind needs them high
+	 */
+	inotify_watches: number,
+	inotify_instances: number,
 };
 
 export type Issue = {

@@ -189,6 +189,26 @@ impl Infra {
     }
 }
 
+impl Infra {
+    /// Empty the image mirror's cache: its container and volume go, and a
+    /// new one starts empty (clusters pull through it again)
+    pub async fn clear_cache(&self, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
+        let force = bollard::query_parameters::RemoveContainerOptions { force: true, ..Default::default() };
+        log(format!("Removing {MIRROR}"));
+        match docker.remove_container(MIRROR, Some(force)).await {
+            Ok(()) | Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => {}
+            Err(e) => return Err(e.into()),
+        }
+        log(format!("Removing its cache (the {MIRROR} volume)"));
+        match docker.remove_volume(MIRROR, None::<bollard::query_parameters::RemoveVolumeOptions>).await {
+            Ok(()) | Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => {}
+            Err(e) => return Err(e.into()),
+        }
+        log(format!("Starting {MIRROR} again, empty"));
+        ensure_mirror(docker).await
+    }
+}
+
 async fn ensure_mirror(docker: &Docker) -> AppResult<()> {
     if start_existing(docker, MIRROR).await? {
         return Ok(());

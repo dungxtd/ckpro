@@ -3,7 +3,7 @@
 //! the same Docker. One sample per container (no streaming), only while the
 //! page is open.
 
-use super::model::{ContainerUse, Owner};
+use super::model::{ContainerUse, HostFacts, Owner};
 use crate::cluster::kind::CLUSTER_LABEL;
 use bollard::Docker;
 use bollard::query_parameters::{ListContainersOptions, StatsOptions};
@@ -55,6 +55,30 @@ fn owner(labels: &std::collections::HashMap<String, String>, owned: &[String]) -
     }
 }
 
+/// Docker's disk and the kernel's file watch limits, read in the image
+/// mirror (its cache sits on Docker's disk); none while it does not run
+pub async fn host_facts(docker: &Docker) -> Option<HostFacts> {
+    let script = "df -Pk /var/lib/registry | tail -1; du -sk /var/lib/registry; \
+                  cat /proc/sys/fs/inotify/max_user_watches /proc/sys/fs/inotify/max_user_instances";
+    let out = super::exec::run(docker, super::infra::MIRROR, &["sh", "-c", script], &[], None).await.ok()?;
+    (out.exit_code == 0).then(|| parse_facts(&out.text)).flatten()
+}
+
+/// `df -Pk` (its line), `du -sk`, then the two inotify limits
+fn parse_facts(text: &str) -> Option<HostFacts> {
+    let mut lines = text.lines().filter(|l| !l.trim().is_empty());
+    let free_kb: u64 = lines.next()?.split_whitespace().nth(3)?.parse().ok()?;
+    let cache_kb: u64 = lines.next()?.split_whitespace().next()?.parse().ok()?;
+    let watches: u32 = lines.next()?.trim().parse().ok()?;
+    let instances: u32 = lines.next()?.trim().parse().ok()?;
+    Some(HostFacts {
+        disk_free_mb: (free_kb / 1024) as u32,
+        cache_mb: (cache_kb / 1024) as u32,
+        inotify_watches: watches,
+        inotify_instances: instances,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,5 +100,14 @@ mod tests {
             Owner::Service { service: "ckpro-mirror".into() }
         );
         assert_eq!(owner(&labels(&[(PROJECT_LABEL, "shop"), (SERVICE_LABEL, "db")]), &owned), Owner::Other { cluster: None });
+    }
+
+    #[test]
+    fn the_machines_facts_are_read_from_its_tools() {
+        let text = "overlay 296475260 24062452 257324076 9% /var/lib/registry\n1458688\t/var/lib/registry\n1048576\n8192\n";
+        let facts = parse_facts(text).unwrap();
+        assert_eq!((facts.disk_free_mb, facts.cache_mb), (251_293, 1424));
+        assert_eq!((facts.inotify_watches, facts.inotify_instances), (1_048_576, 8192));
+        assert!(parse_facts("df: not found").is_none());
     }
 }

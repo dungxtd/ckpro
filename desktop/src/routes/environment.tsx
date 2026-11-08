@@ -4,7 +4,7 @@ import { Button } from "@ckpro/ui/components/button";
 import { Loading } from "@ckpro/ui/components/loading";
 import { SectionTitle } from "@ckpro/ui/components/section-title";
 import { StatusDot } from "@ckpro/ui/components/status-dot";
-import { Download } from "lucide-react";
+import { CircleCheck, Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import { ActivityList } from "@/components/activity/activity-list";
@@ -87,6 +87,7 @@ export function EnvironmentRoute() {
 
 	const docker = env.docker;
 	const missing = env.images_missing ?? [];
+	const passed = env.passed ?? [];
 	const usage = env.usage ?? null;
 	const parts = usage
 		? partsOf(
@@ -158,6 +159,14 @@ export function EnvironmentRoute() {
 				</Alert>
 			)}
 
+			{/* The checks that pass, in one quiet line (what fails is above) */}
+			{passed.length > 0 && (
+				<p className="flex items-center gap-1.5 text-muted-foreground text-xs">
+					<CircleCheck className="size-3.5 text-success" />
+					{passed.join(" · ")}
+				</p>
+			)}
+
 			{/* The details of the part picked on the map; every cluster until
 			    the first measurement */}
 			{usage
@@ -175,7 +184,7 @@ export function EnvironmentRoute() {
 			{!cluster && open && open !== "services" && open !== "others" && usage && (
 				<ProofClusterCard cluster={open} usage={usage} />
 			)}
-			{open === "services" && usage && <ServicesCard usage={usage} />}
+			{open === "services" && usage && <ServicesCard usage={usage} cacheMb={env.host?.cache_mb} />}
 			{open === "others" && usage && <OtherAppsCard usage={usage} />}
 			{env.clusters.length === 0 && !parts.some(p => p.kind === "proof" || p.kind === "exam") && (
 				<p className="text-muted-foreground text-sm">

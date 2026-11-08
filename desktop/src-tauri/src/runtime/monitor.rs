@@ -33,6 +33,8 @@ const RESYNC_EVERY: Duration = Duration::from_secs(300);
 /// How often what containers take is measured while the Environment page
 /// is open (one sample each, no streaming)
 const MEASURE_EVERY: Duration = Duration::from_secs(10);
+/// Docker's disk and the kernel's limits change slowly: read once a minute
+const FACTS_EVERY: Duration = Duration::from_secs(60);
 
 /// `resuming`: the clusters of the attempt the app resumes, which it starts
 /// itself (with its task host and desktop)
@@ -110,6 +112,8 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
         resync.tick().await;
         // What each container takes, while the Environment page shows it
         let mut measure = tokio::time::interval(MEASURE_EVERY);
+        // When Docker's disk and limits were last read (they change slowly)
+        let mut facts_at: Option<std::time::Instant> = None;
         loop {
             tokio::select! {
                 event = events.next() => match event {
@@ -130,7 +134,7 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
                 // The page opening or closing asks this too: measured at once
                 _ = env.resync_requested() => {
                     sync(&docker, &env, &kind, &guard, &mut watchers).await;
-                    publish_usage(&docker, &env, &kind).await;
+                    publish_usage(&docker, &env, &kind, &mut facts_at).await;
                 }
                 // Retry, while Docker answers: what failed to prepare goes again
                 () = env.retry_requested() => images.prepare(&docker, &infra, &activities, &env),
@@ -142,7 +146,7 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
                     }
                 }
                 _ = resync.tick() => sync(&docker, &env, &kind, &guard, &mut watchers).await,
-                _ = measure.tick() => publish_usage(&docker, &env, &kind).await,
+                _ = measure.tick() => publish_usage(&docker, &env, &kind, &mut facts_at).await,
             }
         }
         tracing::warn!("lost connection to docker");
@@ -248,11 +252,31 @@ async fn sync(
     env.update(|s| s.clusters = clusters);
 }
 
-/// What the containers take, while the Environment page shows it; nothing
-/// otherwise
-async fn publish_usage(docker: &Docker, env: &Env, kind: &Kind) {
-    let usage = if env.watching_nodes() { Some(super::usage::measure(docker, &kind.owned_clusters()).await) } else { None };
-    env.update(|s| s.usage = usage);
+/// What the containers take, and now and then Docker's disk and limits,
+/// while the Environment page shows them; nothing otherwise
+async fn publish_usage(docker: &Docker, env: &Env, kind: &Kind, facts_at: &mut Option<std::time::Instant>) {
+    if !env.watching_nodes() {
+        *facts_at = None;
+        env.update(|s| {
+            s.usage = None;
+            s.host = None;
+        });
+        return;
+    }
+    let usage = super::usage::measure(docker, &kind.owned_clusters()).await;
+    let stale = facts_at.is_none_or(|at| at.elapsed() >= FACTS_EVERY);
+    let host = if stale {
+        *facts_at = Some(std::time::Instant::now());
+        Some(super::usage::host_facts(docker).await)
+    } else {
+        None
+    };
+    env.update(|s| {
+        s.usage = Some(usage);
+        if let Some(host) = host {
+            s.host = host;
+        }
+    });
 }
 
 fn stop_watchers(watchers: &mut HashMap<String, JoinHandle<()>>) {

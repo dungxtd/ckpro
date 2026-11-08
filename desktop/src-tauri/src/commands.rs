@@ -29,6 +29,37 @@ pub fn env_retry(env: State<'_, Arc<Env>>) {
     env.request_retry();
 }
 
+/// Empty the image mirror's cache (the Environment page): refused while an
+/// attempt or a proof runs, both of which pull through it.
+#[tauri::command]
+#[specta::specta]
+pub async fn env_clear_cache(
+    env: State<'_, Arc<Env>>,
+    infra: State<'_, Arc<Infra>>,
+    exams: State<'_, Arc<Exams>>,
+    proofs: State<'_, crate::studio::proof::Proofs>,
+    activities: State<'_, Arc<Activities>>,
+) -> AppResult<()> {
+    if !matches!(exams.state(), crate::lab::exam::ExamState::Idle) {
+        return Err(AppError::busy("an attempt is open: close it first, its clusters pull through the cache"));
+    }
+    if proofs.list().iter().any(|(_, p)| p.ended_at.is_none()) {
+        return Err(AppError::busy("an exam is being proven in Create: wait for it, or stop it"));
+    }
+    let op = activities.begin("Clearing the image cache", vec!["Removing the cached images".into()]);
+    let docker = crate::runtime::docker::connect().await?;
+    let result = infra.clear_cache(&docker, &|line| op.log(line)).await;
+    // A new, empty cache: shown so at once, not at the next reading
+    if result.is_ok() {
+        env.update(|s| {
+            if let Some(host) = &mut s.host {
+                host.cache_mb = 0;
+            }
+        });
+    }
+    op.end(result)
+}
+
 /// Show node readiness (the Environment page opens) or stop (it closes): the
 /// clusters' Kubernetes node watches are kept open only meanwhile.
 #[tauri::command]
