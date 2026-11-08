@@ -10,9 +10,10 @@ import { Truncated } from "@cktry/ui/components/truncated";
 import { useFollow } from "@cktry/ui/hooks/use-follow";
 import { cn } from "@cktry/ui/lib/utils";
 import { History, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
-import { Answer, UserMessage } from "@/components/assistant/answer";
+import { useRef, useState } from "react";
+import { Answer, AnswerActions, UserMessage } from "@/components/assistant/answer";
 import { AssistantIcon } from "@/components/assistant/assistant-icon";
+import { FindInSession } from "@/components/assistant/find-in-session";
 import { SendButton, sendOnEnter } from "@/components/assistant/send-button";
 import { SignInBar } from "@/components/assistant/sign-in-bar";
 import { useCoach } from "@/stores/coach";
@@ -63,6 +64,9 @@ export function Chat() {
 	const written =
 		shownLength(messages) + (live ? live.text.length + live.tools.length + live.asked.length : 0);
 	const list = useFollow<HTMLDivElement>(written, 160);
+	// Cmd+F finds in the conversation: the chat, and its messages
+	const area = useRef<HTMLElement>(null);
+	const found = useRef<HTMLDivElement>(null);
 	const title = sessions.find(s => s.id === session)?.title ?? "New exam";
 
 	const submit = (value = text) => {
@@ -72,7 +76,7 @@ export function Chat() {
 	};
 
 	return (
-		<section className="flex h-full min-h-0 min-w-0 flex-col">
+		<section ref={area} className="flex h-full min-h-0 min-w-0 flex-col">
 			<header className="flex h-14 shrink-0 items-center gap-2 border-border border-b px-5">
 				<AssistantIcon className="size-4 shrink-0 text-assistant" />
 				<h2 className="min-w-0 flex-1 truncate font-semibold text-callout">{title}</h2>
@@ -129,9 +133,10 @@ export function Chat() {
 				</IconButton>
 			</header>
 
+			<FindInSession area={area} messages={found} version={written} />
 			{/* A readable line however wide the window */}
 			<div ref={list} className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-				<div className="mx-auto flex min-h-full max-w-3xl flex-col gap-3">
+				<div ref={found} className="mx-auto flex min-h-full max-w-3xl flex-col gap-3">
 					{shown.length === 0 && (
 						<div className="m-auto flex max-w-md flex-col items-center gap-3 text-center">
 							<AssistantIcon className="size-7 text-assistant" />
@@ -156,13 +161,17 @@ export function Chat() {
 							<UserMessage key={i}>{m.text}</UserMessage>
 						) : (
 							// biome-ignore lint/suspicious/noArrayIndexKey: messages only grow
-							<div key={i} className="flex gap-2.5">
+							<div key={i} data-answer className="group/answer flex gap-2.5">
 								<AssistantIcon className="mt-1 size-4 shrink-0 text-assistant" />
 								<div className="flex min-w-0 flex-1 flex-col gap-1.5">
 									{/* What it looked at and changed, then what it says */}
 									<ToolUses tools={m.tools} />
 									{m.text ? (
-										<Answer>{m.text}</Answer>
+										<>
+											<Answer>{m.text}</Answer>
+											{/* Not on the answer still being written */}
+											{!(live && i === shown.length - 1) && <AnswerActions text={m.text} />}
+										</>
 									) : (
 										!m.tools.some(t => t.status !== "completed" && t.status !== "failed") && (
 											<span className="flex items-center gap-2 text-callout text-muted-foreground">
