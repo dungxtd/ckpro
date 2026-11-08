@@ -1,10 +1,11 @@
 # Builds the macOS app (arm64 and x86_64, one DMG each), the Windows app (x64
 # and arm64, an installer each) and the Linux app (x64 and arm64, an AppImage
 # and a .deb each) for a version tag, side by side, publishes them on this
-# repo's GitHub Release, then points the Homebrew cask in Casks/ at the DMGs
-# and the AppImages (Homebrew installs casks on Linux too):
-#   brew tap dungxtd/cktry https://github.com/dungxtd/cktry
-#   brew install --cask cktry
+# repo's GitHub Release, then points the Homebrew cask in dungxtd/homebrew-tap
+# at the DMGs and the AppImages (Homebrew installs casks on Linux too):
+#   brew install --cask dungxtd/tap/cktry
+# Writing to the tap needs the HOMEBREW_TAP_PAT secret (contents: write on
+# dungxtd/homebrew-tap).
 name: release
 
 on:
@@ -209,8 +210,11 @@ jobs:
     if: ${{ inputs.dry_run != true }}
     runs-on: ubuntu-latest
     steps:
+      # The cask lives in the shared tap; the installers stay on this repo's releases
       - uses: actions/checkout@v5
         with:
+          repository: dungxtd/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_PAT }}
           ref: main
 
       - name: Point the cask at this release
@@ -220,7 +224,7 @@ jobs:
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p pkg
-          gh release download "$GITHUB_REF_NAME" --pattern '*.dmg' --pattern '*.AppImage' --dir pkg
+          gh release download "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --pattern '*.dmg' --pattern '*.AppImage' --dir pkg
           sha() { shasum -a 256 "$(find pkg -name "$1" | head -n 1)" | awk '{print $1}'; }
           # The macOS DMGs and the Linux AppImages, each under its sha256 key
           sed -i -E \
@@ -237,6 +241,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(cask): point to ${GITHUB_REF_NAME}"
+          git commit -am "chore(cktry): point to ${GITHUB_REF_NAME}"
           git pull --rebase origin main
           git push origin main

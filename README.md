@@ -29,8 +29,7 @@ macOS or Linux, with [Homebrew](https://brew.sh) (casks on Linux need
 Homebrew 4.5 or later):
 
 ```bash
-brew tap dungxtd/cktry https://github.com/dungxtd/cktry
-brew install --cask cktry
+brew install --cask dungxtd/tap/cktry
 ```
 
 Windows: the installer for your PC (`cktry_windows-x64_….exe`, or
