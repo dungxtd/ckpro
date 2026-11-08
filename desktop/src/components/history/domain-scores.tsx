@@ -59,7 +59,8 @@ export function DomainScores() {
 					/>
 				)}
 				<span className="text-muted-foreground text-sm">
-					{current.scores.length} attempt{current.scores.length === 1 ? "" : "s"} · last{" "}
+					{/* Attempts ended before any point are listed below, not counted here */}
+					{current.scores.length} scored attempt{current.scores.length === 1 ? "" : "s"} · last{" "}
 					{current.scores.at(-1)?.toFixed(0)}%
 				</span>
 			</div>
@@ -69,7 +70,8 @@ export function DomainScores() {
 						<TableHead>Domain</TableHead>
 						<TableHead className="w-24">Exam weight</TableHead>
 						<TableHead className="w-1/3">Your score</TableHead>
-						<TableHead className="w-24">Answered</TableHead>
+						{/* Questions met in the domain, over the scored attempts: answered or not */}
+						<TableHead className="w-24">Questions</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
