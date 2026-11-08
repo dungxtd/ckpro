@@ -334,7 +334,7 @@ impl Exams {
 
     /// Start the attempt's desktop, and tell who waits for it
     async fn start_desktop(&self, docker: &bollard::Docker, allowed: &[String], clusters: &[String]) -> AppResult<()> {
-        desktop::start(docker, &self.desktop, allowed, clusters, &self.jumphost.name).await?;
+        desktop::start(docker, &self.desktop, allowed, clusters, &self.jumphost.name, self.offset_minutes()).await?;
         self.desktop_up.notify_waiters();
         Ok(())
     }
