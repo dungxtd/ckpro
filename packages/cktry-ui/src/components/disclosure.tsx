@@ -14,17 +14,20 @@ export function Disclosure({
 	summary,
 	open,
 	onOpenChange,
+	id,
 	className,
 	children,
 }: {
 	summary: React.ReactNode;
+	/** To scroll to it, or link to it */
+	id?: string;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	className?: string;
 	children: React.ReactNode;
 }) {
 	return (
-		<div data-slot="disclosure" className={className}>
+		<div id={id} data-slot="disclosure" className={className}>
 			<button
 				type="button"
 				aria-expanded={open}
