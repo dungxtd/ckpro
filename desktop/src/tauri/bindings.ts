@@ -256,6 +256,8 @@ export type Activity_Deserialize = {
 	finished_at?: number | null,
 	/**  Last lines (empty in `ActivityChanged`) */
 	log: string[],
+	/**  Failed, it can be run again with Retry (`env_retry`) */
+	retry?: boolean,
 };
 
 export type Activity_Serialize = {
@@ -276,6 +278,8 @@ export type Activity_Serialize = {
 	finished_at: number | null,
 	/**  Last lines (empty in `ActivityChanged`) */
 	log: string[],
+	/**  Failed, it can be run again with Retry (`env_retry`) */
+	retry: boolean,
 };
 
 /**  Which of the agent's commands run without asking the candidate first */

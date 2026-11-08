@@ -39,6 +39,9 @@ pub struct Activity {
     pub finished_at: Option<f64>,
     /// Last lines (empty in `ActivityChanged`)
     pub log: Vec<String>,
+    /// Failed, it can be run again with Retry (`env_retry`)
+    #[serde(default)]
+    pub retry: bool,
 }
 
 type Changed = Box<dyn Fn(&Activity) + Send + Sync>;
@@ -84,6 +87,7 @@ impl Activities {
                 started_at: now_ms(),
                 finished_at: None,
                 log: Vec::new(),
+                retry: false,
             };
             state.1.push_back(activity.clone());
             while state.1.len() > KEEP {
@@ -164,6 +168,11 @@ impl Handle {
         if let Some(title) = title {
             self.log(format!("▸ {title}"));
         }
+    }
+
+    /// Failed, it can be run again with Retry (`env_retry`)
+    pub fn retryable(&self) {
+        self.activities.update(self.id, |a| a.retry = true);
     }
 
     /// Say where in the current step it is.

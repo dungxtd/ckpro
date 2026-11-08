@@ -1,3 +1,4 @@
+import { Button } from "@ckpro/ui/components/button";
 import { Card } from "@ckpro/ui/components/card";
 import { Disclosure } from "@ckpro/ui/components/disclosure";
 import { Placeholder, SampleRows } from "@ckpro/ui/components/placeholder";
@@ -7,6 +8,7 @@ import { useState } from "react";
 import { ActivityProgress } from "@/components/activity/activity-progress";
 import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";
 import { useActivityList } from "@/stores/activity";
+import { envApi } from "@/tauri/api";
 
 const time = (ms: number) =>
 	new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -50,7 +52,14 @@ export function ActivityList() {
 						</>
 					}
 				>
-					<ActivityProgress id={a.id} compact />
+					<ActivityProgress id={a.id} compact>
+						{/* What failed and can go again (the exam images): Retry */}
+						{a.status === "failed" && a.retry && (
+							<Button size="push" variant="push" onClick={() => envApi.retry()}>
+								Retry
+							</Button>
+						)}
+					</ActivityProgress>
 				</Disclosure>
 			))}
 		</Card>

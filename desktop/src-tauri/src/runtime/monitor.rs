@@ -40,6 +40,9 @@ pub fn start(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
 async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>, guard: Arc<Guard>, resuming: Vec<String>) {
     let mut watchers: HashMap<String, JoinHandle<()>> = HashMap::new();
     let mut reconciled = false;
+    // The exam images: prepared once Docker answers, and again when it comes
+    // back or Retry is pressed while the last try failed
+    let images = Arc::new(Images::default());
     let mut backoff = RETRY_FIRST;
     loop {
         let docker = match docker::connect().await {
@@ -77,10 +80,10 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
             crate::former::remove_containers(&docker).await;
             crate::lab::verify::sweep_stale(&crate::data_dir(), &|line| tracing::info!("{line}")).await;
             reconcile::on_startup(&docker, &kind, &activities, &resuming).await;
-            // Exams start without building anything
-            tauri::async_runtime::spawn(prepare_images(docker.clone(), infra.clone(), activities.clone()));
             reconciled = true;
         }
+        // Exams start without building anything
+        images.prepare(&docker, &infra, &activities);
         sync(&docker, &env, &kind, &guard, &mut watchers).await;
         // Events were missed while Docker was away: what changed meanwhile
         guard.recheck(&docker).await;
@@ -120,6 +123,8 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
                     _ => break,
                 },
                 _ = env.resync_requested() => sync(&docker, &env, &kind, &guard, &mut watchers).await,
+                // Retry, while Docker answers: what failed to prepare goes again
+                () = env.retry_requested() => images.prepare(&docker, &infra, &activities),
                 // Events say what changed; this only notices an engine that
                 // stopped without closing the stream (a sleeping VM)
                 _ = alive.tick() => {
@@ -294,19 +299,49 @@ fn set_readiness(env: &Env, cluster: &str, node: &Node) {
     });
 }
 
+/// Where preparing the exam images stands: not yet (or failed), under way,
+/// or done
+#[derive(Default)]
+struct Images(std::sync::atomic::AtomicU8);
+
+const IMAGES_TO_DO: u8 = 0;
+const IMAGES_PREPARING: u8 = 1;
+const IMAGES_DONE: u8 = 2;
+
+impl Images {
+    /// Prepare them in the background unless they are, or are being
+    fn prepare(self: &Arc<Self>, docker: &Docker, infra: &Arc<Infra>, activities: &Arc<Activities>) {
+        use std::sync::atomic::Ordering::SeqCst;
+        if self.0.compare_exchange(IMAGES_TO_DO, IMAGES_PREPARING, SeqCst, SeqCst).is_err() {
+            return;
+        }
+        let (this, docker, infra, activities) = (self.clone(), docker.clone(), infra.clone(), activities.clone());
+        tauri::async_runtime::spawn(async move {
+            let done = prepare_images(docker, infra, activities).await;
+            this.0.store(if done { IMAGES_DONE } else { IMAGES_TO_DO }, SeqCst);
+        });
+    }
+}
+
 /// Build the exam images in the background when they are missing (first
-/// run, or an update changed them), so starting an exam does not wait.
-async fn prepare_images(docker: Docker, infra: Arc<Infra>, activities: Arc<Activities>) {
+/// run, or an update changed them), so starting an exam does not wait;
+/// whether they are ready. Failed (Docker went away midway, a download
+/// broke), it says Retry runs it again, as Docker coming back does.
+async fn prepare_images(docker: Docker, infra: Arc<Infra>, activities: Arc<Activities>) -> bool {
     let missing = infra.missing_images(&docker).await;
     if missing.is_empty() {
         let quiet = |line: String| tracing::info!("{line}");
-        if let Err(e) = infra.ensure(&docker, &quiet).await {
-            tracing::warn!(error = %e, "preparing the exam infrastructure");
-        }
-        return;
+        return match infra.ensure(&docker, &quiet).await {
+            Ok(()) => true,
+            Err(e) => {
+                tracing::warn!(error = %e, "preparing the exam infrastructure");
+                false
+            }
+        };
     }
     let op = activities.begin("Preparing the exam images", vec![format!("Getting {}", missing.join(", "))]);
     op.detail("First run or after an update: pulled when published, built here otherwise");
+    op.retryable();
     let result = infra.ensure(&docker, &|line| op.log(line)).await;
-    let _ = op.end(result);
+    op.end(result).is_ok()
 }
