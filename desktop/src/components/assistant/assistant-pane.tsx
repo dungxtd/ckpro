@@ -14,9 +14,10 @@ import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { MASK } from "@/analytics";
 import { AGENTS } from "@/components/assistant/agents";
-import { Answer, UserMessage } from "@/components/assistant/answer";
+import { Answer, AnswerActions, UserMessage } from "@/components/assistant/answer";
 import { AssistantComposer } from "@/components/assistant/assistant-composer";
 import { AssistantIcon } from "@/components/assistant/assistant-icon";
+import { FindInSession } from "@/components/assistant/find-in-session";
 import { PermissionCard } from "@/components/assistant/permission-card";
 import { SignInBar } from "@/components/assistant/sign-in-bar";
 import { SignInDialog } from "@/components/assistant/sign-in-dialog";
@@ -104,6 +105,9 @@ export function AssistantPane({
 	// at once too), unless the reader scrolled up
 	const written = messages.reduce((n, m) => n + m.text.length + 1, 0);
 	const scroller = useFollow<HTMLDivElement>(written, 160);
+	// Cmd+F finds in the session: the pane, and its messages
+	const pane = useRef<HTMLElement>(null);
+	const found = useRef<HTMLDivElement>(null);
 
 	const send = (text: string) => {
 		const t = text.trim();
@@ -119,6 +123,7 @@ export function AssistantPane({
 		// The candidate's messages, the answers, session names, the login:
 		// replays show none of their text
 		<aside
+			ref={pane}
 			className={cn("flex h-full w-full min-w-0 flex-col overflow-hidden bg-background", MASK)}
 		>
 			{/* Toolbar: the session (double-click to rename), then new, history, more, close */}
@@ -284,6 +289,7 @@ export function AssistantPane({
 				)}
 			</div>
 
+			<FindInSession area={pane} messages={found} version={written} />
 			<div
 				ref={scroller}
 				className="min-h-0 flex-1 select-text overflow-y-auto overflow-x-hidden p-2"
@@ -298,7 +304,7 @@ export function AssistantPane({
 						)}
 					</div>
 				) : (
-					<div className="flex flex-col">
+					<div ref={found} className="flex flex-col">
 						{messages.map((m, i) =>
 							m.role === "user" ? (
 								<UserMessage
@@ -310,8 +316,12 @@ export function AssistantPane({
 									{m.text}
 								</UserMessage>
 							) : (
-								// biome-ignore lint/suspicious/noArrayIndexKey: append-only list
-								<div key={i} className="my-1 flex min-w-0 flex-col gap-1.5 px-2">
+								<div
+									// biome-ignore lint/suspicious/noArrayIndexKey: append-only list
+									key={i}
+									data-answer
+									className="group/answer my-1 flex min-w-0 flex-col gap-1.5 px-2"
+								>
 									{/* The assistant's mark; while it answers, a spinner beside it (and what it
 									    does before its first words) */}
 									<div className="flex h-4 items-center gap-1.5 text-2xs text-muted-foreground">
@@ -324,13 +334,18 @@ export function AssistantPane({
 										)}
 									</div>
 									{m.text && <Answer>{m.text}</Answer>}
-									{m.text && !writing && i === messages.length - 1 && lastUser && (
-										<div className="flex items-center gap-2 text-3xs text-muted-foreground">
-											<Button variant="quiet" size="inline" onClick={() => send(lastUser)}>
-												<RotateCw /> Regenerate
-											</Button>
-											<span className="opacity-60">{modelName}</span>
-										</div>
+									{m.text && !(writing && i === messages.length - 1) && (
+										<AnswerActions text={m.text}>
+											{/* The last answer can be asked again */}
+											{i === messages.length - 1 && lastUser && (
+												<>
+													<Button variant="quiet" size="inline" onClick={() => send(lastUser)}>
+														<RotateCw /> Regenerate
+													</Button>
+													<span className="opacity-60">{modelName}</span>
+												</>
+											)}
+										</AnswerActions>
 									)}
 								</div>
 							)

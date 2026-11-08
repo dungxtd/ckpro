@@ -161,3 +161,25 @@ test("on a narrow window the draft is a panel dragged up and down", async ({ pag
 	await page.keyboard.press("Enter");
 	await expect(question).toBeVisible();
 });
+
+test("Cmd+F finds in the conversation, and an answer copies or goes to its question", async ({
+	page,
+}) => {
+	await openCreate(page);
+	// The chat holds the pointer: the shortcut opens find there
+	await page.getByText("Here is Warm-up.").hover();
+	await page.keyboard.press("ControlOrMeta+f");
+	const find = page.getByRole("searchbox", { name: "Find in this session" });
+	await expect(find).toBeFocused();
+	await find.fill("warm-up");
+	await expect(page.getByText("1 of 2")).toBeVisible();
+	await find.press("Enter");
+	await expect(page.getByText("2 of 2")).toBeVisible();
+	await find.press("Escape");
+	await expect(find).toBeHidden();
+	// An answer's own actions show on pointing at it
+	await page.getByText("Here is Warm-up.").hover();
+	await expect(page.getByRole("button", { name: "Copy this answer" })).toBeVisible();
+	await page.getByRole("button", { name: "Go to the question" }).click();
+	await expect(page.getByText("Build Warm-up")).toBeInViewport();
+});

@@ -54,6 +54,17 @@ body,
 	--inspector-space: var(--inspector-w);
 }
 
+/* Find in a session (Cmd+F): the matches, and the one shown. Solid colours:
+ * WebKit paints a translucent highlight over the whole line, and none on
+ * text that cannot be selected (the messages are select-text) */
+::highlight(find) {
+	background-color: color-mix(in srgb, var(--color-warning) 35%, var(--color-background));
+}
+::highlight(find-current) {
+	background-color: var(--color-warning);
+	color: var(--color-background);
+}
+
 @layer base {
 	[data-theme="dark"] {
 		color-scheme: dark;
