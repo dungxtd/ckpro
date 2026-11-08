@@ -791,6 +791,11 @@ export type ExamResult_Deserialize = {
 	outside?: string[],
 	/**  Questions the assistant ran commands for (Agent): their points were helped */
 	assisted?: string[],
+	/**
+	 *  The certification's predicted score before this attempt and after it
+	 *  (as readiness gives it: none while too little is measured)
+	 */
+	prediction?: Prediction_Deserialize | null,
 };
 
 export type ExamResult_Serialize = {
@@ -804,6 +809,11 @@ export type ExamResult_Serialize = {
 	outside: string[],
 	/**  Questions the assistant ran commands for (Agent): their points were helped */
 	assisted: string[],
+	/**
+	 *  The certification's predicted score before this attempt and after it
+	 *  (as readiness gives it: none while too little is measured)
+	 */
+	prediction: Prediction_Serialize | null,
 };
 
 /**  How a certification's exams are sorted in the sidebar */
@@ -1054,6 +1064,21 @@ export type PlanView_Serialize = {
 	mode: Mode,
 	/**  Taken that day (any mode): the best score of that day's attempts */
 	done: number | null,
+};
+
+/**  A predicted score, before an attempt and after it */
+export type Prediction = Prediction_Serialize | Prediction_Deserialize;
+
+/**  A predicted score, before an attempt and after it */
+export type Prediction_Deserialize = {
+	before?: number | null,
+	after?: number | null,
+};
+
+/**  A predicted score, before an attempt and after it */
+export type Prediction_Serialize = {
+	before: number | null,
+	after: number | null,
 };
 
 /**

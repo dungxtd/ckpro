@@ -17,17 +17,20 @@ const fill = cva("block h-full rounded-full transition-[width] duration-500", {
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 
 /** How far something is, 0–100, as a thin bar; `marker` draws a line across
- * it at a mark to reach (a pass line) */
+ * it at a mark to reach (a pass line); `color` fills it with a colour of its
+ * own instead of a tone (a score's, from a scale of tokens) */
 export function Progress({
 	value,
 	label,
 	tone,
 	marker,
+	color,
 	className,
 }: {
 	value: number;
 	label: string;
 	marker?: number;
+	color?: string;
 	className?: string;
 } & VariantProps<typeof fill>) {
 	const percent = clamp(value);
@@ -39,9 +42,9 @@ export function Progress({
 				aria-valuenow={Math.round(percent)}
 				aria-valuemin={0}
 				aria-valuemax={100}
-				className={cn("block h-1.5 overflow-hidden rounded-full bg-muted", className)}
+				className={cn("block h-1.5 overflow-hidden rounded-full bg-foreground/10", className)}
 			>
-				<span className={fill({ tone })} style={{ width: `${percent}%` }} />
+				<span className={fill({ tone })} style={{ width: `${percent}%`, backgroundColor: color }} />
 			</span>
 			{marker !== undefined && (
 				<span

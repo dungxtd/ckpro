@@ -42,8 +42,9 @@ impl Exams {
         let op = self.activities.begin(format!("Grading {}", attempt.title), vec!["Running every check".into()]);
         let id = op.id();
         match op.end(self.grade(&attempt, started_at, note, id).await) {
-            Ok(result) => {
+            Ok(mut result) => {
                 self.save_history(&attempt, &result);
+                result.prediction = self.prediction(&attempt);
                 let clusters = attempt.clusters.clone();
                 self.set(ExamState::Finished { attempt, result });
                 // Closing it need not wait for this
@@ -57,6 +58,17 @@ impl Exams {
                 resumable: true,
             }),
         }
+    }
+
+    /// The certification's predicted score without `attempt` and with it
+    /// (it is in the history now)
+    fn prediction(&self, attempt: &Attempt) -> Option<Prediction> {
+        let (pack, history) = (self.pack(), self.history());
+        let now = crate::runtime::activity::now_ms();
+        let without: Vec<HistoryEntry> = history.iter().filter(|h| h.attempt_id != attempt.id).cloned().collect();
+        let after = super::plan::readiness(&pack, &history, &attempt.certification, now).ok()?.predicted;
+        let before = super::plan::readiness(&pack, &without, &attempt.certification, now).ok()?.predicted;
+        Some(Prediction { before, after })
     }
 
     /// Note what the graded attempt's nodes take on this machine: the
@@ -149,6 +161,7 @@ impl Exams {
             questions: results,
             outside: self.guard.take_outside(),
             assisted: self.store.assisted(&attempt.id).unwrap_or_default(),
+            prediction: None,
         })
     }
 
@@ -162,9 +175,12 @@ impl Exams {
         }
         let question = self.question(question_id)?;
         let docker = docker::connect().await?;
+        let started = std::time::Instant::now();
         let results =
             checks::run_checks(&docker, &self.jumphost.name, question.checks.iter().map(|c| (question.cluster.as_str(), c)), |_, _| {})
                 .await?;
+        let passed = results.iter().filter(|c| c.passed).count();
+        tracing::info!(question = question_id, passed, of = results.len(), ms = started.elapsed().as_millis() as u64, "checked");
         self.saw(&attempt.id, |seen| {
             seen.checks.insert(question_id.to_string(), results.clone());
         });
@@ -175,12 +191,9 @@ impl Exams {
     pub fn solution(&self, question_id: &str) -> AppResult<Solution> {
         match self.state() {
             ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => {
-        let started = std::time::Instant::now();
                 self.saw(&attempt.id, |seen| {
                     seen.solutions.insert(question_id.to_string());
                 });
-        let passed = results.iter().filter(|c| c.passed).count();
-        tracing::info!(question = question_id, passed, of = results.len(), ms = started.elapsed().as_millis() as u64, "checked");
             }
             ExamState::Finished { .. } => {}
             _ => return Err(AppError::invalid("solutions are shown after the exam")),

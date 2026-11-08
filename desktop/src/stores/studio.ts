@@ -71,7 +71,9 @@ interface StudioStore {
 	setTab: (tab: "exam" | "proof") => void;
 	/** The screen opened: the latest conversation shown, the drafts, the
 	 * proofs and the exams followed; returns how to stop following them */
-	enter: () => () => void;
+	/** Opened: follows the drafts and proofs until the returned stop;
+	 * `ask` starts a new conversation with it (from a result's What next) */
+	enter: (ask?: string) => () => void;
 	newSession: () => Promise<void>;
 	open: (session: number) => Promise<void>;
 	remove: (session: number) => Promise<void>;
@@ -180,7 +182,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		renaming: false,
 		setRenaming: renaming => set({ renaming }),
 
-		enter: () => {
+		enter: ask => {
 			// Docker and the clusters beside decide whether proving fits; the
 			// exams, whether a saved one is still there
 			let replanning: ReturnType<typeof setTimeout> | undefined;
@@ -203,7 +205,13 @@ export const useStudio = create<StudioStore>()((set, get) => {
 					if (proof) set(s => ({ last: { ...s.last, [session]: proof } }));
 				}),
 			];
-			load().catch(e => toast.error(errorText(e)));
+			load()
+				.then(async () => {
+					if (!ask) return;
+					await get().newSession();
+					await get().send(ask);
+				})
+				.catch(e => toast.error(errorText(e)));
 			return () => {
 				stopEnv();
 				stopExams();
