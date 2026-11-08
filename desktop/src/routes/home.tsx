@@ -110,7 +110,9 @@ export function HomeRoute() {
 			className="@container gap-4"
 		>
 			<DockerBanner />
-			<div className="grid gap-4 @3xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+			{/* Side by side once the terminal's table fits on its lines (the default
+			    window does) */}
+			<div className="grid gap-4 @min-[45rem]:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
 				<StatusTerminal
 					target={target}
 					days={target ? daysUntil(target.date, now) : null}
@@ -125,8 +127,9 @@ export function HomeRoute() {
 					suggested={suggestion(catalog, measured, certification)}
 				/>
 			</div>
-			{/* The map takes the room; Readiness beside it stays compact */}
-			<div className="grid gap-4 @3xl:grid-cols-[minmax(0,1fr)_18rem] @6xl:grid-cols-[minmax(0,1fr)_22rem]">
+			{/* The map takes the room; Readiness beside it stays compact. Side by side
+			    from the default window up (sidebar shown), stacked only when narrower */}
+			<div className="grid gap-4 @2xl:grid-cols-[minmax(0,1fr)_18rem] @6xl:grid-cols-[minmax(0,1fr)_22rem]">
 				<PrepMap
 					start={start}
 					end={end}
