@@ -222,7 +222,14 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(cluster::jobs::Jobs::default())
         .manage(ai::Coach::new())
-        .invoke_handler(builder.invoke_handler())
+        .invoke_handler({
+            let handler = builder.invoke_handler();
+            // Each command the interface calls, by name (debug: `CKTRY_LOG`)
+            move |invoke: tauri::ipc::Invoke| {
+                tracing::debug!(command = invoke.message.command(), "command");
+                handler(invoke)
+            }
+        })
         .setup(move |app| {
             if let Ok(dir) = app.path().app_log_dir() {
                 observability::init(&dir);

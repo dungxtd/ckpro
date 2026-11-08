@@ -115,9 +115,20 @@ where
         "tools/list" => Ok(json!({ "tools": tools })),
         "tools/call" => {
             let name = params["name"].as_str().unwrap_or_default().to_string();
-            Ok(match call(name, params["arguments"].clone()).await {
-                Ok(text) => json!({ "content": [{ "type": "text", "text": text }] }),
-                Err(e) => json!({ "content": [{ "type": "text", "text": e.to_string() }], "isError": true }),
+            // Which tool and how long, never its arguments or output (what
+            // the candidate wrote, commands, cluster state)
+            let started = std::time::Instant::now();
+            let outcome = call(name.clone(), params["arguments"].clone()).await;
+            let ms = started.elapsed().as_millis() as u64;
+            Ok(match outcome {
+                Ok(text) => {
+                    tracing::info!(tool = %name, ms, "assistant tool");
+                    json!({ "content": [{ "type": "text", "text": text }] })
+                }
+                Err(e) => {
+                    tracing::info!(tool = %name, ms, error = %e, "assistant tool failed");
+                    json!({ "content": [{ "type": "text", "text": e.to_string() }], "isError": true })
+                }
             })
         }
         method => Err(json!({ "code": -32601, "message": format!("{method} is not supported") })),

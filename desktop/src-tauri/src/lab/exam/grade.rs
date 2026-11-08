@@ -175,9 +175,12 @@ impl Exams {
     pub fn solution(&self, question_id: &str) -> AppResult<Solution> {
         match self.state() {
             ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => {
+        let started = std::time::Instant::now();
                 self.saw(&attempt.id, |seen| {
                     seen.solutions.insert(question_id.to_string());
                 });
+        let passed = results.iter().filter(|c| c.passed).count();
+        tracing::info!(question = question_id, passed, of = results.len(), ms = started.elapsed().as_millis() as u64, "checked");
             }
             ExamState::Finished { .. } => {}
             _ => return Err(AppError::invalid("solutions are shown after the exam")),
