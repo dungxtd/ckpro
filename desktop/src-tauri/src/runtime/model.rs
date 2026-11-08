@@ -12,6 +12,10 @@ pub struct EnvState {
     /// app data dir); other kind clusters on the machine are left alone
     pub clusters: Vec<ClusterState>,
     pub issues: Vec<Issue>,
+    /// The checks of Docker's machine that pass, in words (the ones that
+    /// fail are issues); derived, like the issues
+    #[serde(default)]
+    pub passed: Vec<String>,
     /// What each running container takes, measured while the Environment
     /// page is open (none otherwise, or before the first measurement)
     #[serde(default)]
@@ -19,7 +23,31 @@ pub struct EnvState {
     /// The exam images not here yet (`Infra::missing_images`)
     #[serde(default)]
     pub images_missing: Vec<String>,
+    /// Docker's disk and kernel limits, read in the image mirror while the
+    /// Environment page is open (none while it does not run)
+    #[serde(default)]
+    pub host: Option<HostFacts>,
 }
+
+/// What the Docker machine has, as its own tools report it
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct HostFacts {
+    /// Free space on Docker's disk (`df`), in MB
+    pub disk_free_mb: u32,
+    /// What the image mirror's cache holds, in MB
+    pub cache_mb: u32,
+    /// `fs.inotify.max_user_watches` and `max_user_instances` of the kernel
+    /// every container shares: kind needs them high
+    pub inotify_watches: u32,
+    pub inotify_instances: u32,
+}
+
+/// Below this, a new cluster may not start: a warning
+pub const DISK_LOW_MB: u32 = 10 * 1024;
+/// What kind asks the kernel for (its known issues): below, clusters fail
+/// in odd ways
+pub const INOTIFY_WATCHES: u32 = 524_288;
+pub const INOTIFY_INSTANCES: u32 = 512;
 
 /// A running container and the memory it takes now
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -120,6 +148,18 @@ impl EnvState {
         self.clusters.iter_mut().find(|c| c.name == name)
     }
 
+    fn derive_passed(&self) -> Vec<String> {
+        let Some(host) = &self.host else { return Vec::new() };
+        let mut passed = Vec::new();
+        if host.disk_free_mb >= DISK_LOW_MB {
+            passed.push(format!("{:.0} GB of disk left for Docker", f64::from(host.disk_free_mb) / 1024.0));
+        }
+        if host.inotify_watches >= INOTIFY_WATCHES && host.inotify_instances >= INOTIFY_INSTANCES {
+            passed.push("file watch limits high enough for kind".into());
+        }
+        passed
+    }
+
     fn derive_issues(&self) -> Vec<Issue> {
         let mut issues = Vec::new();
         if let DockerState::Down { reason } = &self.docker {
@@ -130,6 +170,29 @@ impl EnvState {
                 hint: format!("{}; cktry reconnects on its own.", crate::runtime::docker::START),
             });
             return issues;
+        }
+        if let Some(host) = &self.host {
+            if host.disk_free_mb < DISK_LOW_MB {
+                issues.push(Issue {
+                    severity: Severity::Warning,
+                    component: "docker".into(),
+                    message: format!("Docker has {:.1} GB of disk left", f64::from(host.disk_free_mb) / 1024.0),
+                    hint: "Under 10 GB a new cluster may not start. Clear the image cache, or free space in OrbStack or Docker Desktop.".into(),
+                });
+            }
+            if host.inotify_watches < INOTIFY_WATCHES || host.inotify_instances < INOTIFY_INSTANCES {
+                issues.push(Issue {
+                    severity: Severity::Warning,
+                    component: "docker".into(),
+                    message: format!(
+                        "File watch limits are low for kind ({} watches, {} instances)",
+                        host.inotify_watches, host.inotify_instances
+                    ),
+                    hint: format!(
+                        "Clusters may fail to start. Raise them in Docker's machine: sysctl fs.inotify.max_user_watches={INOTIFY_WATCHES} fs.inotify.max_user_instances={INOTIFY_INSTANCES}."
+                    ),
+                });
+            }
         }
         for cluster in &self.clusters {
             for node in &cluster.nodes {
@@ -225,6 +288,7 @@ impl Env {
         let before = state.clone();
         change(&mut state);
         state.issues = state.derive_issues();
+        state.passed = state.derive_passed();
         if *state != before {
             (self.publish)(&state);
         }
@@ -232,5 +296,26 @@ impl Env {
 
     fn lock(&self) -> std::sync::MutexGuard<'_, EnvState> {
         self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dockers_disk_and_limits_pass_or_ask_for_a_look() {
+        let env = Env::new(|_| {});
+        let host = |disk_free_mb, inotify_instances| HostFacts { disk_free_mb, cache_mb: 0, inotify_watches: 1_048_576, inotify_instances };
+        env.update(|s| s.host = Some(host(200 * 1024, 8192)));
+        let state = env.snapshot();
+        assert!(state.issues.is_empty());
+        assert_eq!(state.passed, ["200 GB of disk left for Docker", "file watch limits high enough for kind"]);
+        // Low disk, low limits: two warnings, nothing passes
+        env.update(|s| s.host = Some(host(4 * 1024, 128)));
+        let state = env.snapshot();
+        assert_eq!(state.issues.len(), 2);
+        assert!(state.passed.is_empty());
+        assert!(state.issues[0].message.contains("4.0 GB of disk left"));
     }
 }

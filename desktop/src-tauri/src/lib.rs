@@ -89,6 +89,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::studio_stop,
         commands::studio_save,
         commands::env_retry,
+        commands::env_clear_cache,
         commands::env_watch_nodes,
         commands::delete_cluster,
         commands::repair_cluster,

@@ -1,5 +1,10 @@
+import { Button } from "@cktry/ui/components/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@cktry/ui/components/card";
+import { ConfirmDialog } from "@cktry/ui/components/confirm-dialog";
 import { StatusDot, type StatusTone } from "@cktry/ui/components/status-dot";
+import type { ReactNode } from "react";
+import { toast } from "sonner";
+import { envApi, errorText } from "@/tauri/api";
 import type { ContainerUse } from "@/tauri/bindings";
 import { memory } from "@/words";
 import { otherApps, serviceName } from "./usage";
@@ -12,6 +17,8 @@ export interface Row {
 	name: string;
 	what: string;
 	mb?: number;
+	/** What can be done to it, at the row's end */
+	action?: ReactNode;
 }
 
 export function Rows({ rows }: { rows: Row[] }) {
@@ -27,6 +34,7 @@ export function Rows({ rows }: { rows: Row[] }) {
 							{memory(r.mb)}
 						</span>
 					)}
+					{r.action && <span className={r.mb === undefined ? "ml-auto" : ""}>{r.action}</span>}
 				</li>
 			))}
 		</ul>
@@ -35,7 +43,14 @@ export function Rows({ rows }: { rows: Row[] }) {
 
 /** cktry's own services: what runs now and what it takes; the ones that
  * start with an exam say so when they are not running */
-export function ServicesCard({ usage }: { usage: ContainerUse[] }) {
+export function ServicesCard({
+	usage,
+	cacheMb,
+}: {
+	usage: ContainerUse[];
+	/** What the image mirror's cache holds, once read */
+	cacheMb?: number;
+}) {
 	const running = usage.filter(c => c.owner.kind === "service");
 	const rows: Row[] = running.map(c => ({
 		key: c.name,
@@ -51,6 +66,23 @@ export function ServicesCard({ usage }: { usage: ContainerUse[] }) {
 	] as const)
 		if (!running.some(c => c.name === name))
 			rows.push({ key: name, tone: "idle", name: serviceName(name), what, mb: undefined });
+	// The mirror's cache: its size, and emptying it (asked first)
+	const mirror = rows.find(r => r.key === "cktry-mirror");
+	if (mirror && cacheMb !== undefined) {
+		mirror.what = `Caches the images clusters pull · ${memory(cacheMb)} cached`;
+		mirror.action = (
+			<ConfirmDialog
+				title="Clear the image cache?"
+				description="The images clusters pulled through cktry go; the next exam downloads them again. Not while an exam is open or being proven."
+				action="Clear Cache"
+				onConfirm={() => envApi.clearCache().catch(e => toast.error(errorText(e)))}
+			>
+				<Button size="push" variant="push">
+					Clear…
+				</Button>
+			</ConfirmDialog>
+		);
+	}
 	return (
 		<Card padding="sm">
 			<CardHeader>
