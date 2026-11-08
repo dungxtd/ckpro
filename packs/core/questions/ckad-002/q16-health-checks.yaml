@@ -258,6 +258,9 @@ solution:
   run: |
     # Create namespace
     kubectl create namespace health-checks
+    # A new namespace's default service account comes a moment later: a pod
+    # created before it is refused
+    until kubectl -n health-checks get serviceaccount default >/dev/null 2>&1; do sleep 1; done
 
     # Create Pod with startup, liveness, and readiness probes
     cat <<EOF | kubectl apply -f -
