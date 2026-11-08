@@ -100,9 +100,12 @@ impl Exams {
     }
 
     /// How the candidate did per curriculum domain, per certification they
-    /// have attempted, from the history (newest scores last)
+    /// have attempted, from the history (newest scores last). An attempt
+    /// ended before earning a point says nothing about them: it stays in
+    /// the history, not in these figures (as readiness leaves it out)
     pub fn study_stats(&self) -> Vec<StudyStats> {
-        study_stats(&self.pack(), &self.history())
+        let worked: Vec<HistoryEntry> = self.history().into_iter().filter(|h| h.result.worked()).collect();
+        study_stats(&self.pack(), &worked)
     }
 
     /// The attempt the coach works in (practice mode, or with its result)
