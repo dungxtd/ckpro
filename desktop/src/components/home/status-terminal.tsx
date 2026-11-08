@@ -47,6 +47,8 @@ export function StatusTerminal({
 			: score >= pass
 				? "OnTrack"
 				: "BelowPass";
+	const Tint =
+		status === "OnTrack" ? Terminal.Ok : status === "BelowPass" ? Terminal.Warn : Terminal.Muted;
 	const today = dayKey(new Date());
 	const defaultDate = dayKey(addDays(new Date(), 60));
 	const suggested = commandFor(
@@ -83,15 +85,10 @@ export function StatusTerminal({
 					<>
 						{`${pad("NAME", 7)}${pad("DATE", 12)}${pad("DAYS", 6)}${pad("PREDICTED", 11)}${pad("PASS", 6)}STATUS\n`}
 						{`${pad(target.certification, 7)}${pad(target.date, 12)}${pad(days ?? "", 6)}`}
-						<Terminal.Ok>{pad(score === null ? "-" : `${Math.round(score)}%`, 11)}</Terminal.Ok>
+						{/* The prediction is coloured as the status reads it: green only on track */}
+						<Tint>{pad(score === null ? "-" : `${Math.round(score)}%`, 11)}</Tint>
 						{pad(`${pass}%`, 6)}
-						{status === "OnTrack" ? (
-							<Terminal.Ok>{status}</Terminal.Ok>
-						) : status === "BelowPass" ? (
-							<Terminal.Warn>{status}</Terminal.Warn>
-						) : (
-							<Terminal.Muted>{status}</Terminal.Muted>
-						)}
+						<Tint>{status}</Tint>
 					</>
 				) : (
 					<Terminal.Muted>No resources found. Set the exam you prepare for below.</Terminal.Muted>
