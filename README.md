@@ -29,8 +29,7 @@ macOS or Linux, with [Homebrew](https://brew.sh) (casks on Linux need
 Homebrew 4.5 or later):
 
 ```bash
-brew tap dungxtd/ckpro https://github.com/dungxtd/ckpro
-brew install --cask ckpro
+brew install --cask dungxtd/tap/ckpro
 ```
 
 Windows: the installer for your PC (`ckpro_windows-x64_….exe`, or
