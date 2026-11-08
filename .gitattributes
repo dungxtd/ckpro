@@ -1,0 +1,4 @@
+# Image build files: hashed into the image tags (runtime/infra.rs), so a
+# Windows checkout must keep them as CI builds them
+desktop/src-tauri/resources/** text=auto eol=lf
+*.png binary
