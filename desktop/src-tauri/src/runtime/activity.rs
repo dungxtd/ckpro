@@ -221,6 +221,12 @@ impl Op {
                 a.current = a.steps.len() as u32;
                 a.detail = None;
             }
+            // How long it took, beside its steps' lines
+            let ms = (now_ms() - a.started_at).max(0.0) as u64;
+            match &error {
+                None => tracing::info!(activity = a.id, ms, "{} done", a.title),
+                Some(e) => tracing::info!(activity = a.id, ms, error = %e, "{} ended", a.title),
+            }
             a.error = error;
             a.finished_at = Some(now_ms());
         });
