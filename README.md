@@ -10,34 +10,15 @@ the cluster.
 
 ## Features
 
-- **Exam mode**: timed, no hints, no assistant, graded at the end.
-- **Practice mode**: no time limit, hints, per-task checks and reference
-  solutions.
-- **Home**: the exam you aim at and its date, set from a terminal line;
-  readiness by curriculum domain and a predicted score once enough is
-  measured; a prep map of your study days; today's plan.
-- **Calendar**: plan exams on days, as exams or practice, drag them to
-  another day.
-- **Results**: the score against the pass line, what to do next (the
-  questions missed, a retake on your next study day, the exam to take next),
-  each question's checks and solution.
-- **Create** (with the assistant): ask for an exam in a chat; Claude reads
-  your results and builds it from the bank and new questions, which are
-  proven on a cluster before you save.
-- **Assistant** (practice): Claude, signed in with your own account. Ask
-  reads the task, your last check and a look at the cluster; Agent explores
-  the cluster itself and changes it only with your OK. Your own notes go with
-  every conversation. Exam mode never has it, and every feature works with it
-  off.
-- **Question bank**: 111 tasks across 7 exams, plus the ones you build.
-- **Environment**: Docker's memory and what uses it, each cluster's nodes and
-  purpose, the disk and kernel limits kind needs, the image cache; problems
-  come with what to do.
-- **Environment guard**: during an attempt the clusters refuse the host's
-  `kubectl`, and changes made outside the exam desktop are undone and listed
-  on the result.
-- **History**: every attempt, scores per certification and domain, and the
-  assistant sessions of each attempt.
+- **Exam and practice**: timed and graded, or with hints, checks and solutions.
+- **Study plan**: target date, readiness by domain, a calendar of exams.
+- **Results**: your score, what you missed, and what to do next.
+- **Create**: ask for an exam in a chat; new questions are proven on a cluster.
+- **Assistant** (optional, practice only): Claude explains or explores the
+  cluster with your OK. Never in exam mode.
+- **Environment**: what uses Docker's memory and disk, with fixes.
+- **Guard**: during an attempt, changes from outside the exam desktop are
+  undone and reported.
 
 ## Install
 
