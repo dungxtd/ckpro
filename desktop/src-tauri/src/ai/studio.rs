@@ -72,7 +72,8 @@ impl Coach {
         on_event: impl Fn(CoachEvent) + Sync,
     ) -> AppResult<CoachReply> {
         let history = store.studio_messages(session)?;
-        let (agent_session, prompt) = self.studio_session(&exams.bank(), session, model, effort, &history, text).await?;
+        let notes = policy::AgentSettings::load(store).map(|s| s.notes).unwrap_or_default();
+        let (agent_session, prompt) = self.studio_session(&exams.bank(), &notes, session, model, effort, &history, text).await?;
         // What the candidate changed in the draft since the last answer goes
         // first: the assistant would build on a draft that is not there
         let changes = ExamDraft::load(store, session).map(|d| d.changes).unwrap_or_default();
@@ -103,6 +104,10 @@ impl Coach {
                 on_event(CoachEvent::Text { text: t.to_string() });
             }
             // What Claude looks at or changes, shown as it goes and kept with the answer
+            agent::AgentEvent::Compacted => {
+                transcript.locked().push_str(super::prompt::COMPACTED);
+                on_event(CoachEvent::Text { text: super::prompt::COMPACTED.to_string() });
+            }
             agent::AgentEvent::Tool(call) => {
                 let name = call.title.rsplit("__").next().unwrap_or(&call.title).to_string();
                 let input = if call.input.is_null() { String::new() } else { call.input.to_string() };
@@ -175,9 +180,11 @@ impl Coach {
 
     /// The agent's session for the conversation, and what to send it: the
     /// one open, or a new one with what was said before
+    #[allow(clippy::too_many_arguments)]
     async fn studio_session(
         &self,
         bank: &LoadedPack,
+        notes: &str,
         session: i32,
         model: &str,
         effort: &str,
@@ -198,7 +205,7 @@ impl Coach {
             return Ok((open, text.to_string()));
         }
         let tools = self.tools.get().ok_or_else(|| AppError::assistant("the tools are not ready yet; try again"))?;
-        let agent_session = self.agent.new_session_with(&system(bank), model, serde_json::json!([tools.server_for_studio(session)])).await?;
+        let agent_session = self.agent.new_session_with(&format!("{}{}", system(bank), super::prompt::notes_section(notes)), model, serde_json::json!([tools.server_for_studio(session)])).await?;
         self.agent.set_effort(&agent_session, model, effort).await?;
         self.open.lock().await.insert(key(session), (agent_session.clone(), model.to_string(), effort.to_string(), Profile::Agent));
         let mut prompt = String::new();

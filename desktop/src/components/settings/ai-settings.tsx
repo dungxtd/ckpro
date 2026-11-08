@@ -20,6 +20,7 @@ import {
 import { StatusDot } from "@cktry/ui/components/status-dot";
 import { Stepper } from "@cktry/ui/components/stepper";
 import { Switch } from "@cktry/ui/components/switch";
+import { Textarea } from "@cktry/ui/components/textarea";
 import { cn } from "@cktry/ui/lib/utils";
 import { ChevronRight, RotateCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -176,6 +177,7 @@ export function AiSettings() {
 							);
 						})}
 					</Group>
+					<Notes settings={settings} save={save} />
 					<ToolAccess settings={settings} save={save} />
 					<Privacy settings={settings} save={save} />
 					<Sheet open={agent !== null} onOpenChange={o => !o && setOpen(null)}>
@@ -376,6 +378,33 @@ const accountDetail = (account: {
 	]
 		.filter(Boolean)
 		.join(" · ");
+
+/** The candidate's notes, given to every agent with each new conversation
+ * (coach and Create): kept when the field is left, not on every key */
+function Notes({ settings, save }: Section) {
+	const [text, setText] = useState(settings.notes ?? "");
+	return (
+		<Group
+			title="Notes for the assistant"
+			description="Given with every new conversation, in the coach and in Create: the language to answer in, how much to say, what you are used to. Its rules stay: no solution you have not opened."
+		>
+			<div className="px-3 py-2.5">
+				<Textarea
+					variant="bare"
+					aria-label="Notes for the assistant"
+					rows={3}
+					value={text}
+					placeholder={
+						"Answer in Vietnamese.\nHint first; show commands only when I ask.\nI am used to imperative kubectl."
+					}
+					onChange={e => setText(e.target.value)}
+					onBlur={() => text !== (settings.notes ?? "") && save({ notes: text })}
+					className={cn("select-text", MASK)}
+				/>
+			</div>
+		</Group>
+	);
+}
 
 /** What the Agent profile may do on the task host */
 function ToolAccess({ settings, save }: Section) {
