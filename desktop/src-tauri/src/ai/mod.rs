@@ -53,9 +53,10 @@ pub enum CoachEvent {
         #[serde(default)]
         output: Option<String>,
     },
-    /// The agent asks to run a command: the candidate picks an option
-    /// (`coach_permit`)
-    Permission { id: u32, command: String, options: Vec<PermissionOption> },
+    /// The agent asks to run a command, or to use one of the app's tools
+    /// (`tool`: what it does, in words; `command` is then empty): the
+    /// candidate picks an option (`coach_permit`)
+    Permission { id: u32, command: String, #[serde(default)] tool: Option<String>, options: Vec<PermissionOption> },
 }
 
 /// Ask: the coach reads and answers. Agent: it may also run commands on the

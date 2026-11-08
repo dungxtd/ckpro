@@ -4,15 +4,18 @@ import { useEffect } from "react";
 import type { PermissionOption } from "@/tauri/api";
 
 /**
- * The agent asks to run a command: run it (Enter) or skip it (Escape). What
- * runs unasked is Settings' Tool access, never an "always" given here
+ * The agent asks to run a command, or to use one of the app's tools (`tool`,
+ * in words): run it (Enter) or skip it (Escape). What runs unasked is
+ * Settings' Tool access, never an "always" given here
  */
 export function PermissionCard({
 	command,
+	tool,
 	options,
 	onAnswer,
 }: {
 	command: string;
+	tool?: string | null;
 	options: PermissionOption[];
 	onAnswer: (option: string | null) => void;
 }) {
@@ -47,10 +50,16 @@ export function PermissionCard({
 	}, [once, reject, onAnswer]);
 	return (
 		<div className="flex flex-col gap-2 border-border border-t bg-card/60 p-3">
-			<span className="text-muted-foreground text-xs">Run on the task's host?</span>
-			<CodeBlock wrap className="max-h-32">
-				$ {command}
-			</CodeBlock>
+			{tool ? (
+				<span className="text-callout">{tool}?</span>
+			) : (
+				<>
+					<span className="text-muted-foreground text-xs">Run on the task's host?</span>
+					<CodeBlock wrap className="max-h-32">
+						$ {command}
+					</CodeBlock>
+				</>
+			)}
 			<div className="flex flex-wrap justify-end gap-1.5">
 				<Button size="push" variant="push" onClick={() => onAnswer(reject?.id ?? null)}>
 					Skip <kbd className="text-muted-foreground text-xs">esc</kbd>

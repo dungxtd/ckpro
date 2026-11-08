@@ -6,6 +6,7 @@ import { MenuCheck, menu, menuRow } from "@cktry/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@cktry/ui/components/popover";
 import { Spinner } from "@cktry/ui/components/spinner";
 import { Truncated } from "@cktry/ui/components/truncated";
+import { useFollow } from "@cktry/ui/hooks/use-follow";
 import { cn } from "@cktry/ui/lib/utils";
 import { Ellipsis, History, Plus, RotateCw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -91,7 +92,6 @@ export function AssistantPane({
 	// The agents offered: turned on in Settings and signed in
 	const claudeOn = coach.enabledAgents.includes("claude");
 	const agents = AGENTS.filter(a => coach.enabledAgents.includes(a.id) && coach.account?.signed_in);
-	const scroller = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		coachApi.status().then(setStatus);
@@ -100,13 +100,10 @@ export function AssistantPane({
 	useEffect(() => {
 		coach.load(question.id);
 	}, [coach.load, question.id]);
-	// Follow the answer as it is written, unless the reader scrolled up
+	// Follow the answer as it is written (a command's whole output arriving
+	// at once too), unless the reader scrolled up
 	const written = messages.reduce((n, m) => n + m.text.length + 1, 0);
-	useEffect(() => {
-		const el = scroller.current;
-		if (el && written > 0 && el.scrollHeight - el.scrollTop - el.clientHeight < 160)
-			el.scrollTop = el.scrollHeight;
-	}, [written]);
+	const scroller = useFollow<HTMLDivElement>(written, 160);
 
 	const send = (text: string) => {
 		const t = text.trim();
@@ -352,6 +349,7 @@ export function AssistantPane({
 			{coach.permission?.questionId === question.id ? (
 				<PermissionCard
 					command={coach.permission.command}
+					tool={coach.permission.tool}
 					options={coach.permission.options}
 					onAnswer={coach.permit}
 				/>
