@@ -124,11 +124,15 @@ pub async fn wait(timeout: std::time::Duration, waiting: impl FnOnce()) -> AppRe
 pub const COMPOSE_PROJECT: &str = "ckpro";
 
 /// Labels that put a container in the ckpro compose project as `service`.
+/// Compose (v5) counts a container as its own only with a config hash: without
+/// one, `docker compose -p ckpro down` and the managers' Delete find nothing.
+/// No compose file stands behind it, so the hash is a fixed one
 pub fn compose_labels(service: &str) -> Vec<(String, String)> {
     vec![
         ("com.docker.compose.project".into(), COMPOSE_PROJECT.into()),
         ("com.docker.compose.service".into(), service.into()),
         ("com.docker.compose.oneoff".into(), "False".into()),
+        ("com.docker.compose.config-hash".into(), COMPOSE_PROJECT.into()),
     ]
 }
 
