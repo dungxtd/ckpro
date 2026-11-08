@@ -30,6 +30,9 @@ const RETRY_MAX: Duration = Duration::from_secs(30);
 const PING_EVERY: Duration = Duration::from_secs(30);
 /// A safety net under the events: one container list now and then
 const RESYNC_EVERY: Duration = Duration::from_secs(300);
+/// How often what containers take is measured while the Environment page
+/// is open (one sample each, no streaming)
+const MEASURE_EVERY: Duration = Duration::from_secs(10);
 
 /// `resuming`: the clusters of the attempt the app resumes, which it starts
 /// itself (with its task host and desktop)
@@ -83,7 +86,7 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
             reconciled = true;
         }
         // Exams start without building anything
-        images.prepare(&docker, &infra, &activities);
+        images.prepare(&docker, &infra, &activities, &env);
         sync(&docker, &env, &kind, &guard, &mut watchers).await;
         // Events were missed while Docker was away: what changed meanwhile
         guard.recheck(&docker).await;
@@ -105,6 +108,8 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
         alive.tick().await;
         let mut resync = tokio::time::interval(RESYNC_EVERY);
         resync.tick().await;
+        // What each container takes, while the Environment page shows it
+        let mut measure = tokio::time::interval(MEASURE_EVERY);
         loop {
             tokio::select! {
                 event = events.next() => match event {
@@ -122,9 +127,13 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
                     }
                     _ => break,
                 },
-                _ = env.resync_requested() => sync(&docker, &env, &kind, &guard, &mut watchers).await,
+                // The page opening or closing asks this too: measured at once
+                _ = env.resync_requested() => {
+                    sync(&docker, &env, &kind, &guard, &mut watchers).await;
+                    publish_usage(&docker, &env, &kind).await;
+                }
                 // Retry, while Docker answers: what failed to prepare goes again
-                () = env.retry_requested() => images.prepare(&docker, &infra, &activities),
+                () = env.retry_requested() => images.prepare(&docker, &infra, &activities, &env),
                 // Events say what changed; this only notices an engine that
                 // stopped without closing the stream (a sleeping VM)
                 _ = alive.tick() => {
@@ -133,6 +142,7 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
                     }
                 }
                 _ = resync.tick() => sync(&docker, &env, &kind, &guard, &mut watchers).await,
+                _ = measure.tick() => publish_usage(&docker, &env, &kind).await,
             }
         }
         tracing::warn!("lost connection to docker");
@@ -181,23 +191,24 @@ async fn sync(
             "exited" => ContainerStatus::Stopped,
             other => ContainerStatus::Other { status: other.to_string() },
         };
-        // Readiness comes from the node watch; it is meaningless while stopped
+        // Readiness and version come from the node watch; readiness is
+        // meaningless while stopped, the version stays
+        let before = previous.clusters.iter().flat_map(|c| &c.nodes).find(|n| n.name == name);
         let ready = if container == ContainerStatus::Running {
-            previous
-                .clusters
-                .iter()
-                .flat_map(|c| &c.nodes)
-                .find(|n| n.name == name)
-                .map(|n| n.ready.clone())
-                .unwrap_or_default()
+            before.map(|n| n.ready.clone()).unwrap_or_default()
         } else {
             Readiness::Unknown
         };
+        let version = before.and_then(|n| n.version.clone());
         let role = if c.control_plane { NodeRole::ControlPlane } else { NodeRole::Worker };
-        let node = NodeState { name, role, container, ready };
+        let node = NodeState { name, role, container, ready, version };
         match clusters.iter_mut().find(|c| &c.name == cluster) {
             Some(existing) => existing.nodes.push(node),
-            None => clusters.push(ClusterState { name: cluster.clone(), nodes: vec![node] }),
+            None => clusters.push(ClusterState {
+                name: cluster.clone(),
+                nodes: vec![node],
+                guarded: guard.guards(cluster),
+            }),
         }
     }
     for cluster in &mut clusters {
@@ -235,6 +246,13 @@ async fn sync(
     }
 
     env.update(|s| s.clusters = clusters);
+}
+
+/// What the containers take, while the Environment page shows it; nothing
+/// otherwise
+async fn publish_usage(docker: &Docker, env: &Env, kind: &Kind) {
+    let usage = if env.watching_nodes() { Some(super::usage::measure(docker, &kind.owned_clusters()).await) } else { None };
+    env.update(|s| s.usage = usage);
 }
 
 fn stop_watchers(watchers: &mut HashMap<String, JoinHandle<()>>) {
@@ -292,9 +310,13 @@ fn set_readiness(env: &Env, cluster: &str, node: &Node) {
         },
         None => Readiness::Unknown,
     };
+    let version = node.status.as_ref().and_then(|s| s.node_info.as_ref()).map(|i| i.kubelet_version.clone());
     env.update(|s| {
         if let Some(n) = s.cluster_mut(cluster).and_then(|c| c.nodes.iter_mut().find(|n| n.name == name)) {
             n.ready = ready;
+            if version.is_some() {
+                n.version = version;
+            }
         }
     });
 }
@@ -310,14 +332,19 @@ const IMAGES_DONE: u8 = 2;
 
 impl Images {
     /// Prepare them in the background unless they are, or are being
-    fn prepare(self: &Arc<Self>, docker: &Docker, infra: &Arc<Infra>, activities: &Arc<Activities>) {
+    fn prepare(self: &Arc<Self>, docker: &Docker, infra: &Arc<Infra>, activities: &Arc<Activities>, env: &Arc<Env>) {
         use std::sync::atomic::Ordering::SeqCst;
         if self.0.compare_exchange(IMAGES_TO_DO, IMAGES_PREPARING, SeqCst, SeqCst).is_err() {
             return;
         }
-        let (this, docker, infra, activities) = (self.clone(), docker.clone(), infra.clone(), activities.clone());
+        let (this, docker, infra, activities, env) =
+            (self.clone(), docker.clone(), infra.clone(), activities.clone(), env.clone());
         tauri::async_runtime::spawn(async move {
-            let done = prepare_images(docker, infra, activities).await;
+            let missing = infra.missing_images(&docker).await;
+            env.update(|s| s.images_missing = missing);
+            let done = prepare_images(docker.clone(), infra.clone(), activities).await;
+            let missing = infra.missing_images(&docker).await;
+            env.update(|s| s.images_missing = missing);
             this.0.store(if done { IMAGES_DONE } else { IMAGES_TO_DO }, SeqCst);
         });
     }

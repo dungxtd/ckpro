@@ -11,3 +11,6 @@ export const noun = (n: number, word: string) => `${word}${n === 1 ? "" : "s"}`;
 
 /** Megabytes as gigabytes, one decimal: `2.1 GB` */
 export const gb = (mb: number) => `${(mb / 1024).toFixed(1)} GB`;
+
+/** Memory a container takes: megabytes under 1 GB (`48 MB`), else `gb` */
+export const memory = (mb: number) => (mb < 1024 ? `${Math.round(mb)} MB` : gb(mb));

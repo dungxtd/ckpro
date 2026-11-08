@@ -12,6 +12,34 @@ pub struct EnvState {
     /// app data dir); other kind clusters on the machine are left alone
     pub clusters: Vec<ClusterState>,
     pub issues: Vec<Issue>,
+    /// What each running container takes, measured while the Environment
+    /// page is open (none otherwise, or before the first measurement)
+    #[serde(default)]
+    pub usage: Option<Vec<ContainerUse>>,
+    /// The exam images not here yet (`Infra::missing_images`)
+    #[serde(default)]
+    pub images_missing: Vec<String>,
+}
+
+/// A running container and the memory it takes now
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct ContainerUse {
+    pub name: String,
+    pub owner: Owner,
+    /// Memory in use (page cache left out), in MB
+    pub mb: u32,
+}
+
+/// Whose a container is
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Owner {
+    /// A node of one of ckpro's clusters
+    Cluster { cluster: String },
+    /// One of ckpro's own services (task host, desktop, mirror)
+    Service { service: String },
+    /// Not ckpro's; `cluster` when it is a node of another kind cluster
+    Other { cluster: Option<String> },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -27,6 +55,9 @@ pub enum DockerState {
 pub struct ClusterState {
     pub name: String,
     pub nodes: Vec<NodeState>,
+    /// A running attempt's: the guard keeps it as set up
+    #[serde(default)]
+    pub guarded: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -36,6 +67,9 @@ pub struct NodeState {
     pub role: NodeRole,
     pub container: ContainerStatus,
     pub ready: Readiness,
+    /// The kubelet's version (`v1.35.8`), once the node was watched
+    #[serde(default)]
+    pub version: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, specta::Type)]

@@ -7,7 +7,7 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	/**  Current environment; later changes arrive as `EnvChanged` events. */
-	envState: () => __TAURI_INVOKE<EnvState>("env_state"),
+	envState: () => __TAURI_INVOKE<EnvState_Serialize>("env_state"),
 	/**  The Create conversations, latest first */
 	studioSessions: () => typedError<StudioSessionRow[], AppError>(__TAURI_INVOKE("studio_sessions")),
 	/**  A new Create conversation */
@@ -187,7 +187,7 @@ export const commands = {
 export const events = {
 	activityChanged: makeEvent<ActivityChanged_Serialize, ActivityChanged_Deserialize>("activity-changed"),
 	activityLog: makeEvent<ActivityLog, ActivityLog>("activity-log"),
-	envChanged: makeEvent<EnvChanged, EnvChanged>("env-changed"),
+	envChanged: makeEvent<EnvChanged_Serialize, EnvChanged_Deserialize>("env-changed"),
 	examChanged: makeEvent<ExamChanged_Serialize, ExamChanged_Deserialize>("exam-changed"),
 	guardNotice: makeEvent<GuardNotice, GuardNotice>("guard-notice"),
 	studioDraft: makeEvent<StudioDraft_Serialize, StudioDraft_Deserialize>("studio-draft"),
@@ -419,9 +419,20 @@ export type CheckResult = {
 	detail: string,
 };
 
-export type ClusterState = {
+export type ClusterState = ClusterState_Serialize | ClusterState_Deserialize;
+
+export type ClusterState_Deserialize = {
 	name: string,
-	nodes: NodeState[],
+	nodes: NodeState_Deserialize[],
+	/**  A running attempt's: the guard keeps it as set up */
+	guarded?: boolean,
+};
+
+export type ClusterState_Serialize = {
+	name: string,
+	nodes: NodeState_Serialize[],
+	/**  A running attempt's: the guard keeps it as set up */
+	guarded: boolean,
 };
 
 /**  What goes with a question besides the task (the panel's context chips) */
@@ -563,6 +574,25 @@ export type ContainerStatus = { state: "running" } | { state: "stopped" } |
 /**  created, restarting, paused, dead, ... */
 { state: "other"; status: string };
 
+/**  A running container and the memory it takes now */
+export type ContainerUse = ContainerUse_Serialize | ContainerUse_Deserialize;
+
+/**  A running container and the memory it takes now */
+export type ContainerUse_Deserialize = {
+	name: string,
+	owner: Owner_Deserialize,
+	/**  Memory in use (page cache left out), in MB */
+	mb: number,
+};
+
+/**  A running container and the memory it takes now */
+export type ContainerUse_Serialize = {
+	name: string,
+	owner: Owner_Serialize,
+	/**  Memory in use (page cache left out), in MB */
+	mb: number,
+};
+
 /**  How much of the model's context a session uses (`usage_update`) */
 export type ContextUsage = {
 	used: number,
@@ -655,16 +685,48 @@ export type DraftStatus =
 { state: "failed"; problems: string[] };
 
 /**  Pushed to the UI on every environment change. */
-export type EnvChanged = EnvState;
+export type EnvChanged = EnvChanged_Serialize | EnvChanged_Deserialize;
 
-export type EnvState = {
+/**  Pushed to the UI on every environment change. */
+export type EnvChanged_Deserialize = EnvState_Deserialize;
+
+/**  Pushed to the UI on every environment change. */
+export type EnvChanged_Serialize = EnvState_Serialize;
+
+export type EnvState = EnvState_Serialize | EnvState_Deserialize;
+
+export type EnvState_Deserialize = {
 	docker: DockerState,
 	/**
 	 *  Clusters created by this app (kind clusters with a kubeconfig in the
 	 *  app data dir); other kind clusters on the machine are left alone
 	 */
-	clusters: ClusterState[],
+	clusters: ClusterState_Deserialize[],
 	issues: Issue[],
+	/**
+	 *  What each running container takes, measured while the Environment
+	 *  page is open (none otherwise, or before the first measurement)
+	 */
+	usage?: ContainerUse_Deserialize[] | null,
+	/**  The exam images not here yet (`Infra::missing_images`) */
+	images_missing?: string[],
+};
+
+export type EnvState_Serialize = {
+	docker: DockerState,
+	/**
+	 *  Clusters created by this app (kind clusters with a kubeconfig in the
+	 *  app data dir); other kind clusters on the machine are left alone
+	 */
+	clusters: ClusterState_Serialize[],
+	issues: Issue[],
+	/**
+	 *  What each running container takes, measured while the Environment
+	 *  page is open (none otherwise, or before the first measurement)
+	 */
+	usage: ContainerUse_Serialize[] | null,
+	/**  The exam images not here yet (`Infra::missing_images`) */
+	images_missing: string[],
 };
 
 /**  Pushed to the UI on every exam state change. */
@@ -1023,13 +1085,48 @@ export type NewQuestion_Serialize = {
 
 export type NodeRole = "control_plane" | "worker";
 
-export type NodeState = {
+export type NodeState = NodeState_Serialize | NodeState_Deserialize;
+
+export type NodeState_Deserialize = {
 	/**  Container name, which kind also uses as the Kubernetes node name */
 	name: string,
 	role: NodeRole,
 	container: ContainerStatus,
 	ready: Readiness,
+	/**  The kubelet's version (`v1.35.8`), once the node was watched */
+	version?: string | null,
 };
+
+export type NodeState_Serialize = {
+	/**  Container name, which kind also uses as the Kubernetes node name */
+	name: string,
+	role: NodeRole,
+	container: ContainerStatus,
+	ready: Readiness,
+	/**  The kubelet's version (`v1.35.8`), once the node was watched */
+	version: string | null,
+};
+
+/**  Whose a container is */
+export type Owner = Owner_Serialize | Owner_Deserialize;
+
+/**  Whose a container is */
+export type Owner_Deserialize = 
+/**  A node of one of ckpro's clusters */
+{ kind: "cluster"; cluster: string } | 
+/**  One of ckpro's own services (task host, desktop, mirror) */
+{ kind: "service"; service: string } | 
+/**  Not ckpro's; `cluster` when it is a node of another kind cluster */
+{ kind: "other"; cluster?: string | null };
+
+/**  Whose a container is */
+export type Owner_Serialize = 
+/**  A node of one of ckpro's clusters */
+{ kind: "cluster"; cluster: string } | 
+/**  One of ckpro's own services (task host, desktop, mirror) */
+{ kind: "service"; service: string } | 
+/**  Not ckpro's; `cluster` when it is a node of another kind cluster */
+{ kind: "other"; cluster: string | null };
 
 /**
  *  One way to answer a permission request (ACP's options: allow once,
