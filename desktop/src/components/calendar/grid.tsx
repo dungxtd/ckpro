@@ -174,11 +174,20 @@ function Day({
 		Math.max(0, room - (examDay ? 1 : 0) - shownPlans.length)
 	);
 	const size = grown ? "text-callout" : "text-2xs";
+	// The day's exam picker is open: the description would cover it
+	const [picking, setPicking] = useState(false);
 
 	return (
-		// Closed while a plan is dragged: the grid is the drop target then
-		<HoverCard open={drag.plan ? false : undefined}>
-			<HoverCardTrigger asChild>
+		// Closed while a plan is dragged (the grid is the drop target then) or
+		// while the day's picker is open
+		<HoverCard open={drag.plan || picking ? false : undefined}>
+			<HoverCardTrigger
+				asChild
+				// Opened by the day itself taking focus (the keyboard), not by a
+				// button in it clicked (+, a plan's tag or grip): that would keep
+				// it open until the focus moves on
+				onFocus={e => e.target !== e.currentTarget && e.preventDefault()}
+			>
 				{/* biome-ignore lint/a11y/useSemanticElements: a day holds buttons of its own */}
 				<div
 					role="button"
@@ -224,7 +233,11 @@ function Day({
 							)}
 							{day.getDate()}
 						</span>
-						<ExamPicker label={`Plan an exam, ${k}`} onPick={id => actions.onAdd(k, id)}>
+						<ExamPicker
+							label={`Plan an exam, ${k}`}
+							onPick={id => actions.onAdd(k, id)}
+							onOpenChange={setPicking}
+						>
 							<button
 								type="button"
 								aria-label={`Plan an exam on ${k}`}

@@ -14,9 +14,12 @@ import { shortTitle } from "@/titles";
 export function ExamPicker({
 	label,
 	onPick,
+	onOpenChange,
 	children,
 }: {
 	label: string;
+	/** Told when it opens or closes */
+	onOpenChange?: (open: boolean) => void;
 	onPick: (examId: string) => void;
 	children: ReactNode;
 }) {
@@ -24,6 +27,7 @@ export function ExamPicker({
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const field = useRef<HTMLInputElement>(null);
+	const box = useRef<HTMLDivElement>(null);
 	const q = query.trim().toLowerCase();
 	const matches = catalog.filter(e => e.title.toLowerCase().includes(q));
 	const certs = [...new Set(matches.map(e => e.certification))];
@@ -37,16 +41,21 @@ export function ExamPicker({
 			open={open}
 			onOpenChange={o => {
 				setOpen(o);
+				onOpenChange?.(o);
 				if (!o) setQuery("");
 			}}
 		>
 			<PopoverTrigger asChild>{children}</PopoverTrigger>
 			<PopoverContent
-				className="w-72 p-2"
-				// Opened to be typed in: the field has the focus
+				ref={box}
+				className="flex w-72 flex-col p-2"
+				// Opened to be typed in: the field has the focus. It keeps the
+				// height it opened with: shorter as it narrows, it would move to
+				// the other side of the day
 				onOpenAutoFocus={e => {
 					e.preventDefault();
 					field.current?.focus();
+					if (box.current) box.current.style.minHeight = `${box.current.offsetHeight}px`;
 				}}
 			>
 				<Input
@@ -82,9 +91,12 @@ export function ExamPicker({
 				{!matches.length && (
 					<p className="px-2 py-2 text-caption text-muted-foreground">No exam has that.</p>
 				)}
-				<p className="mt-1 border-border border-t px-2 pt-1.5 text-2xs text-muted-foreground">
-					Planned as practice; its tag changes that
-				</p>
+				{/* At the foot, however few exams match */}
+				<div className="mt-auto pt-1">
+					<p className="border-border border-t px-2 pt-1.5 text-2xs text-muted-foreground">
+						Planned as practice; its tag changes that
+					</p>
+				</div>
 			</PopoverContent>
 		</Popover>
 	);
