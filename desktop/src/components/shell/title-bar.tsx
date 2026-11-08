@@ -53,7 +53,8 @@ export function TitleBar({
 				onUnfold={onUnfold}
 				onSearch={onSearch}
 			/>
-			<div ref={end} className="flex items-center gap-2">
+			{/* As tall as the bar: Windows' buttons fill it */}
+			<div ref={end} className="flex items-center gap-2 self-stretch">
 				<ActivityChip compact={folded} />
 				{/* Windows' buttons at the window's corner: the inspector's, when one shows */}
 				{!mac && !inspecting && <WindowControls />}
