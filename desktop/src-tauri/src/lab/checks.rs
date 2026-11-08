@@ -67,9 +67,16 @@ pub async fn run_script_tail(
     Ok((out.exit_code, text))
 }
 
+/// What a failed check says: its last line, without the status mark many
+/// scripts start it with (the interface marks it failed already)
+fn detail(output: &str) -> String {
+    let line = output.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim();
+    line.trim_start_matches(['❌', '✗', '✘', '✕', '⚠', '\u{fe0f}', '✅', '✔', ' ']).to_string()
+}
+
 pub async fn run_check(docker: &Docker, jumphost: &str, cluster: &str, check: &Check) -> AppResult<CheckResult> {
     let (exit, output) = run_script(docker, jumphost, cluster, &script(&check.kind), CHECK_TIMEOUT_SECS).await?;
-    let last_line = output.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim().to_string();
+    let last_line = detail(&output);
     Ok(CheckResult {
         name: check.name.clone(),
         weight: check.weight,
@@ -222,6 +229,13 @@ fn can_i(c: &CanICheck) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_failed_checks_detail_is_its_last_line_without_a_mark() {
+        assert_eq!(detail("checking\n❌ Pod 'web' not found\n\n"), "Pod 'web' not found");
+        assert_eq!(detail("⚠️  PVC is Pending"), "PVC is Pending");
+        assert_eq!(detail("deployment 'web' not found"), "deployment 'web' not found");
+    }
 
     /// The script with a stand-in kubectl that prints `value`
     fn run(script: &str, value: &str) -> (bool, String) {

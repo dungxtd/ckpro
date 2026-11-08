@@ -101,7 +101,7 @@ export function TopBar({
 				<ConfirmDialog
 					cancel="Keep Working"
 					title={practice ? "Finish the practice?" : "End the exam?"}
-					description="Your work is graded now and the environment is removed. You cannot come back to it."
+					description="Your work is graded now and you cannot change it. Its clusters stay while you review the result, until you close it."
 					action={practice ? "Finish" : "End exam"}
 					onConfirm={onFinish}
 				>

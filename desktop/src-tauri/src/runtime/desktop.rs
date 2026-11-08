@@ -33,7 +33,15 @@ pub struct DesktopSession {
 
 /// A new desktop for an attempt: Firefox allows `allowed` (URL prefixes) and
 /// `ssh <host>` reaches the task host `jumphost` for each cluster in `hosts`.
-pub async fn start(docker: &Docker, name: &str, allowed: &[String], hosts: &[String], jumphost: &str) -> AppResult<()> {
+/// Its clock reads the candidate's own time (`offset_minutes` east of UTC).
+pub async fn start(
+    docker: &Docker,
+    name: &str,
+    allowed: &[String],
+    hosts: &[String],
+    jumphost: &str,
+    offset_minutes: i32,
+) -> AppResult<()> {
     remove(docker, name).await?;
     let password: String = {
         use rand::distr::{Alphanumeric, SampleString};
@@ -42,7 +50,7 @@ pub async fn start(docker: &Docker, name: &str, allowed: &[String], hosts: &[Str
     let config = ContainerCreateBody {
         image: Some(DESKTOP_IMAGE.tag()),
         hostname: Some("base".into()),
-        env: Some(vec![format!("VNC_PASSWORD={password}")]),
+        env: Some(vec![format!("VNC_PASSWORD={password}"), format!("TZ={}", posix_tz(offset_minutes))]),
         exposed_ports: Some(vec![VNC_PORT.into()]),
         labels: Some(compose_labels(name).into_iter().collect()),
         host_config: Some(HostConfig {
@@ -71,6 +79,17 @@ pub async fn start(docker: &Docker, name: &str, allowed: &[String], hosts: &[Str
     upload(docker, name, &files).await?;
     docker.start_container(name, None::<bollard::query_parameters::StartContainerOptions>).await?;
     Ok(())
+}
+
+/// A fixed offset as POSIX `TZ` (its sign west of UTC: UTC+7 is `UTC-7`),
+/// which needs no time zone database in the image
+fn posix_tz(offset_minutes: i32) -> String {
+    let west = -offset_minutes;
+    let (sign, minutes) = if west < 0 { ("-", -west) } else { ("", west) };
+    match minutes % 60 {
+        0 => format!("UTC{sign}{}", minutes / 60),
+        m => format!("UTC{sign}{}:{m:02}", minutes / 60),
+    }
 }
 
 /// How to reach the running desktop, if there is one. Read from Docker each
@@ -250,5 +269,18 @@ mod url_tests {
         assert!(!allows("https://gateway-api.sigs.k8s.io/", "https://gateway-api.sigs.k8s.io.evil.tld/"));
         assert!(!allows("https://kubernetes.io/docs", "https://kubernetes.io/docsevil"));
         assert!(!allows("https://kubernetes.io/docs", "http://kubernetes.io/docs"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::posix_tz;
+
+    #[test]
+    fn the_desktop_clock_takes_the_candidates_offset() {
+        assert_eq!(posix_tz(420), "UTC-7"); // Hanoi
+        assert_eq!(posix_tz(330), "UTC-5:30"); // India
+        assert_eq!(posix_tz(-300), "UTC5"); // New York
+        assert_eq!(posix_tz(0), "UTC0");
     }
 }
