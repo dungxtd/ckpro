@@ -6,6 +6,7 @@ mod error;
 mod former;
 mod lab;
 mod observability;
+mod platform;
 mod runtime;
 mod store;
 mod studio;
@@ -164,11 +165,7 @@ pub fn data_dir() -> std::path::PathBuf {
     // What the app kept under its former name comes along, the first time
     former::move_data(&dir);
     let _ = std::fs::create_dir_all(&dir);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
-    }
+    let _ = platform::make_private(&dir);
     dir
 }
 
@@ -200,8 +197,12 @@ pub(crate) fn load_pack(resource_dir: Option<std::path::PathBuf>) -> lab::load::
     })
 }
 
-/// CLI subcommands run headless; otherwise start the app.
+/// kind's `docker` stand-in, or CLI subcommands, run headless; otherwise
+/// start the app.
 pub fn main() -> std::process::ExitCode {
+    if let Some(code) = cluster::docker_shim::run_if_started_as_docker() {
+        return code;
+    }
     let args: Vec<String> = std::env::args().collect();
     if cli::is_cli(&args) {
         return cli::main();
@@ -221,6 +222,8 @@ pub fn run() {
     tauri::Builder::default()
         // The window opens where and as large as it was left
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        // Links open in the system browser (`open_in_browser`)
+        .plugin(tauri_plugin_opener::init())
         .manage(cluster::jobs::Jobs::default())
         .manage(ai::Coach::new())
         .invoke_handler({

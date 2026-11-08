@@ -237,14 +237,15 @@ mod tests {
         assert_eq!(detail("deployment 'web' not found"), "deployment 'web' not found");
     }
 
-    /// The script with a stand-in kubectl that prints `value`
+    /// The script with a stand-in kubectl that prints `value` (a Unix shell:
+    /// the checks run on the task host)
+    #[cfg(unix)]
     fn run(script: &str, value: &str) -> (bool, String) {
         let dir = std::env::temp_dir().join(format!("cktry-checks-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let kubectl = dir.join("kubectl");
         std::fs::write(&kubectl, format!("#!/bin/sh\nprintf '%s' {}\n", quote(value))).unwrap();
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&kubectl, std::fs::Permissions::from_mode(0o755)).unwrap();
+        crate::platform::make_executable(&kubectl).unwrap();
         let out = std::process::Command::new("bash")
             .args(["-c", script])
             .env("PATH", format!("{}:/usr/bin:/bin", dir.display()))
@@ -254,6 +255,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn messages_are_text_never_code() {
         let check = |expect| JsonpathCheck {
             resource: "deploy/web".into(),

@@ -43,22 +43,8 @@ pub struct Connection {
     /// Gone once the agent exits
     alive: Arc<std::sync::atomic::AtomicBool>,
     _child: Mutex<Child>,
-    /// The adapter's process group: npx, node and the Claude CLI under it
-    group: Option<u32>,
-}
-
-impl Drop for Connection {
-    /// `kill_on_drop` reaches only npx; the adapter and the CLI it started
-    /// are in the same group, and go with it
-    fn drop(&mut self) {
-        #[cfg(unix)]
-        if let Some(group) = self.group.and_then(|g| i32::try_from(g).ok()) {
-            // SAFETY: a plain signal to a group this connection started
-            unsafe {
-                libc::killpg(group, libc::SIGKILL);
-            }
-        }
-    }
+    /// npx, node and the Claude CLI under it: stopped with the connection
+    _tree: crate::platform::ProcessTree,
 }
 
 /// Takes a request's entry out of `pending` however the request ends (a
@@ -75,16 +61,9 @@ impl Connection {
     /// Start the agent (`command`) and initialize the connection (no client
     /// capabilities).
     pub async fn spawn(mut command: Command) -> AppResult<Arc<Self>> {
-        command
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true);
-        // A group of its own, so the whole adapter can be stopped
-        #[cfg(unix)]
-        command.process_group(0);
-        let mut child = command.spawn().map_err(|e| AppError::assistant(format!("starting the agent: {e}")))?;
-        let group = if cfg!(unix) { child.id() } else { None };
+        command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        let (mut child, tree) = crate::platform::ProcessTree::spawn(&mut command)
+            .map_err(|e| AppError::assistant(format!("starting the agent: {e}")))?;
         let stdin = child.stdin.take().expect("piped");
         let stdout = child.stdout.take().expect("piped");
         let stderr = child.stderr.take().expect("piped");
@@ -169,7 +148,7 @@ impl Connection {
             subscribers,
             alive,
             _child: Mutex::new(child),
-            group,
+            _tree: tree,
         });
         // Replies to the agent's requests share stdin with ours
         {

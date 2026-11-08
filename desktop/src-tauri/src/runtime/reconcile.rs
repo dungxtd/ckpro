@@ -92,23 +92,7 @@ pub async fn repair(docker: &Docker, cluster: &str) -> AppResult<()> {
 /// starts them again. Handed to a detached `docker stop` so quitting is
 /// instant (verify runs from the CLI are not touched).
 pub fn on_exit(kind: &Kind) {
-    let clusters = kind.owned_clusters();
-    let script = format!(
-        "{{ for c in \"$@\"; do docker ps -q --filter label=io.x-k8s.kind.cluster=$c; done; \
-         echo {mirror}; echo {jumphost}; echo {desktop}; }} | xargs docker stop -t 5 >/dev/null 2>&1",
-        mirror = super::infra::MIRROR,
-        jumphost = super::jumphost::APP_NAME,
-        desktop = super::desktop::NAME,
-    );
-    let spawned = std::process::Command::new("sh")
-        .args(["-c", &script, "sh"])
-        .args(&clusters)
-        .env("PATH", super::docker::cli_path())
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn();
-    if let Err(e) = spawned {
-        tracing::warn!(error = %e, "stopping clusters on exit");
-    }
+    let mut containers = super::docker::cluster_containers_now(&kind.owned_clusters(), false);
+    containers.extend([super::infra::MIRROR, super::jumphost::APP_NAME, super::desktop::NAME].map(str::to_string));
+    super::docker::detached(["stop", "-t", "5"].into_iter().map(str::to_string).chain(containers));
 }

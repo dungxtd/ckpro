@@ -21,6 +21,15 @@ Architecture: `docs/ARCHITECTURE.md`.
 - **Rust owns the truth**; the interface renders events and never polls.
 - **Errors are typed** (`AppError`) where they happen; the interface branches
   on `code`.
+- **One place knows the system**: what differs between macOS, Linux and
+  Windows is a `Platform` method (`src-tauri/src/platform/`), implemented
+  per system; no `cfg` on the system outside it (tests that need a Unix
+  shell aside).
+- **Programs, not shells**: every program the app starts goes through
+  `platform::command`, its arguments as a list, never a shell line; one
+  that starts others runs in a `platform::ProcessTree`, so they all stop
+  together. What a script would do on the host is Rust (the `docker`
+  stand-in kind runs is the app itself).
 
 ## Interface rules
 

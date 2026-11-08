@@ -7,6 +7,7 @@
 use crate::sync::{MutexExt, RwLockExt};
 use super::acp::{Connection, Update};
 use crate::error::{AppError, AppResult};
+use crate::platform;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
@@ -38,42 +39,47 @@ pub struct ContextUsage {
     pub size: u32,
 }
 
-/// Where npx is: an app started from the Dock or Finder does not get the
-/// shell's PATH, so the usual Node install locations are tried too
-pub fn detect_npx() -> Option<PathBuf> {
-    let home = dirs::home_dir().unwrap_or_default();
-    let from_path = std::env::var_os("PATH")
-        .map(|path| std::env::split_paths(&path).map(|dir| dir.join("npx")).collect::<Vec<_>>())
-        .unwrap_or_default();
-    let mut nvm: Vec<PathBuf> = std::fs::read_dir(home.join(".nvm/versions/node"))
-        .map(|d| d.flatten().map(|e| e.path().join("bin/npx")).collect())
-        .unwrap_or_default();
-    nvm.sort();
-    from_path
-        .into_iter()
-        .chain([
-            PathBuf::from("/opt/homebrew/bin/npx"),
-            PathBuf::from("/usr/local/bin/npx"),
-            home.join(".volta/bin/npx"),
-            home.join(".local/bin/npx"),
-        ])
-        .chain(nvm.into_iter().rev())
-        .find(|p| p.is_file())
+/// PATH, then where installers put programs: an app started from the Dock
+/// or Finder does not get the shell's PATH
+fn program_dirs() -> Vec<PathBuf> {
+    let mut dirs = platform::path_dirs();
+    dirs.extend(platform::program_dirs());
+    dirs
 }
-/// An installed Claude CLI (`claude`), where installers put it
+
+/// How npx runs here: Node.js with npm's npx script, started directly on
+/// every system (on Windows `npx` itself is a `.cmd`, which needs cmd.exe);
+/// else an `npx` program (Volta's)
+#[derive(Clone, Debug)]
+pub struct Npx {
+    /// node and the script, or npx alone
+    argv: Vec<PathBuf>,
+}
+
+impl Npx {
+    /// Where node (or npx) is, for the PATH of what npx starts
+    fn dir(&self) -> Option<&std::path::Path> {
+        self.argv[0].parent()
+    }
+}
+
+pub fn detect_npx() -> Option<Npx> {
+    let dirs = program_dirs();
+    let node_file = platform::program_file("node");
+    let with_script = dirs.iter().map(|dir| dir.join(&node_file)).filter(|node| node.is_file()).find_map(|node| {
+        // The node found, or the one it links to (Homebrew's, nvm's)
+        let real = std::fs::canonicalize(&node).ok();
+        [Some(node.clone()), real].into_iter().flatten().find_map(|node| {
+            let script = platform::npx_script(node.parent()?);
+            script.is_file().then(|| Npx { argv: vec![node, script] })
+        })
+    });
+    with_script.or_else(|| platform::find_program(&dirs, "npx").map(|npx| Npx { argv: vec![npx] }))
+}
+
+/// An installed Claude CLI, as the adapter can start it (without a shell)
 pub fn detect_claude() -> Option<PathBuf> {
-    let home = dirs::home_dir().unwrap_or_default();
-    std::env::var_os("PATH")
-        .map(|path| std::env::split_paths(&path).map(|dir| dir.join("claude")).collect::<Vec<_>>())
-        .unwrap_or_default()
-        .into_iter()
-        .chain([
-            home.join(".claude/local/claude"),
-            home.join(".local/bin/claude"),
-            PathBuf::from("/opt/homebrew/bin/claude"),
-            PathBuf::from("/usr/local/bin/claude"),
-        ])
-        .find(|p| p.is_file())
+    platform::find_program(&program_dirs(), "claude")
 }
 
 /// What this Mac offers the assistant (Settings)
@@ -230,21 +236,43 @@ impl Agent {
         changed
     }
 
-    /// The Claude CLI to use on the Mac: the one set, else the one found
-    fn mac_claude(&self) -> Option<PathBuf> {
+    /// The Claude CLI to use here: the one set, else the one found; an error
+    /// when it cannot be used
+    fn mac_claude(&self) -> AppResult<PathBuf> {
         let set = self.config.read_ok().claude_path.clone();
-        match set {
-            Some(path) => Some(PathBuf::from(path)).filter(|p| p.is_file()),
-            None => detect_claude(),
+        let Some(path) = set else {
+            return detect_claude().ok_or_else(|| {
+                AppError::assistant("The Claude CLI was not found: install Claude Code, or set its path in Settings > AI")
+            });
+        };
+        let path = PathBuf::from(path);
+        if !path.is_file() {
+            return Err(AppError::assistant(format!("The Claude CLI set in Settings > AI is not there: {}", path.display())));
         }
+        // The adapter starts the CLI without a shell, which a `claude.cmd` needs
+        if !platform::is_program(&path) {
+            return Err(AppError::assistant(format!(
+                "The Claude CLI set in Settings > AI must be claude.exe (the native install), not {}",
+                path.display()
+            )));
+        }
+        Ok(path)
+    }
+
+    /// npx and the Claude CLI, as found
+    fn found(&self) -> (AppResult<PathBuf>, Option<Npx>) {
+        (self.mac_claude(), detect_npx())
     }
 
     /// npx and the Claude CLI, or why the assistant cannot run
-    fn tools(&self) -> AppResult<(PathBuf, PathBuf)> {
-        let claude = self.mac_claude().ok_or_else(|| {
-            AppError::assistant("The Claude CLI was not found: install Claude Code, or set its path in Settings > AI")
-        })?;
-        let npx = detect_npx().ok_or_else(|| AppError::assistant("Node.js was not found: the assistant runs Claude through npx (nodejs.org)"))?;
+    fn tools(&self) -> AppResult<(Npx, PathBuf)> {
+        let (claude, npx) = self.found();
+        Self::usable(claude, npx)
+    }
+
+    fn usable(claude: AppResult<PathBuf>, npx: Option<Npx>) -> AppResult<(Npx, PathBuf)> {
+        let claude = claude?;
+        let npx = npx.ok_or_else(|| AppError::assistant("Node.js was not found: the assistant runs Claude through npx (nodejs.org)"))?;
         Ok((npx, claude))
     }
 
@@ -253,12 +281,13 @@ impl Agent {
         self.tools().is_ok()
     }
 
-    /// What this Mac offers the assistant
+    /// What this machine offers the assistant (each looked for once)
     pub async fn info(&self) -> RuntimeInfo {
-        let claude = self.mac_claude();
+        let (found, npx) = self.found();
+        let claude = found.as_ref().ok().cloned();
         let claude_version = match &claude {
             Some(path) => {
-                let run = Command::new(path).arg("--version").kill_on_drop(true).output();
+                let run = platform::command(path).arg("--version").kill_on_drop(true).output();
                 tokio::time::timeout(std::time::Duration::from_secs(10), run)
                     .await
                     .ok()
@@ -268,11 +297,12 @@ impl Agent {
             }
             None => None,
         };
+        let node = npx.as_ref().map(|npx| npx.argv[0].display().to_string());
         RuntimeInfo {
             claude: claude.map(|p| p.display().to_string()),
             claude_version,
-            node: detect_npx().map(|p| p.display().to_string()),
-            problem: self.tools().err().map(|e| e.to_string()),
+            node,
+            problem: Self::usable(found, npx).err().map(|e| e.to_string()),
         }
     }
 
@@ -288,19 +318,17 @@ impl Agent {
     /// when `in_terminal` (an interactive login)
     pub(super) async fn adapter(&self, args: &[&str], in_terminal: bool) -> AppResult<Command> {
         let telemetry = self.config.read_ok().telemetry;
-        let quiet: &[(&str, &str)] = if telemetry { &[] } else { &[("DISABLE_TELEMETRY", "1"), ("DISABLE_ERROR_REPORTING", "1")] };
+        let no_telemetry: &[(&str, &str)] = if telemetry { &[] } else { &[("DISABLE_TELEMETRY", "1"), ("DISABLE_ERROR_REPORTING", "1")] };
         let (npx, claude) = self.tools()?;
-        let mut argv: Vec<std::ffi::OsString> = vec![npx.clone().into(), "-y".into(), ADAPTER.into()];
+        let mut argv: Vec<std::ffi::OsString> = npx.argv.iter().map(Into::into).collect();
+        argv.extend(["-y".into(), ADAPTER.into()]);
         argv.extend(args.iter().map(Into::into));
-        let mut command = if in_terminal { super::account::in_terminal(&argv) } else { Command::new(&argv[0]) };
+        let mut command = if in_terminal { platform::in_terminal(&argv) } else { platform::command(&argv[0]) };
         if !in_terminal {
             command.args(&argv[1..]);
         }
-        // npx and the adapter are Node scripts: node must be on their PATH
-        let path = std::env::join_paths(
-            npx.parent().map(PathBuf::from).into_iter().chain(std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect::<Vec<_>>()).unwrap_or_default()),
-        )
-        .unwrap_or_default();
+        // The adapter is a Node script npx starts: node must be on its PATH
+        let path = std::env::join_paths(npx.dir().map(PathBuf::from).into_iter().chain(platform::path_dirs())).unwrap_or_default();
         command
             .current_dir(self.session_cwd())
             // The candidate's Claude login, not an API key that happens to be set
@@ -308,7 +336,7 @@ impl Agent {
             .env_remove("ANTHROPIC_AUTH_TOKEN")
             .env("PATH", path)
             .env("CLAUDE_CODE_EXECUTABLE", claude)
-            .envs(quiet.iter().copied())
+            .envs(no_telemetry.iter().copied())
             .kill_on_drop(true);
         Ok(command)
     }
@@ -554,6 +582,16 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// This machine's Claude CLI and npx, as the app finds them (needs both
+    /// installed)
+    #[test]
+    #[ignore]
+    fn finds_the_installed_tools() {
+        assert!(detect_claude().is_some(), "claude not found");
+        assert!(detect_npx().is_some(), "npx not found");
+        println!("{:?} {:?}", detect_claude(), detect_npx());
+    }
 
     /// The real adapter with cktry's agent tools, served as the app serves
     /// them (needs Node and a Claude login): it asks before running a

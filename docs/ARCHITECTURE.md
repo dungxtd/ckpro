@@ -22,7 +22,9 @@ desktop/
     kit/gallery.tsx       the design system, live (desktop/kit.html)
   src-tauri/src/
     runtime/              the environment: Docker, live state, infra, guard, activities
-    cluster/              kind clusters: create, repair, delete (one job per cluster)
+    cluster/              kind clusters: create, repair, delete (one job per cluster);
+                          docker_shim.rs, the app started as the `docker` kind
+                          runs, which labels its node containers
     lab/                  packs, checks, lint, verify, the candidate's own pack (mine)
       exam/               the exam engine: draw, prepare, grade, plans, readiness
     studio/               Create: the draft exam, its script rules, proofs, save
@@ -30,6 +32,12 @@ desktop/
                           login, MCP tools (coach and Create), policy
     store/                SQLite: schema, attempts and history, settings, plans,
                           coach and Create conversations
+    platform/             what differs by system, behind one `Platform` trait
+                          (macos.rs, linux.rs, windows.rs; unix.rs shared):
+                          finding programs, starting them without a shell or a
+                          console window, process trees (a process group, a job
+                          object), links, file modes. Nothing else branches on
+                          the system
     commands.rs           the commands the interface calls
     lib.rs                setup, managed state, events
     error.rs              AppError, the typed error contract

@@ -6,7 +6,6 @@ use crate::runtime::{docker, infra};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 
 const KIND_VERSION: &str = "v0.33.0";
 
@@ -48,9 +47,10 @@ impl Kind {
     pub async fn all_clusters(&self) -> AppResult<Vec<String>> {
         // kind execs in the nodes (docker exec): cktry's own, not outside access
         let _own = crate::runtime::guard::own_operation();
-        let output = Command::new(self.binary().await?)
+        let output = self
+            .kind()
+            .await?
             .args(["get", "clusters"])
-            .env("PATH", self.kind_path()?)
             .output()
             .await
             .map_err(|e| AppError::cluster(format!("starting kind: {e}")))?;
@@ -65,7 +65,7 @@ impl Kind {
 
     /// Path to the pinned kind binary, downloaded on first use.
     async fn binary(&self) -> AppResult<PathBuf> {
-        let bin = self.bin_dir.join(format!("kind-{KIND_VERSION}"));
+        let bin = self.bin_dir.join(crate::platform::program_file(&format!("kind-{KIND_VERSION}")));
         if bin.exists() {
             return Ok(bin);
         }
@@ -84,71 +84,49 @@ impl Kind {
             .map_err(|e| AppError::io("downloading kind", e))?;
         let tmp = bin.with_extension("part");
         std::fs::write(&tmp, &bytes).map_err(|e| AppError::io("saving kind", e))?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))
-                .map_err(|e| AppError::io("saving kind", e))?;
-        }
+        crate::platform::make_executable(&tmp).map_err(|e| AppError::io("saving kind", e))?;
         std::fs::rename(&tmp, &bin).map_err(|e| AppError::io("saving kind", e))?;
         Ok(bin)
     }
 
-    /// PATH for kind: a `docker` shim first, then the real CLI. kind has no
-    /// option to label its node containers, so the shim adds the cktry compose
-    /// labels to every `docker run`; all other commands go straight through.
-    fn kind_path(&self) -> AppResult<String> {
+    /// kind, set to run docker through the app's stand-in
+    /// (`cluster::docker_shim`): first on its PATH, then the real CLI, which
+    /// the stand-in hands every command to. kind has no option to label its
+    /// node containers; the stand-in adds the cktry compose labels to `docker run`
+    async fn kind(&self) -> AppResult<tokio::process::Command> {
+        let kind = self.binary().await?;
         let real = docker::cli().ok_or_else(|| AppError::DockerUnavailable {
             message: format!("The docker CLI was not found. {}.", docker::INSTALL),
         })?;
         let shim_dir = self.bin_dir.join("shim");
-        std::fs::create_dir_all(&shim_dir).map_err(|e| AppError::io("creating docker shim", e))?;
-        let labels: String = docker::compose_labels("$name")
-            .into_iter()
-            .map(|(k, v)| format!(" --label \"{k}={v}\""))
-            .collect();
-        let script = format!(
-            "#!/bin/sh\n\
-             # Written by cktry: label kind's node containers as part of the cktry compose project\n\
-             if [ \"$1\" = run ]; then\n\
-             \x20 shift\n\
-             \x20 name=node prev=\n\
-             \x20 for a in \"$@\"; do\n\
-             \x20   [ \"$prev\" = --name ] && name=\"$a\"\n\
-             \x20   case \"$a\" in --name=*) name=\"${{a#--name=}}\" ;; esac\n\
-             \x20   prev=\"$a\"\n\
-             \x20 done\n\
-             \x20 exec '{real}' run{labels} \"$@\"\n\
-             fi\n\
-             exec '{real}' \"$@\"\n",
-            real = real.display(),
-        );
-        let shim = shim_dir.join("docker");
-        if std::fs::read_to_string(&shim).ok().as_deref() != Some(script.as_str()) {
-            std::fs::write(&shim, &script).map_err(|e| AppError::io("writing docker shim", e))?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755))
-                    .map_err(|e| AppError::io("writing docker shim", e))?;
+        std::fs::create_dir_all(&shim_dir).map_err(|e| AppError::io("creating the docker stand-in", e))?;
+        let app = super::docker_shim::program().map_err(|e| AppError::io("finding the app for the docker stand-in", e))?;
+        let shim = shim_dir.join(crate::platform::program_file("docker"));
+        crate::platform::link_program(&app, &shim).map_err(|e| AppError::io("linking the docker stand-in", e))?;
+        // What earlier versions left there (scripts): only the stand-in stays
+        for entry in std::fs::read_dir(&shim_dir).into_iter().flatten().flatten() {
+            if entry.path() != shim {
+                let _ = std::fs::remove_file(entry.path());
             }
         }
-        let dirs = std::iter::once(shim_dir).chain(std::env::split_paths(&docker::cli_path()).collect::<Vec<_>>());
-        std::env::join_paths(dirs).map(|p| p.to_string_lossy().into_owned()).map_err(|e| AppError::io("setting kind's PATH", std::io::Error::other(e)))
+        let path = std::env::join_paths(std::iter::once(shim_dir).chain(docker::cli_dirs()))
+            .map_err(|e| AppError::io("setting kind's PATH", std::io::Error::other(e)))?;
+        let mut command = crate::platform::command(kind);
+        command.env("PATH", path).env(super::docker_shim::REAL_DOCKER, real);
+        if let Some(network) = &self.network {
+            command.env("KIND_EXPERIMENTAL_DOCKER_NETWORK", network);
+        }
+        Ok(command)
     }
 
     /// Run kind, handing every output line to `log` but its noise.
     async fn run(&self, args: &[&str], log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
-        let kind = self.binary().await?;
         // kind execs in the nodes (docker exec): cktry's own, not outside access
         let _own = crate::runtime::guard::own_operation();
-        let mut command = Command::new(&kind);
-        if let Some(network) = &self.network {
-            command.env("KIND_EXPERIMENTAL_DOCKER_NETWORK", network);
-        }
-        let mut child = command
+        let mut child = self
+            .kind()
+            .await?
             .args(args)
-            .env("PATH", self.kind_path()?)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
@@ -216,9 +194,10 @@ impl Kind {
     pub async fn internal_kubeconfig(&self, name: &str) -> AppResult<String> {
         // kind execs in the nodes (docker exec): cktry's own, not outside access
         let _own = crate::runtime::guard::own_operation();
-        let output = Command::new(self.binary().await?)
+        let output = self
+            .kind()
+            .await?
             .args(["get", "kubeconfig", "--internal", "--name", name])
-            .env("PATH", self.kind_path()?)
             .output()
             .await
             .map_err(|e| AppError::cluster(format!("starting kind: {e}")))?;
