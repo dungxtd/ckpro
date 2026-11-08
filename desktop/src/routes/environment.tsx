@@ -6,7 +6,7 @@ import { SectionTitle } from "@ckpro/ui/components/section-title";
 import { StatusDot } from "@ckpro/ui/components/status-dot";
 import { CircleCheck, Download } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { ActivityList } from "@/components/activity/activity-list";
 import { ClusterCard } from "@/components/environment/cluster-card";
 import { IssuesPanel } from "@/components/environment/issues-panel";
@@ -77,12 +77,17 @@ export function EnvironmentRoute() {
 	useEffect(() => {
 		if (catalog.length === 0) loadCatalog();
 	}, [catalog.length, loadCatalog]);
-	// "All activity" from the top bar
-	const { hash } = useLocation();
+	// The top bar's chip: that activity, its log open. Taken once and cleared
+	// from the history entry, so Back to it later leaves the list as it was
+	const location = useLocation();
+	const navigate = useNavigate();
+	const asked = (location.state as { activity?: number } | null)?.activity;
+	const [focus, setFocus] = useState<{ activity: number; key: string } | null>(null);
 	useEffect(() => {
-		if (hash === "#activity")
-			document.getElementById("activity")?.scrollIntoView({ behavior: "smooth" });
-	}, [hash]);
+		if (asked === undefined) return;
+		setFocus({ activity: asked, key: location.key });
+		navigate(location.pathname, { replace: true, state: null });
+	}, [asked, location.key, location.pathname, navigate]);
 	if (!env) return <Loading fill label="Loading the environment…" />;
 
 	const docker = env.docker;
@@ -191,9 +196,9 @@ export function EnvironmentRoute() {
 					No clusters: an exam makes the ones it needs when it starts.
 				</p>
 			)}
-			<section id="activity" className="flex flex-col gap-2">
+			<section className="flex flex-col gap-2">
 				<SectionTitle>Activity</SectionTitle>
-				<ActivityList />
+				<ActivityList focus={focus?.activity} focusKey={focus?.key} />
 			</section>
 		</Screen>
 	);

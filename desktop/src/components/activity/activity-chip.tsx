@@ -1,9 +1,7 @@
 import { Chip } from "@ckpro/ui/components/chip";
-import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { cn } from "@ckpro/ui/lib/utils";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
-import { ActivityProgress } from "@/components/activity/activity-progress";
+import { useLocation, useNavigate } from "react-router";
 import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";
 import { useActivityList } from "@/stores/activity";
 
@@ -13,11 +11,13 @@ const FAILED_SHOWN_MS = 5 * 60_000;
 /**
  * Top-bar status while something runs in the background (clusters starting
  * after the app reopened, a cluster being created…), or just failed. Opens
- * its progress and log. `compact` beside the capsule, which takes the
+ * the Environment screen at its log. `compact` beside the capsule, which takes the
  * middle of the bar: the icon alone, its words for assistive technology
  */
 export function ActivityChip({ compact = false }: { compact?: boolean }) {
 	const list = useActivityList();
+	const navigate = useNavigate();
+	const { pathname } = useLocation();
 	const running = list.filter(a => a.status === "running");
 	const [now, setNow] = useState(Date.now);
 	const failed = list.find(
@@ -41,30 +41,24 @@ export function ActivityChip({ compact = false }: { compact?: boolean }) {
 	const isFailed = shown.status === "failed";
 	const words = isFailed ? `Failed: ${shown.title}` : shown.title;
 	return (
-		<Popover>
-			<PopoverTrigger asChild>
-				<Chip
-					title={compact ? words : undefined}
-					className={cn(
-						"ml-auto max-w-80",
-						isFailed &&
-							"bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive"
-					)}
-					count={running.length > 1 ? running.length : undefined}
-				>
-					<ActivityStatusIcon status={shown.status} className="size-3.5 text-current" />
-					<span className={compact ? "sr-only" : "truncate"}>{words}</span>
-				</Chip>
-			</PopoverTrigger>
-			<PopoverContent align="end" className="w-[28rem]">
-				<ActivityProgress id={shown.id} compact />
-				<Link
-					to="/environment#activity"
-					className="mt-3 block text-right text-muted-foreground text-xs hover:underline"
-				>
-					All activity
-				</Link>
-			</PopoverContent>
-		</Popover>
+		<Chip
+			title={compact ? words : undefined}
+			// Already there: the same history entry, opened at this log
+			onClick={() =>
+				navigate("/environment", {
+					state: { activity: shown.id },
+					replace: pathname === "/environment",
+				})
+			}
+			className={cn(
+				"ml-auto max-w-80",
+				isFailed &&
+					"bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive"
+			)}
+			count={running.length > 1 ? running.length : undefined}
+		>
+			<ActivityStatusIcon status={shown.status} className="size-3.5 text-current" />
+			<span className={compact ? "sr-only" : "truncate"}>{words}</span>
+		</Chip>
 	);
 }
