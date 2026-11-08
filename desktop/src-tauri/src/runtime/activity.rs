@@ -170,8 +170,15 @@ impl Handle {
         }
     }
 
-    /// Failed, it can be run again with Retry (`env_retry`)
+    /// Failed, it can be run again with Retry (`env_retry`). It takes Retry
+    /// over from an earlier try of the same work, which it replaces: that
+    /// one's Retry would do nothing more
     pub fn retryable(&self) {
+        let earlier: Vec<u32> =
+            self.activities.lock().1.iter().filter(|a| a.retry && a.id != self.id).map(|a| a.id).collect();
+        for id in earlier {
+            self.activities.update(id, |a| a.retry = false);
+        }
         self.activities.update(self.id, |a| a.retry = true);
     }
 
@@ -253,4 +260,24 @@ impl Drop for Op {
 /// Unix milliseconds, as the interface shows times
 pub fn now_ms() -> f64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as f64).unwrap_or(0.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_new_try_takes_retry_over_from_the_one_it_replaces() {
+        let activities = Activities::silent();
+        let first = activities.begin("Preparing the exam images", vec![]);
+        first.retryable();
+        let first_id = first.id();
+        first.fail("Docker stopped");
+        let second = activities.begin("Preparing the exam images", vec![]);
+        second.retryable();
+        let retry = |id| activities.list().iter().find(|a| a.id == id).unwrap().retry;
+        assert!(!retry(first_id), "the failed try no longer offers Retry");
+        assert!(retry(second.id()));
+        second.done();
+    }
 }
