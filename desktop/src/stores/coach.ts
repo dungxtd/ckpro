@@ -49,6 +49,8 @@ interface CoachStore {
 		questionId: string;
 		id: number;
 		command: string;
+		/** One of the app's tools, in words (no command then) */
+		tool: string | null;
 		options: PermissionOption[];
 	} | null;
 	/** Answer it: an option's id, or null to cancel */
@@ -295,7 +297,13 @@ export const useCoach = create<CoachStore>()(
 							const done = e.status === "completed" || e.status === "failed";
 							s.running = done ? null : { questionId, command: e.command };
 						} else {
-							s.permission = { questionId, id: e.id, command: e.command, options: e.options };
+							s.permission = {
+								questionId,
+								id: e.id,
+								command: e.command,
+								tool: e.tool ?? null,
+								options: e.options,
+							};
 						}
 					});
 				try {

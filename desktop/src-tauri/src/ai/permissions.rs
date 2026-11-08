@@ -56,13 +56,15 @@ impl Coach {
         reply: tokio::sync::oneshot::Sender<serde_json::Value>,
         on_event: &impl Fn(CoachEvent),
     ) -> Option<u32> {
-        let command = params["toolCall"]["rawInput"]["command"]
-            .as_str()
-            .or(params["toolCall"]["title"].as_str())
-            .unwrap_or("a tool")
-            .to_string();
+        let shell = params["toolCall"]["rawInput"]["command"].as_str();
+        // The app's check: the question's own checks, which only read (as
+        // the candidate's Check my work does), so it runs unasked unless
+        // every action waits for Run
+        let checking = shell.is_none() && params["toolCall"]["title"].as_str().is_some_and(|t| t.ends_with("check_my_work"));
+        let command = shell.or(params["toolCall"]["title"].as_str()).unwrap_or("a tool").to_string();
+        let unasked = if checking { settings.permission != policy::AgentPermission::Confirm } else { settings.runs_unasked(&command) };
         let once = params["options"].as_array().into_iter().flatten().find(|o| o["kind"] == "allow_once");
-        if let Some(once) = once.filter(|_| settings.runs_unasked(&command)) {
+        if let Some(once) = once.filter(|_| unasked) {
             let _ = reply.send(serde_json::json!({ "outcome": { "outcome": "selected", "optionId": once["optionId"] } }));
             return None;
         }
@@ -80,7 +82,8 @@ impl Coach {
             })
             .collect();
         let id = self.next_permission(options.iter().map(|o| o.id.clone()).collect(), reply);
-        on_event(CoachEvent::Permission { id, command, options });
+        let (command, tool) = if checking { (String::new(), Some("Check your work".to_string())) } else { (command, None) };
+        on_event(CoachEvent::Permission { id, command, tool, options });
         Some(id)
     }
 }

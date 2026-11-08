@@ -439,10 +439,11 @@ export type CoachEvent_Deserialize = { kind: "text"; text: string } |
  */
 { kind: "tool"; id: string; command: string; status: string; input?: string | null; output?: string | null } | 
 /**
- *  The agent asks to run a command: the candidate picks an option
- *  (`coach_permit`)
+ *  The agent asks to run a command, or to use one of the app's tools
+ *  (`tool`: what it does, in words; `command` is then empty): the
+ *  candidate picks an option (`coach_permit`)
  */
-{ kind: "permission"; id: number; command: string; options: PermissionOption[] };
+{ kind: "permission"; id: number; command: string; tool?: string | null; options: PermissionOption[] };
 
 /**  The coach's answer as it is written */
 export type CoachEvent_Serialize = { kind: "text"; text: string } | 
@@ -452,10 +453,11 @@ export type CoachEvent_Serialize = { kind: "text"; text: string } |
  */
 { kind: "tool"; id: string; command: string; status: string; input: string | null; output: string | null } | 
 /**
- *  The agent asks to run a command: the candidate picks an option
- *  (`coach_permit`)
+ *  The agent asks to run a command, or to use one of the app's tools
+ *  (`tool`: what it does, in words; `command` is then empty): the
+ *  candidate picks an option (`coach_permit`)
  */
-{ kind: "permission"; id: number; command: string; options: PermissionOption[] };
+{ kind: "permission"; id: number; command: string; tool: string | null; options: PermissionOption[] };
 
 /**  A question's coach session: its own name (if renamed) and its messages */
 export type CoachHistory = CoachHistory_Serialize | CoachHistory_Deserialize;
