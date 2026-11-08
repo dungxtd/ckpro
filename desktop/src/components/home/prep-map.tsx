@@ -6,6 +6,7 @@ import { cn } from "@cktry/ui/lib/utils";
 import { Flag } from "lucide-react";
 import { level, MAP_WEEKS, mapWeeks } from "@/components/study/data";
 import { dayKey } from "@/days";
+import { noun, plural } from "@/words";
 
 const LEVELS = [
 	"bg-foreground/[0.07]",
@@ -22,6 +23,7 @@ const LABELS = 34;
  * The preparation day by day, as a contribution graph: a few weeks at least,
  * from its first day to the exam (or today, without one), each day tinted by
  * its best score; today ringed inside its square (a ring outside runs into the gaps), the exam day flagged; its figures beside it.
+ * Weeks before the start, there to fill a wide map, are faded.
  * No day studied yet: the graph faded, and what it will show
  */
 export function PrepMap({
@@ -44,8 +46,14 @@ export function PrepMap({
 	const [setArea, { width }] = useElementSize<HTMLDivElement>();
 	const fit = width ? Math.max(4, Math.floor((width - LABELS) / COLUMN)) : MAP_WEEKS;
 	const weeks = mapWeeks(start, end, fit).slice(-fit);
+	// Weeks before the preparation fill a wide map: shown, faded
+	const started = dayKey(start);
 	const squares = (
-		<div className="flex gap-[3px]" role="img" aria-label={`${figures.days} days studied`}>
+		<div
+			className="flex gap-[3px]"
+			role="img"
+			aria-label={`${plural(figures.days, "day")} studied`}
+		>
 			<div className="mr-1 grid grid-rows-[12px_repeat(7,12px)] gap-[3px] text-[9px] text-muted-foreground">
 				<span />
 				{WEEKDAYS.map((d, i) => (
@@ -84,6 +92,7 @@ export function PrepMap({
 								className={cn(
 									"size-3 rounded-[3px]",
 									key > today ? "bg-foreground/[0.03]" : LEVELS[level(score, pass)],
+									key < started && "opacity-40",
 									key === today && "ring-[1.5px] ring-foreground ring-inset"
 								)}
 							/>
@@ -121,10 +130,13 @@ export function PrepMap({
 							{squares}
 						</div>
 						<div className="grid w-44 shrink-0 grid-cols-2 gap-x-3 gap-y-1 [&>div]:px-0 [&>div]:py-1">
-							<Stat value={figures.days} label="days studied" />
-							<Stat value={figures.streak || "–"} label="days in a row" />
-							<Stat value={figures.weeks} label="weeks studied" />
-							<Stat value={figures.attempts} label="attempts" />
+							<Stat value={figures.days} label={`${noun(figures.days, "day")} studied`} />
+							<Stat
+								value={figures.streak || "–"}
+								label={`${noun(figures.streak, "day")} in a row`}
+							/>
+							<Stat value={figures.weeks} label={`${noun(figures.weeks, "week")} studied`} />
+							<Stat value={figures.attempts} label={noun(figures.attempts, "attempt")} />
 						</div>
 					</div>
 					<div className="mt-3 flex flex-wrap items-center gap-3 text-2xs text-muted-foreground">
