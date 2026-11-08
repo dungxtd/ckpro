@@ -137,7 +137,14 @@ pub enum AgentEvent<'a> {
     /// The agent asks to use a tool: ACP `session/request_permission`'s
     /// params, and where the chosen outcome goes
     Permission(serde_json::Value, tokio::sync::oneshot::Sender<serde_json::Value>),
+    /// The conversation grew near the model's limit and its earlier part was
+    /// summarized to make room (once, when that is done)
+    Compacted,
 }
+
+/// The adapter reports a compaction as a tool call of this title: not a
+/// tool the agent used
+const COMPACTION: &str = "Compact conversation";
 
 /// A tool call as ACP's `tool_call` and `tool_call_update` describe it
 #[derive(Clone, Debug, Default)]
@@ -454,6 +461,12 @@ impl Agent {
             let Some(id) = update["toolCallId"].as_str() else { return };
             let call = tools.entry(id.to_string()).or_insert_with(|| ToolCall { id: id.to_string(), ..Default::default() });
             call.update(update);
+            if call.title == COMPACTION {
+                if call.status == "completed" {
+                    on_event(AgentEvent::Compacted);
+                }
+                return;
+            }
             on_event(AgentEvent::Tool(call.clone()));
         };
         let c = self.connection().await?;
@@ -563,7 +576,7 @@ mod tests {
                     let _ = reply.send(json!({ "outcome": { "outcome": "selected", "optionId": option } }));
                 }
                 AgentEvent::Tool(call) => calls.lock().unwrap().push(call),
-                AgentEvent::Text(_) => {}
+                AgentEvent::Text(_) | AgentEvent::Compacted => {}
             })
             .await
             .unwrap();

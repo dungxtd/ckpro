@@ -322,6 +322,11 @@ export type AgentSettings_Deserialize = {
 	share_cluster?: boolean,
 	/**  Claude Code's usage and error reports to Anthropic */
 	telemetry?: boolean,
+	/**
+	 *  The candidate's own notes for the assistant, given with every
+	 *  conversation (the language to answer in, how much to say)
+	 */
+	notes?: string,
 };
 
 /**  The assistant's settings, kept in the database */
@@ -347,6 +352,11 @@ export type AgentSettings_Serialize = {
 	share_cluster: boolean,
 	/**  Claude Code's usage and error reports to Anthropic */
 	telemetry: boolean,
+	/**
+	 *  The candidate's own notes for the assistant, given with every
+	 *  conversation (the language to answer in, how much to say)
+	 */
+	notes: string,
 };
 
 export type AppError = 

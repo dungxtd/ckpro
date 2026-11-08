@@ -42,6 +42,10 @@ pub struct CoachSubject {
     pub jumphost: String,
     /// The question as the candidate reads it (vars filled in)
     pub view: QuestionView,
+    /// How the candidate does in the certification's domains, from their
+    /// results (no guess): the weakest measured (percent), the unmeasured
+    pub weakest: Vec<(String, u32)>,
+    pub unmeasured: Vec<String>,
 }
 
 impl Exams {
@@ -67,6 +71,10 @@ impl Exams {
             .ok_or_else(|| AppError::not_found(format!("question {question_id}")))?;
         let certification = pack.pack.certifications.get(&attempt.certification);
         let session = self.session.locked().clone();
+        let (weakest, unmeasured) = self
+            .readiness(&attempt.certification, crate::runtime::activity::now_ms())
+            .map(|r| standing(&r.domains, attempt.pass_score))
+            .unwrap_or_default();
         Ok(CoachSubject {
             attempt_id: attempt.id.clone(),
             certification: certification.map(|c| c.title.clone()).unwrap_or_else(|| attempt.certification.clone()),
@@ -78,6 +86,8 @@ impl Exams {
             cluster: question.cluster.clone(),
             jumphost: self.jumphost.name.clone(),
             view,
+            weakest,
+            unmeasured,
         })
     }
 
@@ -128,6 +138,22 @@ impl Exams {
     }
 }
 
+/// Where the candidate stands by domain: the measured ones under the pass
+/// line, weakest first (three at most, with their percent), and the ones not
+/// measured yet
+pub fn standing(domains: &[DomainStat], pass: u32) -> (Vec<(String, u32)>, Vec<String>) {
+    let mut weakest: Vec<(String, u32)> = domains
+        .iter()
+        .filter(|d| d.max_points > 0)
+        .map(|d| (d.domain.clone(), d.points * 100 / d.max_points))
+        .filter(|(_, percent)| *percent < pass)
+        .collect();
+    weakest.sort_by_key(|(_, percent)| *percent);
+    weakest.truncate(3);
+    let unmeasured = domains.iter().filter(|d| d.max_points == 0).map(|d| d.domain.clone()).collect();
+    (weakest, unmeasured)
+}
+
 /// Results per certification and curriculum domain, over `history`
 pub fn study_stats(pack: &LoadedPack, history: &[HistoryEntry]) -> Vec<StudyStats> {
     let mut stats: Vec<StudyStats> = Vec::new();
@@ -160,4 +186,18 @@ pub fn study_stats(pack: &LoadedPack, history: &[HistoryEntry]) -> Vec<StudyStat
         }
     }
     stats
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn standing_names_the_weakest_measured_and_the_unmeasured() {
+        let d = |domain: &str, points, max_points| DomainStat { domain: domain.into(), weight: 20, points, max_points, questions: 1 };
+        let domains = [d("storage", 0, 0), d("troubleshooting", 1, 10), d("networking", 8, 10), d("scheduling", 3, 10)];
+        let (weakest, unmeasured) = standing(&domains, 66);
+        assert_eq!(weakest, [("troubleshooting".to_string(), 10), ("scheduling".to_string(), 30)]);
+        assert_eq!(unmeasured, ["storage"]);
+    }
 }

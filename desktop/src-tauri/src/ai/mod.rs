@@ -331,6 +331,7 @@ impl Coach {
                     asked.locked().push(id);
                 }
             }
+            agent::AgentEvent::Compacted => text_out(prompt::COMPACTED),
         };
         let (answer, title) = tokio::join!(self.agent.prompt_with(&session, &prompt, &cancel, &stream), naming);
         // Its requests left unanswered (stopped, failed) are cancelled with
@@ -471,6 +472,8 @@ mod tests {
             solution,
             cluster: "k8s".into(),
             jumphost: "j".into(),
+            weakest: vec![],
+            unmeasured: vec![],
             view: QuestionView {
                 id: "q1".into(),
                 title: "PVC and Pod".into(),
@@ -501,9 +504,26 @@ mod tests {
         assert!(!p.contains("Reference answer"));
         let opened = subject(Some(Solution { explain: "Use standard.".into(), run: "kubectl apply -f pvc.yaml".into() }));
         assert!(prompt(&opened, &[], None, &[], "show me").contains("kubectl apply -f pvc.yaml"));
-        assert!(system(&hidden).contains("- https://kubernetes.io/docs/") && system(&hidden).contains("Teach, do not solve"));
+        assert!(system(&hidden, "").contains("- https://kubernetes.io/docs/") && system(&hidden, "").contains("Teach, do not solve"));
         let review = CoachSubject { review: true, ..subject(None) };
-        assert!(system(&review).contains("the exam is over"));
+        assert!(system(&review, "").contains("the exam is over"));
+    }
+
+    /// The coach is told where the candidate stands (their results) and
+    /// their own notes; nothing of either when there is none
+    #[test]
+    fn the_coach_knows_the_candidates_standing_and_notes() {
+        let plain = system(&subject(None), "  ");
+        assert!(!plain.contains("results so far") && !plain.contains("notes for you"));
+        let known = CoachSubject {
+            weakest: vec![("services-networking".into(), 12)],
+            unmeasured: vec!["storage".into()],
+            ..subject(None)
+        };
+        let s = system(&known, "Answer in Vietnamese.");
+        assert!(s.contains("Below the pass line: services networking 12%."), "{s}");
+        assert!(s.contains("Not measured yet: storage."));
+        assert!(s.contains("notes for you") && s.ends_with("Answer in Vietnamese.\n"));
     }
 
     /// The real model through Claude Code, on a canned task: it streams and
@@ -518,7 +538,7 @@ mod tests {
         let chunks = std::sync::atomic::AtomicUsize::new(0);
         let agent = Agent::new();
         let answer = agent
-            .ask_once(&system(&subject), &prompt, DEFAULT_MODEL, &CancellationToken::new(), &|_| {
+            .ask_once(&system(&subject, ""), &prompt, DEFAULT_MODEL, &CancellationToken::new(), &|_| {
                 chunks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             })
             .await

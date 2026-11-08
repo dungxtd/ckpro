@@ -49,6 +49,9 @@ pub struct AgentSettings {
     pub share_cluster: bool,
     /// Claude Code's usage and error reports to Anthropic
     pub telemetry: bool,
+    /// The candidate's own notes for the assistant, given with every
+    /// conversation (the language to answer in, how much to say)
+    pub notes: String,
 }
 
 impl Default for AgentSettings {
@@ -64,6 +67,7 @@ impl Default for AgentSettings {
             share_checks: true,
             share_cluster: true,
             telemetry: false,
+            notes: String::new(),
         }
     }
 }

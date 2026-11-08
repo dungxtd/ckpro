@@ -142,10 +142,12 @@ impl Coach {
                 (session, followup(checks, snapshot, text))
             }
             None => {
+                // The candidate's notes (Settings) go with every new session
+                let notes = super::policy::AgentSettings::load(store).map(|s| s.notes).unwrap_or_default();
                 let session = match profile {
-                    Profile::Ask => self.agent.new_session(&system(subject), model).await?,
+                    Profile::Ask => self.agent.new_session(&system(subject, &notes), model).await?,
                     Profile::Agent => {
-                        let system = format!("{}\n{AGENT}", system(subject));
+                        let system = format!("{}\n{AGENT}", system(subject, &notes));
                         let tools = self.tools.get().ok_or_else(|| AppError::assistant("the agent's tools are not ready yet; try again"))?;
                         self.agent.new_session_with(&system, model, serde_json::json!([tools.server_for(question_id)])).await?
                     }

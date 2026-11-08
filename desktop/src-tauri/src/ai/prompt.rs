@@ -56,7 +56,7 @@ pub(super) fn followup(checks: &[CheckResult], snapshot: Option<&str>, text: &st
     }
 }
 
-pub(super) fn system(subject: &CoachSubject) -> String {
+pub(super) fn system(subject: &CoachSubject, notes: &str) -> String {
     let mut s = String::from(if subject.review { REVIEW } else { PRACTICE });
     let _ = write!(
         s,
@@ -66,7 +66,39 @@ pub(super) fn system(subject: &CoachSubject) -> String {
     for url in &subject.docs {
         let _ = writeln!(s, "- {url}");
     }
+    // What the app knows of them, from their results: where to lean in
+    if !subject.weakest.is_empty() || !subject.unmeasured.is_empty() {
+        s.push_str("\nThe candidate's results so far (from ckpro, not a guess):\n");
+        if !subject.weakest.is_empty() {
+            let weak: Vec<String> =
+                subject.weakest.iter().map(|(d, p)| format!("{} {p}%", d.replace('-', " "))).collect();
+            let _ = writeln!(s, "- Below the pass line: {}.", weak.join(", "));
+        }
+        if !subject.unmeasured.is_empty() {
+            let _ = writeln!(s, "- Not measured yet: {}.", subject.unmeasured.join(", ").replace('-', " "));
+        }
+        s.push_str("When it helps, connect your answer to these; do not lecture about them unasked.\n");
+    }
+    s.push_str(&notes_section(notes));
     s
+}
+
+/// Said in the answer where the conversation was compacted: what came
+/// before was summarized to make room, so details of it may be gone
+pub(super) const COMPACTED: &str =
+    "\n\n_Context compacted: the earlier part of this conversation was summarized to make room._\n\n";
+
+/// The candidate's own notes for the assistant (Settings), as a system
+/// section: style and language are theirs to set, the rules above still hold
+pub(super) fn notes_section(notes: &str) -> String {
+    let notes = notes.trim();
+    if notes.is_empty() {
+        return String::new();
+    }
+    format!(
+        "\nThe candidate's notes for you (follow them for language, tone and how much to say; \
+the rules above still hold, such as not giving away a solution they have not opened):\n{notes}\n"
+    )
 }
 
 /// How the coach helps while the candidate practises
