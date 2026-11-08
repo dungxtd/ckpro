@@ -77,6 +77,8 @@ export function AssistantComposer({
 	const [draft, setDraft] = useState("");
 	const [expanded, setExpanded] = useState(false);
 	const writing = coach.writing === questionId;
+	// Agent explores the cluster with its own read-only commands
+	const agentLooks = !review && coach.profile === "agent";
 	const usage = coach.usage[questionId];
 	const model = coach.models.find(m => m.value === coach.model);
 	const modelName = model?.name ?? coach.model;
@@ -95,7 +97,8 @@ export function AssistantComposer({
 						Last check
 					</Chip>
 				)}
-				{coach.shared.cluster && coach.context.cluster && (
+				{/* Agent looks at the cluster itself: no look goes with it */}
+				{coach.shared.cluster && coach.context.cluster && (review || coach.profile === "ask") && (
 					<Chip size="xs" onRemove={() => coach.setContext({ cluster: false })}>
 						Cluster
 					</Chip>
@@ -139,10 +142,16 @@ export function AssistantComposer({
 							toggle={() => coach.setContext({ checks: !coach.context.checks })}
 						/>
 						<ContextRow
-							on={coach.context.cluster && coach.shared.cluster}
-							disabled={!coach.shared.cluster}
+							on={coach.context.cluster && coach.shared.cluster && agentLooks === false}
+							disabled={!coach.shared.cluster || agentLooks}
 							label="Cluster snapshot"
-							hint={coach.shared.cluster ? "read-only" : "off in Settings"}
+							hint={
+								agentLooks
+									? "Agent looks itself"
+									: coach.shared.cluster
+										? "read-only"
+										: "off in Settings"
+							}
 							toggle={() => coach.setContext({ cluster: !coach.context.cluster })}
 						/>
 					</PopoverContent>

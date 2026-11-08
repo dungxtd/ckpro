@@ -40,8 +40,6 @@ pub struct AgentSettings {
     /// Text that, found in a command, keeps it from running (the candidate's
     /// own, besides the built-in list)
     pub never_run: Vec<String>,
-    /// Name sessions from their first question
-    pub auto_titles: bool,
     /// A Claude CLI to use instead of the one found on this Mac
     pub claude_path: Option<String>,
     /// What Claude may be given: the last check, a look at the cluster
@@ -59,10 +57,10 @@ impl Default for AgentSettings {
         Self {
             enabled: vec![Provider::Claude],
             default_profile: super::Profile::Ask,
-            permission: AgentPermission::Confirm,
+            // Looking is free (get, describe, logs); changing asks
+            permission: AgentPermission::ReadOnly,
             command_timeout: 60,
             never_run: Vec::new(),
-            auto_titles: true,
             claude_path: None,
             share_checks: true,
             share_cluster: true,
@@ -215,9 +213,10 @@ mod tests {
         let mut s = AgentSettings { never_run: vec!["  Delete   Namespace ".into(), "".into()], ..Default::default() }.normalized();
         assert_eq!(s.never_run, ["Delete   Namespace"]);
         assert_eq!(s.never_runs("kubectl delete  namespace prod"), Some("Delete   Namespace"));
-        assert!(!s.runs_unasked("kubectl get pods"));
-        s.permission = AgentPermission::ReadOnly;
+        // By default looking runs unasked, changing asks
         assert!(s.runs_unasked("kubectl get pods") && !s.runs_unasked("kubectl scale deploy/web --replicas=2"));
+        s.permission = AgentPermission::Confirm;
+        assert!(!s.runs_unasked("kubectl get pods"));
         assert_eq!(AgentSettings { command_timeout: 9999, ..Default::default() }.normalized().command_timeout, COMMAND_MAX_SECS);
     }
 }

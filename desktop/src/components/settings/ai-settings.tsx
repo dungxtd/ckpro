@@ -502,7 +502,7 @@ function Privacy({ settings, save }: Section) {
 	return (
 		<Group
 			title="Privacy"
-			description="For every agent: the task always goes with a question; these decide what else does."
+			description="For every agent: the task always goes with a question; these decide what else does. A session is named from its first question by a quick model."
 		>
 			<Row label="Share the last check" detail="Which checks passed and why the others failed">
 				<Switch
@@ -513,19 +513,12 @@ function Privacy({ settings, save }: Section) {
 			</Row>
 			<Row
 				label="Share a look at the cluster"
-				detail="A read-only snapshot of the task's namespace"
+				detail="Ask: a read-only kubectl get of the task's namespace goes with each question. Agent looks itself"
 			>
 				<Switch
 					aria-label="Share a look at the cluster"
 					checked={settings.share_cluster}
 					onCheckedChange={share_cluster => save({ share_cluster })}
-				/>
-			</Row>
-			<Row label="Name sessions" detail="Sends the first question to a quick model for a title">
-				<Switch
-					aria-label="Name sessions"
-					checked={settings.auto_titles}
-					onCheckedChange={auto_titles => save({ auto_titles })}
 				/>
 			</Row>
 		</Group>
