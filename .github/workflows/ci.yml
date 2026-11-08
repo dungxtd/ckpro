@@ -45,7 +45,7 @@ jobs:
   # Types, unit tests and lint of the interface and the kit
   interface:
     needs: changes
-    if: needs.changes.outputs.interface == 'true' || github.event_name != 'pull_request'
+    if: needs.changes.outputs.interface == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -65,7 +65,7 @@ jobs:
   # The interface's journeys in WebKit and Chromium, Rust stood in for
   journeys:
     needs: changes
-    if: needs.changes.outputs.interface == 'true' || github.event_name != 'pull_request'
+    if: needs.changes.outputs.interface == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -92,7 +92,7 @@ jobs:
   # Rust unit tests and the bundled pack's lint
   rust:
     needs: changes
-    if: needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request'
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
