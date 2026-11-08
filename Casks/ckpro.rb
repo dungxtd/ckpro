@@ -1,11 +1,11 @@
 # The release workflow rewrites `version` and the four `sha256` values (by
 # their keys) after each release; keep this structure.
 cask "ckpro" do
-  version "0.1.0"
-  sha256 arm:          "421396db949303b5d1e86ccf9daff40935d7ee822cb3fc3d5a48c512d26c53c5",
-         intel:        "d63fd3445acd0a4a335277fbdc429296257c2d0d2b210348bcd537b1c81717d9",
-         arm64_linux:  "a6b72bc97c136740c340705606c589db091df78631249bcb3dd87f7e996f6971",
-         x86_64_linux: "067d539cadb4b8673ddfc33834d67bf121caa8b25b1ce6fffa53f141b775bf09"
+  version "0.2.0"
+  sha256 arm:          "b49844a35481609ac9515eeb890b0bae6237c4360026fbe65f41f89a1ff053a1",
+         intel:        "86f90715983e894147757aef3b2dff8c706fff18bf0d84dfbc6e4a1da7263e93",
+         arm64_linux:  "2290f653ed35980cce4f88ac48247d481cef9b586232f1e0fa09a8b5b9d3f6a3",
+         x86_64_linux: "e461863c1060b768481980ec16faca63045a00058a7cb25cc4d89ec08b554115"
 
   on_macos do
     on_arm do
