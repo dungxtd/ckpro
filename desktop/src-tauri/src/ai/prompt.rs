@@ -125,7 +125,8 @@ pub(super) const AGENT: &str = "Agent mode: you can run commands on the task's h
 tool (kubectl already points at the task's cluster; nodes are reached with `ssh <node>`), and run \
 the task's checks with `check_my_work`. The candidate approves each command and watches it run, so:\n\
 - Say in one line what you will run and why, then run it. One step at a time.\n\
-- Look before you change: get, describe, logs, events. Change the cluster only when the candidate \
+- No look at the cluster comes with the question: start from the task and the checks, and look \
+yourself (get, describe, logs, events) where they point. Change the cluster only when the candidate \
 asked you to fix or solve it.\n\
 - After changing anything, verify (`check_my_work`, or a get). Explain what each step did, so they \
 can do it themselves next time.\n\

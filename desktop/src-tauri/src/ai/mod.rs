@@ -289,15 +289,19 @@ impl Coach {
         // What the candidate shares with Claude (Settings > AI > Privacy)
         let shared = policy::AgentSettings::load(store).unwrap_or_default();
         let checks = if context.checks && shared.share_checks { checks } else { &[] };
-        let snapshot = if context.cluster && shared.share_cluster { snapshot(&subject).await } else { None };
+        // Ask is given a look at the cluster; Agent looks itself, from the
+        // task and the checks, with read-only commands
+        let snapshot = if profile == Profile::Ask && context.cluster && shared.share_cluster {
+            snapshot(&subject).await
+        } else {
+            None
+        };
         let key = (subject.attempt_id.clone(), question_id.to_string());
         let (session, prompt) =
             self.session_for(store, &subject, question_id, profile, model, effort, checks, snapshot.as_deref(), text).await?;
         // The first question names the session, while
         // the answer is written: a quick model, nothing waits longer for it
-        let settings = policy::AgentSettings::load(store).unwrap_or_default();
-        let first = settings.auto_titles
-            && store.coach_messages(&subject.attempt_id, question_id)?.1.is_empty()
+        let first = store.coach_messages(&subject.attempt_id, question_id)?.1.is_empty()
             && store.coach_session_title(&subject.attempt_id, question_id)?.is_none();
         let naming = async {
             if !first {
@@ -327,7 +331,7 @@ impl Coach {
                 }
             }
             agent::AgentEvent::Permission(params, reply) => {
-                if let Some(id) = self.ask_permission(&settings, &params, reply, &on_event) {
+                if let Some(id) = self.ask_permission(&shared, &params, reply, &on_event) {
                     asked.locked().push(id);
                 }
             }

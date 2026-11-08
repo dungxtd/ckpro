@@ -86,8 +86,7 @@ impl Coach {
             )
         };
 
-        let settings = policy::AgentSettings::load(store).unwrap_or_default();
-        let first = settings.auto_titles && history.is_empty();
+        let first = history.is_empty();
         let naming = async {
             if !first {
                 return None;

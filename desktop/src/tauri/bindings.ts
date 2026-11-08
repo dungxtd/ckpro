@@ -313,8 +313,6 @@ export type AgentSettings_Deserialize = {
 	 *  own, besides the built-in list)
 	 */
 	never_run?: string[],
-	/**  Name sessions from their first question */
-	auto_titles?: boolean,
 	/**  A Claude CLI to use instead of the one found on this Mac */
 	claude_path?: string | null,
 	/**  What Claude may be given: the last check, a look at the cluster */
@@ -343,8 +341,6 @@ export type AgentSettings_Serialize = {
 	 *  own, besides the built-in list)
 	 */
 	never_run: string[],
-	/**  Name sessions from their first question */
-	auto_titles: boolean,
 	/**  A Claude CLI to use instead of the one found on this Mac */
 	claude_path: string | null,
 	/**  What Claude may be given: the last check, a look at the cluster */
