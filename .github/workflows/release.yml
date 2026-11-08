@@ -18,6 +18,10 @@ on:
         description: Build only (no release, no cask bump)
         type: boolean
         default: true
+      cask_tag:
+        description: Only point the cask at this published release (e.g. v0.2.0); nothing is built
+        type: string
+        default: ''
 
 env:
   # Public PostHog project key, baked into the interface at build time
@@ -28,6 +32,7 @@ permissions:
 
 jobs:
   build-macos:
+    if: ${{ !inputs.cask_tag }}
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -89,6 +94,7 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" _artifacts/*.dmg --clobber
 
   build-windows:
+    if: ${{ !inputs.cask_tag }}
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -145,6 +151,7 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" _artifacts/*.exe --clobber
 
   build-linux:
+    if: ${{ !inputs.cask_tag }}
     strategy:
       fail-fast: false
       matrix:
@@ -207,7 +214,11 @@ jobs:
 
   cask:
     needs: [build-macos, build-linux]
-    if: ${{ inputs.dry_run != true }}
+    # After the macOS and Linux builds of a tag, or alone for a release named
+    # by cask_tag
+    if: >-
+      ${{ !cancelled() && (inputs.cask_tag != '' && inputs.cask_tag != null
+      || inputs.dry_run != true && needs.build-macos.result == 'success' && needs.build-linux.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       # The cask lives in the shared tap; the installers stay on this repo's releases
@@ -220,11 +231,12 @@ jobs:
       - name: Point the cask at this release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.cask_tag || github.ref_name }}
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${TAG#v}"
           mkdir -p pkg
-          gh release download "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --pattern '*.dmg' --pattern '*.AppImage' --dir pkg
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" --pattern '*.dmg' --pattern '*.AppImage' --dir pkg
           sha() { shasum -a 256 "$(find pkg -name "$1" | head -n 1)" | awk '{print $1}'; }
           # The macOS DMGs and the Linux AppImages, each under its sha256 key
           sed -i -E \
@@ -241,6 +253,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(cktry): point to ${GITHUB_REF_NAME}"
+          git commit -am "chore(cktry): point to ${TAG}"
           git pull --rebase origin main
           git push origin main
