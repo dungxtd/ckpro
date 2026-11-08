@@ -217,15 +217,16 @@ test("the result shows the score, what changed outside, each check, and closing 
 		end_exam: null,
 	});
 	await expect(page.getByText("60%")).toBeVisible();
-	await expect(page.getByText("FAIL", { exact: true })).toBeVisible();
-	await expect(page.getByText("Passing score 66%")).toBeVisible();
+	await expect(page.getByText("Below the pass line")).toBeVisible();
+	await expect(page.getByText(/pass line 66%/)).toBeVisible();
 	await expect(page.getByText("ckpro-desktop was paused outside ckpro: resumed")).toBeVisible();
 
-	await page.getByRole("button", { name: "Review answers" }).click();
+	// The questions are listed: one opened shows its checks
+	await page.getByRole("button", { name: /Scale a Deployment/ }).click();
 	await expect(page.getByText("web has 3 replicas")).toBeVisible();
 	await expect(page.getByText("expected '3', got '1'")).toBeVisible();
 
-	await page.getByRole("button", { name: "Close exam (deletes its clusters)" }).click();
+	await page.getByRole("button", { name: "Close exam", exact: true }).click();
 	await page.getByRole("alertdialog").getByRole("button", { name: "Close Exam" }).click();
 	expect(await calls(page, "end_exam")).toHaveLength(1);
 	await emit(page, "exam-changed", { phase: "idle" });
@@ -256,7 +257,7 @@ test("ending an attempt that cannot end yet says why on the result", async ({ pa
 			$error: { code: "invalid", message: "wait for the exam to finish what it is doing" },
 		},
 	});
-	await page.getByRole("button", { name: "Close exam (deletes its clusters)" }).click();
+	await page.getByRole("button", { name: "Close exam", exact: true }).click();
 	await page.getByRole("alertdialog").getByRole("button", { name: "Close Exam" }).click();
 	await expect(page.getByText("wait for the exam to finish what it is doing")).toBeVisible();
 });

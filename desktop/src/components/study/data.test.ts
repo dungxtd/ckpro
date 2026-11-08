@@ -5,10 +5,12 @@ import {
 	bestByDay,
 	daysUntil,
 	events,
+	freeDay,
 	level,
 	MAP_WEEKS,
 	mapWeeks,
 	predicted,
+	scoreColor,
 	studyFigures,
 	suggestion,
 	weakest,
@@ -144,5 +146,23 @@ describe("home figures", () => {
 
 	it("counts the days to the exam", () => {
 		expect(daysUntil("2026-12-15", new Date(2026, 10, 1, 18))).toBe(44);
+	});
+});
+
+describe("the result's colour and next day", () => {
+	it("colours a score by how far it is toward the pass line", () => {
+		expect(scoreColor(0, 66)).toContain("0%, var(--color-destructive)");
+		expect(scoreColor(66, 66)).toBe("var(--color-success)");
+		expect(scoreColor(100, 66)).toBe("var(--color-success)");
+		// On the way: between yellow and green
+		expect(scoreColor(50, 66)).toContain("var(--color-success)");
+	});
+	it("picks the first day kept for study with nothing planned", () => {
+		// Monday 9 November 2026; Tuesday has a plan, Wednesday is a rest day
+		const from = new Date(2026, 10, 9);
+		expect(dayKey(freeDay(from, [2], new Set(["2026-11-09", "2026-11-10"])) as Date)).toBe(
+			"2026-11-12"
+		);
+		expect(freeDay(from, [0, 1, 2, 3, 4, 5, 6], new Set())).toBeNull();
 	});
 });

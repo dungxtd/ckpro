@@ -1,7 +1,7 @@
 import { Button } from "@ckpro/ui/components/button";
 import { Placeholder } from "@ckpro/ui/components/placeholder";
-import { useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import { Chat } from "@/components/create/chat";
 import { DraftStrip } from "@/components/create/draft-header";
 import { DraftPanel } from "@/components/create/draft-panel";
@@ -43,7 +43,18 @@ function AssistantOff() {
 
 function CreateScreen() {
 	const fits = useInspectorFits();
-	useEffect(() => useStudio.getState().enter(), []);
+	// Opened with something to ask (a result's What next): asked once, in a
+	// new conversation, and taken off the address
+	const [params, setParams] = useSearchParams();
+	// Kept apart from the effect: entered twice in development, asked once
+	const ask = useRef(params.get("ask"));
+	// biome-ignore lint/correctness/useExhaustiveDependencies: entered once, with what it was opened with
+	useEffect(() => {
+		const asking = ask.current ?? undefined;
+		ask.current = null;
+		if (asking) setParams({}, { replace: true });
+		return useStudio.getState().enter(asking);
+	}, []);
 
 	return fits ? (
 		<>

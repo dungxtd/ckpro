@@ -241,6 +241,7 @@ mod tests {
                     .collect(),
                 outside: Vec::new(),
                 assisted: Vec::new(),
+                prediction: None,
             },
         };
         let now = 1_800_000_000_000.0;

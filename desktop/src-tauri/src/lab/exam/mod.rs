@@ -117,6 +117,17 @@ pub struct ExamResult {
     /// Questions the assistant ran commands for (Agent): their points were helped
     #[serde(default)]
     pub assisted: Vec<String>,
+    /// The certification's predicted score before this attempt and after it
+    /// (as readiness gives it: none while too little is measured)
+    #[serde(default)]
+    pub prediction: Option<Prediction>,
+}
+
+/// A predicted score, before an attempt and after it
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct Prediction {
+    pub before: Option<f64>,
+    pub after: Option<f64>,
 }
 
 impl ExamResult {

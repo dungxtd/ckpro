@@ -37,6 +37,19 @@ export function mapWeeks(start: Date, end: Date, min = MAP_WEEKS): Date[][] {
 	return weeks;
 }
 
+/**
+ * A score's one colour, from how far it is toward the pass line: red at 0,
+ * orange then yellow on the way, green from the pass line up. Mixed from the
+ * theme's tokens, so it follows light and dark
+ */
+export function scoreColor(percent: number, pass: number): string {
+	const t = Math.max(0, Math.min(1, percent / pass));
+	if (t >= 1) return "var(--color-success)";
+	if (t < 0.6)
+		return `color-mix(in oklch, var(--color-warning) ${Math.round((t / 0.6) * 100)}%, var(--color-destructive))`;
+	return `color-mix(in oklch, var(--color-success) ${Math.round(((t - 0.6) / 0.4) * 100)}%, var(--color-warning))`;
+}
+
 /** A score's tone against the pass line: passing, near it, far under it */
 export const scoreTone = (percent: number, pass: number) =>
 	percent >= pass ? "success" : percent >= 40 ? "warning" : "destructive";
@@ -163,3 +176,14 @@ export const daysUntil = (day: string, today: Date) =>
 			new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) /
 			86_400_000
 	);
+
+/** The first day from `from` the candidate keeps for study: not a rest day
+ * (`rest`, 0 Monday to 6 Sunday) and nothing planned on it yet (`planned`,
+ * YYYY-MM-DD); within two weeks, else none */
+export function freeDay(from: Date, rest: number[], planned: Set<string>): Date | null {
+	for (let i = 0; i < 14; i++) {
+		const day = addDays(from, i);
+		if (!rest.includes((day.getDay() + 6) % 7) && !planned.has(dayKey(day))) return day;
+	}
+	return null;
+}

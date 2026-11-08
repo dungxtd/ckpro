@@ -190,6 +190,7 @@ mod tests {
                     .collect(),
                 outside: Vec::new(),
                 assisted: Vec::new(),
+                prediction: None,
             },
         }
     }

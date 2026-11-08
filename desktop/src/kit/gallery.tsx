@@ -498,7 +498,7 @@ function Gallery() {
 
 				<Section
 					title="Progress · Disclosure"
-					note="How far something is; a row that opens what is under it."
+					note="How far something is (a tone, or a colour of its own); a row that opens what is under it."
 				>
 					<div className="flex max-w-md flex-col gap-2">
 						<Progress label="highlight" value={35} />
@@ -506,6 +506,13 @@ function Gallery() {
 						<Progress label="warning" value={50} tone="warning" />
 						<Progress label="destructive" value={20} tone="destructive" />
 						<Progress label="with a pass line" value={58} tone="warning" marker={66} />
+						{/* A score's own colour, from the scale (study/data.ts scoreColor) */}
+						<Progress
+							label="a colour of its own"
+							value={21}
+							marker={66}
+							color="color-mix(in oklch, var(--color-warning) 52%, var(--color-destructive))"
+						/>
 					</div>
 					<div className="flex gap-3">
 						<ProgressRing value={50} label="1 of 2 done">
