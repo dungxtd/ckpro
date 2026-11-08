@@ -2,22 +2,7 @@
 
 use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};
-use bollard::{API_DEFAULT_VERSION, Docker};
-use std::path::PathBuf;
-
-/// Unix sockets tried after DOCKER_HOST / the default socket, so the app also
-/// works when launched from Finder (no shell environment).
-#[cfg(unix)]
-fn candidate_sockets() -> Vec<PathBuf> {
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
-    vec![
-        PathBuf::from("/var/run/docker.sock"),
-        home.join(".orbstack/run/docker.sock"),
-        home.join(".docker/run/docker.sock"),
-        home.join(".colima/default/docker.sock"),
-        home.join(".rd/docker.sock"),
-    ]
-}
+use bollard::Docker;
 
 /// The engine found last, and when it last answered; `Docker` is a cheap
 /// handle over one connection pool.
@@ -29,26 +14,13 @@ const FRESH: std::time::Duration = std::time::Duration::from_secs(5);
 /// timeout is minutes)
 const PING_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 
-/// The engine answers a ping in time
-
 /// How to get Docker running here, for what the app says when it is not
-pub const START: &str = if cfg!(target_os = "macos") {
-    "Start OrbStack or Docker Desktop"
-} else if cfg!(windows) {
-    "Start Docker Desktop"
-} else {
-    "Start Docker (sudo systemctl start docker), your user in the docker group"
-};
+pub const START: &str = crate::platform::DOCKER_START;
 
 /// How to get Docker here, for when its CLI is not found
-pub const INSTALL: &str = if cfg!(target_os = "macos") {
-    "Install OrbStack or Docker Desktop"
-} else if cfg!(windows) {
-    "Install Docker Desktop"
-} else {
-    "Install Docker Engine"
-};
+pub const INSTALL: &str = crate::platform::DOCKER_INSTALL;
 
+/// The engine answers a ping in time
 pub async fn answers(docker: &Docker) -> bool {
     tokio::time::timeout(PING_TIMEOUT, docker.ping()).await.is_ok_and(|r| r.is_ok())
 }
@@ -79,19 +51,10 @@ async fn find() -> AppResult<Docker> {
             return Ok(docker);
         }
     }
-    // Other engines' sockets (OrbStack, Colima, rootless Docker); Windows
-    // has its engine on the named pipe the defaults use
-    #[cfg(unix)]
-    for socket in candidate_sockets() {
-        if !socket.exists() {
-            continue;
-        }
-        if let Ok(docker) =
-            Docker::connect_with_unix(&socket.to_string_lossy(), 120, API_DEFAULT_VERSION)
-        {
-            if answers(&docker).await {
-                return Ok(docker);
-            }
+    // Other Docker distributions' engines (OrbStack, Colima, rootless Docker)
+    for docker in crate::platform::other_docker_engines() {
+        if answers(&docker).await {
+            return Ok(docker);
         }
     }
     Err(AppError::DockerUnavailable {
@@ -136,35 +99,68 @@ pub fn compose_labels(service: &str) -> Vec<(String, String)> {
     ]
 }
 
-/// The `docker` CLI on this machine.
+/// The `docker` CLI on this machine (kind runs it, without a shell).
 pub fn cli() -> Option<std::path::PathBuf> {
-    cli_path()
-        .split(':')
-        .map(|dir| std::path::Path::new(dir).join("docker"))
-        .find(|path| path.is_file())
+    crate::platform::find_program(&cli_dirs(), "docker")
 }
 
-/// Directories holding the `docker` CLI, which kind shells out to. GUI apps on
-/// macOS start with a minimal PATH, so add the usual install locations.
-pub fn cli_path() -> String {
-    let home = std::env::var("HOME").unwrap_or_default();
-    // Where each system's Docker puts its CLI, ahead of the app's PATH (a
-    // GUI app's is short on macOS)
-    let mut dirs: Vec<std::path::PathBuf> = if cfg!(target_os = "macos") {
-        vec![
-            format!("{home}/.orbstack/bin").into(),
-            "/usr/local/bin".into(),
-            "/opt/homebrew/bin".into(),
-            "/Applications/Docker.app/Contents/Resources/bin".into(),
-            format!("{home}/.rd/bin").into(),
-        ]
-    } else if cfg!(windows) {
-        vec![r"C:\Program Files\Docker\Docker\resources\bin".into()]
-    } else {
-        vec!["/usr/bin".into(), "/usr/local/bin".into(), "/snap/bin".into(), format!("{home}/.rd/bin").into()]
-    };
-    if let Some(path) = std::env::var_os("PATH") {
-        dirs.extend(std::env::split_paths(&path));
+/// The containers of kind clusters `clusters` (`all`: stopped ones too),
+/// asked of the engine on a thread of its own: the app is quitting and its
+/// runtime may be gone. Nothing when Docker does not answer within a few
+/// seconds
+pub fn cluster_containers_now(clusters: &[String], all: bool) -> Vec<String> {
+    const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+    if clusters.is_empty() {
+        return Vec::new();
     }
-    std::env::join_paths(dirs).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default()
+    const CLUSTER: &str = "io.x-k8s.kind.cluster";
+    let clusters = clusters.to_vec();
+    let ask = async move {
+        let docker = connect().await.ok()?;
+        // Label filters must all match: the clusters are told apart here
+        let options = bollard::query_parameters::ListContainersOptions {
+            all,
+            filters: Some(std::collections::HashMap::from([("label".to_string(), vec![CLUSTER.to_string()])])),
+            ..Default::default()
+        };
+        let containers = docker.list_containers(Some(options)).await.ok()?;
+        let ours = |c: &bollard::models::ContainerSummary| {
+            c.labels.as_ref().and_then(|l| l.get(CLUSTER)).is_some_and(|name| clusters.contains(name))
+        };
+        Some(containers.into_iter().filter(ours).filter_map(|c| c.id).collect::<Vec<_>>())
+    };
+    std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().ok()?;
+        runtime.block_on(async { tokio::time::timeout(TIMEOUT, ask).await.ok().flatten() })
+    })
+    .join()
+    .ok()
+    .flatten()
+    .unwrap_or_default()
+}
+
+/// Run `docker <args>` and leave it running: the app quits without waiting
+pub fn detached<I, S>(args: I)
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    let Some(cli) = cli() else { return };
+    let spawned = crate::platform::std_command(cli)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    if let Err(e) = spawned {
+        tracing::warn!(error = %e, "starting a detached docker command");
+    }
+}
+
+/// Where Docker puts its CLI, ahead of the app's PATH (a GUI app's is short
+/// on macOS)
+pub fn cli_dirs() -> Vec<std::path::PathBuf> {
+    let mut dirs = crate::platform::docker_cli_dirs();
+    dirs.extend(crate::platform::path_dirs());
+    dirs
 }

@@ -7,11 +7,10 @@ use super::agent::Agent;
 use crate::error::{AppError, AppResult};
 use crate::sync::MutexExt;
 use serde::{Deserialize, Serialize};
-use std::ffi::OsString;
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::process::{ChildStdin, Command};
+use tokio::process::ChildStdin;
 use tokio_util::sync::CancellationToken;
 
 /// The adapter is fetched by npx on first use: allow for the download
@@ -53,28 +52,13 @@ pub struct SigningIn {
     cancel: CancellationToken,
 }
 
-/// `argv` in a pseudo-terminal: the CLI's login is interactive
-pub fn in_terminal(argv: &[OsString]) -> Command {
-    if cfg!(target_os = "macos") {
-        let mut command = Command::new("/usr/bin/script");
-        command.arg("-q").arg("/dev/null").args(argv);
-        command
-    } else if cfg!(target_os = "linux") {
-        let line = argv.iter().map(|a| crate::runtime::exec::quote(&a.to_string_lossy())).collect::<Vec<_>>().join(" ");
-        let mut command = Command::new("script");
-        command.args(["-q", "-e", "-c", &line, "/dev/null"]);
-        command
-    } else {
-        let mut command = Command::new(&argv[0]);
-        command.args(&argv[1..]);
-        command
-    }
-}
-
 pub async fn account(agent: &Agent) -> AppResult<Account> {
     let mut command = agent.adapter(&["--cli", "auth", "status", "--json"], false).await?;
-    command.stdin(Stdio::null()).stderr(Stdio::null());
-    let output = tokio::time::timeout(CLI_TIMEOUT, command.output())
+    command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
+    let (child, _tree) = crate::platform::ProcessTree::spawn(&mut command)
+        .map_err(|e| AppError::assistant(format!("reading the Claude login: {e}")))?;
+    // Timed out: the tree goes with `_tree`, the CLI under npx included
+    let output = tokio::time::timeout(CLI_TIMEOUT, child.wait_with_output())
         .await
         .map_err(|_| AppError::assistant("reading the Claude login timed out"))?
         .map_err(|e| AppError::assistant(format!("reading the Claude login: {e}")))?;
@@ -107,7 +91,9 @@ pub async fn sign_in(
     };
     let mut command = agent.adapter(&["--cli", "auth", "login", flag], true).await?;
     command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child = command.spawn().map_err(|e| AppError::assistant(format!("starting the Claude login: {e}")))?;
+    // Cancelled or done, the login's processes stop with `_tree`
+    let (mut child, _tree) = crate::platform::ProcessTree::spawn(&mut command)
+        .map_err(|e| AppError::assistant(format!("starting the Claude login: {e}")))?;
     let mut stdout = child.stdout.take().expect("piped");
     let cancel = CancellationToken::new();
     started(SigningIn { stdin: child.stdin.take().expect("piped"), cancel: cancel.clone() });

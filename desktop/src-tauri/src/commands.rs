@@ -389,16 +389,14 @@ pub fn study_stats(exams: State<'_, Arc<Exams>>) -> Vec<StudyStats> {
 /// Open a web page in the system browser (https only): links outside the exam desktop.
 #[tauri::command]
 #[specta::specta]
-pub fn open_in_browser(url: String) -> AppResult<()> {
+pub fn open_in_browser(app: tauri::AppHandle, url: String) -> AppResult<()> {
+    use tauri_plugin_opener::OpenerExt as _;
     if !url.starts_with("https://") || url.chars().any(|c| c.is_whitespace() || c.is_control()) {
         return Err(AppError::invalid(format!("not a web page: {url}")));
     }
-    let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
-    std::process::Command::new(opener)
-        .arg(&url)
-        .spawn()
-        .map_err(|e| AppError::io("opening the browser", e))?;
-    Ok(())
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| AppError::io("opening the browser", std::io::Error::other(e)))
 }
 
 /// The Claude login the assistant answers as.

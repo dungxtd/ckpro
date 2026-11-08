@@ -26,6 +26,8 @@ jobs:
       - name: Tests on real clusters
         working-directory: desktop/src-tauri
         run: |
+          # kind runs docker through the app (cluster/docker_shim.rs): built first
+          cargo build --locked
           cargo test --locked --lib e2e:: -- --ignored --test-threads=1 2>&1 | tee e2e.log
           # A filter that matched nothing reports success: they all ran
           grep -Eq "test result: ok\. [1-9][0-9]* passed" e2e.log

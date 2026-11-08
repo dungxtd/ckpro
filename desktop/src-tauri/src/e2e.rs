@@ -376,8 +376,7 @@ async fn exam_engine_practice_and_exam_modes() {
     })
     .await;
     println!("  firefox up in {} ms", started.elapsed().as_millis());
-    let stats = std::process::Command::new("docker")
-        .env("PATH", runtime::docker::cli_path())
+    let stats = crate::platform::std_command(runtime::docker::cli().expect("the docker CLI"))
         .args(["stats", "--no-stream", "--format", "{{.Name}} {{.MemUsage}} {{.CPUPerc}}"])
         .output()
         .unwrap();

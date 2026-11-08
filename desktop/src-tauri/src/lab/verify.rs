@@ -178,24 +178,13 @@ impl Run {
     }
 
     /// Remove the clusters' nodes and the jumphost with a detached `docker rm`
-    /// (the app quits); the next `sweep_stale` takes the run's files
+    /// (the app quits); the next `sweep_stale` takes the run's network and
+    /// files
     pub fn remove_detached(&self) {
-        let placement = self.placement.locked().clone();
-        let script = "{ for c in \"$@\"; do docker ps -aq --filter label=io.x-k8s.kind.cluster=$c; done; echo \"$JUMPHOST\"; } | xargs docker rm -f -v >/dev/null 2>&1; docker network disconnect -f \"$NETWORK\" \"$MIRROR\" >/dev/null 2>&1; docker network rm \"$NETWORK\" >/dev/null 2>&1";
-        let spawned = std::process::Command::new("sh")
-            .args(["-c", script, "sh"])
-            .args(placement.values())
-            .env("JUMPHOST", &self.jumphost.name)
-            .env("NETWORK", jumphost::run_network(&self.id))
-            .env("MIRROR", infra::MIRROR)
-            .env("PATH", docker::cli_path())
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn();
-        if let Err(e) = spawned {
-            tracing::warn!(error = %e, "removing a verify run on exit");
-        }
+        let clusters: Vec<String> = self.placement.locked().values().cloned().collect();
+        let mut containers = docker::cluster_containers_now(&clusters, true);
+        containers.push(self.jumphost.name.clone());
+        docker::detached(["rm", "-f", "-v"].into_iter().map(str::to_string).chain(containers));
     }
 
     /// Remove the clusters, the jumphost and the run's files
@@ -225,7 +214,7 @@ pub async fn sweep_stale(data_dir: &Path, log: Log<'_>) {
             || std::fs::read_to_string(dir.join("pid"))
                 .ok()
                 .and_then(|pid| pid.trim().parse::<u32>().ok())
-                .is_some_and(process_alive)
+                .is_some_and(crate::platform::process_alive)
     };
 
     // The runs ckpro left a trace of (their directory, their task host): a
@@ -304,14 +293,6 @@ fn run_of_cluster(cluster: &str) -> Option<&str> {
     (run.len() == 4 && run.bytes().all(|b| b.is_ascii_hexdigit())).then_some(run)
 }
 
-fn process_alive(pid: u32) -> bool {
-    pid == std::process::id()
-        || std::process::Command::new("kill")
-            .args(["-0", &pid.to_string()])
-            .stderr(std::process::Stdio::null())
-            .status()
-            .is_ok_and(|s| s.success())
-}
 
 async fn run_questions(
     docker: &bollard::Docker,
