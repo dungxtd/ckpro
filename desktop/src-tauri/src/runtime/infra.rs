@@ -318,6 +318,11 @@ async fn obtain(docker: &Docker, image: &Image, log: &(dyn Fn(String) + Sync)) -
     log(format!("Pulling {tag}"));
     match pull(docker, &tag, log).await {
         Ok(()) => log(format!("Pulled {tag}")),
+        // Docker itself went away midway (restarted, quit): not a reason to
+        // build; the image is got again when it is back
+        Err(e) if !super::docker::answers(docker).await => {
+            return Err(AppError::docker(format!("Docker stopped while pulling {tag}: {e}")));
+        }
         Err(e) => {
             log(format!("Not on the registry yet ({e}): building {tag} here"));
             // Docker's classic builder on a containerd image store (OrbStack)
