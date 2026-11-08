@@ -137,7 +137,7 @@ impl Kind {
         std::env::join_paths(dirs).map(|p| p.to_string_lossy().into_owned()).map_err(|e| AppError::io("setting kind's PATH", std::io::Error::other(e)))
     }
 
-    /// Run kind, handing every output line to `log`.
+    /// Run kind, handing every output line to `log` but its noise.
     async fn run(&self, args: &[&str], log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         let kind = self.binary().await?;
         // kind execs in the nodes (docker exec): ckpro's own, not outside access
@@ -164,6 +164,9 @@ impl Kind {
                 Ok(Some(line)) = err.next_line() => line,
                 else => break,
             };
+            if noise(&line) {
+                continue;
+            }
             tail.push(line.clone());
             if tail.len() > 5 {
                 tail.remove(0);
@@ -317,6 +320,22 @@ pub async fn node_containers(docker: &bollard::Docker, cluster: Option<&str>) ->
         .collect())
 }
 
+/// What kind prints that tells the candidate nothing: the warning for the
+/// network ckpro picks on purpose, and its advice once a cluster is up
+/// (blank lines, the kubectl context, a link to its quick start)
+fn noise(line: &str) -> bool {
+    const LINES: &[&str] = &[
+        "KIND_EXPERIMENTAL_DOCKER_NETWORK",
+        "Here be dragons",
+        "Set kubectl context to",
+        "You can now use your cluster with",
+        "kubectl cluster-info --context",
+        "Not sure what to do next",
+        "Have a nice day",
+    ];
+    line.trim().is_empty() || LINES.iter().any(|l| line.contains(l))
+}
+
 pub fn validate_name(name: &str) -> AppResult<()> {
     let ok = name.starts_with(|c: char| c.is_ascii_lowercase())
         && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
@@ -325,4 +344,19 @@ pub fn validate_name(name: &str) -> AppResult<()> {
 
 fn path_str(path: &Path) -> AppResult<&str> {
     path.to_str().ok_or_else(|| AppError::invalid(format!("non UTF-8 path {}", path.display())))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::noise;
+
+    #[test]
+    fn kinds_advice_and_network_warning_are_left_out() {
+        assert!(noise("WARNING: Here be dragons! This is not supported currently."));
+        assert!(noise("Not sure what to do next? 😅  Check out https://kind.sigs.k8s.io/docs/user/quick-start/"));
+        assert!(noise("   "));
+        // What it is doing, and what went wrong, stay
+        assert!(!noise(" ✓ Starting control-plane 🕹️"));
+        assert!(!noise("ERROR: failed to create cluster: node(s) already exist"));
+    }
 }
