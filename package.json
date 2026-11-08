@@ -1,6 +1,6 @@
 {
   "name": "cktry",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "cktry - Kubernetes exam practice app monorepo",
   "packageManager": "pnpm@12.11.2",

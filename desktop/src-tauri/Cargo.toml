@@ -1,6 +1,6 @@
 [package]
 name = "cktry"
-version = "0.2.0"
+version = "0.2.1"
 description = "cktry - Kubernetes exam practice"
 authors = ["you"]
 edition = "2024"
