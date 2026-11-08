@@ -17,6 +17,10 @@ pub fn root(data_dir: &Path) -> PathBuf {
 /// certifications are the bundled pack's). Problems in their files are
 /// logged, not fatal.
 pub fn merged(mut core: LoadedPack, data_dir: &Path) -> LoadedPack {
+    // None written yet (a new install): nothing to add, nothing to warn about
+    if !root(data_dir).join("pack.yaml").exists() {
+        return core;
+    }
     let (mine, findings) = load::load(&root(data_dir));
     for f in &findings {
         tracing::warn!(file = %f.file, "my questions: {}", f.message);
