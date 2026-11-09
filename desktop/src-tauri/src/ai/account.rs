@@ -55,10 +55,10 @@ pub struct SigningIn {
 pub async fn account(agent: &Agent) -> AppResult<Account> {
     let mut command = agent.adapter(&["--cli", "auth", "status", "--json"], false).await?;
     command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
-    let (child, _tree) = crate::platform::ProcessTree::spawn(&mut command)
+    let tree = crate::platform::ProcessTree::spawn(command)
         .map_err(|e| AppError::assistant(format!("reading the Claude login: {e}")))?;
-    // Timed out: the tree goes with `_tree`, the CLI under npx included
-    let output = tokio::time::timeout(CLI_TIMEOUT, child.wait_with_output())
+    // Timed out: the tree goes with the dropped wait, the CLI under npx included
+    let output = tokio::time::timeout(CLI_TIMEOUT, tree.output())
         .await
         .map_err(|_| AppError::assistant("reading the Claude login timed out"))?
         .map_err(|e| AppError::assistant(format!("reading the Claude login: {e}")))?;
@@ -91,12 +91,12 @@ pub async fn sign_in(
     };
     let mut command = agent.adapter(&["--cli", "auth", "login", flag], true).await?;
     command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    // Cancelled or done, the login's processes stop with `_tree`
-    let (mut child, _tree) = crate::platform::ProcessTree::spawn(&mut command)
+    // Cancelled or done, the login's processes stop with `tree`
+    let mut tree = crate::platform::ProcessTree::spawn(command)
         .map_err(|e| AppError::assistant(format!("starting the Claude login: {e}")))?;
-    let mut stdout = child.stdout.take().expect("piped");
+    let mut stdout = tree.stdout().expect("piped");
     let cancel = CancellationToken::new();
-    started(SigningIn { stdin: child.stdin.take().expect("piped"), cancel: cancel.clone() });
+    started(SigningIn { stdin: tree.stdin().expect("piped"), cancel: cancel.clone() });
 
     let mut buffer = [0u8; 4096];
     let mut pending = Vec::new();
@@ -119,7 +119,7 @@ pub async fn sign_in(
                 }
             }
         }
-        child.wait().await
+        tree.wait().await
     };
     let status = tokio::select! {
         status = tokio::time::timeout(SIGN_IN_TIMEOUT, run) => status,

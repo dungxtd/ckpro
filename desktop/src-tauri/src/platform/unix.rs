@@ -1,12 +1,8 @@
 //! What macOS and Linux share
 
+use process_wrap::tokio::{ProcessSession, TokioCommandWrap};
 use std::os::unix::fs::PermissionsExt;
-use std::os::unix::process::CommandExt as _;
 use std::path::{Path, PathBuf};
-use tokio::process::Child;
-
-/// A process group, led by the process the app started
-pub struct Group(i32);
 
 /// Where installers put programs in the home directory and system-wide:
 /// the Claude CLI's, Volta's, then nvm's Node.js versions, newest first
@@ -48,20 +44,11 @@ pub fn other_docker_engines(home: &Path) -> Vec<bollard::Docker> {
     .collect()
 }
 
-/// A process group of its own: what it starts joins it
-pub fn own_tree(command: &mut std::process::Command) {
-    command.process_group(0);
-}
-
-pub fn tree(child: &Child) -> Option<Group> {
-    child.id().and_then(|pid| i32::try_from(pid).ok()).map(Group)
-}
-
-pub fn kill_tree(group: &Group) {
-    // SAFETY: a plain signal to a group the app started (`own_tree`)
-    unsafe {
-        libc::killpg(group.0, libc::SIGKILL);
-    }
+/// A session of its own (`setsid`), whose process group holds what it
+/// starts, killed together. A session, not only a group: a program started
+/// from the app run in a terminal cannot take that terminal over
+pub fn tree(command: &mut TokioCommandWrap) {
+    command.wrap(ProcessSession);
 }
 
 pub fn process_alive(pid: u32) -> bool {

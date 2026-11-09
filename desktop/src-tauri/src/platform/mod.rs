@@ -5,9 +5,11 @@
 //! it is on. Programs are started directly, their arguments as a list: never
 //! through a shell, whose quoting differs by system.
 
+use process_wrap::tokio::{KillOnDrop, TokioChildWrapper, TokioCommandWrap};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
-use tokio::process::{Child, Command};
+use std::process::{ExitStatus, Output};
+use tokio::process::{ChildStderr, ChildStdin, ChildStdout, Command};
 
 #[cfg(unix)]
 mod unix;
@@ -27,10 +29,6 @@ use windows::Os;
 
 /// One system's ways
 pub trait Platform {
-    /// What holds a process and every process it starts, to stop them
-    /// together (a process group, a job object)
-    type Tree: Send + Sync;
-
     /// The file program `name` is (`docker.exe` on Windows)
     fn program_file(name: &str) -> String;
     /// Where installers put programs (Node.js, the Claude CLI) beyond PATH: an
@@ -50,12 +48,9 @@ pub trait Platform {
 
     /// `command` with no window of its own (a console program the app starts)
     fn quiet(command: &mut std::process::Command);
-    /// `command` set up, before it starts, so that `tree` can hold all it starts
-    fn own_tree(command: &mut std::process::Command);
-    /// What holds `child` and the processes it starts
-    fn tree(child: &Child) -> Option<Self::Tree>;
-    /// Stop every process in `tree`
-    fn kill_tree(tree: &Self::Tree);
+    /// `command` set to start in a tree of its own, which holds every
+    /// process it starts in turn (a session, a job object)
+    fn tree(command: &mut TokioCommandWrap);
     /// Whether process `pid` is running
     fn process_alive(pid: u32) -> bool;
     /// `argv` in a pseudo-terminal, for an interactive program
@@ -138,24 +133,62 @@ pub fn std_command(program: impl AsRef<OsStr>) -> std::process::Command {
 
 /// A process the app started and every process it starts in turn, stopped
 /// together when this is dropped: the Claude adapter is npx, then node, then
-/// the Claude CLI, and stopping npx alone would leave the others running
-pub struct ProcessTree(Option<<Os as Platform>::Tree>);
+/// the Claude CLI, and stopping npx alone would leave the others running.
+/// Each system holds the tree its own way (`Platform::tree`, through
+/// process-wrap): on Windows the process starts suspended and joins its job
+/// before it runs, so nothing it starts can slip out
+pub struct ProcessTree(Box<dyn TokioChildWrapper>);
 
 impl ProcessTree {
     /// Start `command` in a tree of its own
-    pub fn spawn(command: &mut Command) -> std::io::Result<(Child, ProcessTree)> {
-        Os::own_tree(command.as_std_mut());
-        let child = command.kill_on_drop(true).spawn()?;
-        let tree = Os::tree(&child);
-        Ok((child, ProcessTree(tree)))
+    pub fn spawn(command: Command) -> std::io::Result<ProcessTree> {
+        let mut wrap = TokioCommandWrap::from(command);
+        Os::tree(&mut wrap);
+        wrap.wrap(KillOnDrop);
+        Ok(ProcessTree(wrap.spawn()?))
+    }
+
+    /// The process's input, when piped (once)
+    pub fn stdin(&mut self) -> Option<ChildStdin> {
+        self.0.stdin().take()
+    }
+
+    /// Its output, when piped (once)
+    pub fn stdout(&mut self) -> Option<ChildStdout> {
+        self.0.stdout().take()
+    }
+
+    pub fn stderr(&mut self) -> Option<ChildStderr> {
+        self.0.stderr().take()
+    }
+
+    /// Wait for the process the app started (not the rest of the tree: what
+    /// it leaves running stops with the tree)
+    pub async fn wait(&mut self) -> std::io::Result<ExitStatus> {
+        self.0.inner_mut().wait().await
+    }
+
+    /// Wait for it, with all it printed. The tree lives until then: dropped
+    /// earlier (a timeout), every process in it stops
+    pub async fn output(mut self) -> std::io::Result<Output> {
+        use tokio::io::AsyncReadExt;
+        async fn read(pipe: Option<impl tokio::io::AsyncRead + Unpin>) -> std::io::Result<Vec<u8>> {
+            let mut bytes = Vec::new();
+            if let Some(mut pipe) = pipe {
+                pipe.read_to_end(&mut bytes).await?;
+            }
+            Ok(bytes)
+        }
+        let (stdout, stderr) = (self.stdout(), self.stderr());
+        let (stdout, stderr, status) = tokio::try_join!(read(stdout), read(stderr), self.wait())?;
+        Ok(Output { status, stdout, stderr })
     }
 }
 
 impl Drop for ProcessTree {
     fn drop(&mut self) {
-        if let Some(tree) = &self.0 {
-            Os::kill_tree(tree);
-        }
+        // The whole tree: dropping the process alone stops only the first one
+        let _ = self.0.start_kill();
     }
 }
 
@@ -200,6 +233,41 @@ mod tests {
         assert!(is_program(Path::new(&docker)));
         assert!(is_program(Path::new("CLAUDE.EXE")) || !cfg!(windows));
         assert_eq!(is_program(Path::new("claude.cmd")), !cfg!(windows));
+    }
+
+    /// What `output` gives: the exit status and both streams, read together
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_tree_gives_its_output() {
+        let mut sh = command("sh");
+        sh.args(["-c", "echo out; echo err >&2; exit 3"]);
+        sh.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+        let output = ProcessTree::spawn(sh).unwrap().output().await.unwrap();
+        assert_eq!((output.status.code(), output.stdout.as_slice(), output.stderr.as_slice()), (Some(3), &b"out\n"[..], &b"err\n"[..]));
+    }
+
+    /// Dropping the tree stops what its process started, not only the process
+    /// (the Claude CLI under npx and node). The grandchild here writes to a
+    /// file every 100 ms: once the tree is dropped the file stops growing
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_dropped_tree_stops_its_grandchildren() {
+        let file = std::env::temp_dir().join(format!("ckpro-tree-{}", std::process::id()));
+        let _ = std::fs::remove_file(&file);
+        let mut sh = command("sh");
+        sh.arg("-c").arg(format!("(while :; do echo x >> '{}'; sleep 0.1; done) & wait", file.display()));
+        // No stream of the test's: a grandchild left running must not hold it open
+        sh.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        let tree = ProcessTree::spawn(sh).unwrap();
+        let size = || std::fs::metadata(&file).map(|m| m.len()).unwrap_or(0);
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        assert!(size() > 0, "the grandchild runs");
+        drop(tree);
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        let stopped = size();
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        assert_eq!(size(), stopped, "the grandchild stopped with the tree");
+        let _ = std::fs::remove_file(&file);
     }
 
     #[test]
