@@ -75,13 +75,7 @@ impl Kind {
             release_asset()?
         );
         tracing::info!(%url, "downloading kind");
-        let bytes = reqwest::get(&url)
-            .await
-            .and_then(|r| r.error_for_status())
-            .map_err(|e| AppError::io("downloading kind", e))?
-            .bytes()
-            .await
-            .map_err(|e| AppError::io("downloading kind", e))?;
+        let bytes = download(&url).await.map_err(|e| AppError::io("downloading kind", e))?;
         let tmp = bin.with_extension("part");
         std::fs::write(&tmp, &bytes).map_err(|e| AppError::io("saving kind", e))?;
         crate::platform::make_executable(&tmp).map_err(|e| AppError::io("saving kind", e))?;
@@ -223,6 +217,41 @@ impl Kind {
     }
 }
 
+/// Tries a download takes before it gives up
+const DOWNLOAD_ATTEMPTS: u32 = 4;
+
+/// `url`'s body. A failure that may pass (a 5xx or 429 from GitHub, a
+/// timeout, a dropped connection) is tried again after 2, 4 and 8 seconds;
+/// any other (a 404) fails at once
+async fn download(url: &str) -> reqwest::Result<bytes::Bytes> {
+    download_with(url, std::time::Duration::from_secs(1)).await
+}
+
+/// `download`, waiting `unit` times 2, 4, 8 between tries
+async fn download_with(url: &str, unit: std::time::Duration) -> reqwest::Result<bytes::Bytes> {
+    let mut attempt = 1;
+    loop {
+        let result = async { reqwest::get(url).await?.error_for_status()?.bytes().await }.await;
+        match result {
+            Err(e) if attempt < DOWNLOAD_ATTEMPTS && passing(&e) => {
+                let wait = unit * (1 << attempt);
+                tracing::warn!(error = %e, attempt, ?wait, "download failed; trying again");
+                tokio::time::sleep(wait).await;
+                attempt += 1;
+            }
+            result => return result,
+        }
+    }
+}
+
+/// Whether a failed request may succeed when tried again
+fn passing(e: &reqwest::Error) -> bool {
+    match e.status() {
+        Some(status) => status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS,
+        None => e.is_timeout() || e.is_connect() || e.is_request() || e.is_body(),
+    }
+}
+
 fn release_asset() -> AppResult<&'static str> {
     Ok(match (std::env::consts::OS, std::env::consts::ARCH) {
         ("macos", "aarch64") => "kind-darwin-arm64",
@@ -327,7 +356,40 @@ fn path_str(path: &Path) -> AppResult<&str> {
 
 #[cfg(test)]
 mod tests {
-    use super::noise;
+    use super::{download_with, noise};
+
+    /// A server on the loopback answering each request with the next of
+    /// `replies` (status, body), then 500; its URL
+    async fn serve(replies: Vec<(u16, &'static str)>) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/kind", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            let mut replies = replies.into_iter();
+            while let Ok((mut stream, _)) = listener.accept().await {
+                let mut request = [0; 1024];
+                let _ = stream.read(&mut request).await;
+                let (status, body) = replies.next().unwrap_or((500, ""));
+                let reply = format!("HTTP/1.1 {status} X\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+                let _ = stream.write_all(reply.as_bytes()).await;
+            }
+        });
+        url
+    }
+
+    /// GitHub answering 503 now and then (the scheduled run failed on a 504)
+    /// does not fail the download; a missing file fails at once
+    #[tokio::test]
+    async fn a_download_tries_again_after_a_server_error_only() {
+        let unit = std::time::Duration::from_millis(1);
+        let url = serve(vec![(503, ""), (503, ""), (200, "kind")]).await;
+        assert_eq!(download_with(&url, unit).await.unwrap().as_ref(), b"kind");
+        let url = serve(vec![(404, ""), (200, "kind")]).await;
+        let error = download_with(&url, unit).await.unwrap_err();
+        assert_eq!(error.status().map(|s| s.as_u16()), Some(404));
+        let url = serve(vec![(503, ""), (503, ""), (503, ""), (503, ""), (200, "kind")]).await;
+        assert_eq!(download_with(&url, unit).await.unwrap_err().status().map(|s| s.as_u16()), Some(503), "four tries, then it gives up");
+    }
 
     #[test]
     fn kinds_advice_and_network_warning_are_left_out() {
