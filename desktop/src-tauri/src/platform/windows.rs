@@ -1,16 +1,12 @@
 //! Windows
 
 use super::Platform;
+use process_wrap::tokio::{CreationFlags, JobObject, TokioCommandWrap};
 use std::ffi::OsString;
 use std::os::windows::process::CommandExt as _;
 use std::path::{Path, PathBuf};
-use tokio::process::{Child, Command};
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, STILL_ACTIVE};
-use windows_sys::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation, SetInformationJobObject,
-    TerminateJobObject,
-};
+use tokio::process::Command;
+use windows_sys::Win32::Foundation::{CloseHandle, STILL_ACTIVE};
 use windows_sys::Win32::System::Threading::{
     GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
 };
@@ -21,54 +17,12 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 pub struct Os;
 
-/// A job object holding a process and all it starts: closing it (dropped,
-/// or the app ends, however it ends) stops them all
-pub struct Job(HANDLE);
-
-// SAFETY: a job handle is a kernel object any thread may use
-unsafe impl Send for Job {}
-unsafe impl Sync for Job {}
-
-impl Drop for Job {
-    fn drop(&mut self) {
-        // SAFETY: the handle is this job's own, closed once
-        unsafe {
-            CloseHandle(self.0);
-        }
-    }
-}
-
-impl Job {
-    /// A job that stops its processes once its last handle closes, holding `process`
-    fn holding(process: HANDLE) -> Option<Job> {
-        // SAFETY: plain Win32 calls on a job this function creates; the
-        // process handle is the child's, alive while the child is
-        unsafe {
-            let job = Job(CreateJobObjectW(std::ptr::null(), std::ptr::null()));
-            if job.0.is_null() {
-                return None;
-            }
-            let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
-            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-            let set = SetInformationJobObject(
-                job.0,
-                JobObjectExtendedLimitInformation,
-                (&raw const limits).cast(),
-                size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-            );
-            (set != 0 && AssignProcessToJobObject(job.0, process) != 0).then_some(job)
-        }
-    }
-}
-
 /// `%name%` as a path, else `fallback`
 fn known_dir(name: &str, fallback: &str) -> PathBuf {
     std::env::var_os(name).map_or_else(|| PathBuf::from(fallback), PathBuf::from)
 }
 
 impl Platform for Os {
-    type Tree = Job;
-
     fn program_file(name: &str) -> String {
         format!("{name}.exe")
     }
@@ -103,19 +57,14 @@ impl Platform for Os {
         command.creation_flags(CREATE_NO_WINDOW);
     }
 
-    /// Nothing to set before: the job takes the process once it starts, and
-    /// what it starts after that joins the job too
-    fn own_tree(_: &mut std::process::Command) {}
-
-    fn tree(child: &Child) -> Option<Job> {
-        Job::holding(child.raw_handle()? as HANDLE)
-    }
-
-    fn kill_tree(job: &Job) {
-        // SAFETY: the job is alive (`job` holds its handle)
-        unsafe {
-            TerminateJobObject(job.0, 1);
-        }
+    /// A job object that stops all it holds when closed. The process starts
+    /// suspended, joins the job, then runs, so nothing it starts can be
+    /// outside it. `CreationFlags` must come first: the job sets the creation
+    /// flags itself, and only keeps those it is given this way
+    fn tree(command: &mut TokioCommandWrap) {
+        command
+            .wrap(CreationFlags(windows::Win32::System::Threading::PROCESS_CREATION_FLAGS(CREATE_NO_WINDOW)))
+            .wrap(JobObject);
     }
 
     fn process_alive(pid: u32) -> bool {

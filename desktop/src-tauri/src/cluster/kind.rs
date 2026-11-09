@@ -47,13 +47,7 @@ impl Kind {
     pub async fn all_clusters(&self) -> AppResult<Vec<String>> {
         // kind execs in the nodes (docker exec): cktry's own, not outside access
         let _own = crate::runtime::guard::own_operation();
-        let output = self
-            .kind()
-            .await?
-            .args(["get", "clusters"])
-            .output()
-            .await
-            .map_err(|e| AppError::cluster(format!("starting kind: {e}")))?;
+        let output = self.output(&["get", "clusters"]).await?;
         Ok(String::from_utf8_lossy(&output.stdout).lines().map(str::to_string).collect())
     }
 
@@ -113,22 +107,27 @@ impl Kind {
         Ok(command)
     }
 
+    /// kind, started with `args` in a tree of its own: the docker commands
+    /// it runs stop with it (an exam's preparation cancelled)
+    async fn start(&self, args: &[&str]) -> AppResult<crate::platform::ProcessTree> {
+        let mut command = self.kind().await?;
+        command.args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        crate::platform::ProcessTree::spawn(command).map_err(|e| AppError::cluster(format!("starting kind: {e}")))
+    }
+
+    /// What kind prints for `args`, once it ends
+    async fn output(&self, args: &[&str]) -> AppResult<std::process::Output> {
+        self.start(args).await?.output().await.map_err(|e| AppError::cluster(format!("running kind: {e}")))
+    }
+
     /// Run kind, handing every output line to `log` but its noise.
     async fn run(&self, args: &[&str], log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         // kind execs in the nodes (docker exec): cktry's own, not outside access
         let _own = crate::runtime::guard::own_operation();
-        let mut child = self
-            .kind()
-            .await?
-            .args(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|e| AppError::cluster(format!("starting kind: {e}")))?;
+        let mut tree = self.start(args).await?;
 
-        let mut out = BufReader::new(child.stdout.take().expect("piped")).lines();
-        let mut err = BufReader::new(child.stderr.take().expect("piped")).lines();
+        let mut out = BufReader::new(tree.stdout().expect("piped")).lines();
+        let mut err = BufReader::new(tree.stderr().expect("piped")).lines();
         let mut tail = Vec::new();
         loop {
             let line = tokio::select! {
@@ -145,7 +144,7 @@ impl Kind {
             }
             log(line);
         }
-        let status = child.wait().await.map_err(|e| AppError::cluster(e.to_string()))?;
+        let status = tree.wait().await.map_err(|e| AppError::cluster(e.to_string()))?;
         if status.success() {
             Ok(())
         } else {
@@ -188,13 +187,7 @@ impl Kind {
     pub async fn internal_kubeconfig(&self, name: &str) -> AppResult<String> {
         // kind execs in the nodes (docker exec): cktry's own, not outside access
         let _own = crate::runtime::guard::own_operation();
-        let output = self
-            .kind()
-            .await?
-            .args(["get", "kubeconfig", "--internal", "--name", name])
-            .output()
-            .await
-            .map_err(|e| AppError::cluster(format!("starting kind: {e}")))?;
+        let output = self.output(&["get", "kubeconfig", "--internal", "--name", name]).await?;
         if !output.status.success() {
             return Err(AppError::cluster(format!(
                 "reading the kubeconfig of '{name}': {}",
