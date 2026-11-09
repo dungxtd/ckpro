@@ -13,7 +13,7 @@ use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{Child, ChildStdin, Command};
+use tokio::process::{ChildStdin, Command};
 use tokio::sync::{mpsc, oneshot};
 use std::time::Duration;
 
@@ -42,7 +42,6 @@ pub struct Connection {
     subscribers: Arc<Subscribers>,
     /// Gone once the agent exits
     alive: Arc<std::sync::atomic::AtomicBool>,
-    _child: Mutex<Child>,
     /// npx, node and the Claude CLI under it: stopped with the connection
     _tree: crate::platform::ProcessTree,
 }
@@ -62,11 +61,11 @@ impl Connection {
     /// capabilities).
     pub async fn spawn(mut command: Command) -> AppResult<Arc<Self>> {
         command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-        let (mut child, tree) = crate::platform::ProcessTree::spawn(&mut command)
+        let mut tree = crate::platform::ProcessTree::spawn(command)
             .map_err(|e| AppError::assistant(format!("starting the agent: {e}")))?;
-        let stdin = child.stdin.take().expect("piped");
-        let stdout = child.stdout.take().expect("piped");
-        let stderr = child.stderr.take().expect("piped");
+        let stdin = tree.stdin().expect("piped");
+        let stdout = tree.stdout().expect("piped");
+        let stderr = tree.stderr().expect("piped");
         let pending: Arc<Pending> = Arc::default();
         let subscribers: Arc<Subscribers> = Arc::default();
         let alive = Arc::new(std::sync::atomic::AtomicBool::new(true));
@@ -147,7 +146,6 @@ impl Connection {
             pending,
             subscribers,
             alive,
-            _child: Mutex::new(child),
             _tree: tree,
         });
         // Replies to the agent's requests share stdin with ours

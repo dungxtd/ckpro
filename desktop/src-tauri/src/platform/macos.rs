@@ -3,13 +3,12 @@
 use super::{Platform, unix};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use tokio::process::{Child, Command};
+use process_wrap::tokio::TokioCommandWrap;
+use tokio::process::Command;
 
 pub struct Os;
 
 impl Platform for Os {
-    type Tree = unix::Group;
-
     fn program_file(name: &str) -> String {
         name.to_string()
     }
@@ -43,16 +42,8 @@ impl Platform for Os {
 
     fn quiet(_: &mut std::process::Command) {}
 
-    fn own_tree(command: &mut std::process::Command) {
-        unix::own_tree(command);
-    }
-
-    fn tree(child: &Child) -> Option<Self::Tree> {
-        unix::tree(child)
-    }
-
-    fn kill_tree(tree: &Self::Tree) {
-        unix::kill_tree(tree);
+    fn tree(command: &mut TokioCommandWrap) {
+        unix::tree(command);
     }
 
     fn process_alive(pid: u32) -> bool {
