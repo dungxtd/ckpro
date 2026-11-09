@@ -67,9 +67,9 @@ pub fn kill_tree(group: &Group) {
 pub fn process_alive(pid: u32) -> bool {
     let Ok(pid) = i32::try_from(pid) else { return false };
     // SAFETY: signal 0 only asks whether the process exists
-    unsafe { libc::kill(pid, 0) == 0 }
-        // There, but another user's
-        || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+    let answered = unsafe { libc::kill(pid, 0) } == 0;
+    // There, but another user's
+    answered || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
 }
 
 /// A symbolic link: it follows the program wherever it is updated
