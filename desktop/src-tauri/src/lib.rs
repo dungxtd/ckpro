@@ -224,7 +224,6 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         // Links open in the system browser (`open_in_browser`)
         .plugin(tauri_plugin_opener::init())
-        .manage(cluster::jobs::Jobs::default())
         .manage(ai::Coach::new())
         .invoke_handler({
             let handler = builder.invoke_handler();
@@ -263,6 +262,20 @@ let proving = app.handle().clone();
             let env = Arc::new(Env::new(move |state| {
                 let _ = EnvChanged(state.clone()).emit(&handle);
             }));
+            {
+                let (env, activities) = (env.clone(), activities.clone());
+                infra.report_images(move |missing, downloading| {
+                    // All here, however they came (startup, an exam, a proof):
+                    // a failed try to get them has nothing left to retry
+                    if missing.is_empty() && !downloading {
+                        activities.clear_retry();
+                    }
+                    env.update(|s| {
+                        s.images_missing = missing;
+                        s.images_downloading = downloading;
+                    });
+                });
+            }
             let notices = app.handle().clone();
             let guard = runtime::guard::Guard::new(move |what| {
                 let _ = GuardNotice(what.to_string()).emit(&notices);
@@ -279,7 +292,9 @@ let proving = app.handle().clone();
             // Docker, the clusters and the guard; the attempt being resumed
             // starts its own clusters, task host and desktop
             let resuming = lab::exam::saved_running(&store).map(|(attempt, _)| attempt.clusters).unwrap_or_default();
-            runtime::monitor::start(env.clone(), kind.clone(), infra.clone(), activities.clone(), guard.clone(), resuming);
+            let jobs = Arc::new(cluster::jobs::Jobs::new(env.clone()));
+            app.manage(jobs.clone());
+            runtime::monitor::start(env.clone(), kind.clone(), infra.clone(), activities.clone(), guard.clone(), jobs, resuming);
             app.manage(store.clone());
             let exams_handle = app.handle().clone();
             let exams = Arc::new(lab::exam::Exams::new(

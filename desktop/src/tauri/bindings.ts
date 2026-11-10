@@ -430,6 +430,13 @@ export type CheckResult = {
 	detail: string,
 };
 
+/**  Something being done to a cluster, one at a time */
+export type ClusterJob = 
+/**  Its stopped nodes being started (the app reopened, or Repair) */
+"starting" | 
+/**  It is being deleted */
+"removing";
+
 export type ClusterState = ClusterState_Serialize | ClusterState_Deserialize;
 
 export type ClusterState_Deserialize = {
@@ -726,6 +733,12 @@ export type EnvState_Deserialize = {
 	usage?: ContainerUse_Deserialize[] | null,
 	/**  The exam images not here yet (`Infra::missing_images`) */
 	images_missing?: string[],
+	/**  The missing exam images are being pulled now */
+	images_downloading?: boolean,
+	/**  The image cache is being emptied now */
+	cache_clearing?: boolean,
+	/**  What is being done to a cluster now (`cluster::jobs::Jobs`) */
+	cluster_jobs?: { [key in string]: ClusterJob },
 	/**
 	 *  Docker's disk and kernel limits, read in the image mirror while the
 	 *  Environment page is open (none while it does not run)
@@ -753,6 +766,12 @@ export type EnvState_Serialize = {
 	usage: ContainerUse_Serialize[] | null,
 	/**  The exam images not here yet (`Infra::missing_images`) */
 	images_missing: string[],
+	/**  The missing exam images are being pulled now */
+	images_downloading: boolean,
+	/**  The image cache is being emptied now */
+	cache_clearing: boolean,
+	/**  What is being done to a cluster now (`cluster::jobs::Jobs`) */
+	cluster_jobs: { [key in string]: ClusterJob },
 	/**
 	 *  Docker's disk and kernel limits, read in the image mirror while the
 	 *  Environment page is open (none while it does not run)

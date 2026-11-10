@@ -125,16 +125,27 @@ const UPSTREAMS: [(u16, &str, &str); 4] = [
 ];
 
 
+/// Told which exam images are missing, and whether they are being got now
+type ImagesReport = Box<dyn Fn(Vec<String>, bool) + Send + Sync>;
+
 pub struct Infra {
     dir: PathBuf,
     /// One `ensure` at a time: an exam started while the startup build runs
     /// waits for it instead of building the same images again
     ensuring: tokio::sync::Mutex<()>,
+    /// Who shows the images' state (the app's `EnvState`; none for the CLI)
+    report: std::sync::OnceLock<ImagesReport>,
 }
 
 impl Infra {
     pub fn new(data_dir: PathBuf) -> Self {
-        Self { dir: data_dir, ensuring: tokio::sync::Mutex::new(()) }
+        Self { dir: data_dir, ensuring: tokio::sync::Mutex::new(()), report: std::sync::OnceLock::new() }
+    }
+
+    /// Report the images' state to `report` from now on: every `ensure`
+    /// says so as it gets them (startup, an exam, a proof), and once done
+    pub fn report_images(&self, report: impl Fn(Vec<String>, bool) + Send + Sync + 'static) {
+        let _ = self.report.set(Box::new(report));
     }
 
     /// Images not built yet: on the first run, or after an update changed them
@@ -156,6 +167,26 @@ impl Infra {
     /// Create whatever is missing. Idempotent and cheap once everything exists.
     pub async fn ensure(&self, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         let _one_at_a_time = self.ensuring.lock().await;
+        let mut shown = match self.report.get() {
+            Some(report) => {
+                let missing = self.missing_images(docker).await;
+                report(missing.clone(), !missing.is_empty());
+                Some(Shown { report, missing })
+            }
+            None => None,
+        };
+        let result = self.ensure_locked(docker, log).await;
+        if let Some(shown) = &mut shown {
+            // Got them all, or failed partway (some may be here now)
+            shown.missing = match result {
+                Ok(()) => Vec::new(),
+                Err(_) => self.missing_images(docker).await,
+            };
+        }
+        result
+    }
+
+    async fn ensure_locked(&self, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         if docker.inspect_network(NETWORK, None::<bollard::query_parameters::InspectNetworkOptions>).await.is_err() {
             log(format!("Creating network {NETWORK}"));
             docker
@@ -189,10 +220,38 @@ impl Infra {
     }
 }
 
+/// The images' state as shown while an `ensure` runs; once it ends, however
+/// it ends (done, failed, or dropped midway: an exam cancelled while it
+/// prepares), nothing is shown under way
+struct Shown<'a> {
+    report: &'a ImagesReport,
+    /// What is missing once it ends: as it began, unless found otherwise
+    missing: Vec<String>,
+}
+
+impl Drop for Shown<'_> {
+    fn drop(&mut self) {
+        (self.report)(std::mem::take(&mut self.missing), false);
+    }
+}
+
+/// The image cache held by one caller (`Infra::hold_cache`)
+pub struct CacheHold<'a> {
+    _lock: tokio::sync::MutexGuard<'a, ()>,
+}
+
 impl Infra {
+    /// Hold the image cache to clear it: refused, at once, while images come
+    /// through it or another clear runs
+    pub fn hold_cache(&self) -> AppResult<CacheHold<'_>> {
+        self.ensuring.try_lock().map(|_lock| CacheHold { _lock }).map_err(|_| {
+            AppError::busy("the image cache is in use (exam images downloading, or being cleared): try again once that is done")
+        })
+    }
+
     /// Empty the image mirror's cache: its container and volume go, and a
     /// new one starts empty (clusters pull through it again)
-    pub async fn clear_cache(&self, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
+    pub async fn clear_cache(&self, _held: &CacheHold<'_>, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         let force = bollard::query_parameters::RemoveContainerOptions { force: true, ..Default::default() };
         log(format!("Removing {MIRROR}"));
         match docker.remove_container(MIRROR, Some(force)).await {

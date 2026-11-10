@@ -176,18 +176,23 @@ impl Proofs {
     /// Every proof stopped (an exam-mode attempt starts: no assistant's work
     /// goes on beside it)
     pub fn stop_all(&self) {
-        for r in self.running.locked().values_mut() {
-            r.proof.stopped = true;
-            r.cancel.cancel();
+        for (session, r) in self.running.locked().iter_mut() {
+            self.halt(*session, r);
         }
     }
 
     /// The candidate stopped it: its cluster goes
     pub fn stop(&self, session: i32) {
         if let Some(r) = self.running.locked().get_mut(&session) {
-            r.proof.stopped = true;
-            r.cancel.cancel();
+            self.halt(session, r);
         }
+    }
+
+    /// Stop proof `r`, shown stopping at once: its cluster takes a while to go
+    fn halt(&self, session: i32, r: &mut Running) {
+        r.proof.stopped = true;
+        r.cancel.cancel();
+        (self.changed)(session, Some(&r.proof));
     }
 
     /// Whether the conversation's exam is being proven now

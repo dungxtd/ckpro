@@ -25,9 +25,14 @@ export function ClusterCard({
 	purpose?: Purpose;
 	usage?: ContainerUse[] | null;
 }) {
-	const job = useEnvironment(s => s.job);
+	// What Rust is doing to it now (starting its nodes, or removing it), or
+	// was just asked to
+	const job = useEnvironment(s => s.env?.cluster_jobs?.[cluster.name]);
+	const asked = useEnvironment(s => s.asked[cluster.name]);
 	const runJob = useEnvironment(s => s.runJob);
-	const busy = job !== null;
+	const busy = job !== undefined || asked !== undefined;
+	const starting = job === "starting" || (!job && asked === "repair");
+	const removing = job === "removing" || (!job && asked === "delete");
 	const needsRepair = cluster.nodes.some(n => n.container.state !== "running");
 	const workers = cluster.nodes.length - 1;
 	const version = cluster.nodes.find(n => n.version)?.version;
@@ -48,7 +53,7 @@ export function ClusterCard({
 							disabled={busy}
 							onClick={() => runJob("repair", cluster.name)}
 						>
-							Repair
+							{starting ? "Starting…" : "Repair"}
 						</Button>
 					)}
 					<ConfirmDialog
@@ -58,7 +63,7 @@ export function ClusterCard({
 						onConfirm={() => runJob("delete", cluster.name)}
 					>
 						<Button size="sm" variant="outline" disabled={busy}>
-							{job?.cluster === cluster.name && job.action === "delete" ? "Deleting…" : "Delete"}
+							{removing ? "Deleting…" : "Delete"}
 						</Button>
 					</ConfirmDialog>
 				</div>

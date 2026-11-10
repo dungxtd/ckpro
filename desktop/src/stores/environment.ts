@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
@@ -6,12 +7,12 @@ import { clusterApi, type EnvState, envApi, errorText } from "@/tauri/api";
 type ClusterAction = "delete" | "repair";
 
 interface EnvironmentState {
-	/** Mirror of the Rust EnvState; null until the first snapshot arrives */
+	/** Mirror of the Rust EnvState; null until the first snapshot arrives.
+	 * What runs on a cluster is its `cluster_jobs`, kept by Rust */
 	env: EnvState | null;
-	/** The cluster being repaired or deleted (one at a time) */
-	job: { cluster: string; action: ClusterAction } | null;
-	/** Why the last one failed */
-	error: string | null;
+	/** Clusters asked to be repaired or deleted, until Rust answers: a second
+	 * click then would only be refused (Rust shows the job once it begins) */
+	asked: Record<string, ClusterAction>;
 }
 
 interface EnvironmentActions {
@@ -24,8 +25,7 @@ export const useEnvironment = create<EnvironmentState & EnvironmentActions>()(
 	devtools(
 		immer((set, get) => ({
 			env: null,
-			job: null,
-			error: null,
+			asked: {},
 
 			connect: async () => {
 				const apply = (env: EnvState) =>
@@ -38,22 +38,21 @@ export const useEnvironment = create<EnvironmentState & EnvironmentActions>()(
 			},
 
 			runJob: async (action, cluster) => {
-				if (get().job) return;
+				if (get().asked[cluster]) return;
 				set(s => {
-					s.job = { cluster, action };
-					s.error = null;
+					s.asked[cluster] = action;
 				});
 				try {
-					// Progress and log show as an activity
+					// Progress and log show as an activity; Rust marks the
+					// cluster busy meanwhile (`cluster_jobs`)
 					if (action === "delete") await clusterApi.delete(cluster);
 					else await clusterApi.repair(cluster);
 				} catch (e) {
-					set(s => {
-						s.error = errorText(e);
-					});
+					// Said where it was asked, not kept on the page after
+					toast.error(errorText(e));
 				} finally {
 					set(s => {
-						s.job = null;
+						delete s.asked[cluster];
 					});
 				}
 			},

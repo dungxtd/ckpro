@@ -378,8 +378,9 @@ function ProofProgress({ proof }: { proof: Proof }) {
 	const now = useNow(true);
 	const checking = proof.checking.length;
 	const stage = proof.stage;
-	const at =
-		stage.stage === "cluster"
+	const at = proof.stopped
+		? "Stopping: its cluster is being removed"
+		: stage.stage === "cluster"
 			? `Making a cluster with ${plural(stage.workers, "worker")}`
 			: stage.stage === "setting_up"
 				? `Setting up ${plural(total || checking, "question")}`
@@ -397,11 +398,13 @@ function ProofProgress({ proof }: { proof: Proof }) {
 				value={(proof.results.length * 100) / Math.max(1, checking)}
 			/>
 			<div className="flex items-center justify-end gap-2">
-				<Button size="push" variant="push" onClick={stopProof}>
-					Stop
-				</Button>
+				{!proof.stopped && (
+					<Button size="push" variant="push" onClick={stopProof}>
+						Stop
+					</Button>
+				)}
 				<Button size="push" variant="pushDefault" disabled>
-					Proving…
+					{proof.stopped ? "Stopping…" : "Proving…"}
 				</Button>
 			</div>
 		</>

@@ -5,7 +5,7 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { Check, Play } from "lucide-react";
 import { useNavigate } from "react-router";
 import type { suggestion } from "@/components/study/data";
-import { useExam } from "@/stores/exam";
+import { useExam, useExamBusy } from "@/stores/exam";
 import type { PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 
@@ -24,6 +24,7 @@ export function Today({
 	suggested: ReturnType<typeof suggestion>;
 }) {
 	const start = useExam(s => s.start);
+	const busy = useExamBusy();
 	const navigate = useNavigate();
 	const done = plans.filter(p => p.done !== null).length;
 	const next = plans.find(p => p.done === null);
@@ -46,6 +47,7 @@ export function Today({
 							size="sm"
 							variant="pushDefault"
 							className="mt-2 max-w-full"
+							disabled={busy}
 							onClick={() => start(next.exam_id, next.mode)}
 						>
 							<Play /> <span className="truncate">Continue: {shortTitle(next.title)}</span>
@@ -75,6 +77,7 @@ export function Today({
 					<Button
 						size="push"
 						variant="pushDefault"
+						disabled={busy}
 						onClick={() => start(suggested.exam.id, "practice")}
 					>
 						<Play /> Start
@@ -108,7 +111,12 @@ export function Today({
 						</div>
 					</div>
 					{p.done === null && (
-						<Button size="push" variant="push" onClick={() => start(p.exam_id, p.mode)}>
+						<Button
+							size="push"
+							variant="push"
+							disabled={busy}
+							onClick={() => start(p.exam_id, p.mode)}
+						>
 							<Play /> Start
 						</Button>
 					)}

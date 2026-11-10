@@ -8,7 +8,7 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { BookOpenCheck, ListChecks, Server, Target, Timer } from "lucide-react";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { ScreenTitle } from "@/components/shell/screen";
-import { useExam } from "@/stores/exam";
+import { useExam, useExamBusy } from "@/stores/exam";
 import { useAssistantEnabled } from "@/stores/settings";
 import type { ExamSummary } from "@/tauri/api";
 import { gb, memoryFit } from "./exams";
@@ -20,6 +20,7 @@ import { gb, memoryFit } from "./exams";
  */
 export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: number | null }) {
 	const start = useExam(s => s.start);
+	const busy = useExamBusy();
 	const assistant = useAssistantEnabled();
 	const f = memoryFit(exam, dockerMb);
 	const ready = f === "fits" || f === "slower";
@@ -74,7 +75,11 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 						title="Exam"
 						text="Timed and graded when you submit, as on the day. No hints, solutions or assistant."
 					>
-						<Button variant="pushDefault" disabled={!ready} onClick={() => start(exam.id, "exam")}>
+						<Button
+							variant="pushDefault"
+							disabled={!ready || busy}
+							onClick={() => start(exam.id, "exam")}
+						>
 							Start exam
 						</Button>
 					</Mode>
@@ -83,7 +88,11 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 						title="Practice"
 						text={`Check each answer as you go, read hints and solutions,${assistant ? " ask the assistant," : ""} and leave without grading.`}
 					>
-						<Button variant="outline" disabled={!ready} onClick={() => start(exam.id, "practice")}>
+						<Button
+							variant="outline"
+							disabled={!ready || busy}
+							onClick={() => start(exam.id, "practice")}
+						>
 							Practice
 						</Button>
 					</Mode>

@@ -15,7 +15,7 @@ export const menu = {
 	/** Floating menu surface (material + double edge, see `menu-surface`). */
 	surface: "menu-surface rounded-menu p-[5px] text-popover-foreground",
 	/** Selectable row; put the checkmark in `check` and a trailing value in `hint`. */
-	row: "relative flex h-6 w-full min-w-0 cursor-default whitespace-nowrap select-none items-center gap-2 rounded-control pr-3 pl-[25px] text-left text-callout outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-highlight hover:text-highlight-foreground focus-visible:bg-highlight focus-visible:text-highlight-foreground data-[highlighted]:bg-highlight data-[highlighted]:text-highlight-foreground",
+	row: "relative flex h-6 w-full min-w-0 cursor-default whitespace-nowrap select-none items-center gap-2 rounded-control pr-3 pl-[25px] text-left text-callout outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 disabled:pointer-events-none disabled:opacity-50 hover:bg-highlight hover:text-highlight-foreground focus-visible:bg-highlight focus-visible:text-highlight-foreground data-[highlighted]:bg-highlight data-[highlighted]:text-highlight-foreground",
 	/** Checkmark slot at the left of a row. */
 	check: "absolute top-1.5 left-2 flex size-3 items-center justify-center",
 	/** Trailing secondary text (shortcut, value, source). */

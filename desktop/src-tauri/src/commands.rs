@@ -46,17 +46,20 @@ pub async fn env_clear_cache(
     if proofs.list().iter().any(|(_, p)| p.ended_at.is_none()) {
         return Err(AppError::busy("an exam is being proven in Create: wait for it, or stop it"));
     }
-    let op = activities.begin("Clearing the image cache", vec!["Removing the cached images".into()]);
+    // Refused before anything shows: only the clear holding the cache says so
+    let held = infra.hold_cache()?;
+    // Docker first: down, the activity would only say it was cancelled
     let docker = crate::runtime::docker::connect().await?;
-    let result = infra.clear_cache(&docker, &|line| op.log(line)).await;
-    // A new, empty cache: shown so at once, not at the next reading
-    if result.is_ok() {
-        env.update(|s| {
-            if let Some(host) = &mut s.host {
-                host.cache_mb = 0;
-            }
-        });
-    }
+    let op = activities.begin("Clearing the image cache", vec!["Removing the cached images".into()]);
+    env.update(|s| s.cache_clearing = true);
+    let result = infra.clear_cache(&held, &docker, &|line| op.log(line)).await;
+    env.update(|s| {
+        s.cache_clearing = false;
+        // A new, empty cache: shown so at once, not at the next reading
+        if let (Ok(()), Some(host)) = (&result, &mut s.host) {
+            host.cache_mb = 0;
+        }
+    });
     op.end(result)
 }
 
@@ -74,14 +77,14 @@ pub async fn delete_cluster(
     kind: State<'_, Arc<Kind>>,
     exams: State<'_, Arc<Exams>>,
     jumphost: State<'_, Arc<Jumphost>>,
-    jobs: State<'_, Jobs>,
+    jobs: State<'_, Arc<Jobs>>,
     activities: State<'_, Arc<Activities>>,
     name: String,
 ) -> AppResult<()> {
     if exams.uses_cluster(&name) {
         return Err(AppError::invalid(format!("an attempt runs on {name}: close it, and its clusters go with it")));
     }
-    jobs.begin(&name)?;
+    let _job = jobs.begin(&name, crate::runtime::model::ClusterJob::Removing)?;
     let op = activities.begin(
         format!("Removing cluster {name}"),
         vec![format!("Removing cluster {name}"), "Updating the task host".into()],
@@ -93,14 +96,24 @@ pub async fn delete_cluster(
         jumphost.refresh_access(&crate::runtime::docker::connect().await?, &kind, &app_placement(&kind)).await
     }
     .await;
-    jobs.end(&name);
     op.end(result)
 }
 
 /// Start a cluster's stopped nodes.
 #[tauri::command]
 #[specta::specta]
-pub async fn repair_cluster(activities: State<'_, Arc<Activities>>, name: String) -> AppResult<()> {
+pub async fn repair_cluster(
+    activities: State<'_, Arc<Activities>>,
+    exams: State<'_, Arc<Exams>>,
+    jobs: State<'_, Arc<Jobs>>,
+    name: String,
+) -> AppResult<()> {
+    // The attempt starts its clusters itself as it resumes
+    if exams.works_on_cluster(&name) {
+        return Err(AppError::busy(format!("the attempt is starting {name} itself: wait for it")));
+    }
+    // Not while it is deleted, nor while the app starts it already
+    let _job = jobs.begin(&name, crate::runtime::model::ClusterJob::Starting)?;
     let op = activities.begin(format!("Starting cluster {name}"), vec![format!("Starting the stopped nodes of {name}")]);
     let result = async { crate::runtime::reconcile::repair(&crate::runtime::docker::connect().await?, &name).await }.await;
     op.end(result)

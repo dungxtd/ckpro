@@ -327,8 +327,7 @@ function WhatNext({
 		}
 	};
 	const startAfter = (examId: string, mode: Mode) => async () => {
-		await end();
-		await start(examId, mode);
+		if (await end()) await start(examId, mode);
 	};
 
 	const steps: (Step | false | null | undefined)[] = result.passed

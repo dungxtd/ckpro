@@ -32,7 +32,16 @@ function ExamPhase() {
 		end,
 		start,
 		retry: tryAgain,
-	} = useExam(useShallow(s => ({ state: s.state, end: s.end, start: s.start, retry: s.retry })));
+		pending,
+	} = useExam(
+		useShallow(s => ({
+			state: s.state,
+			end: s.end,
+			start: s.start,
+			retry: s.retry,
+			pending: s.pending,
+		}))
+	);
 	if (!state) return <Loading fill label="Loading the exam…" />;
 
 	switch (state.phase) {
@@ -41,8 +50,8 @@ function ExamPhase() {
 		case "preparing":
 			return (
 				<ActivityPage id={state.activity} subtitle={modeLabel(state.attempt.mode)}>
-					<Button size="sm" variant="ghost" onClick={end}>
-						Cancel
+					<Button size="sm" variant="ghost" disabled={pending !== null} onClick={end}>
+						{pending === "ending" ? "Cancelling…" : "Cancel"}
 					</Button>
 				</ActivityPage>
 			);
@@ -87,18 +96,21 @@ function ExamPhase() {
 				? tryAgain
 				: attempt
 					? async () => {
-							await end();
-							await start(attempt.exam_id, attempt.mode, true);
+							if (await end()) await start(attempt.exam_id, attempt.mode, true);
 						}
 					: undefined;
 			const actions = (
 				<>
-					<Button size="sm" variant="outline" onClick={end}>
-						Close and clean up
+					<Button size="sm" variant="outline" disabled={pending !== null} onClick={end}>
+						{pending === "ending" ? "Cleaning up…" : "Close and clean up"}
 					</Button>
 					{retry && (
-						<Button size="sm" variant="pushDefault" onClick={retry}>
-							{state.resumable ? "Try Again" : "Start Over"}
+						<Button size="sm" variant="pushDefault" disabled={pending !== null} onClick={retry}>
+							{pending === "retrying"
+								? "Trying again…"
+								: state.resumable
+									? "Try Again"
+									: "Start Over"}
 						</Button>
 					)}
 				</>

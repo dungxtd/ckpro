@@ -57,7 +57,6 @@ const NO_CLUSTERS: string[] = [];
  * needs the candidate, each part in detail, what it is doing. */
 export function EnvironmentRoute() {
 	const env = useEnvironment(s => s.env);
-	const error = useEnvironment(s => s.error);
 	const examClusters = useExam(s =>
 		s.state && "attempt" in s.state && s.state.attempt ? s.state.attempt.clusters : NO_CLUSTERS
 	);
@@ -117,7 +116,6 @@ export function EnvironmentRoute() {
 
 	return (
 		<Screen title="Environment" actions={<DockerStatus docker={docker} />} className="gap-3">
-			{error && <Alert variant="destructive">{error}</Alert>}
 			{docker.state === "up" &&
 				(usage ? (
 					<>
@@ -145,7 +143,8 @@ export function EnvironmentRoute() {
 
 			{/* Needs you: what is wrong, and the images not here yet */}
 			<IssuesPanel issues={env.issues} />
-			{docker.state === "up" && missing.length > 0 && (
+			{/* Being got: its activity (below, and in the title bar) shows it */}
+			{docker.state === "up" && missing.length > 0 && !env.images_downloading && (
 				<Alert variant="warning">
 					<Download />
 					<div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -189,7 +188,13 @@ export function EnvironmentRoute() {
 			{!cluster && open && open !== "services" && open !== "others" && usage && (
 				<ProofClusterCard cluster={open} usage={usage} />
 			)}
-			{open === "services" && usage && <ServicesCard usage={usage} cacheMb={env.host?.cache_mb} />}
+			{open === "services" && usage && (
+				<ServicesCard
+					usage={usage}
+					cacheMb={env.host?.cache_mb}
+					clearing={env.cache_clearing ?? false}
+				/>
+			)}
 			{open === "others" && usage && <OtherAppsCard usage={usage} />}
 			{env.clusters.length === 0 && !parts.some(p => p.kind === "proof" || p.kind === "exam") && (
 				<p className="text-muted-foreground text-sm">

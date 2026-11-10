@@ -45,24 +45,27 @@ pub struct Jumphost {
     network: String,
     /// Mounted read-write at /root/.ckpro (`kubectl config use-context` writes)
     dir: PathBuf,
+    /// One `refresh_access` at a time: each empties the etcd certs and
+    /// rewrites the kubeconfig, which two at once would interleave
+    refreshing: tokio::sync::Mutex<()>,
 }
 
 impl Jumphost {
     /// The app's jumphost
     pub fn app(data_dir: &Path) -> Self {
-        Self { name: APP_NAME.into(), network: NETWORK.into(), dir: data_dir.join("jumphost") }
+        Self { name: APP_NAME.into(), network: NETWORK.into(), dir: data_dir.join("jumphost"), refreshing: Default::default() }
     }
 
     /// A jumphost of the tests' own, on the app's network beside the
     /// clusters they make there
     #[cfg(test)]
     pub fn for_test(data_dir: &Path, name: &str) -> Self {
-        Self { name: format!("{RUN_PREFIX}{name}"), network: NETWORK.into(), dir: data_dir.join("runs").join(name).join("jumphost") }
+        Self { name: format!("{RUN_PREFIX}{name}"), network: NETWORK.into(), dir: data_dir.join("runs").join(name).join("jumphost"), refreshing: Default::default() }
     }
 
     /// A jumphost of its own for one verify run
     pub fn for_run(data_dir: &Path, run: &str) -> Self {
-        Self { name: format!("{RUN_PREFIX}{run}"), network: run_network(run), dir: data_dir.join("runs").join(run).join("jumphost") }
+        Self { name: format!("{RUN_PREFIX}{run}"), network: run_network(run), dir: data_dir.join("runs").join(run).join("jumphost"), refreshing: Default::default() }
     }
 
     /// Where etcd client certs for a logical cluster are, on the jumphost
@@ -137,6 +140,7 @@ impl Jumphost {
     /// Rewrite the kubeconfig (one context per logical cluster) and the etcd
     /// certs for `placement`, keeping the candidate's current context.
     pub async fn refresh_access(&self, docker: &Docker, kind: &Kind, placement: &Placement) -> AppResult<()> {
+        let _one_at_a_time = self.refreshing.lock().await;
         std::fs::create_dir_all(&self.dir).map_err(|e| AppError::io("creating jumphost dir", e))?;
         let kubeconfig_path = self.dir.join("kubeconfig");
         let previous_context = std::fs::read_to_string(&kubeconfig_path)

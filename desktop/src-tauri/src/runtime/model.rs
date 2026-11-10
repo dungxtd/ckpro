@@ -23,6 +23,15 @@ pub struct EnvState {
     /// The exam images not here yet (`Infra::missing_images`)
     #[serde(default)]
     pub images_missing: Vec<String>,
+    /// The missing exam images are being pulled now
+    #[serde(default)]
+    pub images_downloading: bool,
+    /// The image cache is being emptied now
+    #[serde(default)]
+    pub cache_clearing: bool,
+    /// What is being done to a cluster now (`cluster::jobs::Jobs`)
+    #[serde(default)]
+    pub cluster_jobs: std::collections::BTreeMap<String, ClusterJob>,
     /// Docker's disk and kernel limits, read in the image mirror while the
     /// Environment page is open (none while it does not run)
     #[serde(default)]
@@ -86,6 +95,16 @@ pub struct ClusterState {
     /// A running attempt's: the guard keeps it as set up
     #[serde(default)]
     pub guarded: bool,
+}
+
+/// Something being done to a cluster, one at a time
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum ClusterJob {
+    /// Its stopped nodes being started (the app reopened, or Repair)
+    Starting,
+    /// It is being deleted
+    Removing,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -194,7 +213,8 @@ impl EnvState {
                 });
             }
         }
-        for cluster in &self.clusters {
+        // A cluster being started or removed: its stopped nodes are not news
+        for cluster in self.clusters.iter().filter(|c| !self.cluster_jobs.contains_key(&c.name)) {
             for node in &cluster.nodes {
                 match (&node.container, &node.ready) {
                     (ContainerStatus::Running, Readiness::NotReady { reason }) => issues.push(Issue {

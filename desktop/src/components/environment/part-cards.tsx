@@ -46,10 +46,13 @@ export function Rows({ rows }: { rows: Row[] }) {
 export function ServicesCard({
 	usage,
 	cacheMb,
+	clearing,
 }: {
 	usage: ContainerUse[];
 	/** What the image mirror's cache holds, once read */
 	cacheMb?: number;
+	/** The cache is being emptied now */
+	clearing: boolean;
 }) {
 	const running = usage.filter(c => c.owner.kind === "service");
 	const rows: Row[] = running.map(c => ({
@@ -69,8 +72,14 @@ export function ServicesCard({
 	// The mirror's cache: its size, and emptying it (asked first)
 	const mirror = rows.find(r => r.key === "ckpro-mirror");
 	if (mirror && cacheMb !== undefined) {
-		mirror.what = `Caches the images clusters pull · ${memory(cacheMb)} cached`;
-		mirror.action = (
+		mirror.what = clearing
+			? "Caches the images clusters pull · emptying the cache…"
+			: `Caches the images clusters pull · ${memory(cacheMb)} cached`;
+		mirror.action = clearing ? (
+			<Button size="push" variant="push" disabled>
+				Clearing…
+			</Button>
+		) : (
 			<ConfirmDialog
 				title="Clear the image cache?"
 				description="The images clusters pulled through ckpro go; the next exam downloads them again. Not while an exam is open or being proven."

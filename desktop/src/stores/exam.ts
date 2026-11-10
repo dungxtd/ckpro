@@ -37,6 +37,10 @@ interface ExamStore extends AttemptUi {
 	/** Exam waiting for confirmation to replace existing clusters */
 	pendingReplace: { id: string; mode: Mode; message: string } | null;
 	error: string | null;
+	/** An exam being started, closed or tried again, until Rust answers: the
+	 * buttons that would ask again wait (Rust refuses a second ask, with an
+	 * error) */
+	pending: "starting" | "ending" | "retrying" | null;
 	/** The state could not be read as the app opened */
 	connectError: string | null;
 
@@ -45,7 +49,8 @@ interface ExamStore extends AttemptUi {
 	start: (id: string, mode: Mode, replace?: boolean) => Promise<void>;
 	cancelReplace: () => void;
 	submit: () => Promise<void>;
-	end: () => Promise<void>;
+	/** Whether it closed (Start Over starts the new one only then) */
+	end: () => Promise<boolean>;
 	/** Resume (or grade) again an attempt whose resume or grading failed */
 	retry: () => Promise<void>;
 	select: (index: number) => void;
@@ -107,6 +112,7 @@ export const useExam = create<ExamStore>()(
 			catalog: [],
 			pendingReplace: null,
 			error: null,
+			pending: null,
 			connectError: null,
 
 			connect: async () => {
@@ -163,6 +169,7 @@ export const useExam = create<ExamStore>()(
 					const catalog = await examApi.list();
 					set(s => {
 						s.catalog = catalog;
+						s.error = null;
 					});
 				} catch (e) {
 					set(s => {
@@ -172,9 +179,11 @@ export const useExam = create<ExamStore>()(
 			},
 
 			start: async (id, mode, replace = false) => {
+				if (get().pending) return;
 				set(s => {
 					s.error = null;
 					s.pendingReplace = null;
+					s.pending = "starting";
 				});
 				try {
 					await examApi.start(id, mode, replace);
@@ -190,6 +199,10 @@ export const useExam = create<ExamStore>()(
 						// Start over), not kept on one screen
 						toast.error(errorText(e));
 					}
+				} finally {
+					set(s => {
+						s.pending = null;
+					});
 				}
 			},
 
@@ -208,20 +221,38 @@ export const useExam = create<ExamStore>()(
 			},
 
 			retry: async () => {
+				if (get().pending) return;
+				set(s => {
+					s.pending = "retrying";
+				});
 				try {
 					await examApi.retry();
 				} catch (e) {
 					// Shown where it was asked for: the desk, the result or the failure
 					toast.error(errorText(e));
+				} finally {
+					set(s => {
+						s.pending = null;
+					});
 				}
 			},
 
 			end: async () => {
+				if (get().pending) return false;
+				set(s => {
+					s.pending = "ending";
+				});
 				try {
 					await examApi.end();
+					return true;
 				} catch (e) {
 					// Shown where it was asked for: the desk, the result or the failure
 					toast.error(errorText(e));
+					return false;
+				} finally {
+					set(s => {
+						s.pending = null;
+					});
 				}
 			},
 
@@ -291,3 +322,7 @@ export const useExam = create<ExamStore>()(
 		{ name: "ckpro-exam", enabled: import.meta.env.DEV }
 	)
 );
+
+/** An exam being started, closed or tried again: the buttons that would
+ * start another wait */
+export const useExamBusy = () => useExam(s => s.pending !== null);

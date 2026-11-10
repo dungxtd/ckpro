@@ -5,7 +5,7 @@ import { SectionTitle } from "@ckpro/ui/components/section-title";
 import { Flag, Play, Plus } from "lucide-react";
 import { scoreOf, startedAt } from "@/components/study/data";
 import { byDay, dayKey, parseDay } from "@/days";
-import { useExam } from "@/stores/exam";
+import { useExam, useExamBusy } from "@/stores/exam";
 import type { ExamTarget, HistoryEntry, PlanView } from "@/tauri/api";
 import { describe } from "./describe";
 import { DescribeCard } from "./describe-card";
@@ -46,6 +46,7 @@ export function DayView({
 	onRemove: (plan: PlanView) => void;
 }) {
 	const start = useExam(s => s.start);
+	const busy = useExamBusy();
 	const date = parseDay(day);
 	const onDay = history.filter(h => dayKey(new Date(startedAt(h))) === day);
 	const open = plans.filter(p => p.day === day && p.done === null);
@@ -96,7 +97,12 @@ export function DayView({
 							<Button size="sm" variant="outline" onClick={() => onRemove(p)}>
 								Remove
 							</Button>
-							<Button size="push" variant="push" onClick={() => start(p.exam_id, p.mode)}>
+							<Button
+								size="push"
+								variant="push"
+								disabled={busy}
+								onClick={() => start(p.exam_id, p.mode)}
+							>
 								<Play /> Start
 							</Button>
 						</div>

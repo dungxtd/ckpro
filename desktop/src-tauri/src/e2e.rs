@@ -146,7 +146,8 @@ async fn exam_cluster_from_the_jumphost() {
         true
     })
     .await;
-    runtime::reconcile::on_startup(&docker, &f.kind, &runtime::activity::Activities::silent(), &[]).await;
+    let jobs = crate::cluster::jobs::Jobs::new(Arc::new(runtime::model::Env::new(|_| {})));
+    runtime::reconcile::on_startup(&docker, &f.kind, &runtime::activity::Activities::silent(), &jobs, &[]).await;
     eventually("starting again brings back the nodes and the pod", 90, async || {
         let out = f.on_jumphost("kubectl get nodes --no-headers | grep -cw Ready; kubectl get pod web -o jsonpath='{.status.phase}'").await;
         out.text.split_whitespace().collect::<Vec<_>>() == ["2", "Running"]
@@ -172,7 +173,7 @@ async fn monitor_tracks_node_failure_and_repair() {
     // Readiness is followed while it is shown (the Environment page)
     env.set_watch_nodes(true);
     f.create(name, 1).await;
-    runtime::monitor::start(env.clone(), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), runtime::guard::Guard::new(|_| {}), vec![]);
+    runtime::monitor::start(env.clone(), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), runtime::guard::Guard::new(|_| {}), Arc::new(crate::cluster::jobs::Jobs::new(env.clone())), vec![]);
     let worker = format!("{name}-worker");
 
     eventually("all nodes Ready", 120, async || {
@@ -237,7 +238,9 @@ async fn exam_engine_practice_and_exam_modes() {
     let desktop = "ckpro-desktop-test-exam";
     // The monitor feeds the guard Docker's events, as in the app
     let guard = runtime::guard::Guard::new(|what| println!("  guard: {what}"));
-    runtime::monitor::start(Arc::new(Env::new(|_| {})), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), guard.clone(), vec![]);
+    let env = Arc::new(Env::new(|_| {}));
+    let jobs = Arc::new(crate::cluster::jobs::Jobs::new(env.clone()));
+    runtime::monitor::start(env, f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), guard.clone(), jobs, vec![]);
     let exams = Arc::new(Exams::new(pack, f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, store.clone(), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}")), guard.clone()));
     let question = "core/cka/rbac-ci-token";
     let wait_running = async || {

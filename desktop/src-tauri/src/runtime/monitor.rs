@@ -13,6 +13,7 @@ use super::activity::Activities;
 use super::infra::Infra;
 use super::guard::Guard;
 use super::{docker, reconcile};
+use crate::cluster::jobs::Jobs;
 use crate::cluster::kind::{CLUSTER_LABEL, Kind, node_containers};
 use bollard::Docker;
 use bollard::query_parameters::EventsOptions;
@@ -38,11 +39,27 @@ const FACTS_EVERY: Duration = Duration::from_secs(60);
 
 /// `resuming`: the clusters of the attempt the app resumes, which it starts
 /// itself (with its task host and desktop)
-pub fn start(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>, guard: Arc<Guard>, resuming: Vec<String>) {
-    tauri::async_runtime::spawn(run(env, kind, infra, activities, guard, resuming));
+pub fn start(
+    env: Arc<Env>,
+    kind: Arc<Kind>,
+    infra: Arc<Infra>,
+    activities: Arc<Activities>,
+    guard: Arc<Guard>,
+    jobs: Arc<Jobs>,
+    resuming: Vec<String>,
+) {
+    tauri::async_runtime::spawn(run(env, kind, infra, activities, guard, jobs, resuming));
 }
 
-async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<Activities>, guard: Arc<Guard>, resuming: Vec<String>) {
+async fn run(
+    env: Arc<Env>,
+    kind: Arc<Kind>,
+    infra: Arc<Infra>,
+    activities: Arc<Activities>,
+    guard: Arc<Guard>,
+    jobs: Arc<Jobs>,
+    resuming: Vec<String>,
+) {
     let mut watchers: HashMap<String, JoinHandle<()>> = HashMap::new();
     let mut reconciled = false;
     // The exam images: prepared once Docker answers, and again when it comes
@@ -84,11 +101,11 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
             // the verify runs an earlier process left (the Create screen's)
             crate::former::remove_containers(&docker).await;
             crate::lab::verify::sweep_stale(&crate::data_dir(), &|line| tracing::info!("{line}")).await;
-            reconcile::on_startup(&docker, &kind, &activities, &resuming).await;
+            reconcile::on_startup(&docker, &kind, &activities, &jobs, &resuming).await;
             reconciled = true;
         }
         // Exams start without building anything
-        images.prepare(&docker, &infra, &activities, &env);
+        images.prepare(&docker, &infra, &activities);
         sync(&docker, &env, &kind, &guard, &mut watchers).await;
         // Events were missed while Docker was away: what changed meanwhile
         guard.recheck(&docker).await;
@@ -137,7 +154,7 @@ async fn run(env: Arc<Env>, kind: Arc<Kind>, infra: Arc<Infra>, activities: Arc<
                     publish_usage(&docker, &env, &kind, &mut facts_at).await;
                 }
                 // Retry, while Docker answers: what failed to prepare goes again
-                () = env.retry_requested() => images.prepare(&docker, &infra, &activities, &env),
+                () = env.retry_requested() => images.prepare(&docker, &infra, &activities),
                 // Events say what changed; this only notices an engine that
                 // stopped without closing the stream (a sleeping VM)
                 _ = alive.tick() => {
@@ -356,19 +373,15 @@ const IMAGES_DONE: u8 = 2;
 
 impl Images {
     /// Prepare them in the background unless they are, or are being
-    fn prepare(self: &Arc<Self>, docker: &Docker, infra: &Arc<Infra>, activities: &Arc<Activities>, env: &Arc<Env>) {
+    fn prepare(self: &Arc<Self>, docker: &Docker, infra: &Arc<Infra>, activities: &Arc<Activities>) {
         use std::sync::atomic::Ordering::SeqCst;
         if self.0.compare_exchange(IMAGES_TO_DO, IMAGES_PREPARING, SeqCst, SeqCst).is_err() {
             return;
         }
-        let (this, docker, infra, activities, env) =
-            (self.clone(), docker.clone(), infra.clone(), activities.clone(), env.clone());
+        let (this, docker, infra, activities) = (self.clone(), docker.clone(), infra.clone(), activities.clone());
         tauri::async_runtime::spawn(async move {
-            let missing = infra.missing_images(&docker).await;
-            env.update(|s| s.images_missing = missing);
+            // `Infra::ensure` reports the images to `EnvState` as it gets them
             let done = prepare_images(docker.clone(), infra.clone(), activities).await;
-            let missing = infra.missing_images(&docker).await;
-            env.update(|s| s.images_missing = missing);
             this.0.store(if done { IMAGES_DONE } else { IMAGES_TO_DO }, SeqCst);
         });
     }
@@ -382,6 +395,8 @@ async fn prepare_images(docker: Docker, infra: Arc<Infra>, activities: Arc<Activ
     let missing = infra.missing_images(&docker).await;
     if missing.is_empty() {
         let quiet = |line: String| tracing::info!("{line}");
+        // Here already (an exam or a proof got them): `ensure` reports them
+        // so, which also takes Retry from a failed try
         return match infra.ensure(&docker, &quiet).await {
             Ok(()) => true,
             Err(e) => {

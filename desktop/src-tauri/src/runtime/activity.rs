@@ -71,6 +71,19 @@ impl Activities {
         self.lock().1.iter().cloned().collect()
     }
 
+    /// Nothing failed is left to run again: Retry goes from every activity
+    pub fn clear_retry(&self) {
+        self.clear_retry_except(None);
+    }
+
+    /// Retry goes from every activity but `keep`
+    fn clear_retry_except(&self, keep: Option<u32>) {
+        let ids: Vec<u32> = self.lock().1.iter().filter(|a| a.retry && Some(a.id) != keep).map(|a| a.id).collect();
+        for id in ids {
+            self.update(id, |a| a.retry = false);
+        }
+    }
+
     /// Start an activity at its first step.
     pub fn begin(self: &Arc<Self>, title: impl Into<String>, steps: Vec<String>) -> Op {
         let activity = {
@@ -174,11 +187,7 @@ impl Handle {
     /// over from an earlier try of the same work, which it replaces: that
     /// one's Retry would do nothing more
     pub fn retryable(&self) {
-        let earlier: Vec<u32> =
-            self.activities.lock().1.iter().filter(|a| a.retry && a.id != self.id).map(|a| a.id).collect();
-        for id in earlier {
-            self.activities.update(id, |a| a.retry = false);
-        }
+        self.activities.clear_retry_except(Some(self.id));
         self.activities.update(self.id, |a| a.retry = true);
     }
 

@@ -64,6 +64,9 @@ interface StudioStore {
 	/** Each conversation's latest proof as it last stood: running (no
 	 * `ended_at`) or ended, its steps, times and log to read */
 	last: Record<number, Proof>;
+	/** Conversations whose proof was asked for and has not reported yet: a
+	 * second ask then would only be refused, its error kept on the chat */
+	asked: Record<number, true>;
 	/** What went wrong, by conversation */
 	errors: Record<number, string>;
 	/** What the panel shows: the exam's questions, or its latest proof */
@@ -176,6 +179,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		draft: null,
 		pending: {},
 		last: {},
+		asked: {},
 		errors: {},
 		tab: "exam",
 		setTab: tab => set({ tab }),
@@ -346,7 +350,8 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		},
 		proveAndSave: async (scope, save = true) => {
 			const { session } = get();
-			if (session === null || running(get(), session)) return;
+			if (session === null || running(get(), session) || get().asked[session]) return;
+			set(s => ({ asked: { ...s.asked, [session]: true } }));
 			// Its steps as they go
 			cleared(session);
 			set({ tab: "proof" });
@@ -362,6 +367,8 @@ export const useStudio = create<StudioStore>()((set, get) => {
 			} catch (e) {
 				// Stopped: its last state says so
 				if ((e as { code?: string }).code !== "cancelled") failed(session, e);
+			} finally {
+				set(s => ({ asked: without(s.asked, session) }));
 			}
 		},
 		askToFix: async () => {
@@ -398,6 +405,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 	};
 });
 
-/** Whether the conversation shown has its exam being proven: then nothing
- * changes it (Rust refuses; the screen does not offer it) */
-export const useProving = () => useStudio(s => !!running(s, s.session));
+/** Whether the conversation shown has its exam being proven, or asked to
+ * be: then nothing changes it (Rust refuses; the screen does not offer it) */
+export const useProving = () =>
+	useStudio(s => !!running(s, s.session) || (s.session !== null && !!s.asked[s.session]));

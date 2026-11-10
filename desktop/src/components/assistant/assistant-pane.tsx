@@ -199,6 +199,8 @@ export function AssistantPane({
 								key={`${t.question_id}/${t.session}`}
 								type="button"
 								className={menuRow()}
+								// An answer being written: switching would end its session
+								disabled={!!coach.writing}
 								onClick={() => {
 									setOpen(null);
 									onOpenQuestion?.(t.question_id);

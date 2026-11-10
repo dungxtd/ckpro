@@ -13,7 +13,13 @@ use std::sync::Arc;
 /// when there is something to start (the app reopened after quitting). The
 /// clusters of an attempt being resumed, and its task host and desktop, are
 /// left to the resume: started once, in its own activity.
-pub async fn on_startup(docker: &Docker, kind: &Kind, activities: &Arc<Activities>, resuming: &[String]) {
+pub async fn on_startup(
+    docker: &Docker,
+    kind: &Kind,
+    activities: &Arc<Activities>,
+    jobs: &crate::cluster::jobs::Jobs,
+    resuming: &[String],
+) {
     let mut stopped_services = Vec::new();
     let services: &[&str] = if resuming.is_empty() {
         &[super::infra::MIRROR, super::jumphost::APP_NAME, super::desktop::NAME]
@@ -47,11 +53,20 @@ pub async fn on_startup(docker: &Docker, kind: &Kind, activities: &Arc<Activitie
     if !stopped_services.is_empty() {
         steps.push("Starting the registry cache, task host and desktop".into());
     }
+    // Shown starting at once (no Repair offered meanwhile), each until done
+    let mut starting: Vec<_> = stopped_clusters
+        .iter()
+        .map(|c| jobs.begin(c, super::model::ClusterJob::Starting).ok())
+        .collect();
     let op = activities.begin("Starting your environment", steps);
     let mut failed = Vec::new();
     for (i, name) in stopped_clusters.iter().enumerate() {
         op.step(i as u32, None);
-        if let Err(e) = repair(docker, name).await {
+        // Something else took it on first (a Repair, a Delete)
+        let Some(job) = starting[i].take() else { continue };
+        let result = repair(docker, name).await;
+        drop(job);
+        if let Err(e) = result {
             op.log(format!("could not start {name}: {e}"));
             failed.push(name.clone());
         }

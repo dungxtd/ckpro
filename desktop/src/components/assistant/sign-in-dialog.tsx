@@ -63,6 +63,12 @@ export function SignInDialog({
 	};
 	const close = (next: boolean) => {
 		if (!next && running) coachApi.signInCancel();
+		// Opened again, it starts clean: no earlier failure or output
+		if (!next) {
+			setError(null);
+			setOutput("");
+			setCode("");
+		}
 		onOpenChange(next);
 	};
 	const send = () => {
