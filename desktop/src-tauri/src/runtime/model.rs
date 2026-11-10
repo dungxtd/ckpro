@@ -26,6 +26,10 @@ pub struct EnvState {
     /// The missing exam images are being pulled now
     #[serde(default)]
     pub images_downloading: bool,
+    /// Whether the images were looked for yet: until then none is missing
+    /// only because none was looked for
+    #[serde(default)]
+    pub images_checked: bool,
     /// The image cache is being emptied now
     #[serde(default)]
     pub cache_clearing: bool,
@@ -168,8 +172,11 @@ impl EnvState {
     }
 
     fn derive_passed(&self) -> Vec<String> {
-        let Some(host) = &self.host else { return Vec::new() };
         let mut passed = Vec::new();
+        if self.images_checked && self.images_missing.is_empty() && !self.images_downloading {
+            passed.push("exam images here".into());
+        }
+        let Some(host) = &self.host else { return passed };
         if host.disk_free_mb >= DISK_LOW_MB {
             passed.push(format!("{:.0} GB of disk left for Docker", f64::from(host.disk_free_mb) / 1024.0));
         }

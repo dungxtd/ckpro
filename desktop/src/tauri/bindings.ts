@@ -735,6 +735,11 @@ export type EnvState_Deserialize = {
 	images_missing?: string[],
 	/**  The missing exam images are being pulled now */
 	images_downloading?: boolean,
+	/**
+	 *  Whether the images were looked for yet: until then none is missing
+	 *  only because none was looked for
+	 */
+	images_checked?: boolean,
 	/**  The image cache is being emptied now */
 	cache_clearing?: boolean,
 	/**  What is being done to a cluster now (`cluster::jobs::Jobs`) */
@@ -768,6 +773,11 @@ export type EnvState_Serialize = {
 	images_missing: string[],
 	/**  The missing exam images are being pulled now */
 	images_downloading: boolean,
+	/**
+	 *  Whether the images were looked for yet: until then none is missing
+	 *  only because none was looked for
+	 */
+	images_checked: boolean,
 	/**  The image cache is being emptied now */
 	cache_clearing: boolean,
 	/**  What is being done to a cluster now (`cluster::jobs::Jobs`) */

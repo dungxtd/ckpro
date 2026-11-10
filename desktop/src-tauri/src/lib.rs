@@ -273,6 +273,7 @@ let proving = app.handle().clone();
                     env.update(|s| {
                         s.images_missing = missing;
                         s.images_downloading = downloading;
+                        s.images_checked = true;
                     });
                 });
             }
