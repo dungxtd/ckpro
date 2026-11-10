@@ -365,7 +365,7 @@ async fn pull_if_missing(docker: &Docker, image: &str) -> AppResult<()> {
     if docker.inspect_image(image).await.is_ok() {
         return Ok(());
     }
-    pull(docker, image, &|_| {}).await
+    pull_again(docker, image, &|_| {}).await
 }
 
 /// Pull `image`, logging each layer as it completes.
@@ -386,6 +386,40 @@ async fn pull(docker: &Docker, image: &str, log: &(dyn Fn(String) + Sync)) -> Ap
     Ok(())
 }
 
+/// Tries at pulling an image before it is given up
+const PULL_TRIES: u32 = 3;
+
+/// `pull`, tried again when it breaks midway (the connection dropped, Docker
+/// restarted or cancelled the extract): the layers pulled already are kept,
+/// so each try goes on where the last stopped. Not when the image is not
+/// published: that is for building it
+async fn pull_again(docker: &Docker, tag: &str, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
+    let mut tries = 1;
+    loop {
+        let e = match pull(docker, tag, log).await {
+            Ok(()) => return Ok(()),
+            Err(e) => e,
+        };
+        if tries == PULL_TRIES || not_published(&e) {
+            return Err(e);
+        }
+        tries += 1;
+        log(format!("Pull interrupted ({e}): trying again ({tries} of {PULL_TRIES})"));
+        // Docker restarting: give it a minute to answer again
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(60);
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        while !super::docker::answers(docker).await && tokio::time::Instant::now() < deadline {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+    }
+}
+
+/// The registry has no such image (or will not give it): no use trying again
+fn not_published(e: &AppError) -> bool {
+    let text = e.to_string().to_lowercase();
+    ["manifest unknown", "not found", "denied", "unauthorized"].iter().any(|m| text.contains(m))
+}
+
 /// Get `image` unless it is here: pull the published one, or build it when it
 /// is not published (a change not released yet, or offline). Then drop the
 /// versions it replaces.
@@ -395,7 +429,7 @@ async fn obtain(docker: &Docker, image: &Image, log: &(dyn Fn(String) + Sync)) -
         return Ok(());
     }
     log(format!("Pulling {tag}"));
-    match pull(docker, &tag, log).await {
+    match pull_again(docker, &tag, log).await {
         Ok(()) => log(format!("Pulled {tag}")),
         // Docker itself went away midway (restarted, quit): not a reason to
         // build; the image is got again when it is back
