@@ -27,7 +27,6 @@ import {
 	useInspectorSlot,
 } from "@/components/shell/inspector";
 import { MORPH_MS, useMorphSurface } from "@/components/shell/morph-surface";
-import { screenTitle } from "@/components/shell/sections";
 import { TitleBar } from "@/components/shell/title-bar";
 import { WindowFrame } from "@/components/shell/window";
 import { CatalogRoute } from "@/routes/catalog";
@@ -50,15 +49,12 @@ function Layout() {
 	const folded = useSettings(s => s.settings.sidebar_folded);
 	const update = useSettings(s => s.update);
 	const [searching, setSearching] = useState(false);
-	// The screen's own title scrolled away: the title bar shows it small
-	const [scrolled, setScrolled] = useState(false);
 	const main = useRef<HTMLElement>(null);
 	const capsule = useRef<HTMLElement>(null);
 	const surface = useMorphSurface(folded, capsule);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: each screen opens at its top
 	useEffect(() => {
 		main.current?.scrollTo({ top: 0 });
-		setScrolled(false);
 	}, [pathname]);
 	// ⌘, (Ctrl+,) opens Settings and ⌃⌘S (Ctrl+Shift+S) shows or hides the sidebar
 	useEffect(() => {
@@ -116,7 +112,6 @@ function Layout() {
 						<TitleBar
 							capsuleRef={capsule}
 							folded={folded}
-							title={scrolled ? screenTitle(pathname) : undefined}
 							onUnfold={() => update({ sidebar_folded: false })}
 							onSearch={() => {
 								setSearching(true);
@@ -127,7 +122,6 @@ function Layout() {
 							ref={main}
 							// Room kept for the scrollbar: a screen that grows past the window does not shift
 							className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]"
-							onScroll={e => setScrolled(e.currentTarget.scrollTop > 48)}
 						>
 							{/* Each screen fades in as it opens */}
 							<div

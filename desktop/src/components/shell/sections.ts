@@ -40,12 +40,3 @@ export function arrangeScreens(
 		.filter(s => assistant || !ASSISTANT_SCREENS.includes(s.path))
 		.filter(s => withHidden || s.path === "/" || !layout.hidden_screens.includes(s.path));
 }
-
-/** A screen's name, for the title bar once its own title has scrolled away */
-export function screenTitle(path: string) {
-	if (path === "/settings") return "Settings";
-	if (path === "/exams") return "Exams";
-	const part = path.match(/^\/settings\/(\w+)$/)?.[1];
-	if (part) return SETTINGS_PARTS[part];
-	return SECTIONS.find(s => s.path === path)?.label;
-}

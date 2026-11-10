@@ -1,6 +1,5 @@
 import { useElementSize } from "@ckpro/ui/hooks/use-element-size";
 import { mac } from "@ckpro/ui/lib/platform";
-import { cn } from "@ckpro/ui/lib/utils";
 import type * as React from "react";
 import { ActivityChip } from "@/components/activity/activity-chip";
 import { useInspectorShown } from "@/components/shell/inspector";
@@ -11,18 +10,15 @@ import { CapsuleNav } from "./capsule-nav";
  * The bar over the content: it moves the window and shows what is running.
  * With the sidebar hidden, the screens float in it as a capsule (centred in
  * the window, clear of the window's buttons, of what ends the bar and of an
- * inspector: placed by CSS); else the screen's name, once its own title
- * scrolled away
+ * inspector: placed by CSS)
  */
 export function TitleBar({
 	folded,
-	title,
 	onUnfold,
 	onSearch,
 	capsuleRef,
 }: {
 	folded: boolean;
-	title?: string;
 	/** The capsule, whose box the window's surface takes as it morphs */
 	capsuleRef: React.Ref<HTMLElement>;
 	onUnfold: () => void;
@@ -37,15 +33,6 @@ export function TitleBar({
 			data-tauri-drag-region
 			className="relative flex h-12 shrink-0 items-center justify-end gap-2 px-3"
 		>
-			<span
-				aria-hidden={!title || folded}
-				className={cn(
-					"pointer-events-none absolute left-1/2 -translate-x-1/2 font-semibold text-callout transition-opacity duration-200",
-					title && !folded ? "opacity-100" : "opacity-0"
-				)}
-			>
-				{title}
-			</span>
 			<CapsuleNav
 				ref={capsuleRef}
 				folded={folded}
