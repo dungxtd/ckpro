@@ -30,28 +30,32 @@ export function useMorphSurface(folded: boolean, capsule: React.RefObject<HTMLEl
 		return () => clearTimeout(done);
 	}, [morph.n, morph.on]);
 
-	// The two shapes, read as a morph begins: between morphs the sidebar and
-	// the capsule draw their own (CSS), so a window resizing moves nothing here
-	const [box, setBox] = useState({
-		width: 0,
-		height: 0,
-		capsule: { left: 0, top: 0, width: 0, height: 0 },
-	});
+	// The capsule's box, read as a fold begins (between morphs the sidebar
+	// and the capsule draw their own shapes, CSS, so a window resizing moves
+	// nothing here). `n`: the morph it was read for
+	const [capsuleBox, setCapsuleBox] = useState({ n: -1, left: 0, top: 0, width: 0, height: 0 });
 	// biome-ignore lint/correctness/useExhaustiveDependencies: read once per morph
 	useLayoutEffect(() => {
 		const r = root.current?.getBoundingClientRect();
 		const c = capsule.current?.getBoundingClientRect();
 		if (!r || !c) return;
-		setBox({
-			width: r.width,
-			height: r.height,
-			capsule: { left: c.left - r.left, top: c.top - r.top, width: c.width, height: c.height },
+		setCapsuleBox({
+			n: morph.n,
+			left: c.left - r.left,
+			top: c.top - r.top,
+			width: c.width,
+			height: c.height,
 		});
 	}, [morph.n]);
 
-	const { width, height, capsule: c } = box;
-	const clip = folded
-		? `inset(${c.top}px ${width - c.left - c.width}px ${height - c.top - c.height}px ${c.left}px round ${c.height / 2}px)`
-		: `inset(${PANEL.inset}px ${width - PANEL.inset - PANEL.width}px ${PANEL.inset}px ${PANEL.inset}px round ${PANEL.radius}px)`;
+	// The far sides as `100% - …`: right as the window is now, never as it
+	// was when last read. Folding, the panel's shape holds until the capsule
+	// is read for this morph: a target from an older reading (or none yet,
+	// the window's corner) would send the shape there first
+	const c = capsuleBox;
+	const clip =
+		folded && c.n === morph.n
+			? `inset(${c.top}px calc(100% - ${c.left + c.width}px) calc(100% - ${c.top + c.height}px) ${c.left}px round ${c.height / 2}px)`
+			: `inset(${PANEL.inset}px calc(100% - ${PANEL.inset + PANEL.width}px) ${PANEL.inset}px ${PANEL.inset}px round ${PANEL.radius}px)`;
 	return { root, clip, morphing: morph.on };
 }
