@@ -26,7 +26,7 @@ export function DayView({
 	history,
 	plans,
 	today,
-	exam,
+	exams,
 	onPick,
 	onShift,
 	onAdd,
@@ -38,7 +38,8 @@ export function DayView({
 	plans: PlanView[];
 	today: string;
 	/** The exam prepared for: its day flagged */
-	exam: ExamTarget | null;
+	/** The exams aimed at */
+	exams: ExamTarget[];
 	onPick: (day: string) => void;
 	onShift: (by: number) => void;
 	onAdd: (day: string, examId: string) => void;
@@ -58,7 +59,7 @@ export function DayView({
 					days={byDay(history)}
 					planned={new Set(plans.filter(p => p.done === null).map(p => p.day))}
 					today={today}
-					exam={exam?.date ?? null}
+					examDays={exams.map(e => e.date)}
 					picked={day}
 					onPick={onPick}
 					onShift={onShift}
@@ -74,11 +75,16 @@ export function DayView({
 						</Button>
 					</ExamPicker>
 				</div>
-				{day === exam?.date && (
-					<div className="flex items-center gap-2 rounded-xl bg-highlight px-4 py-3 font-semibold text-highlight-foreground [&_svg]:size-4">
-						<Flag /> {exam.certification.toUpperCase()} exam day
-					</div>
-				)}
+				{exams
+					.filter(e => e.date === day)
+					.map(e => (
+						<div
+							key={e.certification}
+							className="flex items-center gap-2 rounded-xl bg-highlight px-4 py-3 font-semibold text-highlight-foreground [&_svg]:size-4"
+						>
+							<Flag /> {e.certification.toUpperCase()} exam day
+						</div>
+					))}
 				<SectionTitle as="h3" size="group">
 					{day < today && open.length ? "Planned, missed" : "Planned"}
 				</SectionTitle>

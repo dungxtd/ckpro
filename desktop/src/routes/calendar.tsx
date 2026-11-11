@@ -5,17 +5,18 @@ import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
 import { Stat, StatGroup } from "@ckpro/ui/components/stat";
 import { morph } from "@ckpro/ui/lib/morph";
 import { cn } from "@ckpro/ui/lib/utils";
-import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { DayView } from "@/components/calendar/day-view";
+import { ExamTargets } from "@/components/calendar/exam-targets";
 import { Grid } from "@/components/calendar/grid";
 import { Screen } from "@/components/shell/screen";
-import { daysUntil, scoreOf, startedAt } from "@/components/study/data";
+import { scoreOf, startedAt } from "@/components/study/data";
 import { addDays, dayKey, monday, monthWeeks, parseDay, streak } from "@/days";
 import { useExam } from "@/stores/exam";
-import { useSettings } from "@/stores/settings";
+import { useShownTargets } from "@/stores/settings";
 import { useStudy } from "@/stores/study";
 import { errorText, examApi, type Mode, type PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
@@ -38,7 +39,7 @@ const short = (d: Date) =>
  */
 export function CalendarRoute() {
 	const [params, setParams] = useSearchParams();
-	const target = useSettings(s => s.settings.target);
+	const targets = useShownTargets();
 	const history = useStudy(s => s.history);
 	const version = useStudy(s => s.version);
 	const [plans, setPlans] = useState<PlanView[]>([]);
@@ -181,19 +182,8 @@ export function CalendarRoute() {
 			className={cn("@container gap-4", view !== "day" && "min-h-full")}
 			actions={
 				<div className="flex flex-wrap items-center gap-2">
-					{target && daysUntil(target.date, now) >= 0 && (
-						<Button
-							size="sm"
-							variant="ghost"
-							className="text-highlight"
-							onClick={() => go({ view: "day", day: target.date })}
-						>
-							<Flag />
-							{daysUntil(target.date, now) === 0
-								? `${target.certification.toUpperCase()} exam today`
-								: `${target.certification.toUpperCase()} exam in ${plural(daysUntil(target.date, now), "day")}`}
-						</Button>
-					)}
+					{/* The exams aimed at: each one's day and the days left; changed or added here */}
+					<ExamTargets />
 					{run > 0 && (
 						<span className="mr-1 whitespace-nowrap text-caption text-muted-foreground tabular-nums">
 							{plural(run, "day")} in a row
@@ -248,7 +238,7 @@ export function CalendarRoute() {
 					history={history}
 					plans={plans}
 					today={today}
-					exam={target}
+					exams={targets}
 					onPick={day => go({ day })}
 					onShift={by => go({ day: dayKey(new Date(date.getFullYear(), date.getMonth() + by, 1)) })}
 					onAdd={actions.onAdd}
@@ -262,7 +252,7 @@ export function CalendarRoute() {
 					history={history}
 					plans={plans}
 					today={today}
-					exam={target}
+					exams={targets}
 					{...actions}
 				/>
 			)}

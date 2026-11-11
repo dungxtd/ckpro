@@ -50,7 +50,7 @@ export function Grid({
 	history,
 	plans,
 	today,
-	exam,
+	exams,
 	...actions
 }: {
 	month: Date;
@@ -60,7 +60,8 @@ export function Grid({
 	plans: PlanView[];
 	today: string;
 	/** The exam prepared for, flagged on its day */
-	exam: ExamTarget | null;
+	/** The exams aimed at */
+	exams: ExamTarget[];
 } & GridActions) {
 	const [drag, setDrag] = useState<Drag>({ plan: null, over: null });
 	const grown = week && dayKey(week);
@@ -119,7 +120,7 @@ export function Grid({
 									grown={!!week}
 									fits={fits}
 									today={today}
-									exam={exam}
+									exams={exams}
 									attempts={history.filter(h => dayKey(new Date(startedAt(h))) === dayKey(day))}
 									plans={plans.filter(p => p.day === dayKey(day) && p.done === null)}
 									drag={drag}
@@ -144,7 +145,7 @@ function Day({
 	grown,
 	fits,
 	today,
-	exam,
+	exams,
 	attempts,
 	plans,
 	drag,
@@ -158,7 +159,8 @@ function Day({
 	grown: boolean;
 	fits: { all: number; withMore: number };
 	today: string;
-	exam: ExamTarget | null;
+	/** The exams aimed at */
+	exams: ExamTarget[];
 	attempts: HistoryEntry[];
 	/** Its open plans */
 	plans: PlanView[];
@@ -167,7 +169,7 @@ function Day({
 	describe: () => ReturnType<typeof describe>;
 } & GridActions) {
 	const k = dayKey(day);
-	const examDay = k === exam?.date;
+	const examDay = exams.find(e => e.date === k);
 	// A month's day keeps its height: the first things, then how many more
 	// (the grown week lists them all, the description too). Plans come first:
 	// they are still to do, and their tag and remove are on them
@@ -227,7 +229,9 @@ function Day({
 				>
 					<div className="flex items-center justify-between">
 						{/* Today and the exam's day marked as every calendar marks them */}
-						<span className={dayMarkerVariants({ today: k === today, exam: examDay, size: "sm" })}>
+						<span
+							className={dayMarkerVariants({ today: k === today, exam: !!examDay, size: "sm" })}
+						>
 							{grown && (
 								<span className={k === today || examDay ? "" : "text-muted-foreground"}>
 									{WEEKDAYS[(day.getDay() + 6) % 7]}
@@ -257,7 +261,7 @@ function Day({
 							className={cn("max-w-full justify-start font-semibold [&_svg]:size-3", size)}
 						>
 							<Flag />
-							<span className="truncate">{exam.certification.toUpperCase()} exam</span>
+							<span className="truncate">{examDay.certification.toUpperCase()} exam</span>
 						</Badge>
 					)}
 					{shownPlans.map(p => (

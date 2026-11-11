@@ -21,7 +21,7 @@ export function MiniMonth({
 	days,
 	planned,
 	today,
-	exam,
+	examDays,
 	picked,
 	onPick,
 	onShift,
@@ -31,8 +31,8 @@ export function MiniMonth({
 	/** Days with a plan still open: a dot under them */
 	planned: Set<string>;
 	today: string;
-	/** The exam's day */
-	exam: string | null;
+	/** The days of the exams aimed at */
+	examDays: string[];
 	picked: string;
 	onPick: (day: string) => void;
 	onShift: (by: number) => void;
@@ -79,7 +79,7 @@ export function MiniMonth({
 								key={key}
 								type="button"
 								aria-pressed={picked === key}
-								aria-label={`${day.toLocaleDateString(undefined, { dateStyle: "full" })}: ${plural(count, "attempt")}${key === exam ? ", exam day" : ""}`}
+								aria-label={`${day.toLocaleDateString(undefined, { dateStyle: "full" })}: ${plural(count, "attempt")}${examDays.includes(key) ? ", exam day" : ""}`}
 								onClick={() => onPick(key)}
 								// A day with attempts tinted; today, the exam's day and the
 								// picked one over it, as every calendar marks them
@@ -88,7 +88,7 @@ export function MiniMonth({
 									count > 0 && "bg-fill-quiet font-semibold",
 									dayMarkerVariants({
 										today: key === today,
-										exam: key === exam,
+										exam: examDays.includes(key),
 										picked: picked === key,
 										outside: day.getMonth() !== month.getMonth(),
 									}),

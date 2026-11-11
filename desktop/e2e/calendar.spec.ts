@@ -39,3 +39,27 @@ test("the calendar asks for plans in the candidate's own time", async ({ page })
 	const [first] = (await calls(page, "plans_between")) as { offsetMinutes: number }[];
 	expect(first.offsetMinutes).toBe(await page.evaluate(() => -new Date().getTimezoneOffset()));
 });
+
+test("the exams prepared for are set in the Calendar: added, changed, removed", async ({
+	page,
+}) => {
+	await launch(page, "/calendar");
+	// The fixture aims at CKA; CKAD is added beside it
+	await page.getByRole("button", { name: "Add an exam you prepare for" }).click();
+	await page.getByRole("radio", { name: "CKAD" }).click();
+	await page.getByLabel("Exam day").fill("2027-03-20");
+	await page.getByRole("button", { name: "Add", exact: true }).click();
+	const saved = async () => {
+		const all = await calls(page, "save_settings");
+		return (all.at(-1) as { settings: { targets: { certification: string; date: string }[] } })
+			.settings.targets;
+	};
+	expect((await saved()).map(t => `${t.certification} ${t.date}`)).toEqual([
+		"cka 2026-12-15",
+		"ckad 2027-03-20",
+	]);
+	// CKA removed: CKAD stays
+	await page.getByRole("button", { name: /CKA exam on 2026-12-15/ }).click();
+	await page.getByRole("dialog").getByRole("button", { name: "Remove", exact: true }).click();
+	expect((await saved()).map(t => t.certification)).toEqual(["ckad"]);
+});

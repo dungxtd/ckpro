@@ -37,7 +37,7 @@ import { CopyBlock } from "@/components/text/copy-text";
 import { Markdown } from "@/components/text/markdown";
 import { addDays, dayKey } from "@/days";
 import { useExam } from "@/stores/exam";
-import { useAssistantEnabled, useSettings } from "@/stores/settings";
+import { useAssistantEnabled, useTargets } from "@/stores/settings";
 import { useStudy } from "@/stores/study";
 import type { Attempt, ExamResult, Mode } from "@/tauri/api";
 import { errorText, examApi } from "@/tauri/api";
@@ -292,7 +292,10 @@ function WhatNext({
 	const catalog = useExam(s => s.catalog);
 	const loadCatalog = useExam(s => s.loadCatalog);
 	const history = useStudy(s => s.history);
-	const rest = useSettings(s => s.settings.target?.rest_days ?? []);
+	// The rest days of the exam this attempt prepares for (or the first aimed at)
+	const targets = useTargets();
+	const rest =
+		(targets.find(t => t.certification === attempt.certification) ?? targets[0])?.rest_days ?? [];
 	const assistant = useAssistantEnabled();
 	const [day, setDay] = useState<Date | null>(null);
 	const [closing, setClosing] = useState<Step | null>(null);

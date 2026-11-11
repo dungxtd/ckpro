@@ -4,14 +4,11 @@ import { useNavigate } from "react-router";
 import { DockerBanner } from "@/components/environment/docker-banner";
 import { PrepMap } from "@/components/home/prep-map";
 import { Readiness } from "@/components/home/readiness";
-import { StatusTerminal } from "@/components/home/status-terminal";
 import { Today } from "@/components/home/today";
 import { Week } from "@/components/home/week";
 import { Screen } from "@/components/shell/screen";
 import {
 	bestByDay,
-	daysUntil,
-	events,
 	startedAt,
 	studyFigures,
 	suggestion,
@@ -20,7 +17,7 @@ import {
 } from "@/components/study/data";
 import { addDays, dayKey, monday, parseDay } from "@/days";
 import { useExam } from "@/stores/exam";
-import { useSettings } from "@/stores/settings";
+import { useShownTargets } from "@/stores/settings";
 import { useStudy } from "@/stores/study";
 import { type ExamReadiness, examApi, type PlanView } from "@/tauri/api";
 
@@ -31,7 +28,8 @@ import { type ExamReadiness, examApi, type PlanView } from "@/tauri/api";
  * plans, without AI; read again whenever Rust says the study changed
  */
 export function HomeRoute() {
-	const target = useSettings(s => s.settings.target);
+	// The nearest exam shown (the one in focus, or the next of those aimed at)
+	const target = useShownTargets()[0] ?? null;
 	const catalog = useExam(s => s.catalog);
 	const history = useStudy(s => s.history);
 	// Bumped when Rust says the study changed: the week's plans and the
@@ -57,7 +55,6 @@ export function HomeRoute() {
 	const now = new Date();
 	const today = dayKey(now);
 	const weekStart = monday(now);
-	const certifications = [...new Set(catalog.map(e => e.certification))];
 	// The certification measured: the target's, else the latest attempt's
 	const certification =
 		target?.certification ?? (history?.find(h => h.certification)?.certification || null) ?? null;
@@ -133,17 +130,7 @@ export function HomeRoute() {
 			className="@container gap-4"
 		>
 			<DockerBanner />
-			{/* Side by side once the terminal's table fits on its lines (the default
-			    window does) */}
-			<div className="grid gap-4 @min-[45rem]:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-				<StatusTerminal
-					target={target}
-					days={target ? daysUntil(target.date, now) : null}
-					readiness={readiness}
-					events={events(measured, readiness)}
-					certifications={certifications}
-					certification={certification}
-				/>
+			<div className="grid gap-4">
 				<Today
 					plans={plansRead ? plans.filter(p => p.day === today) : null}
 					failed={plansFailed}

@@ -16,7 +16,7 @@ import { parts as partsOf, purpose } from "@/components/environment/usage";
 import { Screen } from "@/components/shell/screen";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
-import { useSettings } from "@/stores/settings";
+import { useTargets } from "@/stores/settings";
 import { type EnvState, envApi } from "@/tauri/api";
 import { memory, plural } from "@/words";
 
@@ -62,7 +62,8 @@ export function EnvironmentRoute() {
 	);
 	const catalog = useExam(s => s.catalog);
 	const loadCatalog = useExam(s => s.loadCatalog);
-	const target = useSettings(s => s.settings.target?.certification ?? null);
+	// The exams aimed at: only theirs are weighed (all when none is)
+	const aimed = useTargets().map(t => t.certification);
 	// The part of the map whose details show (the first, until one is picked)
 	const [picked, setPicked] = useState<string | null>(null);
 	// Node readiness and what containers take are measured here only: while
@@ -103,7 +104,7 @@ export function EnvironmentRoute() {
 	const open = picked && parts.some(p => p.key === picked) ? picked : (parts[0]?.key ?? null);
 	// An exam's comfortable need, of the certification aimed at (else any):
 	// drawn beside the free room as an estimate
-	const exams = catalog.filter(e => !target || e.certification === target);
+	const exams = catalog.filter(e => aimed.length === 0 || aimed.includes(e.certification));
 	const largest = exams.reduce<(typeof exams)[number] | null>(
 		(big, e) => (!big || e.memory_mb > big.memory_mb ? e : big),
 		null
