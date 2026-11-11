@@ -416,11 +416,21 @@
 			"sort": {}
 		},
 		"theme": "dark",
+		"targets": [
+			{
+				"certification": "cka",
+				"date": "2026-12-15",
+				"started": "2026-10-02",
+				"rest_days": [4]
+			}
+		],
 		"target": {
 			"certification": "cka",
 			"date": "2026-12-15",
 			"started": "2026-10-02",
 			"rest_days": [4]
-		}
+		},
+		"focus": null,
+		"home": { "places": [], "hidden": [], "custom": false }
 	}
 }

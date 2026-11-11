@@ -1096,6 +1096,35 @@ export type HistoryEntry_Serialize = {
 	result: ExamResult_Serialize,
 };
 
+/**
+ *  Home's modules as the candidate arranged them: each one's cell on the
+ *  grid (by name), the ones hidden, and whether it was ever arranged (a
+ *  layout never arranged follows the default for what there is to show)
+ */
+export type HomeLayout = HomeLayout_Serialize | HomeLayout_Deserialize;
+
+/**
+ *  Home's modules as the candidate arranged them: each one's cell on the
+ *  grid (by name), the ones hidden, and whether it was ever arranged (a
+ *  layout never arranged follows the default for what there is to show)
+ */
+export type HomeLayout_Deserialize = {
+	places?: ModulePlace[],
+	hidden?: string[],
+	custom?: boolean,
+};
+
+/**
+ *  Home's modules as the candidate arranged them: each one's cell on the
+ *  grid (by name), the ones hidden, and whether it was ever arranged (a
+ *  layout never arranged follows the default for what there is to show)
+ */
+export type HomeLayout_Serialize = {
+	places: ModulePlace[],
+	hidden: string[],
+	custom: boolean,
+};
+
 /**  What the Docker machine has, as its own tools report it */
 export type HostFacts = {
 	/**  Free space on Docker's disk (`df`), in MB */
@@ -1145,6 +1174,13 @@ export type ModelOption_Serialize = {
 	value: string,
 	name: string,
 	description: string | null,
+};
+
+/**  A module's cell: its column and row, from 0 */
+export type ModulePlace = {
+	module: string,
+	x: number,
+	y: number,
 };
 
 export type NewQuestion = NewQuestion_Serialize | NewQuestion_Deserialize;
@@ -1519,8 +1555,17 @@ export type Settings_Deserialize = {
 	sidebar?: SidebarLayout_Deserialize,
 	/**  Light or dark, or as macOS is */
 	theme?: Theme,
-	/**  The exam the candidate prepares for, and when */
+	/**  The exams the candidate prepares for, and when (CKA, then CKAD…) */
+	targets?: ExamTarget_Deserialize[],
+	/**
+	 *  The first of `targets`, kept for an older ckpro reading these
+	 *  settings; read only when `targets` was never written
+	 */
 	target?: ExamTarget_Deserialize | null,
+	/**  The certification Home and the Calendar show, or none for all of them */
+	focus?: string | null,
+	/**  How Home's modules are arranged */
+	home?: HomeLayout_Deserialize,
 };
 
 /**  The exam desk's display settings */
@@ -1549,8 +1594,17 @@ export type Settings_Serialize = {
 	sidebar: SidebarLayout_Serialize,
 	/**  Light or dark, or as macOS is */
 	theme: Theme,
-	/**  The exam the candidate prepares for, and when */
+	/**  The exams the candidate prepares for, and when (CKA, then CKAD…) */
+	targets: ExamTarget_Serialize[],
+	/**
+	 *  The first of `targets`, kept for an older ckpro reading these
+	 *  settings; read only when `targets` was never written
+	 */
 	target: ExamTarget_Serialize | null,
+	/**  The certification Home and the Calendar show, or none for all of them */
+	focus: string | null,
+	/**  How Home's modules are arranged */
+	home: HomeLayout_Serialize,
 };
 
 export type Severity = "error" | "warning";

@@ -294,7 +294,7 @@ fn to_json<T: Serialize + ?Sized>(value: &T) -> AppResult<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::settings::{ExamSort, ExamTarget, SidebarLayout, Theme};
+    use super::settings::{ExamSort, ExamTarget, HomeLayout, ModulePlace, SidebarLayout, Theme};
     use super::*;
 
     #[test]
@@ -340,15 +340,23 @@ mod tests {
                 sort: [("ckad".to_string(), ExamSort::Score)].into(),
             },
             theme: Theme::System,
-            target: Some(ExamTarget {
-                certification: "cka".into(),
-                date: "2026-12-15".into(),
-                started: "2026-10-06".into(),
-                rest_days: vec![4],
-            }),
+            targets: vec![
+                ExamTarget { certification: "cka".into(), date: "2026-12-15".into(), started: "2026-10-06".into(), rest_days: vec![4] },
+                ExamTarget { certification: "ckad".into(), date: "2027-03-20".into(), started: "2026-11-02".into(), rest_days: vec![] },
+            ],
+            target: None,
+            focus: Some("ckad".into()),
+            home: HomeLayout { places: vec![ModulePlace { module: "today".into(), x: 2, y: 1 }], hidden: vec!["recent".into()], custom: true },
         };
         store.save_settings(&settings).unwrap();
-        assert_eq!(store.settings().unwrap(), settings);
+        // Saved with `target` as the first exam, for an older ckpro
+        assert_eq!(store.settings().unwrap(), Settings { target: Some(settings.targets[0].clone()), ..settings.clone() });
+        // Settings from before several exams: the one target becomes the list
+        store.save_setting("exam_desk", &serde_json::json!({ "target": { "certification": "cks", "date": "2027-06-30", "started": "2027-01-01" } })).unwrap();
+        let before = store.settings().unwrap();
+        assert_eq!(before.targets.len(), 1);
+        assert_eq!(before.targets[0].certification, "cks");
+        assert!(before.home.places.is_empty() && !before.home.custom && before.focus.is_none());
         // Settings saved by an earlier version: the new ones take their defaults
         store.save_setting("exam_desk", &serde_json::json!({ "desktop_zoom": 2.0, "question_size": 3 })).unwrap();
         let old = store.settings().unwrap();

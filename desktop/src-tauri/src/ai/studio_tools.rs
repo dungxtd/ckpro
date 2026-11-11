@@ -1,5 +1,5 @@
 //! The tools of a Create conversation, as MCP (served by `ai::mcp_http` at
-//! `/studio/<session>`): what the app knows, read-only (the target, how
+//! `/studio/<session>`): what the app knows, read-only (the exams aimed at, how
 //! ready the candidate is, attempts and their failed checks, plans, exams
 //! and questions), and the draft exam, the only thing Claude changes.
 //!
@@ -121,7 +121,7 @@ impl Tools {
         let history = self.exams.history();
         Ok(pretty(&json!({
             "today": day(now, self.exams.offset_minutes()),
-            "target": settings.target.map(|t| json!({ "certification": t.certification, "exam_day": t.date, "preparing_since": t.started })),
+            "targets": settings.targets.iter().map(|t| json!({ "certification": t.certification, "exam_day": t.date, "preparing_since": t.started })).collect::<Vec<_>>(),
             "readiness": readiness,
             "attempts": history.len(),
             "attempts_with_points": history.iter().filter(|h| h.result.worked()).count(),
@@ -215,7 +215,7 @@ pub fn list() -> Value {
     let none = json!({ "type": "object", "properties": {} });
     let id = |what: &str| json!({ "type": "object", "properties": { "id": { "type": "string", "description": what } }, "required": ["id"] });
     json!([
-        { "name": "get_profile", "description": "The candidate: today, their exam target (certification, exam day), how ready they are per certification and domain (from their attempts), how many attempts.", "inputSchema": none, "annotations": read },
+        { "name": "get_profile", "description": "The candidate: today, the exams they prepare for (certification, exam day), how ready they are per certification and domain (from their attempts), how many attempts.", "inputSchema": none, "annotations": read },
         { "name": "list_attempts", "description": "Their attempts, latest first: exam, mode, day, score, passed.", "inputSchema": { "type": "object", "properties": { "limit": { "type": "integer" }, "certification": { "type": "string" } } }, "annotations": read },
         { "name": "get_attempt", "description": "One attempt: each question's points and the checks that failed (what they got wrong).", "inputSchema": id("An attempt id from list_attempts"), "annotations": read },
         { "name": "list_exams", "description": "The exams in ckpro: bundled ones and the candidate's own (custom).", "inputSchema": none, "annotations": read },

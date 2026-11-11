@@ -35,8 +35,34 @@ pub struct Settings {
     pub sidebar: SidebarLayout,
     /// Light or dark, or as macOS is
     pub theme: Theme,
-    /// The exam the candidate prepares for, and when
+    /// The exams the candidate prepares for, and when (CKA, then CKAD…)
+    pub targets: Vec<ExamTarget>,
+    /// The first of `targets`, kept for an older ckpro reading these
+    /// settings; read only when `targets` was never written
     pub target: Option<ExamTarget>,
+    /// The certification Home and the Calendar show, or none for all of them
+    pub focus: Option<String>,
+    /// How Home's modules are arranged
+    pub home: HomeLayout,
+}
+
+/// Home's modules as the candidate arranged them: each one's cell on the
+/// grid (by name), the ones hidden, and whether it was ever arranged (a
+/// layout never arranged follows the default for what there is to show)
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(default)]
+pub struct HomeLayout {
+    pub places: Vec<ModulePlace>,
+    pub hidden: Vec<String>,
+    pub custom: bool,
+}
+
+/// A module's cell: its column and row, from 0
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct ModulePlace {
+    pub module: String,
+    pub x: u8,
+    pub y: u16,
 }
 
 /// The real exam the candidate aims at
@@ -118,18 +144,30 @@ impl Default for Settings {
             sidebar_folded: false,
             sidebar: SidebarLayout::default(),
             theme: Theme::Dark,
+            targets: Vec::new(),
             target: None,
+            focus: None,
+            home: HomeLayout::default(),
         }
     }
 }
 
 impl Store {
     pub fn settings(&self) -> AppResult<Settings> {
-        self.setting("exam_desk")
+        let mut settings: Settings = self.setting("exam_desk")?;
+        // Saved before there could be several exams: the one becomes the list
+        if settings.targets.is_empty()
+            && let Some(target) = settings.target.clone()
+        {
+            settings.targets.push(target);
+        }
+        Ok(settings)
     }
 
     pub fn save_settings(&self, settings: &Settings) -> AppResult<()> {
-        self.save_setting("exam_desk", settings)
+        // `target` follows the list, so an older ckpro reads the first exam
+        let settings = Settings { target: settings.targets.first().cloned(), ..settings.clone() };
+        self.save_setting("exam_desk", &settings)
     }
 
     /// What the exam nodes were measured to take on this machine

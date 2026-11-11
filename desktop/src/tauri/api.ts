@@ -35,6 +35,7 @@ type Result<T, E> = { status: "ok"; data: T } | { status: "error"; error: E };
 export type Settings = Settings_Serialize;
 /** The real exam the candidate aims at */
 export type ExamTarget = NonNullable<Settings["target"]>;
+export type { HomeLayout, ModulePlace } from "./bindings";
 /** An exam planned for a day */
 export type PlanView = PlanView_Serialize;
 /** How ready the candidate is for a certification */

@@ -496,11 +496,11 @@ pub fn settings(store: State<'_, Arc<Store>>) -> AppResult<Settings> {
 #[tauri::command]
 #[specta::specta]
 pub fn save_settings(app: tauri::AppHandle, store: State<'_, Arc<Store>>, coach: State<'_, Coach>, settings: Settings) -> AppResult<()> {
-    let target = store.settings().ok().map(|s| s.target);
+    let targets = store.settings().ok().map(|s| s.targets);
     store.save_settings(&settings)?;
     coach.switch(settings.assistant_enabled);
-    // A new target is another readiness to read
-    if target.as_ref() != Some(&settings.target) {
+    // Other exams aimed at: other readiness to read
+    if targets.as_ref() != Some(&settings.targets) {
         crate::study_changed(&app, false);
     }
     Ok(())
