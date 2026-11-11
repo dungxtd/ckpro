@@ -257,12 +257,17 @@ export const useExam = create<ExamStore>()(
 					await examApi.end();
 					// Cancelling a preparation only asks it to stop: still
 					// "ending" until Rust says it did (the phase changes)
-					if (was !== "preparing" || get().state?.phase !== was) set(s => void (s.pending = null));
+					if (was !== "preparing" || get().state?.phase !== was)
+						set(s => {
+							s.pending = null;
+						});
 					return true;
 				} catch (e) {
 					// Shown where it was asked for: the desk, the result or the failure
 					toast.error(errorText(e));
-					set(s => void (s.pending = null));
+					set(s => {
+						s.pending = null;
+					});
 					return false;
 				}
 			},
