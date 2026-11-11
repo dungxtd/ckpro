@@ -1,4 +1,6 @@
 import { Button } from "@ckpro/ui/components/button";
+import { Card } from "@ckpro/ui/components/card";
+import { dayMarkerVariants } from "@ckpro/ui/components/day-marker";
 import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Loading } from "@ckpro/ui/components/loading";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
@@ -13,7 +15,8 @@ import { DayView } from "@/components/calendar/day-view";
 import { ExamTargets } from "@/components/calendar/exam-targets";
 import { Grid } from "@/components/calendar/grid";
 import { Screen } from "@/components/shell/screen";
-import { scoreOf, startedAt } from "@/components/study/data";
+import { bestByDay, minutesByDay, scoreOf, startedAt } from "@/components/study/data";
+import { PracticeMap } from "@/components/study/practice-map";
 import { addDays, dayKey, monday, monthWeeks, parseDay, streak } from "@/days";
 import { useExam } from "@/stores/exam";
 import { useShownTargets } from "@/stores/settings";
@@ -22,8 +25,9 @@ import { errorText, examApi, type Mode, type PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 import { plural } from "@/words";
 
-type View = "month" | "week" | "day";
+type View = "map" | "month" | "week" | "day";
 const VIEWS = [
+	{ value: "map", label: "Map" },
 	{ value: "month", label: "Month" },
 	{ value: "week", label: "Week" },
 	{ value: "day", label: "Day" },
@@ -47,7 +51,7 @@ export function CalendarRoute() {
 	const now = new Date();
 	const today = dayKey(now);
 	const view = (
-		["month", "week", "day"].includes(params.get("view") ?? "") ? params.get("view") : "month"
+		["map", "month", "week", "day"].includes(params.get("view") ?? "") ? params.get("view") : "map"
 	) as View;
 	const anchor = /^\d{4}-\d{2}-\d{2}$/.test(params.get("day") ?? "")
 		? (params.get("day") as string)
@@ -55,8 +59,19 @@ export function CalendarRoute() {
 	const date = parseDay(anchor);
 	const month = new Date(date.getFullYear(), date.getMonth(), 1);
 	const weeks = monthWeeks(month);
-	const from = dayKey(weeks[0][0]);
-	const to = dayKey(weeks.at(-1)?.[6] ?? date);
+	// The map runs from the preparation's start to the last exam; the others, the month
+	const prepStart = targets.length
+		? targets.map(t => t.started).sort()[0]
+		: dayKey(addDays(now, -70));
+	const lastExam = targets
+		.map(t => t.date)
+		.sort()
+		.at(-1);
+	const from = view === "map" ? [prepStart, dayKey(monday(date))].sort()[0] : dayKey(weeks[0][0]);
+	const to =
+		view === "map"
+			? [dayKey(addDays(monday(date), 6)), lastExam ?? today].sort().at(-1)!
+			: dayKey(weeks.at(-1)?.[6] ?? date);
 	const go = (next: { view?: View; day?: string }) => {
 		const to = { view: next.view ?? view, day: next.day ?? anchor };
 		const change = () => setParams(to);
@@ -143,13 +158,16 @@ export function CalendarRoute() {
 	const span =
 		view === "day"
 			? [anchor]
-			: view === "week"
+			: view === "week" || view === "map"
 				? Array.from({ length: 7 }, (_, i) => dayKey(addDays(weekStart, i)))
 				: Array.from(
 						{ length: new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate() },
 						(_, i) => dayKey(addDays(month, i))
 					);
 	const inSpan = new Set(span);
+	const plannedDays = new Map<string, string[]>();
+	for (const p of plans.filter(p => p.done === null && p.day > today))
+		plannedDays.set(p.day, [...(plannedDays.get(p.day) ?? []), p.certification]);
 	const attempts = history.filter(h => inSpan.has(dayKey(new Date(startedAt(h)))));
 	const planned = plans.filter(p => inSpan.has(p.day) && p.done === null);
 	const average = attempts.length
@@ -162,7 +180,7 @@ export function CalendarRoute() {
 			day: dayKey(
 				view === "day"
 					? addDays(date, by)
-					: view === "week"
+					: view === "week" || view === "map"
 						? addDays(date, 7 * by)
 						: new Date(date.getFullYear(), date.getMonth() + by, 1)
 			),
@@ -170,7 +188,7 @@ export function CalendarRoute() {
 	const title =
 		view === "day"
 			? date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })
-			: view === "week"
+			: view === "week" || view === "map"
 				? `Week of ${weekStart.toLocaleDateString(undefined, { day: "numeric", month: "long" })}`
 				: date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 
@@ -232,7 +250,78 @@ export function CalendarRoute() {
 					</>
 				)}
 			</StatGroup>
-			{view === "day" ? (
+			{view === "map" ? (
+				<>
+					<Card padding="md" className="rounded-2xl">
+						<PracticeMap
+							mode="score"
+							start={parseDay(prepStart)}
+							exams={targets}
+							minutes={minutesByDay(history)}
+							best={bestByDay(history)}
+							pass={66}
+							planned={plannedDays}
+							lanes
+							cell={15}
+							picked={anchor}
+							onPick={day => go({ day })}
+						/>
+					</Card>
+					{/* The week of the day picked; a day opens below */}
+					<div className="grid grid-cols-7 gap-1.5">
+						{Array.from({ length: 7 }, (_, i) => {
+							const d = addDays(weekStart, i);
+							const k = dayKey(d);
+							const dots = plans.filter(p => p.day === k).length;
+							return (
+								<button
+									key={k}
+									type="button"
+									aria-pressed={k === anchor}
+									aria-label={d.toLocaleDateString(undefined, { dateStyle: "full" })}
+									onClick={() => go({ day: k })}
+									className={cn(
+										"flex flex-col items-center gap-1 rounded-xl py-2 hover:bg-hover",
+										k === anchor && "bg-fill-quiet"
+									)}
+								>
+									<span className="text-caption text-muted-foreground">
+										{d.toLocaleDateString(undefined, { weekday: "short" })}
+									</span>
+									<span
+										className={dayMarkerVariants({
+											today: k === today,
+											exam: targets.some(t => t.date === k),
+											picked: k === anchor,
+										})}
+									>
+										{d.getDate()}
+									</span>
+									<span className="flex h-1.5 gap-0.5">
+										{Array.from({ length: Math.min(dots, 3) }, (_, j) => (
+											// biome-ignore lint/suspicious/noArrayIndexKey: a count of dots
+											<i key={j} className="size-1.5 rounded-full bg-highlight" />
+										))}
+									</span>
+								</button>
+							);
+						})}
+					</div>
+					<DayView
+						day={anchor}
+						history={history}
+						plans={plans}
+						today={today}
+						exams={targets}
+						month={false}
+						onPick={day => go({ day })}
+						onShift={by => go({ day: dayKey(addDays(date, 7 * by)) })}
+						onAdd={actions.onAdd}
+						onMode={actions.onMode}
+						onRemove={actions.onRemove}
+					/>
+				</>
+			) : view === "day" ? (
 				<DayView
 					day={anchor}
 					history={history}

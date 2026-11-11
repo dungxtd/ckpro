@@ -2,6 +2,7 @@ import { Badge } from "@ckpro/ui/components/badge";
 import { Button } from "@ckpro/ui/components/button";
 import { Card, CardTitle } from "@ckpro/ui/components/card";
 import { SectionTitle } from "@ckpro/ui/components/section-title";
+import { cn } from "@ckpro/ui/lib/utils";
 import { Flag, Play, Plus } from "lucide-react";
 import { scoreOf, startedAt } from "@/components/study/data";
 import { byDay, dayKey, parseDay } from "@/days";
@@ -32,6 +33,7 @@ export function DayView({
 	onAdd,
 	onMode,
 	onRemove,
+	month = true,
 }: {
 	day: string;
 	history: HistoryEntry[];
@@ -45,6 +47,8 @@ export function DayView({
 	onAdd: (day: string, examId: string) => void;
 	onMode: (plan: PlanView) => void;
 	onRemove: (plan: PlanView) => void;
+	/** The month beside the day (none when the practice map leads) */
+	month?: boolean;
 }) {
 	const start = useExam(s => s.start);
 	const busy = useExamBusy();
@@ -52,8 +56,8 @@ export function DayView({
 	const onDay = history.filter(h => dayKey(new Date(startedAt(h))) === day);
 	const open = plans.filter(p => p.day === day && p.done === null);
 	return (
-		<div className="grid items-start gap-6 @3xl:grid-cols-[272px_minmax(0,1fr)]">
-			<div className="max-w-sm @3xl:sticky @3xl:top-0">
+		<div className={cn("grid items-start gap-6", month && "@3xl:grid-cols-[272px_minmax(0,1fr)]")}>
+			<div className={cn("max-w-sm @3xl:sticky @3xl:top-0", !month && "hidden")}>
 				<MiniMonth
 					month={new Date(date.getFullYear(), date.getMonth(), 1)}
 					days={byDay(history)}
