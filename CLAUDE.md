@@ -90,6 +90,6 @@ Commands or types changed: regenerate the bindings with
 `desktop/src/tauri/bindings.ts`. Image files changed: regenerate the manifest
 with `cargo run -- images > resources/images.json`. Icon changed: `pnpm
 tauri icon src-tauri/icons/source.svg` (macOS's grid, a margin round the
-tile), then from `source-windows.svg` (the mark alone, no tile, to the edge:
-Windows draws icons that way) keep only `icon.ico`, `Square*Logo.png` and
+tile), then from `source-windows.svg` (the same tile, no margin: Windows
+draws icons to the edge of their box) keep only `icon.ico`, `Square*Logo.png` and
 `StoreLogo.png`.
