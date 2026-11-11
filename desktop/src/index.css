@@ -17,6 +17,9 @@
 	--domain-3: #40c057;
 	--domain-4: #fab005;
 	--domain-5: #fd7e14;
+	/* The window's ground, tinted: a cool wash low left, a warm one high right */
+	--tint-cool: #d9dbe6;
+	--tint-warm: #ece3e0;
 }
 [data-theme="dark"] {
 	--exam-value: #f472b6;
@@ -27,6 +30,8 @@
 	--domain-3: #51cf66;
 	--domain-4: #fcc419;
 	--domain-5: #ff922b;
+	--tint-cool: #22273a;
+	--tint-warm: #2e2224;
 }
 
 @theme inline {
@@ -179,4 +184,12 @@ body,
 	[data-moving].shell-fold {
 		transition: none;
 	}
+}
+
+/* The window's ground behind the screens: soft washes of colour over the
+   background, which the tinted cards let show through */
+.shell-ground {
+	background:
+		radial-gradient(120% 90% at 85% 0%, var(--tint-warm), transparent 60%),
+		radial-gradient(100% 80% at 0% 100%, var(--tint-cool), transparent 60%), var(--background);
 }

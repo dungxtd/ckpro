@@ -483,6 +483,9 @@ function Gallery() {
 						<Card padding="sm">padding sm</Card>
 						<Card>padding md (default)</Card>
 						<Card variant="dashed">dashed</Card>
+						<Card variant="tinted" className="shell-ground">
+							tinted
+						</Card>
 					</div>
 					<Card padding="lg" className="max-w-md">
 						<CardHeader>

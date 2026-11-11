@@ -40,6 +40,7 @@ export function ModuleCard({
 }) {
 	return (
 		<Card
+			variant="tinted"
 			padding="md"
 			className={cn("flex h-full min-h-0 flex-col overflow-hidden rounded-2xl", className)}
 		>

@@ -48,6 +48,9 @@
 	--border: rgb(60 60 67 / 0.18); /* separator */
 	--input: #e5e5ea;
 	--ring: var(--highlight);
+	/* A card over a tinted ground: see-through, with a hairline edge */
+	--card-tinted: rgb(255 255 255 / 0.55);
+	--card-tinted-edge: rgb(0 0 0 / 0.08);
 	/* Shadows, by what casts them: a floating layer, a filled control (the
 	   main action), a push button's edge, a thumb on its track (a segment, a
 	   switch's knob, a selected chip), and the lit rim of a dark glass circle
@@ -126,6 +129,8 @@
 	--border: rgb(84 84 88 / 0.6);
 	--input: #3a3a3c;
 	--ring: var(--highlight);
+	--card-tinted: rgb(255 255 255 / 0.06);
+	--card-tinted-edge: rgb(255 255 255 / 0.09);
 	--shadow-float: 0 10px 38px rgb(0 0 0 / 0.5), 0 0 0 0.5px rgb(255 255 255 / 0.12);
 	--shadow-control: 0 0 0 0.5px rgb(0 0 0 / 0.3), 0 1px 2px rgb(0 0 0 / 0.3);
 	--shadow-push: inset 0 0 0 1px var(--push-edge), 0 1px 2px rgb(0 0 0 / 0.2);

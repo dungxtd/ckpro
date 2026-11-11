@@ -108,7 +108,7 @@ function Layout() {
 				"group/shell relative",
 				// One row the window's height: the screen scrolls inside it. The
 				// columns move with the surface, on its curve
-				"shell-fold grid h-full grid-rows-[minmax(0,1fr)] transition-[grid-template-columns]",
+				"shell-fold shell-ground grid h-full grid-rows-[minmax(0,1fr)] transition-[grid-template-columns]",
 				folded ? "grid-cols-[0px_minmax(0,1fr)]" : "grid-cols-[256px_minmax(0,1fr)]"
 			)}
 		>

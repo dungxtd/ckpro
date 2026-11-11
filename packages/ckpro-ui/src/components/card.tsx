@@ -11,6 +11,8 @@ export const cardVariants = cva("rounded-xl border border-border text-card-foreg
 		variant: {
 			default: "bg-card",
 			dashed: "border-dashed bg-transparent",
+			// On a tinted ground (Home, the Calendar): the ground shows through, a hairline edge
+			tinted: "border-(--card-tinted-edge) bg-(--card-tinted)",
 		},
 		padding: {
 			none: "",
