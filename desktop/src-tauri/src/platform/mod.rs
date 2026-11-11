@@ -202,16 +202,30 @@ pub fn in_terminal(argv: &[OsString]) -> Command {
     command
 }
 
-/// `link` runs `program`, made again when it no longer does
+/// What `link_program` names a link while it makes it: other processes'
+/// ones in the same folder are theirs, not leftovers
+pub const LINKING: &str = ".linking-";
+
+/// `link` runs `program`, made again when it no longer does. Made under a
+/// name of its own, then renamed over `link` at once: another ckpro (the
+/// app and the CLI share the data folder) never sees it missing
 pub fn link_program(program: &Path, link: &Path) -> std::io::Result<()> {
     if Os::links_to(link, program) {
         return Ok(());
     }
-    match std::fs::remove_file(link) {
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
-        _ => {}
+    let name = link.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let new = link.with_file_name(format!("{LINKING}{}-{name}", std::process::id()));
+    let _ = std::fs::remove_file(&new);
+    Os::link_program(program, &new)?;
+    match std::fs::rename(&new, link) {
+        Ok(()) => Ok(()),
+        // Another process put its link there first (or holds it open)
+        Err(_) if Os::links_to(link, program) => std::fs::remove_file(&new).or(Ok(())),
+        Err(e) => {
+            let _ = std::fs::remove_file(&new);
+            Err(e)
+        }
     }
-    Os::link_program(program, link)
 }
 
 pub fn make_executable(path: &Path) -> std::io::Result<()> {
@@ -225,6 +239,25 @@ pub fn make_private(dir: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A link made again is never missing on the way, and other processes'
+    /// links in the making are left alone
+    #[test]
+    fn a_link_is_replaced_in_one_step() {
+        let dir = std::env::temp_dir().join(format!("ckpro-link-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (old, new, link) = (dir.join("old"), dir.join("new"), dir.join("docker"));
+        std::fs::write(&old, "old").unwrap();
+        std::fs::write(&new, "new").unwrap();
+        link_program(&old, &link).unwrap();
+        link_program(&new, &link).unwrap();
+        assert!(Os::links_to(&link, &new));
+        // Nothing of the making stays
+        let left: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert_eq!(left.len(), 3, "{left:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn programs_are_executables() {

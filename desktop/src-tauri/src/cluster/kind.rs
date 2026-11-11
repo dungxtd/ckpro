@@ -93,7 +93,8 @@ impl Kind {
         crate::platform::link_program(&app, &shim).map_err(|e| AppError::io("linking the docker stand-in", e))?;
         // What earlier versions left there (scripts): only the stand-in stays
         for entry in std::fs::read_dir(&shim_dir).into_iter().flatten().flatten() {
-            if entry.path() != shim {
+            let linking = entry.file_name().to_string_lossy().starts_with(crate::platform::LINKING);
+            if entry.path() != shim && !linking {
                 let _ = std::fs::remove_file(entry.path());
             }
         }
