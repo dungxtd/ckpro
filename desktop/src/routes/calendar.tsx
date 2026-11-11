@@ -70,7 +70,7 @@ export function CalendarRoute() {
 	const from = view === "map" ? [prepStart, dayKey(monday(date))].sort()[0] : dayKey(weeks[0][0]);
 	const to =
 		view === "map"
-			? [dayKey(addDays(monday(date), 6)), lastExam ?? today].sort().at(-1)!
+			? ([dayKey(addDays(monday(date), 6)), lastExam ?? today].sort().at(-1) as string)
 			: dayKey(weeks.at(-1)?.[6] ?? date);
 	const go = (next: { view?: View; day?: string }) => {
 		const to = { view: next.view ?? view, day: next.day ?? anchor };
