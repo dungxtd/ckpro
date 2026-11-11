@@ -283,6 +283,9 @@ export const useStudio = create<StudioStore>()((set, get) => {
 				});
 			cleared(session);
 			set(s => ({ pending: { ...s.pending, [session]: { asked: text, text: "", tools: [] } } }));
+			// Answered and kept: a failure after it (reading the lists again) is
+			// not offered to be asked again
+			let answered = false;
 			try {
 				await studioApi.ask(
 					session,
@@ -313,13 +316,16 @@ export const useStudio = create<StudioStore>()((set, get) => {
 							});
 					}
 				);
+				answered = true;
 				// Kept now: read again, as kept, if it is the one shown
 				if (get().session === session) await refresh();
 				set({ sessions: await studioApi.sessions() });
 				track("studio_message");
 			} catch (e) {
 				const code = (e as { code?: string }).code;
-				if (code !== "cancelled") failed(session, e, text);
+				// Signed out: asking again cannot answer until the candidate signs in
+				const again = !answered && code !== "sign_in_required";
+				if (code !== "cancelled") failed(session, e, again ? text : undefined);
 				if (code === "sign_in_required") useCoach.getState().loadAccount();
 			} finally {
 				change(() => null);

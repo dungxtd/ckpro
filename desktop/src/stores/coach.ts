@@ -343,7 +343,11 @@ export const useCoach = create<CoachStore>()(
 						if (session?.at(-1)?.role === "assistant") session.splice(-2, 2);
 						if (!stopped) {
 							s.error = errorText(e);
-							s.unsent = { questionId, text };
+							// Signed out: asking again cannot answer until the candidate signs in
+							s.unsent =
+								e instanceof ApiError && e.code === "sign_in_required"
+									? null
+									: { questionId, text };
 						}
 						// The login is gone or expired: offer to sign in
 						if (e instanceof ApiError && e.code === "sign_in_required")

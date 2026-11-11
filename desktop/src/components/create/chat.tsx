@@ -184,7 +184,8 @@ export function Chat() {
 					{error && (
 						<AssistantError
 							error={error}
-							onRetry={unsent && !writing ? () => submit(unsent) : undefined}
+							// Asked again as it was; what is being typed stays
+							onRetry={unsent && !writing ? () => send(unsent) : undefined}
 						/>
 					)}
 				</div>

@@ -67,15 +67,19 @@ export function DesktopView({
 	useEffect(() => {
 		let retry: ReturnType<typeof setTimeout> | undefined;
 		let stopped = false;
+		// Asking Rust for the desktop (it can wait up to 30 s): one ask at a time
+		let asking = false;
 
 		const connect = async () => {
-			if (stopped || !screen.current) return;
+			if (stopped || !screen.current || asking) return;
+			asking = true;
 			// Rust answers once the desktop is up (or after a while without it:
 			// asked again then); a failure waits a moment before asking again
 			const session = await desktopApi.session().catch(e => {
 				lastError.current = errorText(e);
 				return undefined;
 			});
+			asking = false;
 			// Closed while it was asked for: nothing to connect, nothing to retry
 			if (stopped || !screen.current) return;
 			if (!session) {
@@ -156,6 +160,8 @@ export function DesktopView({
 			rfb.qualityLevel = 8;
 			rfb.addEventListener("connect", () => {
 				setConnected(true);
+				// Up again: an earlier failure no longer explains a later wait
+				lastError.current = null;
 				// Without preventScroll the browser scrolls the page to the canvas,
 				// shifting the whole exam desk out of the window
 				rfb.focus({ preventScroll: true });
@@ -180,8 +186,8 @@ export function DesktopView({
 		};
 
 		kick.current = () => {
-			// One already on its way (an RFB handshaking): it answers itself
-			if (stopped || rfbRef.current) return;
+			// One already on its way (Rust asked, or an RFB handshaking): it answers itself
+			if (stopped || asking || rfbRef.current) return;
 			clearTimeout(retry);
 			connect();
 		};
