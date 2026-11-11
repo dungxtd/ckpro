@@ -104,57 +104,73 @@ pub fn cli() -> Option<std::path::PathBuf> {
     crate::platform::find_program(&cli_dirs(), "docker")
 }
 
-/// The containers of kind clusters `clusters` (`all`: stopped ones too),
-/// asked of the engine on a thread of its own: the app is quitting and its
-/// runtime may be gone. Nothing when Docker does not answer within a few
-/// seconds
-pub fn cluster_containers_now(clusters: &[String], all: bool) -> Vec<String> {
-    const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
-    if clusters.is_empty() {
-        return Vec::new();
-    }
-    const CLUSTER: &str = "io.x-k8s.kind.cluster";
-    let clusters = clusters.to_vec();
-    let ask = async move {
-        let docker = connect().await.ok()?;
-        // Label filters must all match: the clusters are told apart here
-        let options = bollard::query_parameters::ListContainersOptions {
-            all,
-            filters: Some(std::collections::HashMap::from([("label".to_string(), vec![CLUSTER.to_string()])])),
-            ..Default::default()
-        };
-        let containers = docker.list_containers(Some(options)).await.ok()?;
-        let ours = |c: &bollard::models::ContainerSummary| {
-            c.labels.as_ref().and_then(|l| l.get(CLUSTER)).is_some_and(|name| clusters.contains(name))
-        };
-        Some(containers.into_iter().filter(ours).filter_map(|c| c.id).collect::<Vec<_>>())
-    };
-    std::thread::spawn(move || {
-        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().ok()?;
-        runtime.block_on(async { tokio::time::timeout(TIMEOUT, ask).await.ok().flatten() })
-    })
-    .join()
-    .ok()
-    .flatten()
-    .unwrap_or_default()
+/// What `ckpro quit` does with the containers it is given
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum OnQuit {
+    /// Stop them (the next start starts them again)
+    Stop,
+    /// Remove them, volumes too (a proof's)
+    Remove,
 }
 
-/// Run `docker <args>` and leave it running: the app quits without waiting
-pub fn detached<I, S>(args: I)
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<std::ffi::OsStr>,
-{
-    let Some(cli) = cli() else { return };
-    let spawned = crate::platform::std_command(cli)
+/// Hand the nodes of kind clusters `clusters` and the containers `named` to
+/// a process of their own (this app, as `ckpro quit`): it finds the nodes
+/// and stops or removes them after the app is gone, so quitting waits for
+/// nothing
+pub fn on_quit(action: OnQuit, clusters: &[String], named: &[String]) {
+    if clusters.is_empty() && named.is_empty() {
+        return;
+    }
+    let Ok(app) = std::env::current_exe() else { return };
+    let mut args = vec!["quit".to_string(), if action == OnQuit::Stop { "stop" } else { "remove" }.to_string()];
+    for c in clusters {
+        args.extend(["--cluster".to_string(), c.clone()]);
+    }
+    for n in named {
+        args.extend(["--container".to_string(), n.clone()]);
+    }
+    let spawned = crate::platform::std_command(app)
         .args(args)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn();
     if let Err(e) = spawned {
-        tracing::warn!(error = %e, "starting a detached docker command");
+        tracing::warn!(error = %e, "handing the containers over for quitting");
     }
+}
+
+/// `ckpro quit`: stop or remove the nodes of `clusters` and the `named`
+/// containers; what is not there is skipped
+pub async fn quit(action: OnQuit, clusters: &[String], named: &[String]) -> AppResult<()> {
+    const CLUSTER: &str = "io.x-k8s.kind.cluster";
+    let docker = connect().await?;
+    let options = bollard::query_parameters::ListContainersOptions {
+        all: action == OnQuit::Remove,
+        filters: Some(std::collections::HashMap::from([("label".to_string(), vec![CLUSTER.to_string()])])),
+        ..Default::default()
+    };
+    let nodes = docker.list_containers(Some(options)).await?.into_iter().filter(|c| {
+        c.labels.as_ref().and_then(|l| l.get(CLUSTER)).is_some_and(|name| clusters.contains(name))
+    });
+    let targets: Vec<String> = nodes.filter_map(|c| c.id).chain(named.iter().cloned()).collect();
+    let jobs = targets.iter().map(|id| {
+        let docker = docker.clone();
+        async move {
+            match action {
+                OnQuit::Stop => {
+                    let options = bollard::query_parameters::StopContainerOptions { t: Some(5), ..Default::default() };
+                    let _ = docker.stop_container(id, Some(options)).await;
+                }
+                OnQuit::Remove => {
+                    let options = bollard::query_parameters::RemoveContainerOptions { force: true, v: true, ..Default::default() };
+                    let _ = docker.remove_container(id, Some(options)).await;
+                }
+            }
+        }
+    });
+    futures_util::future::join_all(jobs).await;
+    Ok(())
 }
 
 /// Where Docker puts its CLI, ahead of the app's PATH (a GUI app's is short

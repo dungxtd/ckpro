@@ -29,6 +29,16 @@ enum Command {
     /// Print the images to publish (name, image with its tag, build args):
     /// CI builds and pushes them, the app pulls them
     Images,
+    /// Stop or remove ckpro's containers as the app quits (the app starts
+    /// this; it finds them by cluster so quitting waits for nothing)
+    #[command(hide = true)]
+    Quit {
+        action: crate::runtime::docker::OnQuit,
+        #[arg(long = "cluster")]
+        clusters: Vec<String>,
+        #[arg(long = "container")]
+        containers: Vec<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -90,7 +100,7 @@ enum LabCommand {
 pub fn is_cli(args: &[String]) -> bool {
     matches!(
         args.get(1).map(String::as_str),
-        Some("lab" | "schema" | "images" | "help" | "--help" | "-h" | "--version" | "-V")
+        Some("lab" | "schema" | "images" | "quit" | "help" | "--help" | "-h" | "--version" | "-V")
     )
 }
 
@@ -104,6 +114,13 @@ pub fn main() -> ExitCode {
             generate_question(&pack, certification, domain, &difficulty, topic)
         }
         Command::Schema { out } => write_schemas(&out),
+        Command::Quit { action, clusters, containers } => {
+            let Ok(runtime) = tokio::runtime::Runtime::new() else { return ExitCode::FAILURE };
+            let done = runtime.block_on(async {
+                tokio::time::timeout(std::time::Duration::from_secs(120), crate::runtime::docker::quit(action, &clusters, &containers)).await
+            });
+            if matches!(done, Ok(Ok(()))) { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+        }
         Command::Images => {
             println!("{}", serde_json::to_string_pretty(&crate::runtime::infra::manifest()).unwrap_or_default());
             ExitCode::SUCCESS

@@ -104,10 +104,9 @@ pub async fn repair(docker: &Docker, cluster: &str) -> AppResult<()> {
 
 
 /// Stop the app's clusters, jumphost and cache when it quits; `on_startup`
-/// starts them again. Handed to a detached `docker stop` so quitting is
+/// starts them again. Handed to a process of their own so quitting is
 /// instant (verify runs from the CLI are not touched).
 pub fn on_exit(kind: &Kind) {
-    let mut containers = super::docker::cluster_containers_now(&kind.owned_clusters(), false);
-    containers.extend([super::infra::MIRROR, super::jumphost::APP_NAME, super::desktop::NAME].map(str::to_string));
-    super::docker::detached(["stop", "-t", "5"].into_iter().map(str::to_string).chain(containers));
+    let named = [super::infra::MIRROR, super::jumphost::APP_NAME, super::desktop::NAME].map(str::to_string);
+    super::docker::on_quit(super::docker::OnQuit::Stop, &kind.owned_clusters(), &named);
 }

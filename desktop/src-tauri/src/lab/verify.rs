@@ -177,14 +177,12 @@ impl Run {
         log(format!("[{}] kept clusters {:?} and {}", self.id, placement.values().collect::<Vec<_>>(), self.jumphost.name));
     }
 
-    /// Remove the clusters' nodes and the jumphost with a detached `docker rm`
-    /// (the app quits); the next `sweep_stale` takes the run's network and
-    /// files
+    /// Remove the clusters' nodes and the jumphost from a process of their
+    /// own (the app quits); the next `sweep_stale` takes the run's network
+    /// and files
     pub fn remove_detached(&self) {
         let clusters: Vec<String> = self.placement.locked().values().cloned().collect();
-        let mut containers = docker::cluster_containers_now(&clusters, true);
-        containers.push(self.jumphost.name.clone());
-        docker::detached(["rm", "-f", "-v"].into_iter().map(str::to_string).chain(containers));
+        docker::on_quit(docker::OnQuit::Remove, &clusters, std::slice::from_ref(&self.jumphost.name));
     }
 
     /// Remove the clusters, the jumphost and the run's files
