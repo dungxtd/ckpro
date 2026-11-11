@@ -2,14 +2,19 @@ import { describe, expect, it } from "vitest";
 import { dayKey } from "@/days";
 import type { ExamReadiness, ExamSummary, HistoryEntry } from "@/tauri/api";
 import {
+	activityLevel,
 	bestByDay,
 	daysUntil,
 	events,
 	freeDay,
 	level,
+	longestStreak,
 	MAP_WEEKS,
 	mapWeeks,
+	minutesByDay,
+	passed,
 	predicted,
+	retryList,
 	scoreColor,
 	studyFigures,
 	suggestion,
@@ -164,5 +169,80 @@ describe("the result's colour and next day", () => {
 			"2026-11-12"
 		);
 		expect(freeDay(from, [0, 1, 2, 3, 4, 5, 6], new Set())).toBeNull();
+	});
+});
+
+describe("the figures Home's modules show", () => {
+	const timed = (id: string, day: number, from: number, to: number, checks: boolean[] = []) =>
+		({
+			...attempt(id, "core", day, 70),
+			certification: "cka",
+			result: {
+				...attempt(id, "core", day, 70).result,
+				started_at: new Date(2026, 9, day, from).getTime(),
+				finished_at: new Date(2026, 9, day, to).getTime(),
+				questions: [
+					{
+						id: "q1",
+						title: "Fix a kubelet",
+						points: 0,
+						max_points: 1,
+						checks: checks.map((passed, i) => ({ name: `c${i}`, weight: 1, passed, detail: "" })),
+					},
+				],
+			},
+		}) as HistoryEntry;
+
+	it("adds up each day's minutes", () => {
+		const minutes = minutesByDay([
+			timed("a", 3, 9, 10),
+			timed("b", 3, 20, 21),
+			timed("c", 4, 9, 9),
+		]);
+		expect(minutes.get("2026-10-03")).toBe(120);
+		// No time between start and end: nothing counted
+		expect(minutes.has("2026-10-04")).toBe(false);
+		expect([
+			activityLevel(undefined),
+			activityLevel(20),
+			activityLevel(45),
+			activityLevel(90),
+			activityLevel(150),
+		]).toEqual([0, 1, 2, 3, 4]);
+	});
+
+	it("finds the longest run of days", () => {
+		expect(
+			longestStreak([
+				"2026-10-01",
+				"2026-10-02",
+				"2026-10-03",
+				"2026-10-05",
+				"2026-10-30",
+				"2026-10-31",
+				"2026-11-01",
+			])
+		).toBe(3);
+		expect(longestStreak([])).toBe(0);
+	});
+
+	it("lists a question to retry as its latest try went", () => {
+		// Failed on the 3rd, passed on the 5th: nothing to retry
+		expect(
+			retryList([timed("a", 3, 9, 10, [true, false]), timed("b", 5, 9, 10, [true, true])])
+		).toEqual([]);
+		// Passed first, failed later: retried, 1 of 2 checks failed
+		const list = retryList([
+			timed("a", 3, 9, 10, [true, true]),
+			timed("b", 5, 9, 10, [false, true]),
+		]);
+		expect(list.map(r => [r.title, r.failed, r.checks, r.certification])).toEqual([
+			["Fix a kubelet", 1, 2, "cka"],
+		]);
+	});
+
+	it("counts the attempts passed and the best one", () => {
+		const figures = passed(history);
+		expect([figures.passed, figures.of, figures.best?.attempt_id]).toEqual([3, 5, "4"]);
 	});
 });

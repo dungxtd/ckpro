@@ -182,3 +182,86 @@ export function freeDay(from: Date, rest: number[], planned: Set<string>): Date 
 	}
 	return null;
 }
+
+/** Minutes practised each day, by YYYY-MM-DD: every attempt's time, from its
+ * start to its end (worked or not: the time was spent) */
+export function minutesByDay(history: HistoryEntry[]): Map<string, number> {
+	const minutes = new Map<string, number>();
+	for (const h of history) {
+		const from = startedAt(h);
+		const to = h.result.finished_at ?? from;
+		if (!from || to <= from) continue;
+		const day = dayKey(new Date(from));
+		minutes.set(day, (minutes.get(day) ?? 0) + Math.round((to - from) / 60_000));
+	}
+	return minutes;
+}
+
+/** How much a day's practice weighs on the activity map: none, then up to
+ * an hour and a half and more */
+export function activityLevel(minutes: number | undefined): 0 | 1 | 2 | 3 | 4 {
+	if (!minutes) return 0;
+	return minutes < 30 ? 1 : minutes < 60 ? 2 : minutes < 100 ? 3 : 4;
+}
+
+/** The most days in a row with an attempt */
+export function longestStreak(days: Iterable<string>): number {
+	const sorted = [...new Set(days)].sort();
+	let best = 0;
+	let run = 0;
+	let last: Date | null = null;
+	for (const key of sorted) {
+		const day = new Date(`${key}T00:00`);
+		run = last && dayKey(addDays(last, 1)) === key ? run + 1 : 1;
+		best = Math.max(best, run);
+		last = day;
+	}
+	return best;
+}
+
+/** A question to try again: its latest try failed checks */
+export type Retry = {
+	id: string;
+	title: string;
+	certification: string;
+	examId: string;
+	failed: number;
+	checks: number;
+	/** When that try started (Unix ms) */
+	at: number;
+};
+
+/** The questions whose latest try failed one check or more, latest first.
+ * Each question once, as it last went (a later pass takes it off) */
+export function retryList(history: HistoryEntry[]): Retry[] {
+	const seen = new Set<string>();
+	const list: Retry[] = [];
+	for (const h of [...history].sort((a, b) => startedAt(b) - startedAt(a))) {
+		for (const q of h.result.questions ?? []) {
+			if (seen.has(q.id)) continue;
+			seen.add(q.id);
+			const failed = q.checks.filter(c => !c.passed).length;
+			if (failed > 0)
+				list.push({
+					id: q.id,
+					title: q.title,
+					certification: h.certification ?? "",
+					examId: h.exam_id,
+					failed,
+					checks: q.checks.length,
+					at: startedAt(h),
+				});
+		}
+	}
+	return list;
+}
+
+/** Attempts passed, and of how many (worked ones only) */
+export function passed(history: HistoryEntry[]) {
+	const counted = history.filter(worked);
+	const best = counted.reduce<HistoryEntry | null>(
+		(b, h) => (!b || scoreOf(h) > scoreOf(b) ? h : b),
+		null
+	);
+	return { passed: counted.filter(h => h.result.passed).length, of: counted.length, best };
+}
