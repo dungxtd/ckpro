@@ -14,6 +14,40 @@ import { dateTime } from "@/words";
 /** The row of activity `id`, to scroll to */
 export const activityRowId = (id: number) => `activity-${id}`;
 
+/** How long a row brought into view is kept there while the page above it
+ * fills in (the memory map arrives after the page opens) */
+const SETTLE_MS = 4000;
+
+/**
+ * Bring the element `id` to the top of its scrolling screen once the log
+ * has opened under it, and keep it there while what is above it grows,
+ * until the reader scrolls or the page settles. Returns what stops it
+ */
+function keepInView(id: string): () => void {
+	let stopped = false;
+	const place = (behavior: ScrollBehavior) =>
+		!stopped && document.getElementById(id)?.scrollIntoView({ behavior, block: "start" });
+	const frame = requestAnimationFrame(() => place("smooth"));
+	const screen = document.getElementById(id)?.closest("main");
+	const grows = new ResizeObserver(() => place("auto"));
+	if (screen?.firstElementChild) grows.observe(screen.firstElementChild);
+	const stop = () => {
+		stopped = true;
+		grows.disconnect();
+		for (const event of ["wheel", "touchstart", "keydown", "pointerdown"])
+			window.removeEventListener(event, stop);
+	};
+	// The reader's own scroll wins at once
+	for (const event of ["wheel", "touchstart", "keydown", "pointerdown"])
+		window.addEventListener(event, stop, { passive: true });
+	const settle = setTimeout(stop, SETTLE_MS);
+	return () => {
+		cancelAnimationFrame(frame);
+		clearTimeout(settle);
+		stop();
+	};
+}
+
 /**
  * The last long operations, failures included, each with its log. `focus`
  * opens one and brings it into view (the top bar's chip): again on each new
@@ -25,13 +59,7 @@ export function ActivityList({ focus, focusKey }: { focus?: number; focusKey?: s
 	useEffect(() => {
 		if (focus === undefined || focusKey === undefined) return;
 		setOpen(focus);
-		// Once the log has opened under it
-		const id = requestAnimationFrame(() =>
-			document
-				.getElementById(activityRowId(focus))
-				?.scrollIntoView({ behavior: "smooth", block: "start" })
-		);
-		return () => cancelAnimationFrame(id);
+		return keepInView(activityRowId(focus));
 	}, [focus, focusKey]);
 
 	if (list.length === 0) {
