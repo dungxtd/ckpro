@@ -8,6 +8,7 @@ import {
 	type CheckResult,
 	type ExamState,
 	type ExamSummary,
+	envApi,
 	errorText,
 	examApi,
 	type Mode,
@@ -196,6 +197,13 @@ export const useExam = create<ExamStore>()(
 						});
 					} else {
 						// Said wherever it was started from (Home, the Calendar,
+					} else if (e instanceof ApiError && e.code === "images_unavailable") {
+						// The images could not be downloaded: build them here,
+						// or wait for the connection (it tries again itself)
+						toast.error(e.message, {
+							duration: 12_000,
+							action: { label: "Build here", onClick: () => envApi.buildImages() },
+						});
 						// Start over), not kept on one screen
 						toast.error(errorText(e));
 					}

@@ -154,12 +154,20 @@ export function EnvironmentRoute() {
 								{plural(missing.length, "exam image")} not downloaded: {missing.join(", ")}
 							</div>
 							<div className="text-caption text-muted-foreground">
-								Exams start sooner, and offline, once they are here
+								{/* Why the last try failed, and what can be done about it */}
+								{env.images_unavailable ?? "Exams start sooner, and offline, once they are here"}
 							</div>
 						</div>
-						<Button size="push" variant="push" className="self-end" onClick={() => envApi.retry()}>
-							Download
-						</Button>
+						<span className="flex gap-1.5 self-end">
+							{env.images_unavailable && (
+								<Button size="push" variant="push" onClick={() => envApi.buildImages()}>
+									Build here
+								</Button>
+							)}
+							<Button size="push" variant="push" onClick={() => envApi.retry()}>
+								{env.images_unavailable ? "Try again" : "Download"}
+							</Button>
+						</span>
 					</div>
 				</Alert>
 			)}

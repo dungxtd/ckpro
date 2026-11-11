@@ -20,6 +20,8 @@ const KIND_NODE_BASE: &str = "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d167
 /// Where release builds publish the images (CI, `.github/workflows/images.yml`);
 /// the app pulls from here like kind pulls its node image
 pub const REGISTRY: &str = "ghcr.io/dungxtd";
+/// The host `REGISTRY` is on
+const REGISTRY_HOST: &str = "ghcr.io";
 
 /// An image of ckpro's: pulled from `REGISTRY`, or built here when it is not
 /// published (development, offline). Its tag is a hash of everything it is
@@ -126,7 +128,15 @@ const UPSTREAMS: [(u16, &str, &str); 4] = [
 
 
 /// Told which exam images are missing, and whether they are being got now
-type ImagesReport = Box<dyn Fn(Vec<String>, bool) + Send + Sync>;
+/// Who is told the images' state: the missing ones, whether they are being
+/// downloaded now, and why the last try could not get them
+type ImagesReport = Box<dyn Fn(Vec<String>, bool, Option<String>) + Send + Sync>;
+
+/// May an exam image the registry will not give be built here: always (the
+/// CLI), once the candidate says so (the app), or not yet
+const BUILD_ALWAYS: u8 = 0;
+const BUILD_ASK: u8 = 1;
+const BUILD_ALLOWED: u8 = 2;
 
 pub struct Infra {
     dir: PathBuf,
@@ -135,28 +145,61 @@ pub struct Infra {
     ensuring: tokio::sync::Mutex<()>,
     /// Who shows the images' state (the app's `EnvState`; none for the CLI)
     report: std::sync::OnceLock<ImagesReport>,
+    /// Whether an image the registry will not give is built here
+    build: std::sync::atomic::AtomicU8,
+    /// The last try could not reach the registry: tried again once it can
+    offline: std::sync::atomic::AtomicBool,
 }
 
 impl Infra {
     pub fn new(data_dir: PathBuf) -> Self {
-        Self { dir: data_dir, ensuring: tokio::sync::Mutex::new(()), report: std::sync::OnceLock::new() }
+        Self {
+            dir: data_dir,
+            ensuring: tokio::sync::Mutex::new(()),
+            report: std::sync::OnceLock::new(),
+            build: std::sync::atomic::AtomicU8::new(BUILD_ALWAYS),
+            offline: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    /// Ask before building an exam image here (minutes of work): the app
+    /// does; the CLI builds what is not published, as authors need
+    pub fn ask_before_building(&self) {
+        self.build.store(BUILD_ASK, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// The candidate said yes: images the registry will not give are built
+    /// here from now on
+    pub fn allow_building(&self) {
+        self.build.store(BUILD_ALLOWED, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// The last try could not reach the registry: worth trying again once
+    /// the connection is back
+    pub fn waiting_for_network(&self) -> bool {
+        self.offline.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Report the images' state to `report` from now on: every `ensure`
     /// says so as it gets them (startup, an exam, a proof), and once done
-    pub fn report_images(&self, report: impl Fn(Vec<String>, bool) + Send + Sync + 'static) {
+    pub fn report_images(&self, report: impl Fn(Vec<String>, bool, Option<String>) + Send + Sync + 'static) {
         let _ = self.report.set(Box::new(report));
     }
 
-    /// Images not built yet: on the first run, or after an update changed them
-    pub async fn missing_images(&self, docker: &Docker) -> Vec<String> {
+    /// Images not here yet: on the first run, or after an update changed
+    /// them. None when Docker does not answer (not the same as missing)
+    pub async fn missing_images(&self, docker: &Docker) -> Option<Vec<String>> {
         let mut missing = Vec::new();
         for image in IMAGES {
-            if docker.inspect_image(&image.tag()).await.is_err() {
-                missing.push(format!("ckpro-{}", image.name));
+            match docker.inspect_image(&image.tag()).await {
+                Ok(_) => {}
+                Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => {
+                    missing.push(format!("ckpro-{}", image.name));
+                }
+                Err(_) => return None,
             }
         }
-        missing
+        Some(missing)
     }
 
     /// containerd registry config mounted into every node
@@ -167,23 +210,40 @@ impl Infra {
     /// Create whatever is missing. Idempotent and cheap once everything exists.
     pub async fn ensure(&self, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         let _one_at_a_time = self.ensuring.lock().await;
-        let mut shown = match self.report.get() {
-            Some(report) => {
-                let missing = self.missing_images(docker).await;
-                report(missing.clone(), !missing.is_empty());
-                Some(Shown { report, missing })
-            }
-            None => None,
-        };
+        let mut shown = None;
+        if let Some(report) = self.report.get() {
+            let missing = self.missing_images(docker).await.unwrap_or_default();
+            report(missing.clone(), !missing.is_empty(), None);
+            shown = Some(Shown { report, missing, unavailable: None });
+        }
         let result = self.ensure_locked(docker, log).await;
+        self.offline.store(
+            matches!(&result, Err(AppError::ImagesUnavailable { .. })) && !self.registry_reachable().await,
+            std::sync::atomic::Ordering::SeqCst,
+        );
         if let Some(shown) = &mut shown {
-            // Got them all, or failed partway (some may be here now)
-            shown.missing = match result {
-                Ok(()) => Vec::new(),
-                Err(_) => self.missing_images(docker).await,
-            };
+            // Got them all, or failed partway (some may be here now; Docker
+            // gone, the list as it began)
+            match &result {
+                Ok(()) => shown.missing = Vec::new(),
+                Err(e) => {
+                    if let Some(now) = self.missing_images(docker).await {
+                        shown.missing = now;
+                    }
+                    if let AppError::ImagesUnavailable { message } = e {
+                        shown.unavailable = Some(message.clone());
+                    }
+                }
+            }
         }
         result
+    }
+
+    /// Whether the image registry answers on this connection (a few seconds
+    /// at most): offline, a failed download is not worth trying again yet
+    pub async fn registry_reachable(&self) -> bool {
+        let connect = tokio::net::TcpStream::connect((REGISTRY_HOST, 443));
+        matches!(tokio::time::timeout(std::time::Duration::from_secs(3), connect).await, Ok(Ok(_)))
     }
 
     async fn ensure_locked(&self, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
@@ -200,8 +260,9 @@ impl Infra {
             log(format!("Registry cache unavailable ({e}); pulling directly"));
         }
 
+        let may_build = self.build.load(std::sync::atomic::Ordering::SeqCst) != BUILD_ASK;
         for image in IMAGES {
-            obtain(docker, image, log).await?;
+            obtain(docker, image, log, may_build).await?;
         }
         Ok(())
     }
@@ -227,11 +288,13 @@ struct Shown<'a> {
     report: &'a ImagesReport,
     /// What is missing once it ends: as it began, unless found otherwise
     missing: Vec<String>,
+    /// Why they could not be got, when that is what failed
+    unavailable: Option<String>,
 }
 
 impl Drop for Shown<'_> {
     fn drop(&mut self) {
-        (self.report)(std::mem::take(&mut self.missing), false);
+        (self.report)(std::mem::take(&mut self.missing), false, self.unavailable.take());
     }
 }
 
@@ -365,7 +428,8 @@ async fn pull_if_missing(docker: &Docker, image: &str) -> AppResult<()> {
     if docker.inspect_image(image).await.is_ok() {
         return Ok(());
     }
-    pull_again(docker, image, &|_| {}).await
+    // A service's image (the mirror's): best effort, so no waiting between tries
+    pull(docker, image, &|_| {}).await
 }
 
 /// Pull `image`, logging each layer as it completes.
@@ -414,16 +478,20 @@ async fn pull_again(docker: &Docker, tag: &str, log: &(dyn Fn(String) + Sync)) -
     }
 }
 
-/// The registry has no such image (or will not give it): no use trying again
+/// The registry answered that it has no such image (or will not give it):
+/// no use trying again. Only the registry's own words: a layer "not found"
+/// while extracting, or a local "permission denied", is a pull that broke
 fn not_published(e: &AppError) -> bool {
     let text = e.to_string().to_lowercase();
-    ["manifest unknown", "not found", "denied", "unauthorized"].iter().any(|m| text.contains(m))
+    ["manifest unknown", "pull access denied", "repository does not exist", "requested access to the resource is denied", "unauthorized:"]
+        .iter()
+        .any(|m| text.contains(m))
 }
 
 /// Get `image` unless it is here: pull the published one, or build it when it
 /// is not published (a change not released yet, or offline). Then drop the
 /// versions it replaces.
-async fn obtain(docker: &Docker, image: &Image, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
+async fn obtain(docker: &Docker, image: &Image, log: &(dyn Fn(String) + Sync), may_build: bool) -> AppResult<()> {
     let tag = image.tag();
     if docker.inspect_image(&tag).await.is_ok() {
         return Ok(());
@@ -436,8 +504,22 @@ async fn obtain(docker: &Docker, image: &Image, log: &(dyn Fn(String) + Sync)) -
         Err(e) if !super::docker::answers(docker).await => {
             return Err(AppError::docker(format!("Docker stopped while pulling {tag}: {e}")));
         }
+        // Building takes minutes: the candidate decides (Build here), or it
+        // is downloaded again once the registry answers
+        Err(e) if !may_build => {
+            let message = if not_published(&e) {
+                format!("ckpro-{} is not published for this version: build it here (about 10 minutes).", image.name)
+            } else {
+                format!(
+                    "ckpro-{} could not be downloaded ({e}). It downloads again once the connection is back, or build it here (about 10 minutes).",
+                    image.name
+                )
+            };
+            log(message.clone());
+            return Err(AppError::ImagesUnavailable { message });
+        }
         Err(e) => {
-            log(format!("Not on the registry yet ({e}): building {tag} here"));
+            log(format!("Not on the registry ({e}): building {tag} here"));
             // Docker's classic builder on a containerd image store (OrbStack)
             // now and then loses a lease mid-build; layers built so far are
             // cached, so trying again is cheap
@@ -500,6 +582,17 @@ async fn build(docker: &Docker, tag: &str, image: &Image, log: &(dyn Fn(String) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_registrys_own_answer_means_not_published() {
+        let e = |m: &str| AppError::docker(m);
+        assert!(not_published(&e("manifest unknown: manifest unknown")));
+        assert!(not_published(&e("pull access denied for ghcr.io/x, repository does not exist")));
+        // A pull that broke while extracting, or a local permission error
+        assert!(!not_published(&e("failed to extract layer: content digest sha256:ab: not found")));
+        assert!(!not_published(&e("open /var/lib/docker/tmp: permission denied")));
+        assert!(!not_published(&e("dial tcp: lookup ghcr.io: no such host")));
+    }
 
     /// A file added to an image's directory but not to its `files` is
     /// missing from the build ("COPY failed: file not found")

@@ -129,6 +129,8 @@ export const envApi = {
 		events.envChanged.listen(event => onChange(event.payload)),
 	/** Try Docker again now, not at the next backoff */
 	retry: () => commands.envRetry(),
+	/** Build the exam images here (the registry would not give them) */
+	buildImages: () => commands.envBuildImages(),
 	/** Empty the image mirror's cache (refused while an attempt or a proof runs) */
 	clearCache: () => unwrap(commands.envClearCache()),
 	/** Follow node readiness while it is shown (opens the clusters' node watches) */

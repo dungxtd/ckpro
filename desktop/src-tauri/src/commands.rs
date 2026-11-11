@@ -29,6 +29,15 @@ pub fn env_retry(env: State<'_, Arc<Env>>) {
     env.request_retry();
 }
 
+/// The candidate agrees to build the exam images here (the registry would
+/// not give them): they are built now, and whenever needed after.
+#[tauri::command]
+#[specta::specta]
+pub fn env_build_images(env: State<'_, Arc<Env>>, infra: State<'_, Arc<Infra>>) {
+    infra.allow_building();
+    env.request_retry();
+}
+
 /// Empty the image mirror's cache (the Environment page): refused while an
 /// attempt or a proof runs, both of which pull through it.
 #[tauri::command]

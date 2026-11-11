@@ -51,6 +51,11 @@ export const commands = {
 	/**  Try Docker again now (Retry), not at the monitor's next backoff. */
 	envRetry: () => __TAURI_INVOKE<void>("env_retry"),
 	/**
+	 *  The candidate agrees to build the exam images here (the registry would
+	 *  not give them): they are built now, and whenever needed after.
+	 */
+	envBuildImages: () => __TAURI_INVOKE<void>("env_build_images"),
+	/**
 	 *  Empty the image mirror's cache (the Environment page): refused while an
 	 *  attempt or a proof runs, both of which pull through it.
 	 */
@@ -380,6 +385,11 @@ export type AppError =
 { code: "preflight"; message: string } | 
 /**  Clusters an exam needs already exist: starting it replaces them. */
 { code: "clusters_exist"; message: string } | 
+/**
+ *  The exam images could not be downloaded (offline, or not published):
+ *  the candidate may build them here, or wait for the connection.
+ */
+{ code: "images_unavailable"; message: string } | 
 /**  A session, cluster or file that does not exist. */
 { code: "not_found"; message: string } | 
 /**  Local filesystem or network failure. */
@@ -740,6 +750,11 @@ export type EnvState_Deserialize = {
 	 *  only because none was looked for
 	 */
 	images_checked?: boolean,
+	/**
+	 *  Why the last try could not get the exam images (offline, or not
+	 *  published): the candidate may build them here
+	 */
+	images_unavailable?: string | null,
 	/**  The image cache is being emptied now */
 	cache_clearing?: boolean,
 	/**  What is being done to a cluster now (`cluster::jobs::Jobs`) */
@@ -778,6 +793,11 @@ export type EnvState_Serialize = {
 	 *  only because none was looked for
 	 */
 	images_checked: boolean,
+	/**
+	 *  Why the last try could not get the exam images (offline, or not
+	 *  published): the candidate may build them here
+	 */
+	images_unavailable: string | null,
 	/**  The image cache is being emptied now */
 	cache_clearing: boolean,
 	/**  What is being done to a cluster now (`cluster::jobs::Jobs`) */

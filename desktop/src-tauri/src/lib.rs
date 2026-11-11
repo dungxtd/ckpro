@@ -90,6 +90,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::studio_stop,
         commands::studio_save,
         commands::env_retry,
+        commands::env_build_images,
         commands::env_clear_cache,
         commands::env_watch_nodes,
         commands::delete_cluster,
@@ -242,6 +243,8 @@ pub fn run() {
             telemetry::watch_panics(data_dir.clone());
             let kind = Arc::new(cluster::kind::Kind::new(data_dir.clone()));
             let infra = Arc::new(runtime::infra::Infra::new(data_dir.clone()));
+            // Building an exam image takes minutes: the candidate decides
+            infra.ask_before_building();
             app.manage(infra.clone());
 let proving = app.handle().clone();
             app.manage(studio::proof::Proofs::new(move |session, proof| {
@@ -264,7 +267,7 @@ let proving = app.handle().clone();
             }));
             {
                 let (env, activities) = (env.clone(), activities.clone());
-                infra.report_images(move |missing, downloading| {
+                infra.report_images(move |missing, downloading, unavailable| {
                     // All here, however they came (startup, an exam, a proof):
                     // a failed try to get them has nothing left to retry
                     if missing.is_empty() && !downloading {
@@ -274,6 +277,7 @@ let proving = app.handle().clone();
                         s.images_missing = missing;
                         s.images_downloading = downloading;
                         s.images_checked = true;
+                        s.images_unavailable = unavailable;
                     });
                 });
             }

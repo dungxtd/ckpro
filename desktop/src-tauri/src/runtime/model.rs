@@ -30,6 +30,10 @@ pub struct EnvState {
     /// only because none was looked for
     #[serde(default)]
     pub images_checked: bool,
+    /// Why the last try could not get the exam images (offline, or not
+    /// published): the candidate may build them here
+    #[serde(default)]
+    pub images_unavailable: Option<String>,
     /// The image cache is being emptied now
     #[serde(default)]
     pub cache_clearing: bool,
@@ -173,7 +177,8 @@ impl EnvState {
 
     fn derive_passed(&self) -> Vec<String> {
         let mut passed = Vec::new();
-        if self.images_checked && self.images_missing.is_empty() && !self.images_downloading {
+        let docker_up = matches!(self.docker, DockerState::Up { .. });
+        if docker_up && self.images_checked && self.images_missing.is_empty() && !self.images_downloading {
             passed.push("exam images here".into());
         }
         let Some(host) = &self.host else { return passed };
@@ -344,5 +349,18 @@ mod tests {
         assert_eq!(state.issues.len(), 2);
         assert!(state.passed.is_empty());
         assert!(state.issues[0].message.contains("4.0 GB of disk left"));
+    }
+
+    #[test]
+    fn the_images_are_said_to_be_here_only_while_docker_answers() {
+        let env = Env::new(|_| {});
+        let up = DockerState::Up { engine: String::new(), version: String::new(), cpus: 4, memory_mb: 8192 };
+        env.update(|s| {
+            s.docker = up.clone();
+            s.images_checked = true;
+        });
+        assert!(env.snapshot().passed.contains(&"exam images here".to_string()));
+        env.update(|s| s.docker = DockerState::Down { reason: "gone".into() });
+        assert!(!env.snapshot().passed.iter().any(|p| p.contains("images")));
     }
 }

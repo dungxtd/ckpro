@@ -36,6 +36,10 @@ pub enum AppError {
     /// Clusters an exam needs already exist: starting it replaces them.
     #[error("{message}")]
     ClustersExist { message: String },
+    /// The exam images could not be downloaded (offline, or not published):
+    /// the candidate may build them here, or wait for the connection.
+    #[error("{message}")]
+    ImagesUnavailable { message: String },
     /// A session, cluster or file that does not exist.
     #[error("{message}")]
     NotFound { message: String },

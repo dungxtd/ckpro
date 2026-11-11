@@ -34,6 +34,8 @@ const RESYNC_EVERY: Duration = Duration::from_secs(300);
 /// How often what containers take is measured while the Environment page
 /// is open (one sample each, no streaming)
 const MEASURE_EVERY: Duration = Duration::from_secs(10);
+/// How often the registry is tried while a download waits for the connection
+const NETWORK_EVERY: Duration = Duration::from_secs(30);
 /// Docker's disk and the kernel's limits change slowly: read once a minute
 const FACTS_EVERY: Duration = Duration::from_secs(60);
 
@@ -129,6 +131,7 @@ async fn run(
         resync.tick().await;
         // What each container takes, while the Environment page shows it
         let mut measure = tokio::time::interval(MEASURE_EVERY);
+        let mut network = tokio::time::interval(NETWORK_EVERY);
         // When Docker's disk and limits were last read (they change slowly)
         let mut facts_at: Option<std::time::Instant> = None;
         loop {
@@ -155,6 +158,13 @@ async fn run(
                 }
                 // Retry, while Docker answers: what failed to prepare goes again
                 () = env.retry_requested() => images.prepare(&docker, &infra, &activities),
+                // A download that failed for want of a connection goes again
+                // once the registry answers
+                _ = network.tick() => {
+                    if infra.waiting_for_network() && infra.registry_reachable().await {
+                        images.prepare(&docker, &infra, &activities);
+                    }
+                }
                 // Events say what changed; this only notices an engine that
                 // stopped without closing the stream (a sleeping VM)
                 _ = alive.tick() => {
@@ -167,7 +177,12 @@ async fn run(
             }
         }
         tracing::warn!("lost connection to docker");
-        env.update(|s| s.docker = DockerState::Down { reason: "Lost connection to Docker".into() });
+        env.update(|s| {
+            s.docker = DockerState::Down { reason: "Lost connection to Docker".into() };
+            // Looked for again once it is back (it may be another engine)
+            s.images_checked = false;
+        });
+        images.look_again();
         stop_watchers(&mut watchers);
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
@@ -372,6 +387,13 @@ const IMAGES_PREPARING: u8 = 1;
 const IMAGES_DONE: u8 = 2;
 
 impl Images {
+    /// Docker went away: whether they are here is found out again once it
+    /// is back (another engine, or images removed meanwhile)
+    fn look_again(&self) {
+        use std::sync::atomic::Ordering::SeqCst;
+        let _ = self.0.compare_exchange(IMAGES_DONE, IMAGES_TO_DO, SeqCst, SeqCst);
+    }
+
     /// Prepare them in the background unless they are, or are being
     fn prepare(self: &Arc<Self>, docker: &Docker, infra: &Arc<Infra>, activities: &Arc<Activities>) {
         use std::sync::atomic::Ordering::SeqCst;
@@ -392,7 +414,8 @@ impl Images {
 /// whether they are ready. Failed (Docker went away midway, a download
 /// broke), it says Retry runs it again, as Docker coming back does.
 async fn prepare_images(docker: Docker, infra: Arc<Infra>, activities: Arc<Activities>) -> bool {
-    let missing = infra.missing_images(&docker).await;
+    // Docker gone again: nothing to look at until it is back
+    let Some(missing) = infra.missing_images(&docker).await else { return false };
     if missing.is_empty() {
         let quiet = |line: String| tracing::info!("{line}");
         // Here already (an exam or a proof got them): `ensure` reports them
@@ -406,7 +429,7 @@ async fn prepare_images(docker: Docker, infra: Arc<Infra>, activities: Arc<Activ
         };
     }
     let op = activities.begin("Preparing the exam images", vec![format!("Getting {}", missing.join(", "))]);
-    op.detail("First run or after an update: pulled when published, built here otherwise");
+    op.detail("First run or after an update: downloaded from the registry");
     op.retryable();
     let result = infra.ensure(&docker, &|line| op.log(line)).await;
     op.end(result).is_ok()
