@@ -1,9 +1,10 @@
 import { Button } from "@ckpro/ui/components/button";
-import { Card, CardDescription, CardTitle } from "@ckpro/ui/components/card";
+import { Card } from "@ckpro/ui/components/card";
 import { ProgressRing } from "@ckpro/ui/components/progress";
 import { cn } from "@ckpro/ui/lib/utils";
 import { Check, Play } from "lucide-react";
 import { useNavigate } from "react-router";
+import { ModuleCard, ModuleScroll } from "@/components/home/modules";
 import type { suggestion } from "@/components/study/data";
 import { useExam, useExamBusy } from "@/stores/exam";
 import type { PlanView } from "@/tauri/api";
@@ -21,7 +22,10 @@ export function Today({
 	onRetry,
 	today,
 	suggested,
+	several = false,
 }: {
+	/** Several exams aimed at: each plan says which */
+	several?: boolean;
 	/** None while they are being read */
 	plans: PlanView[] | null;
 	failed: boolean;
@@ -39,18 +43,21 @@ export function Today({
 	const next = plans.find(p => p.done === null);
 	const share = plans.length ? (done * 100) / plans.length : 0;
 	return (
-		<Card padding="lg" className="flex flex-col gap-3">
-			<div className="flex items-center gap-4">
+		<ModuleCard title="Today" link={{ to: `/calendar?view=day&day=${today}`, label: "Calendar" }}>
+			<div className="flex shrink-0 items-center gap-4">
 				{plans.length > 0 && (
-					<ProgressRing value={share} label={`${done} of ${plans.length} done today`}>
+					<ProgressRing
+						value={share}
+						label={`${done} of ${plans.length} done today`}
+						className="size-14"
+					>
 						<span className="tabular-nums">
 							{done}/{plans.length}
 						</span>
 					</ProgressRing>
 				)}
 				<div className="min-w-0 flex-1">
-					<CardTitle>Today</CardTitle>
-					<CardDescription className="tabular-nums">
+					<p className="text-caption text-muted-foreground tabular-nums">
 						{failed
 							? "Could not read today's plans"
 							: read === null
@@ -59,7 +66,7 @@ export function Today({
 								: plans.length
 									? `${done} of ${plans.length} done`
 									: "Nothing planned for today"}
-					</CardDescription>
+					</p>
 					{failed ? (
 						<Button size="push" variant="push" className="mt-2" onClick={onRetry}>
 							Try again
@@ -94,7 +101,7 @@ export function Today({
 				</div>
 			</div>
 			{known && !plans.length && suggested && (
-				<Card variant="dashed" padding="sm" className="flex items-center gap-3">
+				<Card variant="dashed" padding="sm" className="mt-3 flex items-center gap-3">
 					<div className="min-w-0 flex-1">
 						<div className="truncate font-semibold text-callout">
 							{shortTitle(suggested.exam.title)}
@@ -111,44 +118,47 @@ export function Today({
 					</Button>
 				</Card>
 			)}
-			{plans.map(p => (
-				<div key={p.id} className="flex items-center gap-3 border-border border-t pt-2.5">
-					<span
-						className={cn(
-							"grid size-[18px] shrink-0 place-items-center rounded-full",
-							p.done !== null
-								? "bg-success text-success-foreground"
-								: "ring-2 ring-muted-foreground ring-inset"
-						)}
-					>
-						{p.done !== null && <Check className="size-3" strokeWidth={3} />}
-					</span>
-					<div className="min-w-0 flex-1">
-						<div
+			<ModuleScroll className="mt-2">
+				{plans.map(p => (
+					<div key={p.id} className="flex items-center gap-3 border-border border-t py-2">
+						<span
 							className={cn(
-								"truncate text-callout",
-								p.done !== null && "text-muted-foreground line-through"
+								"grid size-[18px] shrink-0 place-items-center rounded-full",
+								p.done !== null
+									? "bg-success text-success-foreground"
+									: "ring-2 ring-muted-foreground ring-inset"
 							)}
 						>
-							{p.title}
+							{p.done !== null && <Check className="size-3" strokeWidth={3} />}
+						</span>
+						<div className="min-w-0 flex-1">
+							<div
+								className={cn(
+									"truncate text-callout",
+									p.done !== null && "text-muted-foreground line-through"
+								)}
+							>
+								{p.title}
+							</div>
+							<div className="text-2xs text-muted-foreground">
+								{several && `${p.certification.toUpperCase()} · `}
+								{p.mode === "exam" ? "Exam" : "Practice"}
+								{p.done !== null && <span className="tabular-nums">, {Math.round(p.done)}%</span>}
+							</div>
 						</div>
-						<div className="text-2xs text-muted-foreground">
-							{p.mode === "exam" ? "Exam" : "Practice"}
-							{p.done !== null && <span className="tabular-nums">, {Math.round(p.done)}%</span>}
-						</div>
+						{p.done === null && (
+							<Button
+								size="push"
+								variant="push"
+								disabled={busy}
+								onClick={() => start(p.exam_id, p.mode)}
+							>
+								<Play /> {p.mode === "exam" ? "Start exam" : "Start practice"}
+							</Button>
+						)}
 					</div>
-					{p.done === null && (
-						<Button
-							size="push"
-							variant="push"
-							disabled={busy}
-							onClick={() => start(p.exam_id, p.mode)}
-						>
-							<Play /> {p.mode === "exam" ? "Start exam" : "Start practice"}
-						</Button>
-					)}
-				</div>
-			))}
-		</Card>
+				))}
+			</ModuleScroll>
+		</ModuleCard>
 	);
 }

@@ -5,7 +5,6 @@ import {
 	activityLevel,
 	bestByDay,
 	daysUntil,
-	events,
 	freeDay,
 	level,
 	longestStreak,
@@ -16,7 +15,6 @@ import {
 	predicted,
 	retryList,
 	scoreColor,
-	studyFigures,
 	suggestion,
 	weakest,
 } from "./data";
@@ -95,40 +93,14 @@ describe("home figures", () => {
 		]).toEqual([0, 1, 2, 3, 4]);
 	});
 
-	it("counts days, the run up to today, weeks and attempts", () => {
-		expect(studyFigures(history, new Date(2026, 9, 30))).toEqual({
-			days: 4,
-			streak: 2,
-			weeks: 2,
-			attempts: 5,
-		});
-	});
-
 	it("names the weakest tested domain", () => {
 		expect(weakest(readiness)?.domain).toBe("storage");
 		expect(weakest(null)).toBeNull();
 	});
 
-	it("lists a new best, the domains below the pass line and those not measured", () => {
-		expect(events(history, readiness)).toEqual([
-			{ type: "Normal", reason: "NewBest", message: "Core 94% (was 72%)" },
-			{ type: "Warning", reason: "BelowPass", message: "1 domain under 66%: storage 40%" },
-			{ type: "Normal", reason: "NotMeasured", message: "1 domain not measured yet" },
-		]);
-	});
-
-	it("leaves out attempts ended before any point, and says so", () => {
+	it("leaves out attempts ended before any point", () => {
 		const ended = [attempt("6", "core", 31, 0, "Core"), attempt("7", "core", 31, 0, "Core")];
-		const all = [...ended, ...history];
-		expect(studyFigures(all, new Date(2026, 9, 31)).attempts).toBe(5);
-		expect(bestByDay(all).has(dayKey(new Date(at(31))))).toBe(false);
-		expect(events(all, null)).toEqual([
-			{
-				type: "Warning",
-				reason: "NoPoints",
-				message: "the last 2 attempts ended before any point",
-			},
-		]);
+		expect(bestByDay([...ended, ...history]).has(dayKey(new Date(at(31))))).toBe(false);
 	});
 
 	it("shows the score Rust predicts, none when it gives none", () => {

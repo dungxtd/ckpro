@@ -1,6 +1,5 @@
-import { addDays, dayKey, monday, streak } from "@/days";
+import { addDays, dayKey, monday } from "@/days";
 import type { ExamReadiness, ExamSummary, HistoryEntry } from "@/tauri/api";
-import { domainName } from "@/words";
 
 /** When an attempt started (Unix ms), and its score */
 export const startedAt = (h: HistoryEntry): number => h.result.started_at ?? 0;
@@ -56,19 +55,6 @@ export function level(score: number | undefined, pass: number): 0 | 1 | 2 | 3 | 
 	return score < 75 ? 2 : score < 88 ? 3 : 4;
 }
 
-/** The figures beside the map (worked attempts only) */
-export function studyFigures(all: HistoryEntry[], today: Date) {
-	const history = all.filter(worked);
-	const days = new Set(history.map(h => dayKey(new Date(startedAt(h)))));
-	const weeks = new Set([...days].map(d => dayKey(monday(new Date(`${d}T00:00`)))));
-	return {
-		days: days.size,
-		streak: streak(days, today),
-		weeks: weeks.size,
-		attempts: history.length,
-	};
-}
-
 /** The weakest tested domain, by its share of points */
 export function weakest(readiness: ExamReadiness | null) {
 	const tested = (readiness?.domains ?? []).filter(d => d.max_points > 0);
@@ -76,67 +62,6 @@ export function weakest(readiness: ExamReadiness | null) {
 		(w, d) => (!w || d.points / d.max_points < w.points / w.max_points ? d : w),
 		null
 	);
-}
-
-export interface Event {
-	type: "Normal" | "Warning";
-	reason: string;
-	message: string;
-}
-
-/** Names in a short line: the first two, then how many more */
-const listed = (names: string[]) =>
-	names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2} more` : names.join(", ");
-
-/**
- * What stands out, as kubectl lists events: the latest attempts ending
- * before any point, the latest one beating the exam's best so far, the
- * domains under the pass line (in one line) and those not measured yet
- */
-export function events(history: HistoryEntry[], readiness: ExamReadiness | null): Event[] {
-	const out: Event[] = [];
-	const sorted = [...history].sort((a, b) => startedAt(b) - startedAt(a));
-	const unscored = sorted.findIndex(worked);
-	const ended = unscored === -1 ? sorted.length : unscored;
-	if (ended > 0)
-		out.push({
-			type: "Warning",
-			reason: "NoPoints",
-			message:
-				ended === 1
-					? "the last attempt ended before any point"
-					: `the last ${ended} attempts ended before any point`,
-		});
-	const [latest, ...older] = sorted.filter(worked);
-	if (latest && latest === sorted[0]) {
-		const before = older.filter(h => h.exam_id === latest.exam_id).map(h => scoreOf(h));
-		if (before.length && scoreOf(latest) > Math.max(...before))
-			out.push({
-				type: "Normal",
-				reason: "NewBest",
-				message: `${latest.title} ${Math.round(scoreOf(latest))}% (was ${Math.round(Math.max(...before))}%)`,
-			});
-	}
-	const domains = readiness?.domains ?? [];
-	const pass = readiness?.pass_score ?? 66;
-	const measured = domains.filter(d => d.max_points > 0);
-	const below = measured
-		.map(d => ({ d, percent: (d.points * 100) / d.max_points }))
-		.filter(x => x.percent < pass);
-	if (below.length)
-		out.push({
-			type: "Warning",
-			reason: "BelowPass",
-			message: `${below.length} domain${below.length === 1 ? "" : "s"} under ${pass}%: ${listed(below.map(x => `${domainName(x.d.domain)} ${Math.round(x.percent)}%`))}`,
-		});
-	const untested = domains.filter(d => !d.max_points);
-	if (measured.length && untested.length)
-		out.push({
-			type: "Normal",
-			reason: "NotMeasured",
-			message: `${untested.length} domain${untested.length === 1 ? "" : "s"} not measured yet`,
-		});
-	return out;
 }
 
 /**

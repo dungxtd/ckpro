@@ -1,169 +1,359 @@
 import { Loading } from "@ckpro/ui/components/loading";
+import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { DockerBanner } from "@/components/environment/docker-banner";
-import { PrepMap } from "@/components/home/prep-map";
-import { Readiness } from "@/components/home/readiness";
+import type { Places } from "@/components/home/layout";
+import { ModuleGrid, type ModuleSpec } from "@/components/home/module-grid";
+import {
+	AskClaude,
+	Domains,
+	ExamDay,
+	type Measured,
+	ModuleCard,
+	Passed,
+	Readiness,
+	Recent,
+	RetryList,
+	ThisWeek,
+} from "@/components/home/modules";
 import { Today } from "@/components/home/today";
-import { Week } from "@/components/home/week";
 import { Screen } from "@/components/shell/screen";
 import {
 	bestByDay,
+	longestStreak,
+	minutesByDay,
+	retryList,
 	startedAt,
-	studyFigures,
 	suggestion,
 	weakest,
 	worked,
 } from "@/components/study/data";
-import { addDays, dayKey, monday, parseDay } from "@/days";
+import { PracticeMap } from "@/components/study/practice-map";
+import { addDays, dayKey, monday, parseDay, streak } from "@/days";
 import { useExam } from "@/stores/exam";
-import { useShownTargets } from "@/stores/settings";
+import { useAssistantEnabled, useFocus, useShownTargets, useTargets } from "@/stores/settings";
 import { useStudy } from "@/stores/study";
-import { type ExamReadiness, examApi, type PlanView } from "@/tauri/api";
+import { examApi, type PlanView } from "@/tauri/api";
+import { domainName, plural } from "@/words";
+
+/** Where each module starts, before the candidate arranges Home: with and
+ * without the Claude module, for someone with attempts or someone new */
+const DEFAULTS: Record<string, Places> = {
+	used: {
+		today: { x: 0, y: 0 },
+		claude: { x: 2, y: 0 },
+		"exam-day": { x: 0, y: 2 },
+		readiness: { x: 2, y: 2 },
+		passed: { x: 3, y: 2 },
+		map: { x: 0, y: 3 },
+		retry: { x: 2, y: 3 },
+		week: { x: 0, y: 5 },
+		domains: { x: 3, y: 5 },
+		recent: { x: 0, y: 6 },
+	},
+	usedNoAi: {
+		today: { x: 0, y: 0 },
+		"exam-day": { x: 2, y: 0 },
+		readiness: { x: 2, y: 1 },
+		passed: { x: 3, y: 1 },
+		map: { x: 0, y: 2 },
+		retry: { x: 2, y: 2 },
+		week: { x: 0, y: 4 },
+		domains: { x: 3, y: 4 },
+		recent: { x: 0, y: 5 },
+	},
+	new: {
+		today: { x: 0, y: 0 },
+		claude: { x: 2, y: 0 },
+		"exam-day": { x: 0, y: 2 },
+		map: { x: 2, y: 2 },
+	},
+	newNoAi: { today: { x: 0, y: 0 }, "exam-day": { x: 2, y: 0 }, map: { x: 2, y: 1 } },
+};
 
 /**
- * Home: where the preparation stands (as kubectl would print it), today's
- * session, the prep map, readiness per domain and this week's plans (the
- * week in figures is the Calendar's). All of it from the attempts and the
- * plans, without AI; read again whenever Rust says the study changed
+ * Home: the candidate's modules, each where they put it: today's session,
+ * the exam days, readiness, the practice map, the questions to retry, the
+ * week, the domains, the latest attempts and, with the assistant on, Claude.
+ * With several exams, one in focus or all. All of it from the attempts and
+ * the plans; read again whenever Rust says the study changed
  */
 export function HomeRoute() {
-	// The nearest exam shown (the one in focus, or the next of those aimed at)
-	const target = useShownTargets()[0] ?? null;
+	const targets = useShownTargets();
+	const aimed = useTargets();
+	const [focus, setFocus] = useFocus();
+	const assistant = useAssistantEnabled();
 	const catalog = useExam(s => s.catalog);
 	const history = useStudy(s => s.history);
-	// Bumped when Rust says the study changed: the week's plans and the
-	// readiness are read again then
+	// Bumped when Rust says the study changed: the plans and the readiness
+	// are read again then
 	const version = useStudy(s => s.version);
-	// What was read, and for which week or certification: one that is not
-	// the current one is still being read (a new version reads again, but
-	// keeps what it had until the answer comes). `null`: the read failed,
-	// shown as such rather than as nothing planned or nothing measured
-	const [planned, setPlanned] = useState<{ week: string; plans: PlanView[] | null }>({
-		week: "",
-		plans: [],
-	});
-	const [measuredBy, setMeasuredBy] = useState<{
-		certification: string | null;
-		readiness: ExamReadiness | null;
-		failed: boolean;
-	}>({ certification: null, readiness: null, failed: false });
-	// Bumped by Try again: the failed read is made again
 	const [retry, setRetry] = useState(0);
 	const navigate = useNavigate();
 
 	const now = new Date();
 	const today = dayKey(now);
 	const weekStart = monday(now);
-	// The certification measured: the target's, else the latest attempt's
-	const certification =
-		target?.certification ?? (history?.find(h => h.certification)?.certification || null) ?? null;
-
-	// The week's plans: again as the study changes, and for a new week
-	const week = dayKey(weekStart);
+	// What is measured: the exams shown, else the latest attempt's certification
+	const latest = history?.find(h => h.certification)?.certification || null;
+	const certs = targets.length ? targets.map(t => t.certification) : latest ? [latest] : [];
+	const certKey = certs.join(",");
+	// The plans from this week to the last exam: the week, today and the map
+	const from = dayKey(weekStart);
+	const lastExam = [dayKey(addDays(weekStart, 6)), ...targets.map(t => t.date)]
+		.sort()
+		.at(-1) as string;
+	const range = `${from}:${lastExam}`;
+	const [planned, setPlanned] = useState<{ range: string; plans: PlanView[] | null }>({
+		range: "",
+		plans: [],
+	});
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a new version is the cue
 	useEffect(() => {
 		let current = true;
-		examApi.plans(week, dayKey(addDays(parseDay(week), 6))).then(
-			plans => current && setPlanned({ week, plans }),
-			() => current && setPlanned({ week, plans: null })
+		examApi.plans(from, lastExam).then(
+			plans => current && setPlanned({ range, plans }),
+			() => current && setPlanned({ range, plans: null })
 		);
 		return () => {
 			current = false;
 		};
-	}, [week, version, retry]);
+	}, [range, version, retry]);
+	const [measuredBy, setMeasuredBy] = useState<{ key: string; list: Measured[] }>({
+		key: "",
+		list: [],
+	});
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a new version is the cue
 	useEffect(() => {
-		// No certification to measure (the target deleted, no attempt): none shown
-		if (!certification) return;
-		// An answer for a certification no longer measured is not shown
 		let current = true;
-		examApi.readiness(certification).then(
-			readiness => current && setMeasuredBy({ certification, readiness, failed: false }),
-			() => current && setMeasuredBy({ certification, readiness: null, failed: true })
+		const wanted = certKey ? certKey.split(",") : [];
+		Promise.allSettled(wanted.map(c => examApi.readiness(c))).then(
+			answers =>
+				current &&
+				setMeasuredBy({
+					key: certKey,
+					list: answers.map((a, i) => ({
+						certification: wanted[i],
+						readiness: a.status === "fulfilled" ? a.value : null,
+						state: a.status === "fulfilled" ? "read" : "failed",
+					})),
+				})
 		);
 		return () => {
 			current = false;
 		};
-	}, [certification, version, retry]);
-
-	const plansRead = planned.week === week;
-	const plans = plansRead ? (planned.plans ?? []) : [];
-	const plansFailed = plansRead && planned.plans === null;
-	const readinessRead = !certification || measuredBy.certification === certification;
-	const readiness = certification && readinessRead ? measuredBy.readiness : null;
-	const readinessFailed = !!certification && readinessRead && measuredBy.failed;
-	// Try again: read once more, each read shown as being read meanwhile
+	}, [certKey, version, retry]);
 	const again = () => {
-		if (plansFailed) setPlanned({ week: "", plans: [] });
-		if (readinessFailed) setMeasuredBy({ certification: null, readiness: null, failed: false });
+		setPlanned({ range: "", plans: [] });
+		setMeasuredBy({ key: "", list: [] });
 		setRetry(n => n + 1);
 	};
 
 	if (history === null) return <Loading fill label="Loading your attempts…" />;
-	const measured = certification ? history.filter(h => h.certification === certification) : history;
-	const weak = weakest(readiness);
-	// The certification's longest exam measures the most domains at once
+	const plansRead = planned.range === range;
+	const plansFailed = plansRead && planned.plans === null;
+	const allPlans = plansRead ? (planned.plans ?? []) : [];
+	const shownPlans =
+		targets.length > 1 || aimed.length > 1
+			? allPlans.filter(p => certs.includes(p.certification))
+			: allPlans;
+	const measured: Measured[] =
+		measuredBy.key === certKey
+			? measuredBy.list
+			: certs.map(c => ({ certification: c, readiness: null, state: "reading" as const }));
+	const several = aimed.length > 1;
+	// An attempt's certification: its own, else its exam's (older attempts kept none)
+	const certOf = (h: (typeof history)[number]) =>
+		h.certification || catalog.find(e => e.id === h.exam_id)?.certification || "";
+	const ofShown = several || focus ? history.filter(h => certs.includes(certOf(h))) : history;
+	const fresh = history.length === 0;
+	const minutes = minutesByDay(ofShown);
+	const days = new Set(ofShown.filter(worked).map(h => dayKey(new Date(startedAt(h)))));
+	const first = ofShown.filter(worked).at(-1);
+	const start = targets.length
+		? parseDay(targets.map(t => t.started).sort()[0])
+		: first
+			? new Date(startedAt(first))
+			: addDays(now, -70);
+	const planDays = new Map<string, string[]>();
+	for (const p of shownPlans.filter(p => p.done === null && p.day > today))
+		planDays.set(p.day, [...(planDays.get(p.day) ?? []), p.certification]);
+	const retries = retryList(ofShown);
+	const weekKeys = Array.from({ length: 7 }, (_, i) => dayKey(addDays(weekStart, i)));
+	const weekAttempts = ofShown.filter(h =>
+		weekKeys.includes(dayKey(new Date(startedAt(h))))
+	).length;
+	const weak = weakest(measured[0]?.readiness ?? null);
 	const mock = catalog
-		.filter(e => e.certification === certification)
+		.filter(e => certs.includes(e.certification))
 		.reduce<(typeof catalog)[number] | null>(
 			(m, e) => (!m || e.questions > m.questions ? e : m),
 			null
 		);
-	const first = measured.filter(worked).at(-1);
-	const start = target
-		? parseDay(target.started)
-		: first
-			? new Date(startedAt(first))
-			: addDays(now, -70);
-	const end = target ? parseDay(target.date) : now;
+	const suggestions = [
+		weak && `${domainName(weak.domain).replace(/^./, c => c.toUpperCase())} drill`,
+		retries.length > 0 && `Retry ${plural(retries.length, "failed question")}`,
+		targets[0] &&
+			`Mock ${targets[0].certification.toUpperCase()} for ${parseDay(targets[0].date).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`,
+	].filter((s): s is string => !!s);
+
+	const modules: ModuleSpec[] = [
+		{
+			id: "today",
+			name: "Today",
+			size: "l",
+			node: (
+				<Today
+					plans={plansRead ? shownPlans.filter(p => p.day === today) : null}
+					failed={plansFailed}
+					onRetry={again}
+					today={today}
+					suggested={suggestion(catalog, ofShown, certs[0] ?? null)}
+					several={several}
+				/>
+			),
+		},
+		...(assistant
+			? [
+					{
+						id: "claude",
+						name: "Make an exam with Claude",
+						size: "l" as const,
+						node: <AskClaude suggestions={suggestions} />,
+					},
+				]
+			: []),
+		{ id: "exam-day", name: "Exam day", size: "w", node: <ExamDay targets={targets} /> },
+		{
+			id: "map",
+			name: "Practice map",
+			size: "l",
+			node: (
+				<ModuleCard
+					title={
+						<>
+							Practice map{" "}
+							<span className="font-normal text-muted-foreground">
+								{days.size
+									? `${plural(days.size, "day")}, ${Math.round([...minutes.values()].reduce((a, b) => a + b, 0) / 60)} h`
+									: ""}
+							</span>
+						</>
+					}
+				>
+					<p className="mb-2 flex gap-4 text-caption text-muted-foreground">
+						{days.size ? (
+							<>
+								<span>
+									Streak <b className="text-foreground">{plural(streak(days, now), "day")}</b>
+								</span>
+								<span>
+									Longest <b className="text-foreground">{plural(longestStreak(days), "day")}</b>
+								</span>
+							</>
+						) : (
+							<span>Each day you practise fills a square</span>
+						)}
+						{planDays.size > 0 && (
+							<span>
+								Planned <b className="text-foreground">{planDays.size}</b>
+							</span>
+						)}
+					</p>
+					<PracticeMap
+						mode="activity"
+						start={start}
+						exams={targets}
+						minutes={minutes}
+						best={bestByDay(ofShown)}
+						pass={measured[0]?.readiness?.pass_score ?? 66}
+						planned={planDays}
+						onPick={day => navigate(`/calendar?view=day&day=${day}`)}
+					/>
+				</ModuleCard>
+			),
+		},
+		...(fresh
+			? []
+			: [
+					{
+						id: "readiness",
+						name: "Readiness",
+						size: "s" as const,
+						node: <Readiness measured={measured} onRetry={again} />,
+					},
+					{ id: "passed", name: "Passed", size: "s" as const, node: <Passed history={ofShown} /> },
+					{
+						id: "retry",
+						name: "Retry list",
+						size: "l" as const,
+						node: <RetryList retries={retries} several={several} />,
+					},
+					{
+						id: "week",
+						name: "This week",
+						size: "w" as const,
+						node: (
+							<ThisWeek
+								minutes={minutes}
+								attempts={weekAttempts}
+								plans={plansRead ? shownPlans.filter(p => weekKeys.includes(p.day)) : null}
+								weekStart={weekStart}
+							/>
+						),
+					},
+					{
+						id: "domains",
+						name: "Domains",
+						size: "t" as const,
+						node: (
+							<Domains
+								measured={measured}
+								onRetry={again}
+								onMeasure={mock ? () => navigate(`/exams?exam=${mock.id}`) : null}
+							/>
+						),
+					},
+					{
+						id: "recent",
+						name: "Recent",
+						// Grows with the history: one row for a couple, two for more
+						size: ofShown.length > 2 ? ("y" as const) : ("x" as const),
+						node: <Recent history={ofShown} several={several} />,
+					},
+				]),
+	];
+
 	return (
 		<Screen
 			title="Home"
 			actions={
-				<span className="text-callout text-muted-foreground">
-					{now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
-				</span>
+				aimed.length > 1 ? (
+					<SegmentedControl
+						label="Exams shown"
+						value={focus ?? "all"}
+						onChange={v => setFocus(v === "all" ? null : v)}
+						options={[
+							{ value: "all", label: "All exams" },
+							...aimed.map(t => ({ value: t.certification, label: t.certification.toUpperCase() })),
+						]}
+					/>
+				) : undefined
 			}
-			// Wider windows give the cards room; narrow ones stack them
 			width="wide"
-			className="@container gap-4"
+			className="gap-4"
 		>
+			<p className="-mt-2 text-callout text-muted-foreground">
+				{now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+				{targets[0] &&
+					` · ${targets[0].certification.toUpperCase()} in ${plural(Math.max(0, Math.round((parseDay(targets[0].date).getTime() - parseDay(today).getTime()) / 86_400_000)), "day")}`}
+				{targets.length > 1 && `, ${targets.length - 1} more after it`}
+			</p>
 			<DockerBanner />
-			<div className="grid gap-4">
-				<Today
-					plans={plansRead ? plans.filter(p => p.day === today) : null}
-					failed={plansFailed}
-					onRetry={again}
-					today={today}
-					suggested={suggestion(catalog, measured, certification)}
-				/>
-			</div>
-			{/* The map takes the room; Readiness beside it stays compact. Side by side
-			    from the default window up (sidebar shown), stacked only when narrower */}
-			<div className="grid gap-4 @2xl:grid-cols-[minmax(0,1fr)_18rem] @6xl:grid-cols-[minmax(0,1fr)_22rem]">
-				<PrepMap
-					start={start}
-					end={end}
-					exam={target?.date ?? null}
-					best={bestByDay(measured)}
-					pass={readiness?.pass_score ?? 66}
-					figures={studyFigures(measured, now)}
-				/>
-				<Readiness
-					readiness={readiness}
-					state={readinessFailed ? "failed" : readinessRead ? "read" : "reading"}
-					onRetry={again}
-					onMeasure={mock ? () => navigate(`/exams?exam=${mock.id}`) : null}
-					onPractise={weak ? () => navigate("/exams") : null}
-				/>
-			</div>
-			<Week
-				plans={plansRead ? plans : null}
-				failed={plansFailed}
-				onRetry={again}
-				weekStart={weekStart}
-				restDays={target?.rest_days ?? []}
+			<ModuleGrid
+				modules={modules}
+				defaults={DEFAULTS[(fresh ? "new" : "used") + (assistant ? "" : "NoAi")]}
 			/>
 		</Screen>
 	);
