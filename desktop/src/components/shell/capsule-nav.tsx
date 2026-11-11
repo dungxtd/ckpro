@@ -30,7 +30,7 @@ import { type DockMetrics, type Fit, fitCapsule, foldOrder } from "./capsule-fit
 import { arrangeScreens } from "./sections";
 
 /** Between the capsule and what ends the bar: the bar's padding and a gap */
-const CLEAR_GAP = 20;
+export const CAPSULE_GAP = 20;
 
 type Item = {
 	key: string;
@@ -52,14 +52,11 @@ type Item = {
 export function CapsuleNav({
 	ref,
 	folded,
-	clear,
 	onUnfold,
 	onSearch,
 }: {
 	ref: React.Ref<HTMLElement>;
 	folded: boolean;
-	/** The width of what ends the bar, which it keeps clear of */
-	clear: number;
 	onUnfold: () => void;
 	onSearch: () => void;
 }) {
@@ -140,14 +137,7 @@ export function CapsuleNav({
 			{/* Placed by CSS: centred in the window while the sides have their
 			    room, else only as far off centre as the wider side needs (the
 			    window's buttons; what ends the bar, the inspector) */}
-			<div
-				className="pointer-events-none fixed inset-x-0 top-0 z-20 grid h-12 grid-cols-[minmax(var(--capsule-left),1fr)_auto_minmax(var(--capsule-right),1fr)] items-center"
-				style={
-					{
-						"--capsule-right": `calc(var(--inspector-space, 0px) + ${clear + CLEAR_GAP}px)`,
-					} as React.CSSProperties
-				}
-			>
+			<div className="pointer-events-none fixed inset-x-0 top-0 z-20 grid h-12 grid-cols-[minmax(var(--capsule-left),1fr)_auto_minmax(var(--capsule-right),1fr)] items-center">
 				{/* The room between the two sides, out of the grid (the capsule
 				    would widen it to its own width) */}
 				<div
@@ -155,8 +145,8 @@ export function CapsuleNav({
 					aria-hidden
 					className="absolute top-0 right-(--capsule-right) left-(--capsule-left) h-0"
 				/>
-				{/* Its own pill but while it morphs (main.tsx's surface draws that):
-				    the items fade, in as the surface reaches its shape, out as it leaves */}
+				{/* Its pill is the shell's surface (main.tsx), which moves here as the
+				    sidebar folds: the items fade in as it arrives, out as it leaves */}
 				<Capsule
 					ref={ref}
 					aria-label="Screens"
@@ -164,9 +154,9 @@ export function CapsuleNav({
 					onPointerEnter={() => setOver(true)}
 					onPointerLeave={() => setOver(false)}
 					className={cn(
-						"col-start-2 row-start-1 h-9 bg-sidebar-panel shadow-none backdrop-blur-none transition-opacity group-data-[morphing]/shell:bg-transparent motion-reduce:transition-none",
+						"col-start-2 row-start-1 h-9 bg-transparent shadow-none backdrop-blur-none transition-opacity motion-reduce:transition-none",
 						folded
-							? "pointer-events-auto opacity-100 delay-150 duration-150"
+							? "pointer-events-auto opacity-100 delay-200 duration-200"
 							: "opacity-0 duration-100"
 					)}
 				>

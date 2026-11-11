@@ -6,7 +6,16 @@ import { useElementSize } from "@ckpro/ui/hooks/use-element-size";
 import { mac } from "@ckpro/ui/lib/platform";
 import { cn } from "@ckpro/ui/lib/utils";
 import { CircleAlert } from "lucide-react";
-import { lazy, type ReactNode, StrictMode, Suspense, useEffect, useRef, useState } from "react";
+import {
+	type CSSProperties,
+	lazy,
+	type ReactNode,
+	StrictMode,
+	Suspense,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { createRoot } from "react-dom/client";
 import {
 	HashRouter,
@@ -21,12 +30,12 @@ import { toast } from "sonner";
 import { pageView, setAnalytics, track } from "@/analytics";
 import { StartPrompt } from "@/components/exam/start-prompt";
 import { AppSidebar } from "@/components/shell/app-sidebar";
+import { CAPSULE_GAP } from "@/components/shell/capsule-nav";
 import {
 	INSPECTOR_FROM_PX,
 	InspectorProvider,
 	useInspectorSlot,
 } from "@/components/shell/inspector";
-import { MORPH_MS, useMorphSurface } from "@/components/shell/morph-surface";
 import { TitleBar } from "@/components/shell/title-bar";
 import { WindowFrame } from "@/components/shell/window";
 import { CatalogRoute } from "@/routes/catalog";
@@ -50,8 +59,14 @@ function Layout() {
 	const update = useSettings(s => s.update);
 	const [searching, setSearching] = useState(false);
 	const main = useRef<HTMLElement>(null);
-	const capsule = useRef<HTMLElement>(null);
-	const surface = useMorphSurface(folded, capsule);
+	// The capsule's width and what ends the title bar: the folded surface's box
+	// follows from them in CSS (index.css), so the fold reads nothing as it moves
+	const [capsule, { width: capsuleWidth }] = useElementSize<HTMLElement>({ border: true });
+	const [barEnd, setBarEnd] = useState(0);
+	// Folding or unfolding: the surface and the columns move only then, so a
+	// window being resized is followed at once rather than chased
+	const [fold, setFold] = useState({ folded, moving: false });
+	if (fold.folded !== folded) setFold({ folded, moving: true });
 	// biome-ignore lint/correctness/useExhaustiveDependencies: each screen opens at its top
 	useEffect(() => {
 		main.current?.scrollTo({ top: 0 });
@@ -78,26 +93,40 @@ function Layout() {
 		// The sidebar slides away and the content widens into its place; the
 		// capsule comes in as it goes
 		<div
-			ref={surface.root}
-			// What the shell's CSS follows: a morph under way (the sidebar and
-			// the capsule draw their own shapes between morphs), an inspector
-			data-morphing={surface.morphing || undefined}
+			// What the shell's CSS follows: folded, an inspector, and the capsule's
+			// width and right-hand clearance
+			data-folded={folded || undefined}
+			data-moving={fold.moving || undefined}
 			data-inspecting={inspector.slot.shown || undefined}
+			style={
+				{
+					"--capsule-w": `${capsuleWidth}px`,
+					"--capsule-right": `calc(var(--inspector-space, 0px) + ${barEnd + CAPSULE_GAP}px)`,
+				} as CSSProperties
+			}
 			className={cn(
 				"group/shell relative",
 				// One row the window's height: the screen scrolls inside it. The
-				// columns move as long as the surface morphs, on the same curve
-				"grid h-full grid-rows-[minmax(0,1fr)] transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none",
+				// columns move with the surface, on its curve
+				"shell-fold grid h-full grid-rows-[minmax(0,1fr)] transition-[grid-template-columns]",
 				folded ? "grid-cols-[0px_minmax(0,1fr)]" : "grid-cols-[256px_minmax(0,1fr)]"
 			)}
 		>
-			{/* The sidebar's panel and the capsule's pill are this one surface,
-			    which morphs from the one shape into the other */}
-			<div
-				aria-hidden
-				className="pointer-events-none absolute inset-0 z-10 bg-sidebar-panel opacity-0 transition-[clip-path] ease-out group-data-[morphing]/shell:opacity-100 motion-reduce:transition-none"
-				style={{ clipPath: surface.clip, transitionDuration: `${MORPH_MS}ms` }}
-			/>
+			{/* The sidebar's panel and the capsule's pill are this one surface: CSS
+			    moves it from the one box to the other (index.css, .shell-surface);
+			    the sidebar's rows and the capsule's items fade over it */}
+			{/* Drawn once the capsule's width is known: a window opened folded
+			    starts with the pill in place, not growing into it */}
+			{capsuleWidth > 0 && (
+				<div
+					aria-hidden
+					className="shell-surface"
+					onTransitionEnd={e => {
+						if (e.target === e.currentTarget && e.propertyName === "height")
+							setFold(f => ({ ...f, moving: false }));
+					}}
+				/>
+			)}
 			<div className="min-w-0 overflow-hidden">
 				<AppSidebar
 					folded={folded}
@@ -112,6 +141,7 @@ function Layout() {
 					<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 						<TitleBar
 							capsuleRef={capsule}
+							onEndWidth={setBarEnd}
 							folded={folded}
 							onUnfold={() => update({ sidebar_folded: false })}
 							onSearch={() => {

@@ -129,3 +129,54 @@ body,
 		background-clip: padding-box;
 	}
 }
+
+/* The sidebar's fold (main.tsx): the sidebar's panel and the capsule's pill
+   are one surface, placed by CSS in either box; folding moves it from the one
+   to the other (box, corners, colour) while the columns slide on the same
+   curve. Only while it folds: a window being resized is followed at once */
+.shell-surface {
+	position: absolute;
+	z-index: 10;
+	pointer-events: none;
+	left: 8px;
+	top: 8px;
+	width: 248px;
+	height: calc(100% - 16px);
+	border-radius: 12px;
+	background-color: var(--sidebar-panel);
+	box-shadow: inset 0 0 0 0.5px var(--capsule-edge);
+}
+/* The capsule's box: its width, 6px down the 48px bar, centred in the window
+   unless a side's clearance pushes it (as capsule-nav.tsx's grid places it) */
+[data-folded] > .shell-surface {
+	top: 6px;
+	width: var(--capsule-w);
+	height: 36px;
+	border-radius: 18px;
+	left: max(
+		var(--capsule-left),
+		min((100% - var(--capsule-w)) / 2, 100% - var(--capsule-right) - var(--capsule-w))
+	);
+	background-color: var(--capsule);
+	box-shadow:
+		var(--capsule-shadow),
+		inset 0 0 0 0.5px var(--capsule-edge);
+	backdrop-filter: blur(24px) saturate(1.5);
+}
+[data-moving] > .shell-surface,
+[data-moving].shell-fold {
+	transition-duration: 420ms;
+	transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+[data-moving] > .shell-surface {
+	transition-property: left, top, width, height, border-radius, background-color, box-shadow;
+}
+.shell-fold:not([data-moving]) {
+	transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+	[data-moving] > .shell-surface,
+	[data-moving].shell-fold {
+		transition: none;
+	}
+}
