@@ -120,6 +120,8 @@ export const useExam = create<ExamStore>()(
 				const apply = (state: ExamState) => {
 					followed(get().state, state);
 					set(s => {
+						// An end asked for is done once the phase moves on
+						if (s.pending === "ending" && s.state?.phase !== state.phase) s.pending = null;
 						s.state = state;
 						const id = attemptId(state);
 						if (id && id !== s.attemptId) {
@@ -195,8 +197,6 @@ export const useExam = create<ExamStore>()(
 						set(s => {
 							s.pendingReplace = { id, mode, message: e.message };
 						});
-					} else {
-						// Said wherever it was started from (Home, the Calendar,
 					} else if (e instanceof ApiError && e.code === "images_unavailable") {
 						// The images could not be downloaded: build them here,
 						// or wait for the connection (it tries again itself)
@@ -204,6 +204,8 @@ export const useExam = create<ExamStore>()(
 							duration: 12_000,
 							action: { label: "Build here", onClick: () => envApi.buildImages() },
 						});
+					} else {
+						// Said wherever it was started from (Home, the Calendar,
 						// Start over), not kept on one screen
 						toast.error(errorText(e));
 					}
@@ -250,17 +252,18 @@ export const useExam = create<ExamStore>()(
 				set(s => {
 					s.pending = "ending";
 				});
+				const was = get().state?.phase;
 				try {
 					await examApi.end();
+					// Cancelling a preparation only asks it to stop: still
+					// "ending" until Rust says it did (the phase changes)
+					if (was !== "preparing" || get().state?.phase !== was) set(s => void (s.pending = null));
 					return true;
 				} catch (e) {
 					// Shown where it was asked for: the desk, the result or the failure
 					toast.error(errorText(e));
+					set(s => void (s.pending = null));
 					return false;
-				} finally {
-					set(s => {
-						s.pending = null;
-					});
 				}
 			},
 
