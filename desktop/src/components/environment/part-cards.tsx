@@ -27,14 +27,19 @@ export function Rows({ rows }: { rows: Row[] }) {
 			{rows.map(r => (
 				<li key={r.key} className="flex items-center gap-2 py-1 text-sm">
 					<StatusDot tone={r.tone} />
-					<span className="select-text">{r.name}</span>
-					<span className="min-w-0 truncate text-muted-foreground text-xs">{r.what}</span>
+					{/* A long name gives way before what it is does */}
+					<span className="min-w-0 shrink select-text truncate">{r.name}</span>
+					<span className="min-w-0 flex-1 truncate text-caption text-muted-foreground">
+						{r.what}
+					</span>
 					{r.mb !== undefined && (
-						<span className="ml-auto text-muted-foreground text-xs tabular-nums">
+						<span className="ml-auto shrink-0 text-caption text-muted-foreground tabular-nums">
 							{memory(r.mb)}
 						</span>
 					)}
-					{r.action && <span className={r.mb === undefined ? "ml-auto" : ""}>{r.action}</span>}
+					{r.action && (
+						<span className={r.mb === undefined ? "ml-auto shrink-0" : "shrink-0"}>{r.action}</span>
+					)}
 				</li>
 			))}
 		</ul>
@@ -83,7 +88,7 @@ export function ServicesCard({
 			<ConfirmDialog
 				title="Clear the image cache?"
 				description="The images clusters pulled through ckpro go; the next exam downloads them again. Not while an exam is open or being proven."
-				action="Clear Cache"
+				action="Clear cache"
 				onConfirm={() => envApi.clearCache().catch(e => toast.error(errorText(e)))}
 			>
 				<Button size="push" variant="push">

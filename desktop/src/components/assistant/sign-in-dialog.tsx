@@ -99,7 +99,7 @@ export function SignInDialog({
 							>
 								<span className="flex flex-col items-start">
 									<span>{m.label}</span>
-									<span className="font-normal text-muted-foreground text-xs">{m.detail}</span>
+									<span className="font-normal text-muted-foreground text-caption">{m.detail}</span>
 								</span>
 							</Button>
 						))}

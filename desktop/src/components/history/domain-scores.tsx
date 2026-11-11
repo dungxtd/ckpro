@@ -15,7 +15,7 @@ import { useState } from "react";
 import { scoreTone } from "@/components/study/data";
 import { useStudy } from "@/stores/study";
 import type { DomainStat } from "@/tauri/api";
-import { domainName } from "@/words";
+import { domainName, plural } from "@/words";
 
 /** Passing is 66% on the CKA/CKAD/CKS */
 const PASS = 66;
@@ -58,9 +58,9 @@ export function DomainScores() {
 						}))}
 					/>
 				)}
-				<span className="text-muted-foreground text-sm">
+				<span className="text-muted-foreground text-sm tabular-nums">
 					{/* Attempts ended before any point are listed below, not counted here */}
-					{current.scores.length} scored attempt{current.scores.length === 1 ? "" : "s"} · last{" "}
+					{plural(current.scores.length, "scored attempt")} · last{" "}
 					{current.scores.at(-1)?.toFixed(0)}%
 				</span>
 			</div>

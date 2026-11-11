@@ -1,4 +1,8 @@
+import { Badge, badgeVariants } from "@ckpro/ui/components/badge";
+import { Card } from "@ckpro/ui/components/card";
+import { dayMarkerVariants } from "@ckpro/ui/components/day-marker";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@ckpro/ui/components/hover-card";
+import { IconButton } from "@ckpro/ui/components/icon-button";
 import { useElementSize } from "@ckpro/ui/hooks/use-element-size";
 import { cn } from "@ckpro/ui/lib/utils";
 import { Flag, GripVertical, Plus, X } from "lucide-react";
@@ -71,11 +75,12 @@ export function Grid({
 	};
 
 	return (
-		<div
+		<Card
 			ref={frame}
+			padding="none"
 			// The month folds into the Day view's small month, and back (routes/calendar)
 			data-morph={week ? undefined : "calendar-month"}
-			className="relative flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card"
+			className="relative flex flex-1 flex-col overflow-hidden"
 		>
 			<div ref={names} className={cn("grid grid-cols-7 border-border border-b", week && "hidden")}>
 				{WEEKDAYS.map(d => (
@@ -95,7 +100,7 @@ export function Grid({
 						key={key}
 						inert={folded}
 						className={cn(
-							"grid transition-[grid-template-rows,flex-grow,opacity] duration-[380ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+							"grid transition-[grid-template-rows,flex-grow,opacity] duration-250 ease-out motion-reduce:transition-none",
 							folded
 								? "min-h-0 flex-[0_1_0px] grid-rows-[0fr] opacity-0"
 								: cn(
@@ -127,7 +132,7 @@ export function Grid({
 					</div>
 				);
 			})}
-		</div>
+		</Card>
 	);
 }
 
@@ -212,7 +217,8 @@ function Day({
 						onDrag({ plan: null, over: null });
 					}}
 					className={cn(
-						"group/day flex min-w-0 cursor-pointer flex-col border-border p-1.5 outline-none transition-colors duration-[380ms] not-first:border-l hover:bg-foreground/[0.03] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset motion-reduce:transition-none",
+						// What it holds spaced by the cell's gap, not each its own margin
+						"group/day flex min-w-0 cursor-pointer flex-col gap-1 border-border p-1.5 outline-none transition-colors duration-100 not-first:border-l hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset motion-reduce:transition-none",
 						!grown && "overflow-hidden",
 						!grown && day.getMonth() !== month.getMonth() && "text-muted-foreground/60",
 						examDay && "bg-highlight/[0.07]",
@@ -220,14 +226,10 @@ function Day({
 					)}
 				>
 					<div className="flex items-center justify-between">
-						<span
-							className={cn(
-								"inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full px-1.5 text-caption tabular-nums",
-								k === today && "bg-highlight font-semibold text-highlight-foreground"
-							)}
-						>
+						{/* Today and the exam's day marked as every calendar marks them */}
+						<span className={dayMarkerVariants({ today: k === today, exam: examDay, size: "sm" })}>
 							{grown && (
-								<span className={k === today ? "" : "text-muted-foreground"}>
+								<span className={k === today || examDay ? "" : "text-muted-foreground"}>
 									{WEEKDAYS[(day.getDay() + 6) % 7]}
 								</span>
 							)}
@@ -238,26 +240,25 @@ function Day({
 							onPick={id => actions.onAdd(k, id)}
 							onOpenChange={setPicking}
 						>
-							<button
-								type="button"
+							<IconButton
+								variant="toolbar"
+								size="xs"
 								aria-label={`Plan an exam on ${k}`}
 								onClick={e => e.stopPropagation()}
-								className="grid size-6 place-items-center rounded-md bg-foreground/10 opacity-0 outline-none hover:bg-highlight hover:text-highlight-foreground focus-visible:opacity-100 group-hover/day:opacity-100 data-[state=open]:opacity-100 [&_svg]:size-3.5"
+								className="opacity-0 focus-visible:opacity-100 group-hover/day:opacity-100 data-[state=open]:opacity-100"
 							>
 								<Plus />
-							</button>
+							</IconButton>
 						</ExamPicker>
 					</div>
 					{examDay && (
-						<span
-							className={cn(
-								"mt-1 flex shrink-0 items-center gap-1 truncate rounded-md bg-highlight px-1.5 py-0.5 font-semibold text-highlight-foreground [&_svg]:size-3 [&_svg]:shrink-0",
-								size
-							)}
+						<Badge
+							variant="exam"
+							className={cn("max-w-full justify-start font-semibold [&_svg]:size-3", size)}
 						>
 							<Flag />
 							<span className="truncate">{exam.certification.toUpperCase()} exam</span>
-						</span>
+						</Badge>
 					)}
 					{shownPlans.map(p => (
 						<Plan
@@ -274,28 +275,26 @@ function Day({
 						<span
 							key={h.attempt_id}
 							className={cn(
-								"mt-1 shrink-0 truncate rounded-md px-1.5 py-0.5",
+								"shrink-0 truncate rounded-md px-1.5 py-0.5",
 								size,
 								scoreOf(h) >= h.pass_score
 									? "bg-success/15 text-success"
-									: "bg-foreground/[0.07] text-muted-foreground"
+									: "bg-fill-quiet text-muted-foreground"
 							)}
 						>
 							{Math.round(scoreOf(h))}% {shortTitle(h.title)}
 						</span>
 					))}
 					{total > room && (
-						<span className="mt-1 shrink-0 px-1.5 text-2xs text-muted-foreground">
+						<span className="shrink-0 px-1.5 text-2xs text-muted-foreground tabular-nums">
 							+{total - room} more
 						</span>
 					)}
 				</div>
 			</HoverCardTrigger>
-			<HoverCardContent>
-				<DescribeCard
-					lines={lines()}
-					className="w-[360px] select-text shadow-[var(--shadow-float)]"
-				/>
+			{/* Lifted off the grid as every floating layer is */}
+			<HoverCardContent className="glass rounded-xl">
+				<DescribeCard lines={lines()} className="w-[360px] select-text" />
 			</HoverCardContent>
 		</HoverCard>
 	);
@@ -324,12 +323,12 @@ function Plan({
 		<div
 			onClick={e => e.stopPropagation()}
 			onKeyDown={e => e.stopPropagation()}
+			// Planned, as every plan is marked; one whose day went by, greyed
 			className={cn(
-				"group/plan mt-1 flex min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-md py-0.5 pr-1 pl-0.5 ring-1 ring-inset",
+				badgeVariants({ variant: "planned" }),
+				"group/plan flex min-w-0 shrink-0 justify-start gap-1 overflow-hidden py-0.5 pr-1 pl-0.5 font-normal leading-normal",
 				size,
-				missed
-					? "text-muted-foreground ring-border [&>span:nth-child(2)]:line-through"
-					: "bg-highlight/10 text-highlight ring-highlight/40"
+				missed && "text-muted-foreground ring-border [&>span:nth-child(2)]:line-through"
 			)}
 		>
 			<span
@@ -348,14 +347,15 @@ function Plan({
 			</span>
 			<span className="min-w-0 flex-1 truncate">{shortTitle(p.title)}</span>
 			<ModeToggle plan={p} onMode={onMode} narrow className="shrink-0" />
-			<button
-				type="button"
+			<IconButton
+				variant="toolbar"
+				size="auto"
 				aria-label={`Remove ${p.title}`}
 				onClick={() => onRemove(p)}
-				className="shrink-0 rounded opacity-0 outline-none hover:bg-highlight/20 focus-visible:opacity-100 group-hover/plan:opacity-100 [&_svg]:size-3"
+				className="size-4 rounded-sm text-current opacity-0 focus-visible:opacity-100 group-hover/plan:opacity-100 [&_svg]:size-3"
 			>
 				<X />
-			</button>
+			</IconButton>
 		</div>
 	);
 }

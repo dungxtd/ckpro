@@ -1,5 +1,6 @@
 import { Alert } from "@ckpro/ui/components/alert";
 import { Button } from "@ckpro/ui/components/button";
+import { inlineCode } from "@ckpro/ui/components/inline-code";
 import { Separator } from "@ckpro/ui/components/separator";
 import { Stepper } from "@ckpro/ui/components/stepper";
 import { cn } from "@ckpro/ui/lib/utils";
@@ -48,7 +49,8 @@ export function QuestionPanel({
 	const loadSolution = useExam(s => s.loadSolution);
 	const settings = useSettings(s => s.settings);
 	const size = Math.min(SIZES.length - 1, settings.question_size);
-	const code = "rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-exam-value";
+	// The host and namespace to copy, as values in the text are drawn
+	const code = cn(inlineCode, "text-exam-value");
 
 	if (view === "solution")
 		return (
@@ -66,7 +68,7 @@ export function QuestionPanel({
 							The reference solution: the commands that solve this task, and why. Opening it is
 							noted, and the assistant knows you saw it.
 						</p>
-						<Button size="sm" variant="outline" onClick={() => loadSolution(question.id)}>
+						<Button size="push" variant="push" onClick={() => loadSolution(question.id)}>
 							<Eye /> Show solution
 						</Button>
 					</div>
@@ -90,7 +92,7 @@ export function QuestionPanel({
 					Concepts: <span className="font-mono text-exam-concept">{question.tags.join(", ")}</span>
 				</div>
 			)}
-			<div className="text-muted-foreground text-xs">
+			<div className="text-muted-foreground text-caption">
 				Weight {(question.weight ?? 0).toFixed(0)}% · You must connect to the correct host; working
 				on the wrong one may score zero.
 			</div>
@@ -101,8 +103,8 @@ export function QuestionPanel({
 			</Markdown>
 
 			{question.references.length > 0 && (
-				<div className="flex flex-col gap-1 text-xs">
-					<div className="text-muted-foreground">Quick Reference</div>
+				<div className="flex flex-col gap-1 text-caption">
+					<div className="text-muted-foreground">Quick reference</div>
 					<DocList urls={question.references} />
 				</div>
 			)}
@@ -157,8 +159,8 @@ export function PracticeActions({ question }: { question: QuestionView }) {
 	return (
 		<div className="flex flex-wrap gap-2">
 			<Button
-				size="sm"
-				variant="outline"
+				size="push"
+				variant="push"
 				className="flex-1"
 				onClick={() => check(question.id)}
 				disabled={running}
@@ -167,7 +169,12 @@ export function PracticeActions({ question }: { question: QuestionView }) {
 				{running ? "Checking…" : "Check my work"}
 			</Button>
 			{opened < question.hints.length && (
-				<Button size="sm" variant="outline" onClick={() => showHint(question.id)}>
+				<Button
+					size="push"
+					variant="push"
+					className="tabular-nums"
+					onClick={() => showHint(question.id)}
+				>
 					Hint {opened + 1}/{question.hints.length}
 				</Button>
 			)}

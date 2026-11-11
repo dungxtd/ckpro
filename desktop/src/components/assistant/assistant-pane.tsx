@@ -1,8 +1,9 @@
-import { Alert } from "@ckpro/ui/components/alert";
 import { Button } from "@ckpro/ui/components/button";
+import { Chip } from "@ckpro/ui/components/chip";
+import { ConfirmDialog } from "@ckpro/ui/components/confirm-dialog";
 import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Input } from "@ckpro/ui/components/input";
-import { MenuCheck, menu, menuRow } from "@ckpro/ui/components/menu";
+import { MenuItem, menu } from "@ckpro/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Spinner } from "@ckpro/ui/components/spinner";
 import { Truncated } from "@ckpro/ui/components/truncated";
@@ -16,6 +17,7 @@ import { MASK } from "@/analytics";
 import { AGENTS } from "@/components/assistant/agents";
 import { Answer, AnswerActions, UserMessage } from "@/components/assistant/answer";
 import { AssistantComposer } from "@/components/assistant/assistant-composer";
+import { AssistantError } from "@/components/assistant/assistant-error";
 import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { FindInSession } from "@/components/assistant/find-in-session";
 import { PermissionCard } from "@/components/assistant/permission-card";
@@ -30,6 +32,14 @@ import {
 	coachApi,
 	type QuestionView,
 } from "@/tauri/api";
+import { plural } from "@/words";
+
+/** Ways to start, for an empty conversation: during the attempt, and in
+ * its review once it is over */
+const STARTERS = {
+	attempt: ["What does this task ask for?", "Give me a hint, not the answer"],
+	review: ["Why did my checks fail?", "Walk me through a solution"],
+};
 
 /**
  * The assistant, laid out as an agent panel: one agent (ACP,
@@ -71,6 +81,7 @@ export function AssistantPane({
 			sessions: s.sessions,
 			shown: s.shown,
 			titles: s.titles,
+			unsent: s.unsent,
 			writing: s.writing,
 		}))
 	);
@@ -83,6 +94,8 @@ export function AssistantPane({
 	const [history, setHistory] = useState<CoachSession[]>([]);
 	const [signingIn, setSigningIn] = useState(false);
 	const [renaming, setRenaming] = useState(false);
+	// Deleting the conversation, once confirmed
+	const [deleting, setDeleting] = useState(false);
 	// The menu open, if any: a choice closes it
 	const [open, setOpen] = useState<"new" | "history" | "more" | null>(null);
 	const menuOf = (name: NonNullable<typeof open>) => ({
@@ -116,7 +129,7 @@ export function AssistantPane({
 		return true;
 	};
 	const title =
-		coach.titles[question.id] ?? messages.find(m => m.role === "user")?.text ?? "New Session";
+		coach.titles[question.id] ?? messages.find(m => m.role === "user")?.text ?? "New conversation";
 	const lastUser = [...messages].reverse().find(m => m.role === "user")?.text;
 
 	return (
@@ -137,7 +150,7 @@ export function AssistantPane({
 						}}
 					/>
 				) : (
-					// Double-click: a mouse shortcut; More > Rename Session… is the keyboard way
+					// Double-click: a mouse shortcut; More > Rename conversation… is the keyboard way
 					<Truncated
 						className="flex-1 text-callout"
 						onDoubleClick={() => messages.length > 0 && setRenaming(true)}
@@ -151,27 +164,25 @@ export function AssistantPane({
 						<IconButton
 							variant="toolbar"
 							size="xs"
-							aria-label="New Session"
+							aria-label="New conversation"
 							disabled={writing || messages.length === 0 || agents.length === 0}
 						>
 							<Plus />
 						</IconButton>
 					</PopoverTrigger>
 					<PopoverContent align="end" className={cn(menu.surface, "w-56")}>
-						<div className={menu.header}>New session with</div>
+						<div className={menu.header}>New conversation with</div>
 						{agents.map(a => (
-							<button
+							<MenuItem
 								key={a.id}
-								type="button"
-								className={menuRow()}
+								icon={<a.Icon className={cn("size-3.5! shrink-0", a.tint)} />}
 								onClick={() => {
 									setOpen(null);
 									coach.newSession(question.id);
 								}}
 							>
-								<a.Icon className={cn("size-3.5 shrink-0", a.tint)} />
-								<span className={menu.label}>{a.name}</span>
-							</button>
+								{a.name}
+							</MenuItem>
 						))}
 					</PopoverContent>
 				</Popover>
@@ -190,29 +201,31 @@ export function AssistantPane({
 					<PopoverContent align="end" className={cn(menu.surface, "w-72")}>
 						<div className={menu.header}>This attempt</div>
 						{history.length === 0 && (
-							<div className={cn(menu.content, "py-1 text-muted-foreground text-xs")}>
+							<div className={cn(menu.content, "py-1 text-muted-foreground text-caption")}>
 								No conversations yet
 							</div>
 						)}
 						{history.map(t => (
-							<button
+							<MenuItem
 								key={`${t.question_id}/${t.session}`}
-								type="button"
-								className={menuRow()}
 								// An answer being written: switching would end its session
 								disabled={!!coach.writing}
+								checked={t.question_id === question.id && t.session === coach.shown[question.id]}
+								// A question and its answer to each exchange; one asked
+								// and not yet answered counts too
+								hint={
+									<span className="tabular-nums">
+										{plural(Math.ceil(t.messages / 2), "question")}
+									</span>
+								}
 								onClick={() => {
 									setOpen(null);
 									onOpenQuestion?.(t.question_id);
 									coach.openSession(t.question_id, t.session);
 								}}
 							>
-								{t.question_id === question.id && t.session === coach.shown[question.id] && (
-									<MenuCheck />
-								)}
 								<Truncated>{t.title}</Truncated>
-								<span className={menu.hint}>{t.messages / 2}</span>
-							</button>
+							</MenuItem>
 						))}
 					</PopoverContent>
 				</Popover>
@@ -225,7 +238,7 @@ export function AssistantPane({
 					<PopoverContent align="end" className={cn(menu.surface, "w-60")}>
 						<div className={menu.header}>Claude account</div>
 						{coach.account?.signed_in ? (
-							<div className={cn(menu.content, "flex flex-col py-1 text-xs")}>
+							<div className={cn(menu.content, "flex flex-col py-1 text-caption")}>
 								<span className="truncate">{coach.account.email ?? "Signed in"}</span>
 								<span className="text-muted-foreground capitalize">
 									{coach.account.method === "console"
@@ -234,14 +247,12 @@ export function AssistantPane({
 								</span>
 							</div>
 						) : (
-							<button type="button" className={menuRow()} onClick={() => setSigningIn(true)}>
-								{coach.account ? "Sign In…" : "Checking…"}
-							</button>
+							<MenuItem disabled={!coach.account} onClick={() => setSigningIn(true)}>
+								{coach.account ? "Sign in…" : "Checking…"}
+							</MenuItem>
 						)}
 						<div className={menu.separator} />
-						<button
-							type="button"
-							className={menuRow()}
+						<MenuItem
 							disabled={messages.length === 0}
 							onClick={() => {
 								setOpen(null);
@@ -252,36 +263,32 @@ export function AssistantPane({
 											.join("\n\n")
 									)
 									.then(
-										() => toast.success("Session copied as Markdown", { duration: 1500 }),
-										() => toast.error("Could not copy the session")
+										() => toast.success("Conversation copied as Markdown", { duration: 1500 }),
+										() => toast.error("Could not copy the conversation")
 									);
 							}}
 						>
-							Copy Session as Markdown
-						</button>
-						<button
-							type="button"
-							className={menuRow()}
+							Copy conversation as Markdown
+						</MenuItem>
+						<MenuItem
 							disabled={messages.length === 0}
 							onClick={() => {
 								setOpen(null);
 								setRenaming(true);
 							}}
 						>
-							Rename Session…
-						</button>
+							Rename conversation…
+						</MenuItem>
 						<div className={menu.separator} />
-						<button
-							type="button"
-							className={menuRow()}
+						<MenuItem
 							disabled={writing || messages.length === 0}
 							onClick={() => {
 								setOpen(null);
-								coach.clear(question.id);
+								setDeleting(true);
 							}}
 						>
-							Delete Session
-						</button>
+							Delete conversation
+						</MenuItem>
 					</PopoverContent>
 				</Popover>
 				{onClose && (
@@ -297,12 +304,25 @@ export function AssistantPane({
 				className="min-h-0 flex-1 select-text overflow-y-auto overflow-x-hidden p-2"
 			>
 				{messages.length === 0 ? (
-					// Quiet: Claude's mark, and words only when
-					// something is needed (Docker); signing in takes the editor's place
+					// Quiet: Claude's mark, one line and ways to start (when there
+					// is someone to ask), and what is needed (Docker); signing in
+					// takes the editor's place
 					<div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
 						<AssistantIcon className="size-8 text-assistant opacity-80" />
+						<p className="text-callout text-muted-foreground">
+							{review ? "Ask about this task and how it went." : "Ask about this task."}
+						</p>
+						{claudeOn && !signedOut && (status === null || status.ready) && (
+							<div className="flex flex-wrap justify-center gap-1.5">
+								{(review ? STARTERS.review : STARTERS.attempt).map(s => (
+									<Chip key={s} disabled={writing} onClick={() => send(s)}>
+										{s}
+									</Chip>
+								))}
+							</div>
+						)}
 						{status && !status.ready && (
-							<span className="text-muted-foreground text-xs">{status.problem}</span>
+							<span className="text-muted-foreground text-caption">{status.problem}</span>
 						)}
 					</div>
 				) : (
@@ -355,9 +375,16 @@ export function AssistantPane({
 					</div>
 				)}
 				{coach.error && (
-					<Alert variant="warning" size="sm" className="mt-2">
-						{coach.error}
-					</Alert>
+					<AssistantError
+						size="sm"
+						className="mt-2"
+						error={coach.error}
+						onRetry={
+							coach.unsent?.questionId === question.id
+								? () => coach.unsent && send(coach.unsent.text)
+								: undefined
+						}
+					/>
 				)}
 				<SignInDialog open={signingIn} onOpenChange={setSigningIn} />
 			</div>
@@ -372,7 +399,7 @@ export function AssistantPane({
 				/>
 			) : (
 				coach.running?.questionId === question.id && (
-					<div className="flex items-center gap-2 border-border border-t px-3 py-2 text-muted-foreground text-xs">
+					<div className="flex items-center gap-2 border-border border-t px-3 py-2 text-muted-foreground text-caption">
 						<Spinner size="inline" className="size-3.5" />
 						<code className="min-w-0 truncate font-mono">$ {coach.running.command}</code>
 					</div>
@@ -381,8 +408,8 @@ export function AssistantPane({
 
 			{!claudeOn ? (
 				// No agent turned on: nothing to ask
-				<div className="flex items-center gap-3 border-border border-t bg-card/40 px-3 py-3 text-muted-foreground text-xs">
-					No agent is turned on. Turn one on in Settings › AI.
+				<div className="flex items-center gap-3 border-border border-t bg-card/40 px-3 py-3 text-muted-foreground text-caption">
+					No agent is turned on. Turn one on in Settings › Assistant.
 				</div>
 			) : signedOut ? (
 				// Signed out: the place to type becomes the way in
@@ -396,6 +423,14 @@ export function AssistantPane({
 					onSend={send}
 				/>
 			)}
+			<ConfirmDialog
+				open={deleting}
+				onOpenChange={setDeleting}
+				title="Delete this conversation?"
+				description="Its messages go, and cannot be brought back."
+				action="Delete"
+				onConfirm={() => coach.clear(question.id)}
+			/>
 		</aside>
 	);
 }
@@ -421,14 +456,14 @@ function SessionTitleInput({
 		<Input
 			autoFocus
 			defaultValue={title}
-			aria-label="Session name"
+			aria-label="Conversation name"
 			onFocus={e => e.currentTarget.select()}
 			onKeyDown={e => {
 				if (e.key === "Enter") finish(e.currentTarget.value);
 				if (e.key === "Escape") finish(null);
 			}}
 			onBlur={e => finish(e.currentTarget.value)}
-			className="mr-1 h-6 min-w-0 flex-1 select-text rounded-md px-1.5 text-callout md:text-callout"
+			className="mr-1 h-6 min-w-0 flex-1 select-text px-1.5 text-callout md:text-callout"
 		/>
 	);
 }

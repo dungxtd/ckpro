@@ -35,7 +35,7 @@ export function SidebarMenu({ onEdit }: { onEdit: () => void }) {
 		0;
 	return (
 		<ContextMenuContent>
-			<ContextMenuItem onSelect={onEdit}>Edit Sidebar…</ContextMenuItem>
+			<ContextMenuItem onSelect={onEdit}>Edit sidebar…</ContextMenuItem>
 			<ContextMenuSeparator />
 			<ContextMenuSub>
 				<ContextMenuSubTrigger value={SORTS.find(s => s.value === sort)?.label}>

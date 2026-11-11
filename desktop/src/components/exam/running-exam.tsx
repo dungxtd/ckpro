@@ -215,12 +215,20 @@ export function RunningExam({
 								attempt.mode !== "practice" && "border-border border-t"
 							)}
 						>
+							{/* A toggle, not a second main action: flagged, its flag fills;
+							    the one accent stays on moving forward */}
 							<Button
-								variant={flagged.includes(question.id) ? "default" : "outline"}
+								variant="push"
+								aria-pressed={flagged.includes(question.id)}
 								className="flex-1"
 								onClick={() => toggleFlag(question.id)}
 							>
-								<Flag className="size-4" />
+								<Flag
+									className={cn(
+										"size-4",
+										flagged.includes(question.id) && "fill-current text-warning"
+									)}
+								/>
 								<span className="hidden @sm:inline">
 									{flagged.includes(question.id) ? "Flagged for review" : "Flag for review"}
 								</span>

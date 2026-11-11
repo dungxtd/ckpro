@@ -12,6 +12,7 @@ import { Check, ChevronDown, ChevronRight, Circle, Copy, X } from "lucide-react"
 import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useActivities } from "@/stores/activity";
+import { plural } from "@/words";
 
 /** A step running longer than this opens the log: something slow is going on */
 const SLOW_STEP_MS = 30_000;
@@ -50,9 +51,7 @@ export function ActivityProgress({
 	// Opened at its newest lines, following them unless the reader scrolled up
 	const showLog = useFollow<HTMLPreElement>(activity?.log.length);
 
-	if (!activity) {
-		return <div className="text-muted-foreground text-sm">Starting…</div>;
-	}
+	if (!activity) return <ProgressSkeleton compact={compact} />;
 
 	const failed = activity.status === "failed";
 	const done = activity.status === "done";
@@ -86,7 +85,7 @@ export function ActivityProgress({
 					className="h-2"
 				/>
 				{total > 1 && (
-					<div className="mt-1 text-muted-foreground text-xs">
+					<div className="mt-1 text-caption text-muted-foreground tabular-nums">
 						{done ? "Done" : `Step ${Math.min(activity.current + 1, total)} of ${total}`}
 					</div>
 				)}
@@ -109,7 +108,7 @@ export function ActivityProgress({
 							<div className={cn(i > activity.current && !done && "text-muted-foreground")}>
 								<div className={cn(isCurrent && "font-medium")}>{step}</div>
 								{isCurrent && activity.detail && (
-									<div className="text-muted-foreground text-xs">{activity.detail}</div>
+									<div className="text-muted-foreground text-caption">{activity.detail}</div>
 								)}
 							</div>
 						</li>
@@ -129,7 +128,7 @@ export function ActivityProgress({
 						onClick={() => setUserOpen(!open)}
 					>
 						{open ? <ChevronDown /> : <ChevronRight />}
-						Log ({activity.log.length} lines)
+						Log ({plural(activity.log.length, "line")})
 					</Button>
 					{open && activity.log.length > 0 && (
 						<Button
@@ -159,6 +158,28 @@ export function ActivityProgress({
 			</div>
 
 			{children && <div className="flex justify-end gap-2">{children}</div>}
+		</div>
+	);
+}
+
+/** What the progress will show, before its first word comes (it is being
+ * started): the title, the bar and a few steps, so nothing jumps when it does */
+function ProgressSkeleton({ compact }: { compact: boolean }) {
+	return (
+		<div aria-busy className="flex flex-col gap-3">
+			<span className="sr-only">Starting…</span>
+			<span
+				className={cn("w-48 animate-pulse rounded-full bg-fill-quiet", compact ? "h-4" : "h-5")}
+			/>
+			<span className="h-2 animate-pulse rounded-full bg-fill-quiet" />
+			<span className="flex flex-col gap-2.5 py-0.5">
+				{["w-40", "w-56", "w-32"].map(w => (
+					<span key={w} className="flex items-center gap-2">
+						<span className="size-4 shrink-0 animate-pulse rounded-full bg-fill-quiet" />
+						<span className={cn("h-3 animate-pulse rounded-full bg-fill-quiet", w)} />
+					</span>
+				))}
+			</span>
 		</div>
 	);
 }

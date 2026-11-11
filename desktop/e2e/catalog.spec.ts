@@ -9,7 +9,7 @@ test("an exam starts in either mode", async ({ page }) => {
 		page.getByRole("heading", { name: "CKA Practice Lab - Core Concepts" })
 	).toBeVisible();
 	await expect(page.getByText("Needs ~4.0 GB of Docker's 5.8 GB")).toBeVisible();
-	await page.getByRole("button", { name: "Practice", exact: true }).click();
+	await page.getByRole("button", { name: "Start practice" }).click();
 	await page.getByRole("button", { name: "Start exam" }).click();
 	expect(await calls(page, "start_exam")).toEqual([
 		{ id: "cka-001", mode: "practice", replace: false },
@@ -57,7 +57,7 @@ test("without Docker an exam cannot start", async ({ page }) => {
 		env_state: { docker: { state: "down", reason: "no engine answers" }, clusters: [], issues: [] },
 	});
 	await expect(page.getByRole("button", { name: "Start exam" })).toBeDisabled();
-	await expect(page.getByRole("button", { name: "Practice", exact: true })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Start practice" })).toBeDisabled();
 });
 
 test("the sidebar opens each exam of the catalog", async ({ page }) => {

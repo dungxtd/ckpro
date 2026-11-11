@@ -1,15 +1,16 @@
 import { cn } from "@ckpro/ui/lib/utils";
 import { nodeStatus } from "@/components/environment/node-status";
 import type { ClusterState, ContainerUse } from "@/tauri/bindings";
-import { gb, memory } from "@/words";
+import { memory } from "@/words";
 import { nodeMb, type Part } from "./usage";
 
 const TONE: Record<Part["kind"], string> = {
 	exam: "border-highlight/50 bg-highlight/15",
 	proof: "border-assistant/50 bg-assistant/15",
-	other: "border-border bg-foreground/[0.06]",
-	services: "border-border bg-foreground/[0.06]",
-	others: "border-border border-dashed bg-foreground/[0.03]",
+	other: "border-border bg-fill-quiet",
+	services: "border-border bg-fill-quiet",
+	// Not ckpro's: dashed and unfilled, as the kit draws what the app does not own
+	others: "border-border border-dashed bg-transparent",
 };
 
 const WHAT: Record<Part["kind"], string> = {
@@ -52,7 +53,7 @@ export function MemoryMap({
 		<div className="flex flex-col gap-1.5">
 			<div
 				role="img"
-				aria-label={`What uses Docker's memory: ${gb(used)} used, ${gb(free)} free`}
+				aria-label={`What uses Docker's memory: ${memory(used)} used, ${memory(free)} free`}
 				className="flex h-28 gap-1 rounded-xl border border-border bg-card p-1.5"
 			>
 				{parts.map(part => {
@@ -80,7 +81,7 @@ export function MemoryMap({
 								open === part.key && "ring-2 ring-highlight"
 							)}
 						>
-							<span className="truncate font-medium text-xs">{part.label}</span>
+							<span className="truncate font-medium text-caption">{part.label}</span>
 							<span className="truncate text-2xs text-muted-foreground">{WHAT[part.kind]}</span>
 							{/* A cluster's nodes, by what each takes; one not ready is marked */}
 							{nodes.length > 0 && (
@@ -115,14 +116,14 @@ export function MemoryMap({
 							)}
 						>
 							<span className="truncate">{estimate.what}</span>
-							<span className="truncate opacity-75">about {gb(estimate.mb)}, an estimate</span>
+							<span className="truncate opacity-75">about {memory(estimate.mb)}, an estimate</span>
 						</div>
 					)}
 				</div>
 			</div>
 			<div className="flex justify-between px-0.5 text-2xs text-muted-foreground tabular-nums">
 				<span>0</span>
-				<span>{gb(totalMb)}</span>
+				<span>{memory(totalMb)}</span>
 			</div>
 		</div>
 	);

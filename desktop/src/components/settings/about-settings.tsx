@@ -2,21 +2,25 @@ import { Button } from "@ckpro/ui/components/button";
 import { Loading } from "@ckpro/ui/components/loading";
 import { Switch } from "@ckpro/ui/components/switch";
 import { ChartNoAxesColumn, Copy, FolderOpen } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Group, Row } from "@/components/settings/layout";
 import { useSettings } from "@/stores/settings";
-import { type AppInfo, appApi } from "@/tauri/api";
+import { type AppInfo, appApi, errorText } from "@/tauri/api";
 import appIcon from "../../../src-tauri/icons/128x128@2x.png";
 
 export function AboutSettings() {
 	const [info, setInfo] = useState<AppInfo | null>(null);
 	const analytics = useSettings(s => s.settings.analytics);
 	const update = useSettings(s => s.update);
-	useEffect(() => {
-		appApi.info().then(setInfo);
+	const [error, setError] = useState<string | null>(null);
+	const read = useCallback(() => {
+		setError(null);
+		appApi.info().then(setInfo, e => setError(errorText(e)));
 	}, []);
-	if (!info) return <Loading fill label="Loading…" />;
+	useEffect(read, [read]);
+	// The rows show at once; only what needs the app's details (its folder,
+	// its version) waits for them
 	return (
 		<>
 			<Group title="App">
@@ -28,7 +32,9 @@ export function AboutSettings() {
 					<Button
 						size="push"
 						variant="push"
+						disabled={!info}
 						onClick={() => {
+							if (!info) return;
 							navigator.clipboard.writeText(info.data_dir).then(
 								() => toast.success("Path copied", { duration: 1500 }),
 								() => toast.error("Could not copy the path")
@@ -54,9 +60,20 @@ export function AboutSettings() {
 			<footer className="flex flex-col items-center gap-1 pt-4 text-center">
 				<img src={appIcon} alt="" className="size-16" />
 				<div className="font-semibold">ckpro</div>
-				<div className="text-caption text-muted-foreground tabular-nums">
-					Version {info.version}
-				</div>
+				{info ? (
+					<div className="text-caption text-muted-foreground tabular-nums">
+						Version {info.version}
+					</div>
+				) : error ? (
+					<div className="flex flex-col items-center gap-1 text-caption text-muted-foreground">
+						<span>The version could not be read: {error}</span>
+						<Button size="inline" variant="quiet" onClick={read}>
+							Try again
+						</Button>
+					</div>
+				) : (
+					<Loading className="text-caption" />
+				)}
 			</footer>
 		</>
 	);

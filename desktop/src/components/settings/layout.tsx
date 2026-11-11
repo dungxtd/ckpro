@@ -1,3 +1,4 @@
+import { Card } from "@ckpro/ui/components/card";
 import { SectionTitle } from "@ckpro/ui/components/section-title";
 import { cn } from "@ckpro/ui/lib/utils";
 import { ChevronRight } from "lucide-react";
@@ -19,7 +20,9 @@ export function Group({
 	return (
 		<section className="flex flex-col gap-1.5">
 			{title && <SectionTitle size="group">{title}</SectionTitle>}
-			<div className="overflow-hidden rounded-2xl border border-border bg-card">{children}</div>
+			<Card padding="none" className="overflow-hidden">
+				{children}
+			</Card>
 			{description && <p className="px-1 text-caption text-muted-foreground">{description}</p>}
 		</section>
 	);
@@ -70,7 +73,7 @@ export function Row({
 			onClick={onClick}
 			className={cn(
 				row,
-				"outline-none transition-colors duration-150 hover:bg-foreground/[0.04] focus-visible:bg-foreground/[0.06]"
+				"outline-none transition-colors duration-150 hover:bg-hover focus-visible:bg-fill-quiet"
 			)}
 		>
 			{icon}

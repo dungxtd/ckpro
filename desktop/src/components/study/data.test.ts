@@ -150,12 +150,12 @@ describe("home figures", () => {
 });
 
 describe("the result's colour and next day", () => {
-	it("colours a score by how far it is toward the pass line", () => {
-		expect(scoreColor(0, 66)).toContain("0%, var(--color-destructive)");
+	it("colours a score by its tone against the pass line", () => {
+		expect(scoreColor(0, 66)).toBe("var(--color-destructive)");
 		expect(scoreColor(66, 66)).toBe("var(--color-success)");
 		expect(scoreColor(100, 66)).toBe("var(--color-success)");
-		// On the way: between yellow and green
-		expect(scoreColor(50, 66)).toContain("var(--color-success)");
+		// Under the pass line, not far: the warning's
+		expect(scoreColor(50, 66)).toBe("var(--color-warning)");
 	});
 	it("picks the first day kept for study with nothing planned", () => {
 		// Monday 9 November 2026; Tuesday has a plan, Wednesday is a rest day

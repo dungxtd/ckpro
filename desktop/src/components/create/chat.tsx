@@ -1,8 +1,8 @@
-import { Alert } from "@ckpro/ui/components/alert";
+import { Card } from "@ckpro/ui/components/card";
 import { Chip } from "@ckpro/ui/components/chip";
 import { ConfirmDialog } from "@ckpro/ui/components/confirm-dialog";
 import { IconButton } from "@ckpro/ui/components/icon-button";
-import { MenuCheck, menu, menuRow } from "@ckpro/ui/components/menu";
+import { MenuItem, menu } from "@ckpro/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Spinner } from "@ckpro/ui/components/spinner";
 import { Textarea } from "@ckpro/ui/components/textarea";
@@ -12,6 +12,7 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { History, Plus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Answer, AnswerActions, UserMessage } from "@/components/assistant/answer";
+import { AssistantError } from "@/components/assistant/assistant-error";
 import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { FindInSession } from "@/components/assistant/find-in-session";
 import { SendButton, sendOnEnter } from "@/components/assistant/send-button";
@@ -43,6 +44,8 @@ export function Chat() {
 	const sessions = useStudio(s => s.sessions);
 	const session = useStudio(s => s.session);
 	const error = useStudio(s => (s.session === null ? undefined : s.errors[s.session]));
+	// What was asked when that answer failed, to ask again
+	const unsent = useStudio(s => (s.session === null ? undefined : s.unsent[s.session]));
 	// The answer being written here; others' go on unseen
 	const live = session === null ? undefined : pending[session];
 	const writing = !!live;
@@ -89,29 +92,24 @@ export function Chat() {
 					<PopoverContent align="end" className={cn(menu.surface, "w-80")}>
 						<div className={menu.header}>Conversations</div>
 						{sessions.length === 0 && (
-							<div className={cn(menu.content, "py-1 text-muted-foreground text-xs")}>
-								No conversation yet
+							<div className={cn(menu.content, "py-1 text-muted-foreground text-caption")}>
+								No conversations yet
 							</div>
 						)}
 						{sessions.map(s => (
 							<div key={s.id} className="group relative">
-								<button
-									type="button"
-									className={cn(menuRow(), "pr-8")}
+								<MenuItem
+									className="pr-8"
+									checked={s.id === session}
+									// Going on there: an answer being written, or its exam being proven
+									hint={running({ last }, s.id) ? "Proving" : pending[s.id] ? "Writing" : undefined}
 									onClick={() => {
 										setListing(false);
 										open(s.id);
 									}}
 								>
-									{s.id === session && <MenuCheck />}
 									<Truncated>{s.title}</Truncated>
-									{/* Going on there: an answer being written, or its exam being proven */}
-									{(pending[s.id] || running({ last }, s.id)) && (
-										<span className={menu.hint}>
-											{running({ last }, s.id) ? "Proving" : "Writing"}
-										</span>
-									)}
-								</button>
+								</MenuItem>
 								<IconButton
 									variant="toolbar"
 									size="xs"
@@ -183,7 +181,12 @@ export function Chat() {
 							</div>
 						)
 					)}
-					{error && <Alert variant="destructive">{error}</Alert>}
+					{error && (
+						<AssistantError
+							error={error}
+							onRetry={unsent && !writing ? () => submit(unsent) : undefined}
+						/>
+					)}
 				</div>
 			</div>
 
@@ -191,7 +194,10 @@ export function Chat() {
 				<SignInBar to="build exams" className="px-5" />
 			) : (
 				<div className="flex min-h-[5.75rem] shrink-0 flex-col justify-center border-border border-t px-5 py-3">
-					<div className="mx-auto flex w-full max-w-3xl items-end gap-2 rounded-xl border border-border bg-card px-3 py-2 focus-within:ring-2 focus-within:ring-ring/50">
+					<Card
+						padding="none"
+						className="mx-auto flex w-full max-w-3xl items-end gap-2 px-3 py-2 focus-within:ring-2 focus-within:ring-ring/50"
+					>
 						<Textarea
 							variant="bare"
 							rows={2}
@@ -209,7 +215,7 @@ export function Chat() {
 							onSend={() => submit()}
 							onStop={stop}
 						/>
-					</div>
+					</Card>
 				</div>
 			)}
 			<ConfirmDialog

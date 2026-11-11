@@ -13,7 +13,7 @@ export function SignInBar({ to, className }: { to: string; className?: string })
 			className={cn("flex items-center gap-3 border-border border-t bg-card/40 py-3", className)}
 		>
 			<AssistantIcon className="size-4 shrink-0 text-assistant" />
-			<span className="flex-1 text-muted-foreground text-xs">
+			<span className="flex-1 text-muted-foreground text-caption">
 				Sign in with your Claude account to {to}.
 			</span>
 			<Button size="push" variant="pushDefault" onClick={() => setSigningIn(true)}>

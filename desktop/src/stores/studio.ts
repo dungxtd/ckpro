@@ -69,6 +69,9 @@ interface StudioStore {
 	asked: Record<number, true>;
 	/** What went wrong, by conversation */
 	errors: Record<number, string>;
+	/** What was asked when the answer failed (the error is that one's), by
+	 * conversation, to ask again: a failed answer is not kept */
+	unsent: Record<number, string>;
 	/** What the panel shows: the exam's questions, or its latest proof */
 	tab: "exam" | "proof";
 	setTab: (tab: "exam" | "proof") => void;
@@ -118,9 +121,13 @@ const without = <T>(record: Record<number, T>, key: number) => {
 };
 
 export const useStudio = create<StudioStore>()((set, get) => {
-	const failed = (session: number, e: unknown) =>
-		set(s => ({ errors: { ...s.errors, [session]: errorText(e) } }));
-	const cleared = (session: number) => set(s => ({ errors: without(s.errors, session) }));
+	const failed = (session: number, e: unknown, asked?: string) =>
+		set(s => ({
+			errors: { ...s.errors, [session]: errorText(e) },
+			unsent: asked === undefined ? without(s.unsent, session) : { ...s.unsent, [session]: asked },
+		}));
+	const cleared = (session: number) =>
+		set(s => ({ errors: without(s.errors, session), unsent: without(s.unsent, session) }));
 	/** What proving the shown exam takes, again (its questions, Docker or
 	 * the clusters beside changed) */
 	const replan = async () => {
@@ -181,6 +188,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 		last: {},
 		asked: {},
 		errors: {},
+		unsent: {},
 		tab: "exam",
 		setTab: tab => set({ tab }),
 		renaming: false,
@@ -248,6 +256,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 					pending: without(s.pending, session),
 					last: without(s.last, session),
 					errors: without(s.errors, session),
+					unsent: without(s.unsent, session),
 				}));
 				if (session === get().session) {
 					if (sessions[0]) await show(sessions[0].id);
@@ -310,7 +319,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 				track("studio_message");
 			} catch (e) {
 				const code = (e as { code?: string }).code;
-				if (code !== "cancelled") failed(session, e);
+				if (code !== "cancelled") failed(session, e, text);
 				if (code === "sign_in_required") useCoach.getState().loadAccount();
 			} finally {
 				change(() => null);

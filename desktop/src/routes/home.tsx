@@ -37,8 +37,21 @@ export function HomeRoute() {
 	// Bumped when Rust says the study changed: the week's plans and the
 	// readiness are read again then
 	const version = useStudy(s => s.version);
-	const [plans, setPlans] = useState<PlanView[]>([]);
-	const [readiness, setReadiness] = useState<ExamReadiness | null>(null);
+	// What was read, and for which week or certification: one that is not
+	// the current one is still being read (a new version reads again, but
+	// keeps what it had until the answer comes). `null`: the read failed,
+	// shown as such rather than as nothing planned or nothing measured
+	const [planned, setPlanned] = useState<{ week: string; plans: PlanView[] | null }>({
+		week: "",
+		plans: [],
+	});
+	const [measuredBy, setMeasuredBy] = useState<{
+		certification: string | null;
+		readiness: ExamReadiness | null;
+		failed: boolean;
+	}>({ certification: null, readiness: null, failed: false });
+	// Bumped by Try again: the failed read is made again
+	const [retry, setRetry] = useState(0);
 	const navigate = useNavigate();
 
 	const now = new Date();
@@ -55,30 +68,40 @@ export function HomeRoute() {
 	useEffect(() => {
 		let current = true;
 		examApi.plans(week, dayKey(addDays(parseDay(week), 6))).then(
-			p => current && setPlans(p),
-			() => current && setPlans([])
+			plans => current && setPlanned({ week, plans }),
+			() => current && setPlanned({ week, plans: null })
 		);
 		return () => {
 			current = false;
 		};
-	}, [week, version]);
+	}, [week, version, retry]);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a new version is the cue
 	useEffect(() => {
 		// No certification to measure (the target deleted, no attempt): none shown
-		if (!certification) {
-			setReadiness(null);
-			return;
-		}
+		if (!certification) return;
 		// An answer for a certification no longer measured is not shown
 		let current = true;
 		examApi.readiness(certification).then(
-			r => current && setReadiness(r),
-			() => current && setReadiness(null)
+			readiness => current && setMeasuredBy({ certification, readiness, failed: false }),
+			() => current && setMeasuredBy({ certification, readiness: null, failed: true })
 		);
 		return () => {
 			current = false;
 		};
-	}, [certification, version]);
+	}, [certification, version, retry]);
+
+	const plansRead = planned.week === week;
+	const plans = plansRead ? (planned.plans ?? []) : [];
+	const plansFailed = plansRead && planned.plans === null;
+	const readinessRead = !certification || measuredBy.certification === certification;
+	const readiness = certification && readinessRead ? measuredBy.readiness : null;
+	const readinessFailed = !!certification && readinessRead && measuredBy.failed;
+	// Try again: read once more, each read shown as being read meanwhile
+	const again = () => {
+		if (plansFailed) setPlanned({ week: "", plans: [] });
+		if (readinessFailed) setMeasuredBy({ certification: null, readiness: null, failed: false });
+		setRetry(n => n + 1);
+	};
 
 	if (history === null) return <Loading fill label="Loading your attempts…" />;
 	const measured = certification ? history.filter(h => h.certification === certification) : history;
@@ -122,7 +145,9 @@ export function HomeRoute() {
 					certification={certification}
 				/>
 				<Today
-					plans={plans.filter(p => p.day === today)}
+					plans={plansRead ? plans.filter(p => p.day === today) : null}
+					failed={plansFailed}
+					onRetry={again}
 					today={today}
 					suggested={suggestion(catalog, measured, certification)}
 				/>
@@ -140,11 +165,19 @@ export function HomeRoute() {
 				/>
 				<Readiness
 					readiness={readiness}
+					state={readinessFailed ? "failed" : readinessRead ? "read" : "reading"}
+					onRetry={again}
 					onMeasure={mock ? () => navigate(`/exams?exam=${mock.id}`) : null}
 					onPractise={weak ? () => navigate("/exams") : null}
 				/>
 			</div>
-			<Week plans={plans} weekStart={weekStart} restDays={target?.rest_days ?? []} />
+			<Week
+				plans={plansRead ? plans : null}
+				failed={plansFailed}
+				onRetry={again}
+				weekStart={weekStart}
+				restDays={target?.rest_days ?? []}
+			/>
 		</Screen>
 	);
 }

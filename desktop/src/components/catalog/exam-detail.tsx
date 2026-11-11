@@ -11,7 +11,8 @@ import { ScreenTitle } from "@/components/shell/screen";
 import { useExam, useExamBusy } from "@/stores/exam";
 import { useAssistantEnabled } from "@/stores/settings";
 import type { ExamSummary } from "@/tauri/api";
-import { gb, memoryFit } from "./exams";
+import { memory, noun } from "@/words";
+import { memoryFit } from "./exams";
 
 /**
  * One exam, as the Exams screen shows it: what it is, what it asks of the
@@ -37,7 +38,7 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 				<Stat
 					icon={<ListChecks />}
 					value={exam.questions}
-					label={exam.questions === 1 ? "question" : "questions"}
+					label={noun(exam.questions, "question")}
 				/>
 				<Stat icon={<Timer />} value={`${exam.duration_minutes} min`} label="time" />
 				<Stat icon={<Target />} value={`${exam.pass_score}%`} label="to pass" />
@@ -55,15 +56,18 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 					/>
 				)}
 				<span
-					className={f === "slower" || f === "too-small" ? "text-warning" : "text-muted-foreground"}
+					className={cn(
+						"tabular-nums",
+						f === "slower" || f === "too-small" ? "text-warning" : "text-muted-foreground"
+					)}
 				>
 					{f === "unknown"
-						? `Needs ~${gb(exam.memory_mb)} GB`
+						? `Needs ~${memory(exam.memory_mb)}`
 						: f === "too-small"
-							? `Docker has ${gb(dockerMb ?? 0)} GB, at least ${gb(exam.minimum_mb)} GB needed: raise its memory limit`
+							? `Docker has ${memory(dockerMb ?? 0)}, at least ${memory(exam.minimum_mb)} needed: raise its memory limit`
 							: f === "slower"
-								? `Needs ~${gb(exam.memory_mb)} GB; Docker has ${gb(dockerMb ?? 0)} GB: it runs, slower`
-								: `Needs ~${gb(exam.memory_mb)} GB of Docker's ${gb(dockerMb ?? 0)} GB`}
+								? `Needs ~${memory(exam.memory_mb)}; Docker has ${memory(dockerMb ?? 0)}: it runs, slower`
+								: `Needs ~${memory(exam.memory_mb)} of Docker's ${memory(dockerMb ?? 0)}`}
 				</span>
 			</div>
 
@@ -93,7 +97,7 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 							disabled={!ready || busy}
 							onClick={() => start(exam.id, "practice")}
 						>
-							Practice
+							Start practice
 						</Button>
 					</Mode>
 				</div>

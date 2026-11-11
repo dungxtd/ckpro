@@ -11,21 +11,30 @@ import { shortTitle } from "@/titles";
 
 /**
  * Today's session: the exams planned for today, done ones ticked with their
- * score; Continue starts the next one. Nothing planned: an exam to practise
- * (by rule), and a way to plan today
+ * score; the first button starts the next one. Nothing planned: an exam to
+ * practise (by rule), and a way to plan today. While the plans are read,
+ * nothing is said; a failed read says so, with Try again
  */
 export function Today({
-	plans,
+	plans: read,
+	failed,
+	onRetry,
 	today,
 	suggested,
 }: {
-	plans: PlanView[];
+	/** None while they are being read */
+	plans: PlanView[] | null;
+	failed: boolean;
+	onRetry: () => void;
 	today: string;
 	suggested: ReturnType<typeof suggestion>;
 }) {
 	const start = useExam(s => s.start);
 	const busy = useExamBusy();
 	const navigate = useNavigate();
+	const plans = read ?? [];
+	// Nothing planned is said only of plans read
+	const known = read !== null && !failed;
 	const done = plans.filter(p => p.done !== null).length;
 	const next = plans.find(p => p.done === null);
 	const share = plans.length ? (done * 100) / plans.length : 0;
@@ -34,25 +43,43 @@ export function Today({
 			<div className="flex items-center gap-4">
 				{plans.length > 0 && (
 					<ProgressRing value={share} label={`${done} of ${plans.length} done today`}>
-						{done}/{plans.length}
+						<span className="tabular-nums">
+							{done}/{plans.length}
+						</span>
 					</ProgressRing>
 				)}
 				<div className="min-w-0 flex-1">
 					<CardTitle>Today</CardTitle>
-					<CardDescription>
-						{plans.length ? `${done} of ${plans.length} done` : "Nothing planned for today"}
+					<CardDescription className="tabular-nums">
+						{failed
+							? "Could not read today's plans"
+							: read === null
+								? // Being read: the line kept, empty, so nothing moves when it comes
+									" "
+								: plans.length
+									? `${done} of ${plans.length} done`
+									: "Nothing planned for today"}
 					</CardDescription>
-					{next ? (
+					{failed ? (
+						<Button size="push" variant="push" className="mt-2" onClick={onRetry}>
+							Try again
+						</Button>
+					) : next ? (
+						// A plan not begun yet: started, in the mode it was planned in
 						<Button
-							size="sm"
+							size="push"
 							variant="pushDefault"
 							className="mt-2 max-w-full"
 							disabled={busy}
 							onClick={() => start(next.exam_id, next.mode)}
 						>
-							<Play /> <span className="truncate">Continue: {shortTitle(next.title)}</span>
+							<Play />
+							<span className="truncate">
+								{next.mode === "exam" ? "Start exam" : "Start practice"}: {shortTitle(next.title)}
+							</span>
 						</Button>
 					) : (
+						known &&
 						!plans.length && (
 							<Button
 								size="push"
@@ -66,7 +93,7 @@ export function Today({
 					)}
 				</div>
 			</div>
-			{!plans.length && suggested && (
+			{known && !plans.length && suggested && (
 				<Card variant="dashed" padding="sm" className="flex items-center gap-3">
 					<div className="min-w-0 flex-1">
 						<div className="truncate font-semibold text-callout">
@@ -80,7 +107,7 @@ export function Today({
 						disabled={busy}
 						onClick={() => start(suggested.exam.id, "practice")}
 					>
-						<Play /> Start
+						<Play /> Start practice
 					</Button>
 				</Card>
 			)}
@@ -107,7 +134,7 @@ export function Today({
 						</div>
 						<div className="text-2xs text-muted-foreground">
 							{p.mode === "exam" ? "Exam" : "Practice"}
-							{p.done !== null && `, ${Math.round(p.done)}%`}
+							{p.done !== null && <span className="tabular-nums">, {Math.round(p.done)}%</span>}
 						</div>
 					</div>
 					{p.done === null && (
@@ -117,7 +144,7 @@ export function Today({
 							disabled={busy}
 							onClick={() => start(p.exam_id, p.mode)}
 						>
-							<Play /> Start
+							<Play /> {p.mode === "exam" ? "Start exam" : "Start practice"}
 						</Button>
 					)}
 				</div>

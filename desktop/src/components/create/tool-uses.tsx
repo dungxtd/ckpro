@@ -1,9 +1,10 @@
+import { Card } from "@ckpro/ui/components/card";
 import { CodeBlock } from "@ckpro/ui/components/code-block";
-import { disclosureRow } from "@ckpro/ui/components/disclosure";
+import { DisclosureButton } from "@ckpro/ui/components/disclosure";
 import { Spinner } from "@ckpro/ui/components/spinner";
 import { useNow } from "@ckpro/ui/hooks/use-now";
 import { cn } from "@ckpro/ui/lib/utils";
-import { Check, ChevronRight, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useState } from "react";
 import type { StudioTool } from "@/stores/studio";
 import { plural } from "@/words";
@@ -93,14 +94,13 @@ function ToolLine({
 	const args = argsLine(tool.input);
 	const result = running ? "" : resultLine(tool);
 	return (
-		<button
-			type="button"
-			aria-expanded={open}
+		<DisclosureButton
+			open={open}
 			onClick={onToggle}
+			chevronClassName="size-3"
 			className={cn(
-				disclosureRow,
 				"max-w-full py-0.5 text-caption text-muted-foreground hover:text-foreground",
-				open && "bg-foreground/5 text-foreground"
+				open && "bg-hover text-foreground"
 			)}
 		>
 			{running ? (
@@ -120,8 +120,7 @@ function ToolLine({
 			{ms !== null && (
 				<span className="shrink-0 tabular-nums opacity-70">{(ms / 1000).toFixed(1)}s</span>
 			)}
-			<ChevronRight className={cn("size-3 shrink-0 transition-transform", open && "rotate-90")} />
-		</button>
+		</DisclosureButton>
 	);
 }
 
@@ -135,7 +134,7 @@ function ToolDetail({ tool }: { tool: StudioTool }) {
 	const question =
 		tool.name === "read_question" && tool.status === "completed" ? tool.output : null;
 	return (
-		<div className="my-1 ml-6 flex max-w-2xl flex-col gap-2 rounded-lg border border-border bg-card p-2.5">
+		<Card padding="none" className="my-1 ml-6 flex max-w-2xl flex-col gap-2 p-2.5">
 			{asked && (
 				<Section title="Asked">
 					{proposed !== null ? (
@@ -156,7 +155,7 @@ function ToolDetail({ tool }: { tool: StudioTool }) {
 					<Returned value={out} raw={tool.output} failed={tool.status === "failed"} />
 				)}
 			</Section>
-		</div>
+		</Card>
 	);
 }
 

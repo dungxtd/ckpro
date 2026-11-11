@@ -22,22 +22,22 @@ export function CheckList({
 					)}
 					<div className="min-w-0 flex-1">
 						<span>{check.name}</span>
-						<span className="whitespace-nowrap text-muted-foreground text-xs">
+						<span className="whitespace-nowrap text-muted-foreground text-caption">
 							{" "}
 							· {check.weight} pt
 						</span>
 						{!check.passed && check.detail && (
-							<div className="select-text text-muted-foreground text-xs">{check.detail}</div>
+							<div className="select-text text-muted-foreground text-caption">{check.detail}</div>
 						)}
 					</div>
 					{!check.passed && onWhy && (
 						<Button
 							size="push"
-							variant="ghost"
-							className="shrink-0 text-highlight"
+							variant="assistant"
+							className="shrink-0"
 							onClick={() => onWhy(check)}
 						>
-							<AssistantIcon className="text-assistant" /> Why?
+							<AssistantIcon /> Why?
 						</Button>
 					)}
 				</li>

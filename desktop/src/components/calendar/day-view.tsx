@@ -1,6 +1,6 @@
 import { Badge } from "@ckpro/ui/components/badge";
 import { Button } from "@ckpro/ui/components/button";
-import { CardTitle } from "@ckpro/ui/components/card";
+import { Card, CardTitle } from "@ckpro/ui/components/card";
 import { SectionTitle } from "@ckpro/ui/components/section-title";
 import { Flag, Play, Plus } from "lucide-react";
 import { scoreOf, startedAt } from "@/components/study/data";
@@ -94,7 +94,7 @@ export function DayView({
 								<div className="truncate font-medium">{p.title}</div>
 								<ModeToggle plan={p} onMode={onMode} className="mt-0.5" />
 							</div>
-							<Button size="sm" variant="outline" onClick={() => onRemove(p)}>
+							<Button size="push" variant="push" onClick={() => onRemove(p)}>
 								Remove
 							</Button>
 							<Button
@@ -103,7 +103,7 @@ export function DayView({
 								disabled={busy}
 								onClick={() => start(p.exam_id, p.mode)}
 							>
-								<Play /> Start
+								<Play /> {p.mode === "exam" ? "Start exam" : "Start practice"}
 							</Button>
 						</div>
 					))
@@ -115,10 +115,7 @@ export function DayView({
 					<p className="text-callout text-muted-foreground">No attempt on this day.</p>
 				) : (
 					onDay.map(h => (
-						<div
-							key={h.attempt_id}
-							className="flex items-center gap-4 rounded-xl border border-border bg-card px-4 py-3"
-						>
+						<Card key={h.attempt_id} padding="none" className="flex items-center gap-4 px-4 py-3">
 							<div className="min-w-0 flex-1">
 								<div className="truncate font-medium">{h.title}</div>
 								<div className="mt-0.5 flex items-center gap-2 text-caption text-muted-foreground">
@@ -134,7 +131,7 @@ export function DayView({
 									{scoreOf(h) >= h.pass_score ? "Passed" : "Failed"}
 								</Badge>
 							</div>
-						</div>
+						</Card>
 					))
 				)}
 				<DescribeCard lines={describe(day, history, plans, today)} className="mt-2" />

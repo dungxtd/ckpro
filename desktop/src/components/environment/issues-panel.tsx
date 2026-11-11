@@ -14,7 +14,7 @@ export function IssuesPanel({ issues }: { issues: Issue[] }) {
 					{issue.severity === "error" ? <CircleAlert /> : <TriangleAlert />}
 					<div>
 						<div>{issue.message}</div>
-						<div className="text-muted-foreground text-xs">{issue.hint}</div>
+						<div className="text-muted-foreground text-caption">{issue.hint}</div>
 					</div>
 				</Alert>
 			))}

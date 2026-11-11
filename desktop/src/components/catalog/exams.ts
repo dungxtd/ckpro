@@ -5,8 +5,6 @@ import { useStudy } from "@/stores/study";
 import type { ExamSummary } from "@/tauri/api";
 import { arrange, pinned } from "./layout";
 
-export const gb = (mb: number) => (mb / 1024).toFixed(1);
-
 /**
  * How an exam fits Docker's memory (`dockerMb`, when Docker is up). Clearly
  * too small whatever runs; the exact check (running clusters counted)

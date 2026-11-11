@@ -87,7 +87,7 @@ export function TopBar({
 			<div className="flex shrink-0 items-center gap-1.5">
 				{practice && (
 					<ConfirmDialog
-						cancel="Keep Working"
+						cancel="Keep working"
 						title="Quit the practice?"
 						description="Your work is not graded and its clusters are removed. You cannot come back to it."
 						action="Quit"
@@ -99,7 +99,7 @@ export function TopBar({
 					</ConfirmDialog>
 				)}
 				<ConfirmDialog
-					cancel="Keep Working"
+					cancel="Keep working"
 					title={practice ? "Finish the practice?" : "End the exam?"}
 					description="Your work is graded now and you cannot change it. Its clusters stay while you review the result, until you close it."
 					action={practice ? "Finish" : "End exam"}
@@ -111,7 +111,7 @@ export function TopBar({
 						</Button>
 					) : (
 						<Button size="push" variant="outlineDestructive">
-							<X /> <span className="sr-only @2xl:not-sr-only">End Exam</span>
+							<X /> <span className="sr-only @2xl:not-sr-only">End exam</span>
 						</Button>
 					)}
 				</ConfirmDialog>

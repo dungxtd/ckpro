@@ -1,3 +1,4 @@
+import { Alert } from "@ckpro/ui/components/alert";
 import { Badge } from "@ckpro/ui/components/badge";
 import { Button } from "@ckpro/ui/components/button";
 import { ConfirmDialog } from "@ckpro/ui/components/confirm-dialog";
@@ -323,7 +324,8 @@ export function LengthFit() {
 	// The shortest length that holds them, if it is another
 	const fits = LENGTHS.find(m => m >= minutes);
 	return (
-		<div className="flex shrink-0 flex-col gap-2 rounded-lg bg-foreground/[0.04] px-3 py-2.5 text-caption">
+		// More than the length is a warning; under half of it, a note
+		<Alert variant={over ? "warning" : "info"} size="sm" className="shrink-0 flex-col py-2.5">
 			<span className={over ? "text-warning" : "text-muted-foreground"}>
 				{over
 					? `~${minutes} min of questions: more than the ${length} minutes`
@@ -342,7 +344,7 @@ export function LengthFit() {
 				)}
 				<Button
 					size="push"
-					variant="push"
+					variant="assistant"
 					disabled={proving}
 					onClick={() =>
 						send(
@@ -352,10 +354,10 @@ export function LengthFit() {
 						)
 					}
 				>
-					<AssistantIcon className="text-assistant" />
+					<AssistantIcon />
 					{over ? "Ask to trim it" : "Ask for more"}
 				</Button>
 			</div>
-		</div>
+		</Alert>
 	);
 }

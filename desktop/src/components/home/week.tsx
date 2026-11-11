@@ -1,5 +1,7 @@
+import { Badge } from "@ckpro/ui/components/badge";
 import { Button } from "@ckpro/ui/components/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@ckpro/ui/components/card";
+import { dayMarkerVariants } from "@ckpro/ui/components/day-marker";
 import { Placeholder } from "@ckpro/ui/components/placeholder";
 import { cn } from "@ckpro/ui/lib/utils";
 import { useNavigate } from "react-router";
@@ -8,17 +10,24 @@ import type { PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 
 /** This week's plans, day by day; a day opens in the Calendar. Nothing
- * planned: the week faded, and a way to plan it */
+ * planned: the week faded, and a way to plan it. While they are read, the
+ * week faded alone; a failed read says so, with Try again */
 export function Week({
-	plans,
+	plans: read,
+	failed,
+	onRetry,
 	weekStart,
 	restDays,
 }: {
-	plans: PlanView[];
+	/** None while they are being read */
+	plans: PlanView[] | null;
+	failed: boolean;
+	onRetry: () => void;
 	weekStart: Date;
 	restDays: number[];
 }) {
 	const navigate = useNavigate();
+	const plans = read ?? [];
 	const today = dayKey(new Date());
 	const days = (
 		<div className="grid grid-cols-7 gap-2">
@@ -32,25 +41,27 @@ export function Week({
 						type="button"
 						onClick={() => navigate(`/calendar?view=day&day=${key}`)}
 						className={cn(
-							"flex min-h-20 flex-col items-stretch gap-1 rounded-xl bg-foreground/[0.03] p-2 text-left outline-none hover:bg-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-ring",
-							key === today && "ring-[1.5px] ring-highlight ring-inset"
+							"flex min-h-20 flex-col items-stretch gap-1 rounded-xl bg-fill-quiet/50 p-2 text-left outline-none hover:bg-fill-quiet focus-visible:ring-2 focus-visible:ring-ring"
 						)}
 					>
-						<span className="font-semibold text-2xs text-muted-foreground">
+						{/* Today marked as the Calendar marks it */}
+						<span
+							className={cn(
+								dayMarkerVariants({ today: key === today, size: "sm" }),
+								"-ml-1 self-start",
+								key !== today && "font-semibold text-muted-foreground"
+							)}
+						>
 							{day.toLocaleDateString(undefined, { weekday: "short", day: "numeric" })}
 						</span>
 						{list.map(p => (
-							<span
+							<Badge
 								key={p.id}
-								className={cn(
-									"truncate rounded-md px-1.5 py-0.5 text-2xs",
-									p.done !== null
-										? "bg-success/15 text-success"
-										: "bg-highlight/10 text-highlight ring-1 ring-highlight/40 ring-inset"
-								)}
+								variant={p.done !== null ? "success" : "planned"}
+								className="max-w-full"
 							>
-								{shortTitle(p.title)}
-							</span>
+								<span className="truncate">{shortTitle(p.title)}</span>
+							</Badge>
 						))}
 						{!list.length && restDays.includes(i) && (
 							<span className="text-2xs text-muted-foreground">rest</span>
@@ -66,8 +77,20 @@ export function Week({
 				<CardTitle>This week</CardTitle>
 				<CardDescription>change it in the Calendar</CardDescription>
 			</CardHeader>
-			{plans.length ? (
+			{plans.length && !failed ? (
 				days
+			) : failed ? (
+				<Placeholder
+					sample={days}
+					title="Could not read this week's plans"
+					action={
+						<Button size="push" variant="push" onClick={onRetry}>
+							Try again
+						</Button>
+					}
+				/>
+			) : read === null ? (
+				<Placeholder sample={days} />
 			) : (
 				<Placeholder
 					sample={days}

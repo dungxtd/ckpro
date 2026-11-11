@@ -9,9 +9,7 @@ import { ActivityProgress } from "@/components/activity/activity-progress";
 import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";
 import { useActivityList } from "@/stores/activity";
 import { envApi } from "@/tauri/api";
-
-const time = (ms: number) =>
-	new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+import { dateTime } from "@/words";
 
 /** The row of activity `id`, to scroll to */
 export const activityRowId = (id: number) => `activity-${id}`;
@@ -65,18 +63,18 @@ export function ActivityList({ focus, focusKey }: { focus?: number; focusKey?: s
 							>
 								{a.title}
 							</span>
-							<span className="text-muted-foreground text-xs tabular-nums">
-								{time(a.started_at ?? 0)}
-								{a.finished_at && ` · ${clock(a.finished_at - (a.started_at ?? 0))}`}
+							<span className="shrink-0 text-caption text-muted-foreground tabular-nums">
+								{dateTime(a.started_at)}
+								{a.finished_at && a.started_at && ` · ${clock(a.finished_at - a.started_at)}`}
 							</span>
 						</>
 					}
 				>
 					<ActivityProgress id={a.id} compact>
-						{/* What failed and can go again (the exam images): Retry */}
+						{/* What failed and can go again (the exam images): Try again */}
 						{a.status === "failed" && a.retry && (
 							<Button size="push" variant="push" onClick={() => envApi.retry()}>
-								Retry
+								Try again
 							</Button>
 						)}
 					</ActivityProgress>

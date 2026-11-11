@@ -58,7 +58,7 @@ export function CopyText({
 			// Background tints, not a ring: a ring is drawn outside the value
 			// and the panel's edges clip it. Long paths wrap anywhere
 			className={cn(
-				"cursor-pointer select-none outline-none transition-colors duration-300 [box-decoration-break:clone] [overflow-wrap:anywhere] hover:bg-highlight/25 focus-visible:outline-2 focus-visible:outline-highlight focus-visible:-outline-offset-2",
+				"cursor-pointer select-none outline-none transition-colors duration-100 [box-decoration-break:clone] [overflow-wrap:anywhere] hover:bg-highlight/25 focus-visible:outline-2 focus-visible:outline-highlight focus-visible:-outline-offset-2",
 				className,
 				// Over the Markdown's own code background
 				copied && "bg-success/35! duration-0"

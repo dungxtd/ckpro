@@ -125,7 +125,7 @@ export function FindInSession({
 					}
 				}}
 			/>
-			<span className="w-14 shrink-0 text-right text-muted-foreground text-xs tabular-nums">
+			<span className="w-14 shrink-0 text-right text-muted-foreground text-caption tabular-nums">
 				{query.trim() ? `${count ? current + 1 : 0} of ${count}` : ""}
 			</span>
 			<IconButton variant="toolbar" size="xs" aria-label="Previous match" onClick={() => step(-1)}>

@@ -34,7 +34,7 @@ export function Grading({
 								{score ? (
 									<span
 										className={cn(
-											"font-mono text-xs tabular-nums",
+											"font-mono text-caption tabular-nums",
 											full ? "text-success" : zero ? "text-destructive" : "text-warning"
 										)}
 									>

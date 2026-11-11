@@ -8,16 +8,10 @@ import { level, MAP_WEEKS, mapWeeks } from "@/components/study/data";
 import { dayKey } from "@/days";
 import { noun, plural } from "@/words";
 
-const LEVELS = [
-	"bg-foreground/[0.07]",
-	"bg-warning/60",
-	"bg-success/35",
-	"bg-success/65",
-	"bg-success",
-];
+const LEVELS = ["bg-fill-quiet", "bg-warning/60", "bg-success/35", "bg-success/65", "bg-success"];
 const WEEKDAYS = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
-/** A week's column (a 12px square and its gap), and the weekday names before them */
-const COLUMN = 15;
+/** A week's column (a 12px square and its 4px gap), and the weekday names before them */
+const COLUMN = 16;
 const LABELS = 34;
 /**
  * The preparation day by day, as a contribution graph: a few weeks at least,
@@ -49,12 +43,8 @@ export function PrepMap({
 	// Weeks before the preparation fill a wide map: shown, faded
 	const started = dayKey(start);
 	const squares = (
-		<div
-			className="flex gap-[3px]"
-			role="img"
-			aria-label={`${plural(figures.days, "day")} studied`}
-		>
-			<div className="mr-1 grid grid-rows-[12px_repeat(7,12px)] gap-[3px] text-[9px] text-muted-foreground">
+		<div className="flex gap-1" role="img" aria-label={`${plural(figures.days, "day")} studied`}>
+			<div className="grid grid-rows-[12px_repeat(7,12px)] gap-1 text-3xs text-muted-foreground">
 				<span />
 				{WEEKDAYS.map((d, i) => (
 					// biome-ignore lint/suspicious/noArrayIndexKey: the days of the week
@@ -65,8 +55,8 @@ export function PrepMap({
 			</div>
 			{weeks.map(week => (
 				// A week is 12px wide whatever its month's name: the name runs over the next weeks
-				<div key={dayKey(week[0])} className="grid w-3 grid-rows-[12px_repeat(7,12px)] gap-[3px]">
-					<span className="whitespace-nowrap text-[9px] text-muted-foreground leading-3">
+				<div key={dayKey(week[0])} className="grid w-3 grid-rows-[12px_repeat(7,12px)] gap-1">
+					<span className="whitespace-nowrap text-3xs text-muted-foreground leading-3">
 						{week[0].getDate() <= 7
 							? week[0].toLocaleDateString(undefined, { month: "short" })
 							: ""}
@@ -78,7 +68,7 @@ export function PrepMap({
 								<span
 									key={key}
 									title={`Exam day, ${key}`}
-									className="grid size-3 place-items-center rounded-[3px] bg-highlight text-highlight-foreground"
+									className="grid size-3 place-items-center rounded-sm bg-highlight/20 text-highlight"
 								>
 									<Flag className="size-2" />
 								</span>
@@ -90,10 +80,10 @@ export function PrepMap({
 								key={key}
 								title={score === undefined ? key : `${key}: best ${Math.round(score)}%`}
 								className={cn(
-									"size-3 rounded-[3px]",
-									key > today ? "bg-foreground/[0.03]" : LEVELS[level(score, pass)],
+									"size-3 rounded-sm",
+									key > today ? "bg-fill-quiet opacity-50" : LEVELS[level(score, pass)],
 									key < started && "opacity-40",
-									key === today && "ring-[1.5px] ring-foreground ring-inset"
+									key === today && "ring-[1.5px] ring-highlight ring-inset"
 								)}
 							/>
 						);
@@ -141,16 +131,16 @@ export function PrepMap({
 					</div>
 					<div className="mt-3 flex flex-wrap items-center gap-3 text-2xs text-muted-foreground">
 						<span className="flex items-center gap-1">
-							<span className={cn("size-3 rounded-[3px]", LEVELS[0])} />
+							<span className={cn("size-3 rounded-sm", LEVELS[0])} />
 							no study
 						</span>
 						<span className="flex items-center gap-1">
-							<span className={cn("size-3 rounded-[3px]", LEVELS[1])} />
+							<span className={cn("size-3 rounded-sm", LEVELS[1])} />
 							below the pass line
 						</span>
 						<span className="flex items-center gap-1">
 							{LEVELS.slice(2).map(l => (
-								<span key={l} className={cn("size-3 rounded-[3px]", l)} />
+								<span key={l} className={cn("size-3 rounded-sm", l)} />
 							))}
 							passed, by score
 						</span>

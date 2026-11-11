@@ -166,7 +166,7 @@ export function CapsuleNav({
 					className={cn(
 						"col-start-2 row-start-1 h-9 bg-sidebar-panel shadow-none backdrop-blur-none transition-opacity group-data-[morphing]/shell:bg-transparent motion-reduce:transition-none",
 						folded
-							? "pointer-events-auto opacity-100 delay-200 duration-200"
+							? "pointer-events-auto opacity-100 delay-150 duration-150"
 							: "opacity-0 duration-100"
 					)}
 				>

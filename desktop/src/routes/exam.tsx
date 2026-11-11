@@ -50,7 +50,7 @@ function ExamPhase() {
 		case "preparing":
 			return (
 				<ActivityPage id={state.activity} subtitle={modeLabel(state.attempt.mode)}>
-					<Button size="sm" variant="ghost" disabled={pending !== null} onClick={end}>
+					<Button size="push" variant="push" disabled={pending !== null} onClick={end}>
 						{pending === "ending" ? "Cancelling…" : "Cancel"}
 					</Button>
 				</ActivityPage>
@@ -101,16 +101,16 @@ function ExamPhase() {
 					: undefined;
 			const actions = (
 				<>
-					<Button size="sm" variant="outline" disabled={pending !== null} onClick={end}>
+					<Button size="push" variant="push" disabled={pending !== null} onClick={end}>
 						{pending === "ending" ? "Cleaning up…" : "Close and clean up"}
 					</Button>
 					{retry && (
-						<Button size="sm" variant="pushDefault" disabled={pending !== null} onClick={retry}>
+						<Button size="push" variant="pushDefault" disabled={pending !== null} onClick={retry}>
 							{pending === "retrying"
 								? "Trying again…"
 								: state.resumable
-									? "Try Again"
-									: "Start Over"}
+									? "Try again"
+									: "Start over"}
 						</Button>
 					)}
 				</>

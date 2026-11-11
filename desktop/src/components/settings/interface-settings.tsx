@@ -11,7 +11,7 @@ import { useSettings } from "@/stores/settings";
 import type { Theme } from "@/tauri/api";
 
 const THEMES: { value: Theme; label: string }[] = [
-	{ value: "system", label: "Follow System" },
+	{ value: "system", label: "Follow system" },
 	{ value: "light", label: "Light" },
 	{ value: "dark", label: "Dark" },
 ];

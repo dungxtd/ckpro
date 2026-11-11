@@ -14,7 +14,7 @@ import {
 	DropdownMenuTrigger,
 } from "@ckpro/ui/components/dropdown-menu";
 import { IconButton } from "@ckpro/ui/components/icon-button";
-import { MenuCheck, menu, menuRow } from "@ckpro/ui/components/menu";
+import { MenuItem, menu } from "@ckpro/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Textarea } from "@ckpro/ui/components/textarea";
 import { Truncated } from "@ckpro/ui/components/truncated";
@@ -190,7 +190,7 @@ export function AssistantComposer({
 					</DropdownMenuTrigger>
 					<DropdownMenuContent side="top" align="end" className="w-72">
 						{coach.models.length === 0 && (
-							<div className={cn(menu.content, "py-1 text-muted-foreground text-xs")}>
+							<div className={cn(menu.content, "py-1 text-muted-foreground text-caption")}>
 								Loading models…
 							</div>
 						)}
@@ -281,16 +281,13 @@ function ContextRow({
 	toggle: () => void;
 }) {
 	return (
-		<button
-			type="button"
-			className={menuRow()}
+		<MenuItem
+			checked={on && !disabled}
 			disabled={disabled}
-			data-disabled={disabled || undefined}
+			hint={hint || undefined}
 			onClick={toggle}
 		>
-			{on && !disabled && <MenuCheck />}
-			<span className={menu.label}>{label}</span>
-			{hint && <span className={menu.hint}>{hint}</span>}
-		</button>
+			{label}
+		</MenuItem>
 	);
 }

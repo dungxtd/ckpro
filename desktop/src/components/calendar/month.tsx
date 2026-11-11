@@ -1,8 +1,11 @@
+import { Card } from "@ckpro/ui/components/card";
+import { dayMarkerVariants } from "@ckpro/ui/components/day-marker";
 import { IconButton } from "@ckpro/ui/components/icon-button";
 import { cn } from "@ckpro/ui/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { dayKey, monthWeeks } from "@/days";
 import type { HistoryEntry } from "@/tauri/api";
+import { plural } from "@/words";
 
 const WEEKDAYS = monthWeeks(new Date(2026, 9, 1))[0].map(d =>
 	d.toLocaleDateString(undefined, { weekday: "short" })
@@ -36,10 +39,7 @@ export function MiniMonth({
 }) {
 	return (
 		// The big month folds into it, and back (routes/calendar)
-		<div
-			className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3"
-			data-morph="calendar-month"
-		>
+		<Card padding="sm" className="flex flex-col gap-2" data-morph="calendar-month">
 			<div className="flex items-center justify-between">
 				<span className="font-semibold text-callout">
 					{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
@@ -79,15 +79,20 @@ export function MiniMonth({
 								key={key}
 								type="button"
 								aria-pressed={picked === key}
-								aria-label={`${day.toLocaleDateString(undefined, { dateStyle: "full" })}: ${count} attempt${count === 1 ? "" : "s"}${key === exam ? ", exam day" : ""}`}
+								aria-label={`${day.toLocaleDateString(undefined, { dateStyle: "full" })}: ${plural(count, "attempt")}${key === exam ? ", exam day" : ""}`}
 								onClick={() => onPick(key)}
+								// A day with attempts tinted; today, the exam's day and the
+								// picked one over it, as every calendar marks them
 								className={cn(
-									"relative mx-auto grid size-8 place-items-center rounded-full text-caption tabular-nums outline-none transition-colors duration-150 hover:bg-foreground/10 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
-									day.getMonth() !== month.getMonth() && "text-muted-foreground/50",
-									count > 0 && "bg-foreground/[0.08] font-semibold",
-									key === today && "ring-1 ring-highlight",
-									key === exam && "bg-highlight/25 font-semibold text-highlight",
-									picked === key && "bg-highlight text-highlight-foreground hover:bg-highlight"
+									"relative mx-auto outline-none transition-colors duration-100 hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
+									count > 0 && "bg-fill-quiet font-semibold",
+									dayMarkerVariants({
+										today: key === today,
+										exam: key === exam,
+										picked: picked === key,
+										outside: day.getMonth() !== month.getMonth(),
+									}),
+									picked === key && "hover:bg-highlight"
 								)}
 							>
 								{day.getDate()}
@@ -101,6 +106,6 @@ export function MiniMonth({
 						);
 					})}
 			</div>
-		</div>
+		</Card>
 	);
 }

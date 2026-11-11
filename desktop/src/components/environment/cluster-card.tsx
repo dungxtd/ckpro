@@ -5,6 +5,7 @@ import { nodeStatus } from "@/components/environment/node-status";
 import { useEnvironment } from "@/stores/environment";
 import type { ClusterState } from "@/tauri/api";
 import type { ContainerUse } from "@/tauri/bindings";
+import { plural } from "@/words";
 import { Rows } from "./part-cards";
 import { nodeMb, type Purpose } from "./usage";
 
@@ -40,15 +41,14 @@ export function ClusterCard({
 	return (
 		<Card padding="sm">
 			<header className="mb-2 flex items-center gap-2">
-				<strong className="text-sm">{cluster.name}</strong>
-				<span className="text-muted-foreground text-xs">
-					{PURPOSE[purpose] && `${PURPOSE[purpose]} · `}1 control plane, {workers} worker
-					{workers === 1 ? "" : "s"}
+				<strong className="min-w-0 select-text truncate text-sm">{cluster.name}</strong>
+				<span className="min-w-0 truncate text-caption text-muted-foreground">
+					{PURPOSE[purpose] && `${PURPOSE[purpose]} · `}1 control plane, {plural(workers, "worker")}
 				</span>
-				<div className="ml-auto flex gap-1.5">
+				<div className="ml-auto flex shrink-0 gap-1.5">
 					{needsRepair && (
 						<Button
-							size="sm"
+							size="push"
 							variant="pushDefault"
 							disabled={busy}
 							onClick={() => runJob("repair", cluster.name)}
@@ -62,7 +62,7 @@ export function ClusterCard({
 						action="Delete"
 						onConfirm={() => runJob("delete", cluster.name)}
 					>
-						<Button size="sm" variant="outline" disabled={busy}>
+						<Button size="push" variant="push" disabled={busy}>
 							{removing ? "Deleting…" : "Delete"}
 						</Button>
 					</ConfirmDialog>
@@ -81,13 +81,13 @@ export function ClusterCard({
 				})}
 			/>
 			{/* Measured facts only: the version the nodes run, and the guard */}
-			<dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 border-border border-t pt-2 text-xs">
+			<dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 border-border border-t pt-2 text-caption">
 				<dt className="text-muted-foreground">Kubernetes</dt>
 				<dd className="select-text">{version ?? "shown once its nodes answer"}</dd>
 				<dt className="text-muted-foreground">Guard</dt>
 				<dd>
 					{cluster.guarded
-						? "On: kubectl from this Mac is blocked, and changes from outside are put back and noted"
+						? "On: kubectl from this computer is blocked, and changes from outside are put back and noted"
 						: "Off: on only while an exam runs on it"}
 				</dd>
 			</dl>

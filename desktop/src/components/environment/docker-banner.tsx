@@ -19,7 +19,7 @@ export function DockerBanner() {
 				<strong>Docker is not running.</strong> {hint ?? "ckpro connects as soon as it is up."}
 			</span>
 			<Button size="push" variant="push" onClick={() => envApi.retry()}>
-				Retry now
+				Try again
 			</Button>
 		</Alert>
 	);

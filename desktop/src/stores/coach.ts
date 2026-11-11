@@ -35,6 +35,9 @@ interface CoachStore {
 	writing: string | null;
 	/** The last question failed */
 	error: string | null;
+	/** What was asked when the answer failed (the error is that one's), to
+	 * ask again: a failed answer is not kept, nor its question */
+	unsent: { questionId: string; text: string } | null;
 	/** Models the agent offers on this login, and the one in use */
 	models: ModelOption[];
 	model: string;
@@ -112,6 +115,7 @@ const forAttempt = (s: CoachStore) => {
 		s.shown = {};
 		s.usage = {};
 		s.error = null;
+		s.unsent = null;
 	}
 };
 
@@ -163,10 +167,11 @@ export const useCoach = create<CoachStore>()(
 					delete s.titles[questionId];
 					delete s.usage[questionId];
 					s.error = null;
+					s.unsent = null;
 				});
 				await get().load(questionId);
 			} catch (e) {
-				set({ error: errorText(e) });
+				set({ error: errorText(e), unsent: null });
 			}
 		};
 		return {
@@ -176,6 +181,7 @@ export const useCoach = create<CoachStore>()(
 			attemptId: null,
 			writing: null,
 			error: null,
+			unsent: null,
 			models: [],
 			model: "sonnet",
 			context: { checks: true, cluster: true },
@@ -229,7 +235,7 @@ export const useCoach = create<CoachStore>()(
 					)
 						loadModels(set, get, true);
 				} catch (e) {
-					set({ error: errorText(e) });
+					set({ error: errorText(e), unsent: null });
 				}
 			},
 			setOpen: open => useSettings.getState().update({ assistant_open: open }),
@@ -270,7 +276,7 @@ export const useCoach = create<CoachStore>()(
 						s.shown[questionId] = session;
 					});
 				} catch (e) {
-					set({ error: errorText(e) });
+					set({ error: errorText(e), unsent: null });
 				}
 			},
 			ask: async (questionId, text) => {
@@ -280,6 +286,7 @@ export const useCoach = create<CoachStore>()(
 					useSettings.getState().update({ assistant_open: true });
 				set(s => {
 					s.error = null;
+					s.unsent = null;
 					s.writing = questionId;
 					s.sessions[questionId] = [
 						...(s.sessions[questionId] ?? []),
@@ -334,7 +341,10 @@ export const useCoach = create<CoachStore>()(
 						// A stopped or failed answer is not kept (Rust keeps only complete ones)
 						const session = s.sessions[questionId];
 						if (session?.at(-1)?.role === "assistant") session.splice(-2, 2);
-						if (!stopped) s.error = errorText(e);
+						if (!stopped) {
+							s.error = errorText(e);
+							s.unsent = { questionId, text };
+						}
 						// The login is gone or expired: offer to sign in
 						if (e instanceof ApiError && e.code === "sign_in_required")
 							s.account = { signed_in: false, method: null, email: null, plan: null };
@@ -362,7 +372,7 @@ export const useCoach = create<CoachStore>()(
 						s.titles[questionId] = title.trim() || null;
 					});
 				} catch (e) {
-					set({ error: errorText(e) });
+					set({ error: errorText(e), unsent: null });
 				}
 			},
 		};

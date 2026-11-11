@@ -23,7 +23,7 @@ import { SidebarMenu } from "./sidebar-menu";
 
 /**
  * The app's sidebar: its screens, the exams, Settings. It is arranged in
- * place: right-click, Edit Sidebar, and its rows stay as they are, each
+ * place: right-click, Edit sidebar, and its rows stay as they are, each
  * with a grip added to drag it into order, screens and certifications an
  * eye to hide them (hidden ones stay listed, dimmed, to be shown again),
  * the candidate's exams a red minus to delete them, until Done (or
@@ -81,7 +81,7 @@ export function AppSidebar({
 					// surface has opened, out before it folds
 					className={cn(
 						"relative z-20 h-[calc(100%-1rem)] shadow-none transition-opacity group-data-[morphing]/shell:bg-transparent motion-reduce:transition-none",
-						folded ? "opacity-0 duration-100" : "opacity-100 delay-150 duration-200"
+						folded ? "opacity-0 duration-100" : "opacity-100 delay-100 duration-200"
 					)}
 				>
 					{/* Beside the window's buttons (centred on the same line as the
@@ -183,7 +183,7 @@ export function AppSidebar({
 										<ContextMenuContent>
 											<ContextMenuItem onSelect={() => navigate(path)}>Open</ContextMenuItem>
 											<ContextMenuSeparator />
-											<ContextMenuItem onSelect={edit}>Edit Sidebar…</ContextMenuItem>
+											<ContextMenuItem onSelect={edit}>Edit sidebar…</ContextMenuItem>
 										</ContextMenuContent>
 									</ContextMenu>
 								);

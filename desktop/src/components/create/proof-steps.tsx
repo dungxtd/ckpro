@@ -1,5 +1,5 @@
 import { Button } from "@ckpro/ui/components/button";
-import { disclosureRow } from "@ckpro/ui/components/disclosure";
+import { DisclosureButton, disclosureRow } from "@ckpro/ui/components/disclosure";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Spinner } from "@ckpro/ui/components/spinner";
 import { Terminal } from "@ckpro/ui/components/terminal";
@@ -7,7 +7,7 @@ import { useFollow } from "@ckpro/ui/hooks/use-follow";
 import { useNow } from "@ckpro/ui/hooks/use-now";
 import { clock } from "@ckpro/ui/lib/time";
 import { cn } from "@ckpro/ui/lib/utils";
-import { Check, ChevronRight, Circle, X } from "lucide-react";
+import { Check, Circle, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ActivityProgress } from "@/components/activity/activity-progress";
 import { useActivities } from "@/stores/activity";
@@ -81,14 +81,14 @@ export function ProofSteps({ proof }: { proof: Proof }) {
 				return (
 					// biome-ignore lint/suspicious/noArrayIndexKey: the plan's steps are fixed
 					<div key={i}>
-						<button
-							type="button"
+						<DisclosureButton
+							open={open}
 							disabled={lines.length === 0}
-							aria-expanded={open}
 							onClick={() => setOpened(o => ({ ...o, [i]: !open }))}
+							// A step with no log keeps the chevron's place
+							chevronClassName={cn("text-muted-foreground", lines.length === 0 && "invisible")}
 							className={cn(
-								disclosureRow,
-								"w-full py-1 text-callout disabled:hover:bg-transparent",
+								"w-full cursor-default py-1 text-callout enabled:cursor-pointer disabled:hover:bg-transparent",
 								s === "running" && "font-semibold",
 								s === "waiting" && "text-muted-foreground"
 							)}
@@ -96,14 +96,7 @@ export function ProofSteps({ proof }: { proof: Proof }) {
 							<StepIcon state={s} />
 							<span className="min-w-0 flex-1 truncate">{title}</span>
 							<span className="text-caption text-muted-foreground tabular-nums">{took(i)}</span>
-							<ChevronRight
-								className={cn(
-									"size-3.5 text-muted-foreground transition-transform",
-									open && "rotate-90",
-									lines.length === 0 && "invisible"
-								)}
-							/>
-						</button>
+						</DisclosureButton>
 						{open && lines.length > 0 && <StepLog lines={lines} follow={s === "running"} />}
 					</div>
 				);

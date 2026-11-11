@@ -49,13 +49,13 @@ test("a cluster with a stopped node offers Repair", async ({ page }) => {
 	await expect.poll(() => calls(page, "repair_cluster")).toEqual([{ name: "k8s" }]);
 });
 
-test("Docker down says so, and Retry now asks again", async ({ page }) => {
+test("Docker down says so, and Try again asks again", async ({ page }) => {
 	await launch(page, "/environment", {
 		env_retry: null,
 		env_state: { docker: { state: "down", reason: "no engine answers" }, clusters: [], issues: [] },
 	});
 	await expect(page.getByText("Docker down")).toBeVisible();
-	await page.getByRole("button", { name: "Retry now" }).click();
+	await page.getByRole("button", { name: "Try again" }).click();
 	expect(await calls(page, "env_retry")).toHaveLength(1);
 	await emit(page, "env-changed", { docker: up, clusters: [], issues: [] });
 	await expect(page.getByText("Docker 28, 8 CPUs, 5.8 GB")).toBeVisible();

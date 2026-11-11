@@ -85,8 +85,9 @@ function Layout() {
 			data-inspecting={inspector.slot.shown || undefined}
 			className={cn(
 				"group/shell relative",
-				// One row the window's height: the screen scrolls inside it
-				"grid h-full grid-rows-[minmax(0,1fr)] transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+				// One row the window's height: the screen scrolls inside it. The
+				// columns move as long as the surface morphs, on the same curve
+				"grid h-full grid-rows-[minmax(0,1fr)] transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none",
 				folded ? "grid-cols-[0px_minmax(0,1fr)]" : "grid-cols-[256px_minmax(0,1fr)]"
 			)}
 		>
@@ -94,7 +95,7 @@ function Layout() {
 			    which morphs from the one shape into the other */}
 			<div
 				aria-hidden
-				className="pointer-events-none absolute inset-0 z-10 bg-sidebar-panel opacity-0 transition-[clip-path] ease-[cubic-bezier(0.32,0.72,0,1)] group-data-[morphing]/shell:opacity-100 motion-reduce:transition-none"
+				className="pointer-events-none absolute inset-0 z-10 bg-sidebar-panel opacity-0 transition-[clip-path] ease-out group-data-[morphing]/shell:opacity-100 motion-reduce:transition-none"
 				style={{ clipPath: surface.clip, transitionDuration: `${MORPH_MS}ms` }}
 			/>
 			<div className="min-w-0 overflow-hidden">
@@ -123,11 +124,9 @@ function Layout() {
 							// Room kept for the scrollbar: a screen that grows past the window does not shift
 							className="min-h-0 flex-1 overflow-auto [scrollbar-gutter:stable]"
 						>
-							{/* Each screen fades in as it opens */}
-							<div
-								key={pathname}
-								className="h-full fade-in-0 animate-in duration-200 motion-reduce:animate-none"
-							>
+							{/* Each screen opens at once: a screen changed often is not
+							    kept waiting by a fade */}
+							<div key={pathname} className="h-full">
 								<Outlet />
 							</div>
 						</main>
@@ -154,7 +153,7 @@ function App() {
 	const connectStudy = useStudy(s => s.connect);
 	useTheme();
 	const loadSettings = useSettings(s => s.load);
-	// Bumped by Try Again: everything is read and followed afresh
+	// Bumped by Try again: everything is read and followed afresh
 	const [boot, setBoot] = useState(0);
 	// Follow the Rust environment, exam state and long operations for the
 	// life of the app
@@ -247,7 +246,7 @@ function OpenFailed({ message, onRetry }: { message: string; onRetry: () => void
 						<p className="mt-1 break-words text-muted-foreground">{message}</p>
 					</div>
 					<Button size="push" variant="push" className="self-end" onClick={onRetry}>
-						Try Again
+						Try again
 					</Button>
 				</div>
 			</Alert>

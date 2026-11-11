@@ -17,11 +17,17 @@ const TEXT = { success: "text-success", warning: "text-warning", destructive: "t
  */
 export function Readiness({
 	readiness,
+	state,
+	onRetry,
 	onMeasure,
 	onPractise,
 }: {
 	/** None without a certification to measure */
 	readiness: ExamReadiness | null;
+	/** Being read (the bars faded, no word yet), read, or the read failed */
+	state: "reading" | "read" | "failed";
+	/** Read it again, after a failed read */
+	onRetry: () => void;
 	/** Start an attempt that measures the domains (a full mock) */
 	onMeasure: (() => void) | null;
 	/** Practise the weakest domain */
@@ -47,13 +53,17 @@ export function Readiness({
 									: "From all attempts"
 						}
 					>
-						{score === null
-							? `${measured.length} of ${domains.length} measured`
-							: `${Math.round(score)}% predicted`}
+						<span className="tabular-nums">
+							{score === null
+								? `${measured.length} of ${domains.length} measured`
+								: `${Math.round(score)}% predicted`}
+						</span>
 					</CardDescription>
 				)}
 			</CardHeader>
-			{measured.length === 0 ? (
+			{state !== "read" || measured.length === 0 ? (
+				// Being read: the sample alone, faded, so nothing is said before
+				// the answer (not "set a target" for a target being measured)
 				<Placeholder
 					sample={
 						<Bars>
@@ -63,17 +73,34 @@ export function Readiness({
 							))}
 						</Bars>
 					}
-					title={readiness ? "Take a full mock to measure" : "Set a target to measure"}
+					title={
+						state === "reading"
+							? undefined
+							: state === "failed"
+								? "Could not read your readiness"
+								: readiness
+									? "Take a full mock to measure"
+									: "Set a target to measure"
+					}
 					description={
-						readiness
-							? `Each of the ${domains.length} ${readiness.certification.toUpperCase()} domains against the pass line`
-							: "How ready you are, domain by domain"
+						state !== "read"
+							? undefined
+							: readiness
+								? `Each of the ${domains.length} ${readiness.certification.toUpperCase()} domains against the pass line`
+								: "How ready you are, domain by domain"
 					}
 					action={
-						onMeasure && (
-							<Button size="push" variant="push" onClick={onMeasure}>
-								Start a mock
+						state === "failed" ? (
+							<Button size="push" variant="push" onClick={onRetry}>
+								Try again
 							</Button>
+						) : (
+							state === "read" &&
+							onMeasure && (
+								<Button size="push" variant="push" onClick={onMeasure}>
+									Start exam
+								</Button>
+							)
 						)
 					}
 				/>
@@ -150,7 +177,9 @@ function Bar({
 				// On a card, the track needs more than the card's own grey
 				className="bg-foreground/10"
 			/>
-			<b className={cn("text-right", TEXT[t])}>{Math.round(percent)}%</b>
+			<span className={cn("text-right font-semibold tabular-nums", TEXT[t])}>
+				{Math.round(percent)}%
+			</span>
 		</>
 	);
 }

@@ -90,7 +90,7 @@ test("the conversation asked for last is the one shown, however the answers come
 test("a proof shows its steps as Rust reports them, and Stop stops it", async ({ page }) => {
 	await openCreate(page);
 	await reply(page, "studio_verify", { $after: 60_000, value: null });
-	await page.getByRole("button", { name: "Prove & save" }).click();
+	await page.getByRole("button", { name: "Prove and save" }).click();
 	const proof = (stage: unknown, results: unknown[] = []) => ({
 		session: 1,
 		proof: {
@@ -138,7 +138,7 @@ test("a draft that cannot be proven says why and keeps the button off", async ({
 		},
 	});
 	await expect(page.getByText(/needs at least 2.1 GB/)).toBeVisible();
-	await expect(page.getByRole("button", { name: "Prove & save" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Prove and save" })).toBeDisabled();
 });
 
 test("on a narrow window the draft is a panel dragged up and down", async ({ page }) => {
@@ -155,7 +155,7 @@ test("on a narrow window the draft is a panel dragged up and down", async ({ pag
 	await page.mouse.move(box.x + box.width / 2, 755, { steps: 8 });
 	await page.mouse.up();
 	await expect(question).toBeHidden();
-	await expect(page.getByRole("button", { name: "Prove & save" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Prove and save" })).toBeVisible();
 	// And open again from the keyboard
 	await handle.focus();
 	await page.keyboard.press("Enter");

@@ -1,6 +1,7 @@
 import { Alert } from "@ckpro/ui/components/alert";
 import { Badge } from "@ckpro/ui/components/badge";
 import { Button } from "@ckpro/ui/components/button";
+import { Card } from "@ckpro/ui/components/card";
 import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Placeholder } from "@ckpro/ui/components/placeholder";
 import { Progress } from "@ckpro/ui/components/progress";
@@ -101,9 +102,7 @@ export function DraftPanel({ bar = false }: { bar?: boolean }) {
 				) : items.length === 0 ? (
 					<Placeholder
 						className="my-auto"
-						sample={[1, 2, 3].map(n => (
-							<div key={n} className="mb-2 h-14 rounded-lg border border-border bg-card" />
-						))}
+						sample={[1, 2, 3].map(n => <Card key={n} padding="none" className="mb-2 h-14" />)}
 						title="The exam shows here"
 						description="Ask the assistant for one: it picks questions and writes new ones"
 					/>
@@ -195,7 +194,7 @@ function ProofFoot() {
 			) : failed > 0 ? (
 				line(
 					<>
-						<span className="text-destructive">
+						<span className="text-destructive tabular-nums">
 							{failed} of {last?.ended_at ? last.checking.length : items.length} did not prove
 						</span>
 						{took && ` · ${took}`} · cluster removed
@@ -250,12 +249,7 @@ function ProofFoot() {
 						>
 							Prove again
 						</Button>
-						<Button
-							size="push"
-							variant="push"
-							className="bg-assistant/15 text-assistant shadow-none hover:bg-assistant/25"
-							onClick={askToFix}
-						>
+						<Button size="push" variant="assistant" onClick={askToFix}>
 							<AssistantIcon className="size-3.5" /> Ask the assistant to fix
 						</Button>
 					</>
@@ -272,7 +266,7 @@ function ProofFoot() {
 							disabled={blocked || !draft?.title}
 							onClick={() => onProve("changed")}
 						>
-							{proven > 0 ? `Prove ${changed} & save` : "Prove & save"}
+							{proven > 0 ? `Prove ${changed} and save` : "Prove and save"}
 						</Button>
 					</>
 				)}
@@ -310,6 +304,10 @@ function Item({
 	const running = proof?.stage.stage === "proving" && proof.stage.key === id ? proof.stage : null;
 	const waiting = checked && !running && !result;
 	const now = useNow(!!running);
+	// A new question Claude has not named yet still reads as one
+	const name = item.title || (item.kind === "existing" ? item.id : "Untitled question");
+	// The first problems, and how many more (the Proof tab has them all)
+	const problems = shown?.state === "failed" ? shown.problems : [];
 	const status = deleted ? (
 		<Badge variant="destructive">Deleted</Badge>
 	) : running ? (
@@ -328,16 +326,19 @@ function Item({
 		<Badge variant="warningTag">New · lints</Badge>
 	);
 	return (
-		<div
+		<Card
+			padding="none"
 			className={cn(
-				"group flex flex-col gap-1 rounded-lg border border-border bg-card px-3 py-2 transition-opacity",
+				"group flex flex-col gap-1 px-3 py-2 transition-opacity",
 				running && "border-highlight/70",
 				waiting && "opacity-55"
 			)}
 		>
 			<div className="flex items-start justify-between gap-2">
-				<span className="min-w-0 font-medium text-callout">
-					{item.title || (item.kind === "existing" ? item.id : "")}
+				<span
+					className={cn("min-w-0 font-medium text-callout", !item.title && "text-muted-foreground")}
+				>
+					{name}
 				</span>
 				<div className="flex shrink-0 items-center gap-1">
 					{status}
@@ -345,7 +346,7 @@ function Item({
 						<IconButton
 							variant="toolbar"
 							size="xs"
-							aria-label={`Remove ${item.title}`}
+							aria-label={`Remove ${name}`}
 							className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
 							onClick={onRemove}
 						>
@@ -355,14 +356,19 @@ function Item({
 				</div>
 			</div>
 			<span className="text-2xs text-muted-foreground capitalize">{domainName(item.domain)}</span>
-			{shown?.state === "failed" && (
+			{problems.length > 0 && (
 				<ul className="list-disc pl-4 text-2xs text-destructive">
-					{shown.problems.slice(0, 4).map(p => (
+					{problems.slice(0, 4).map(p => (
 						<li key={p}>{p}</li>
 					))}
+					{problems.length > 4 && (
+						<li className="list-none text-muted-foreground tabular-nums">
+							and {problems.length - 4} more
+						</li>
+					)}
 				</ul>
 			)}
-		</div>
+		</Card>
 	);
 }
 

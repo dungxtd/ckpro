@@ -25,15 +25,17 @@ export function Timer({ startedAt, endsAt }: { startedAt: number | null; endsAt:
 				<span
 					role="timer"
 					aria-label={label}
+					// On the segmented controls' track (their fill and radius), as
+					// the toolbar's other 28px controls sit
 					className={cn(
-						"flex h-7 items-center gap-1.5 rounded-segment bg-[var(--seg-bg)] px-2.5 font-medium text-callout tabular-nums transition-colors",
+						"flex h-7 items-center gap-1.5 rounded-lg bg-[var(--seg-bg)] px-2.5 font-medium text-callout tabular-nums transition-colors",
 						tone === "warning" && "text-warning",
 						tone === "low" && "bg-destructive/15 text-destructive"
 					)}
 				>
 					<Clock className={cn("size-3.5", tone === "normal" && "text-muted-foreground")} />
 					{/* A start not known: no time made up */}
-					{left !== null ? format(left) : startedAt !== null ? format(now - startedAt) : "--:--"}
+					{left !== null ? format(left) : startedAt !== null ? format(now - startedAt) : "--:--:--"}
 				</span>
 			</TooltipTrigger>
 			<TooltipContent>{label}</TooltipContent>

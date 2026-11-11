@@ -65,8 +65,8 @@ function useCatalog() {
  * are (certifications still fold, which keeps a long list short) and gain a
  * grip to drag them into order (exams within their certification, or among
  * the pinned), a certification an eye to hide it (hidden ones then show,
- * dimmed), a candidate's exam a red minus to delete it. Move to Top and
- * Bottom, and ⌥⌘↑ and ⌥⌘↓ (Ctrl+Alt+↑↓), move an exam without dragging. `query` keeps
+ * dimmed), a candidate's exam a red minus to delete it. Move to top and
+ * bottom, and ⌥⌘↑ and ⌥⌘↓ (Ctrl+Alt+↑↓), move an exam without dragging. `query` keeps
  * the exams whose title has it
  */
 export function ExamList({
@@ -178,7 +178,7 @@ export function ExamList({
 					<SidebarItem
 						label={name}
 						// Pinned, away from its certification's heading: it says which
-						detail={`${isPinned ? `${exam.certification.toUpperCase()}, ` : ""}${exam.questions} questions, ${exam.duration_minutes} min${f === "slower" ? ", runs slower" : f === "too-small" ? ", needs more memory" : ""}`}
+						detail={`${isPinned ? `${exam.certification.toUpperCase()}, ` : ""}${plural(exam.questions, "question")}, ${exam.duration_minutes} min${f === "slower" ? ", runs slower" : f === "too-small" ? ", needs more memory" : ""}`}
 						warning={f === "slower" || f === "too-small"}
 						current={onExams && shown?.id === exam.id}
 						onClick={() => select(exam.id)}
@@ -201,24 +201,24 @@ export function ExamList({
 					<ContextMenuItem
 						onSelect={() => setLayout({ pinned: toggled(layout.pinned, exam.id, !isPinned) })}
 					>
-						{isPinned ? "Unpin" : "Pin to Top"}
+						{isPinned ? "Unpin" : "Pin to top"}
 					</ContextMenuItem>
 					{!isPinned && (
 						<>
-							<ContextMenuItem onSelect={() => toEnd(false)}>Move to Top</ContextMenuItem>
-							<ContextMenuItem onSelect={() => toEnd(true)}>Move to Bottom</ContextMenuItem>
+							<ContextMenuItem onSelect={() => toEnd(false)}>Move to top</ContextMenuItem>
+							<ContextMenuItem onSelect={() => toEnd(true)}>Move to bottom</ContextMenuItem>
 						</>
 					)}
 					{exam.custom && (
 						<>
 							<ContextMenuSeparator />
 							<ContextMenuItem className="text-destructive" onSelect={() => setDeleting(exam)}>
-								Delete Exam…
+								Delete exam…
 							</ContextMenuItem>
 						</>
 					)}
 					<ContextMenuSeparator />
-					<ContextMenuItem onSelect={onEdit}>Edit Sidebar…</ContextMenuItem>
+					<ContextMenuItem onSelect={onEdit}>Edit sidebar…</ContextMenuItem>
 				</ContextMenuContent>
 			</ContextMenu>
 		);
@@ -277,7 +277,7 @@ export function ExamList({
 								</ContextMenuItem>
 								<ContextMenuSub>
 									<ContextMenuSubTrigger value={SORTS.find(s => s.value === sort)?.label}>
-										Sort By
+										Sort by
 									</ContextMenuSubTrigger>
 									<ContextMenuSubContent>
 										<ContextMenuRadioGroup
@@ -295,7 +295,7 @@ export function ExamList({
 									</ContextMenuSubContent>
 								</ContextMenuSub>
 								<ContextMenuSeparator />
-								<ContextMenuItem onSelect={onEdit}>Edit Sidebar…</ContextMenuItem>
+								<ContextMenuItem onSelect={onEdit}>Edit sidebar…</ContextMenuItem>
 							</ContextMenuContent>
 						</ContextMenu>
 						{open && exams.map(exam => row(exam, dragExam, false))}
@@ -309,7 +309,7 @@ export function ExamList({
 				open={deleting !== null}
 				onOpenChange={o => !o && setDeleting(null)}
 				title={`Delete ${deleting?.title ?? "this exam"}?`}
-				description="Its questions are deleted with it, from this Mac. Past attempts stay in History."
+				description="Its questions are deleted with it, from this computer. Past attempts stay in History."
 				action="Delete"
 				onConfirm={() => deleting && remove(deleting)}
 			/>

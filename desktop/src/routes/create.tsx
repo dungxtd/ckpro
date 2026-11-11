@@ -1,4 +1,5 @@
 import { Button } from "@ckpro/ui/components/button";
+import { Card } from "@ckpro/ui/components/card";
 import { Placeholder } from "@ckpro/ui/components/placeholder";
 import { useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -28,7 +29,7 @@ function AssistantOff() {
 		<Screen title="Create">
 			<Placeholder
 				className="mt-10"
-				sample={<div className="h-40 rounded-xl border border-border bg-card" />}
+				sample={<Card className="h-40" />}
 				title="The assistant is turned off"
 				description="Create builds exams with it. Turn it on in Settings to use it."
 				action={

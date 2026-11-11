@@ -54,7 +54,7 @@ export function PermissionCard({
 				<span className="text-callout">{tool}?</span>
 			) : (
 				<>
-					<span className="text-muted-foreground text-xs">Run on the task's host?</span>
+					<span className="text-muted-foreground text-caption">Run on the task's host?</span>
 					<CodeBlock wrap className="max-h-32">
 						$ {command}
 					</CodeBlock>
@@ -62,11 +62,11 @@ export function PermissionCard({
 			)}
 			<div className="flex flex-wrap justify-end gap-1.5">
 				<Button size="push" variant="push" onClick={() => onAnswer(reject?.id ?? null)}>
-					Skip <kbd className="text-muted-foreground text-xs">esc</kbd>
+					Skip <kbd className="text-muted-foreground text-caption">esc</kbd>
 				</Button>
 				{once && (
 					<Button size="push" variant="pushDefault" onClick={() => onAnswer(once.id)}>
-						Run <kbd className="opacity-70 text-xs">↵</kbd>
+						Run <kbd className="opacity-70 text-caption">↵</kbd>
 					</Button>
 				)}
 			</div>

@@ -1,5 +1,6 @@
+import { ConfirmDialog } from "@ckpro/ui/components/confirm-dialog";
 import { IconButton } from "@ckpro/ui/components/icon-button";
-import { MenuCheck, menu, menuRow } from "@ckpro/ui/components/menu";
+import { MenuItem, menu } from "@ckpro/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Stepper } from "@ckpro/ui/components/stepper";
 import { cn } from "@ckpro/ui/lib/utils";
@@ -8,7 +9,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { useSettings } from "@/stores/settings";
-import { desktopApi } from "@/tauri/api";
+import { desktopApi, errorText } from "@/tauri/api";
 
 export const RESOLUTIONS: [number, number][] = [
 	[1280, 800],
@@ -62,19 +63,14 @@ export function DesktopMenu({
 	onResolution,
 }: DesktopMenuProps) {
 	const [resetting, setResetting] = useState(false);
+	// Resetting closes whatever the candidate has open on it: asked first
+	const [confirming, setConfirming] = useState(false);
 	const option = (label: string, value: [number, number] | null) => {
 		const active = value === null ? resolution === null : resolution?.join() === value.join();
 		return (
-			<button
-				key={label}
-				type="button"
-				aria-pressed={active}
-				className={menuRow()}
-				onClick={() => onResolution(value)}
-			>
-				{active && <MenuCheck />}
+			<MenuItem key={label} checked={active} onClick={() => onResolution(value)}>
 				{label}
-			</button>
+			</MenuItem>
 		);
 	};
 	const reset = async () => {
@@ -83,56 +79,62 @@ export function DesktopMenu({
 			await desktopApi.reset();
 			toast("The desktop restarted: its windows were closed");
 		} catch (e) {
-			toast.error(`Could not reset the desktop: ${e}`);
+			toast.error(`Could not reset the desktop: ${errorText(e)}`);
 		} finally {
 			setResetting(false);
 		}
 	};
 
 	return (
-		<Popover>
-			<PopoverTrigger asChild>
-				<IconButton variant="plain" size="bar" aria-label="Desktop settings">
-					<Settings />
-				</IconButton>
-			</PopoverTrigger>
-			{/* A panel of controls (a stepper among them), not a menu: Tab moves
+		<>
+			<Popover>
+				<PopoverTrigger asChild>
+					<IconButton variant="plain" size="bar" aria-label="Desktop settings">
+						<Settings />
+					</IconButton>
+				</PopoverTrigger>
+				{/* A panel of controls (a stepper among them), not a menu: Tab moves
 			    through it */}
-			<PopoverContent
-				align="end"
-				aria-label="Desktop settings"
-				className={cn(menu.surface, "w-60")}
-			>
-				<div className={menu.header}>Remote Desktop</div>
-				<div className={cn(menu.content, "flex items-center justify-between py-1 text-callout")}>
-					Size
-					<Stepper
-						label="Desktop size"
-						value={`${Math.round(zoom * 100)}%`}
-						onDecrement={() => onZoom(-1)}
-						onIncrement={() => onZoom(1)}
-						decrementDisabled={!canZoomOut}
-						incrementDisabled={!canZoomIn}
-					/>
-				</div>
-				<div className={menu.separator} />
-				{option("Fit to screen", null)}
-				<div className={menu.header}>Custom resolution</div>
-				{RESOLUTIONS.map(([w, h]) => option(`${w} × ${h}`, [w, h]))}
-				<div className={menu.separator} />
-				<button
-					type="button"
-					className={menuRow()}
-					disabled={resetting}
-					data-disabled={resetting || undefined}
-					onClick={reset}
+				<PopoverContent
+					align="end"
+					aria-label="Desktop settings"
+					className={cn(menu.surface, "w-60")}
 				>
-					<span className={menu.check}>
-						<RotateCcw className="size-3" />
-					</span>
-					{resetting ? "Resetting…" : "Reset desktop"}
-				</button>
-			</PopoverContent>
-		</Popover>
+					<div className={menu.header}>Remote desktop</div>
+					<div className={cn(menu.content, "flex items-center justify-between py-1 text-callout")}>
+						Size
+						<Stepper
+							label="Desktop size"
+							value={`${Math.round(zoom * 100)}%`}
+							onDecrement={() => onZoom(-1)}
+							onIncrement={() => onZoom(1)}
+							decrementDisabled={!canZoomOut}
+							incrementDisabled={!canZoomIn}
+						/>
+					</div>
+					<div className={menu.separator} />
+					{option("Fit to screen", null)}
+					<div className={menu.header}>Custom resolution</div>
+					{RESOLUTIONS.map(([w, h]) => option(`${w} × ${h}`, [w, h]))}
+					<div className={menu.separator} />
+					<MenuItem
+						icon={<RotateCcw />}
+						disabled={resetting}
+						data-disabled={resetting || undefined}
+						onClick={() => setConfirming(true)}
+					>
+						{resetting ? "Resetting…" : "Reset desktop…"}
+					</MenuItem>
+				</PopoverContent>
+			</Popover>
+			<ConfirmDialog
+				open={confirming}
+				onOpenChange={setConfirming}
+				title="Reset the desktop?"
+				description="Its open windows close."
+				action="Reset"
+				onConfirm={reset}
+			/>
+		</>
 	);
 }

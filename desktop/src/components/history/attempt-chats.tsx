@@ -1,4 +1,7 @@
+import { Alert } from "@ckpro/ui/components/alert";
+import { Button } from "@ckpro/ui/components/button";
 import { Loading } from "@ckpro/ui/components/loading";
+import { Placeholder, SampleRows } from "@ckpro/ui/components/placeholder";
 import {
 	Sheet,
 	SheetContent,
@@ -6,14 +9,15 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@ckpro/ui/components/sheet";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MASK } from "@/analytics";
 import { Answer, UserMessage } from "@/components/assistant/answer";
 import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { type CoachTranscript, coachApi, errorText, type HistoryEntry } from "@/tauri/api";
+import { dateTime } from "@/words";
 
 /**
- * A past attempt's assistant sessions, read back: each under its question,
+ * A past attempt's assistant conversations, read back: each under its question,
  * latest first. Nothing to ask here; the attempt is over.
  */
 export function AttemptChats({
@@ -25,12 +29,13 @@ export function AttemptChats({
 }) {
 	const [chats, setChats] = useState<CoachTranscript[] | null>(null);
 	const [error, setError] = useState<string | null>(null);
-	useEffect(() => {
+	const read = useCallback(() => {
 		if (!entry) return;
 		setChats(null);
 		setError(null);
 		coachApi.transcripts(entry.attempt_id).then(setChats, e => setError(errorText(e)));
 	}, [entry]);
+	useEffect(read, [read]);
 	// The question's number and name, as the attempt listed them
 	const questionOf = (id: string) => {
 		const i = entry?.result.questions.findIndex(q => q.id === id) ?? -1;
@@ -41,16 +46,28 @@ export function AttemptChats({
 		<Sheet open={entry !== null} onOpenChange={onOpenChange}>
 			<SheetContent className={`w-[520px] gap-0 sm:max-w-xl ${MASK}`}>
 				<SheetHeader className="border-border border-b">
-					<SheetTitle>Assistant sessions</SheetTitle>
+					<SheetTitle>Assistant conversations</SheetTitle>
 					<SheetDescription>
-						{entry?.title} · {entry && new Date(entry.result.started_at ?? 0).toLocaleString()}
+						{entry?.title} · {dateTime(entry?.result.started_at)}
 					</SheetDescription>
 				</SheetHeader>
 				<div className="min-h-0 flex-1 overflow-y-auto p-4">
 					{error ? (
-						<p className="text-muted-foreground text-sm">{error}</p>
+						<Alert variant="destructive" className="flex-col items-start">
+							<span className="font-medium">The conversations could not be read.</span>
+							<span className="text-caption text-muted-foreground">{error}</span>
+							<Button size="push" variant="push" className="mt-1" onClick={read}>
+								Try again
+							</Button>
+						</Alert>
 					) : chats === null ? (
 						<Loading fill label="Loading the conversations…" />
+					) : chats.length === 0 ? (
+						<Placeholder
+							sample={<SampleRows rows={3} />}
+							title="No conversations"
+							description="The assistant was not asked anything in this attempt."
+						/>
 					) : (
 						<div className="flex flex-col gap-8">
 							{chats.map(chat => (

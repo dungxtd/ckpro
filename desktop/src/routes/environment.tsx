@@ -18,7 +18,7 @@ import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
 import { type EnvState, envApi } from "@/tauri/api";
-import { gb, plural } from "@/words";
+import { memory, plural } from "@/words";
 
 function DockerStatus({ docker }: { docker: EnvState["docker"] }) {
 	switch (docker.state) {
@@ -26,7 +26,7 @@ function DockerStatus({ docker }: { docker: EnvState["docker"] }) {
 			return (
 				<Badge variant="success">
 					<StatusDot tone="ok" /> Docker {docker.version}, {plural(docker.cpus, "CPU")},{" "}
-					{gb(docker.memory_mb)}
+					{memory(docker.memory_mb)}
 				</Badge>
 			);
 		case "down":
@@ -36,7 +36,7 @@ function DockerStatus({ docker }: { docker: EnvState["docker"] }) {
 						<StatusDot tone="error" /> Docker down
 					</Badge>
 					<Button size="push" variant="push" onClick={() => envApi.retry()}>
-						Retry now
+						Try again
 					</Button>
 				</span>
 			);
@@ -120,11 +120,12 @@ export function EnvironmentRoute() {
 				(usage ? (
 					<>
 						<p className="text-sm">
-							<strong>
-								{gb(Math.max(0, docker.memory_mb - parts.reduce((n, p) => n + p.mb, 0)))} free
+							<strong className="tabular-nums">
+								{memory(Math.max(0, docker.memory_mb - parts.reduce((n, p) => n + p.mb, 0)))} free
 							</strong>{" "}
 							<span className="text-muted-foreground">
-								of the {gb(docker.memory_mb)} Docker has{docker.engine && `, on ${docker.engine}`}.
+								of the {memory(docker.memory_mb)} Docker has
+								{docker.engine && `, on ${docker.engine}`}.
 							</span>
 						</p>
 						<MemoryMap
@@ -152,7 +153,7 @@ export function EnvironmentRoute() {
 							<div>
 								{plural(missing.length, "exam image")} not downloaded: {missing.join(", ")}
 							</div>
-							<div className="text-muted-foreground text-xs">
+							<div className="text-caption text-muted-foreground">
 								Exams start sooner, and offline, once they are here
 							</div>
 						</div>
@@ -165,7 +166,7 @@ export function EnvironmentRoute() {
 
 			{/* The checks that pass, in one quiet line (what fails is above) */}
 			{passed.length > 0 && (
-				<p className="flex items-center gap-1.5 text-muted-foreground text-xs">
+				<p className="flex items-center gap-1.5 text-caption text-muted-foreground">
 					<CircleCheck className="size-3.5 text-success" />
 					{passed.join(" · ")}
 				</p>

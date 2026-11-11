@@ -19,6 +19,7 @@ import { useSettings } from "@/stores/settings";
 import { useStudy } from "@/stores/study";
 import { errorText, examApi, type Mode, type PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
+import { plural } from "@/words";
 
 type View = "month" | "week" | "day";
 const VIEWS = [
@@ -190,12 +191,12 @@ export function CalendarRoute() {
 							<Flag />
 							{daysUntil(target.date, now) === 0
 								? `${target.certification.toUpperCase()} exam today`
-								: `${target.certification.toUpperCase()} exam in ${daysUntil(target.date, now)} days`}
+								: `${target.certification.toUpperCase()} exam in ${plural(daysUntil(target.date, now), "day")}`}
 						</Button>
 					)}
 					{run > 0 && (
-						<span className="mr-1 whitespace-nowrap text-caption text-muted-foreground">
-							{run} day{run === 1 ? "" : "s"} in a row
+						<span className="mr-1 whitespace-nowrap text-caption text-muted-foreground tabular-nums">
+							{plural(run, "day")} in a row
 						</span>
 					)}
 				</div>

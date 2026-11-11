@@ -10,7 +10,7 @@ import { Screen } from "@/components/shell/screen";
 import { SETTINGS_PARTS } from "@/components/shell/sections";
 import { useSettings } from "@/stores/settings";
 
-const THEME_NAMES = { system: "Follow System", light: "Light", dark: "Dark" };
+const THEME_NAMES = { system: "Follow system", light: "Light", dark: "Dark" };
 
 /**
  * The app's settings as macOS apps lay them out: one page of rows that open

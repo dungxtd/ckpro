@@ -3,8 +3,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** The sidebar's panel: 8px in from the window's edges, 248px wide, 12px round */
 const PANEL = { inset: 8, width: 248, radius: 12 };
-/** How long the shape takes to morph (main.tsx's transition) */
-export const MORPH_MS = 450;
+/** How long the shape takes to morph (main.tsx's transition, the columns'
+ * too): the whole fold, the rows' and the capsule's fades within it */
+export const MORPH_MS = 300;
 /**
  * The window's one surface that is the sidebar's panel when it shows and
  * the capsule's pill when it is folded, as in macOS apps whose sidebar

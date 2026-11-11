@@ -32,7 +32,7 @@ import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { AssistantPane } from "@/components/assistant/assistant-pane";
 import { CheckList } from "@/components/exam/check-list";
 import { useSolution } from "@/components/exam/use-solution";
-import { freeDay, scoreColor, suggestion } from "@/components/study/data";
+import { freeDay, scoreTone, suggestion } from "@/components/study/data";
 import { CopyBlock } from "@/components/text/copy-text";
 import { Markdown } from "@/components/text/markdown";
 import { addDays, dayKey } from "@/days";
@@ -43,7 +43,14 @@ import type { Attempt, ExamResult, Mode } from "@/tauri/api";
 import { errorText, examApi } from "@/tauri/api";
 import type { QuestionResult } from "@/tauri/bindings";
 import { shortTitle } from "@/titles";
-import { plural } from "@/words";
+import { NONE, plural } from "@/words";
+
+/** A score's tone as its text colour */
+const TONE_TEXT = {
+	success: "text-success",
+	warning: "text-warning",
+	destructive: "text-destructive",
+} as const;
 
 /**
  * The result: the score in its colour against the pass line, what it means
@@ -58,10 +65,14 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 	const assistant = useAssistantEnabled();
 	const coachedResult = result.questions.find(q => q.id === coached);
 	const coachedQuestion = attempt.questions.find(q => q.id === coached);
-	const minutes = Math.round(((result.finished_at ?? 0) - (result.started_at ?? 0)) / 60000);
+	// The time taken, when both ends are known (none made up from a missing start)
+	const minutes =
+		result.started_at !== null && result.finished_at !== null
+			? `${Math.round((result.finished_at - result.started_at) / 60000)}`
+			: NONE;
 	const pass = attempt.pass_score;
 	const score = result.score ?? 0;
-	const color = scoreColor(score, pass);
+	const tone = scoreTone(score, pass);
 	const full = result.questions.filter(q => q.points === q.max_points).length;
 	const missed = result.questions.filter(q => q.points < q.max_points);
 	const toggle = (id: string, shown: boolean) =>
@@ -81,25 +92,21 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 							{attempt.title} · {attempt.mode === "practice" ? "Practice" : "Exam"}
 						</div>
 						<div className="mt-1.5 flex flex-wrap items-center gap-2.5">
-							{/* One colour for the score, from red to green by the pass line */}
-							<span
-								className="font-semibold text-4xl tabular-nums tracking-tight"
-								style={{ color }}
-							>
-								{score}%
+							{/* One tone for the score, its badge and its bar: passing, near
+							    the pass line, far under it */}
+							<span className={cn("font-semibold text-display tabular-nums", TONE_TEXT[tone])}>
+								{result.score === null ? NONE : `${score}%`}
 							</span>
-							<Badge
-								style={{ color, backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)` }}
-							>
-								{result.passed ? "Passed" : "Below the pass line"}
+							<Badge variant={result.passed ? "success" : tone}>
+								{result.passed ? "Passed" : "Failed"}
 							</Badge>
 						</div>
 					</div>
 					<ConfirmDialog
 						title="Close this exam?"
 						description="Its clusters, task host files and desktop are deleted. The result stays in History."
-						action="Close Exam"
-						cancel="Keep Reviewing"
+						action="Close exam"
+						cancel="Keep reviewing"
 						onConfirm={end}
 					>
 						<Button size="push" variant="push">
@@ -107,7 +114,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 						</Button>
 					</ConfirmDialog>
 				</div>
-				<Progress value={score} marker={pass} color={color} label="Score" />
+				<Progress value={score} marker={pass} tone={tone} label="Score" />
 				<div className="text-muted-foreground text-sm tabular-nums">
 					{full} of {plural(result.questions.length, "question")} in full · pass line {pass}%{" · "}
 					{exam ? `${minutes} of ${exam.duration_minutes} min` : `${minutes} min`}
@@ -162,8 +169,10 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 										</Badge>
 									)}
 									<span
-										className="w-10 shrink-0 text-right text-xs tabular-nums"
-										style={{ color: scoreColor((q.points / q.max_points) * 100, 100) }}
+										className={cn(
+											"w-10 shrink-0 text-right text-caption tabular-nums",
+											TONE_TEXT[scoreTone((q.points / q.max_points) * 100, 100)]
+										)}
 									>
 										{q.points}/{q.max_points}
 									</span>
@@ -174,13 +183,8 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 								<CheckList checks={q.checks} />
 								<div className="mt-1 flex flex-wrap items-center gap-1">
 									{assistant && (
-										<Button
-											size="push"
-											variant="ghost"
-											className="text-highlight"
-											onClick={() => setCoached(q.id)}
-										>
-											<AssistantIcon className="text-assistant" /> Review with the assistant
+										<Button size="push" variant="assistant" onClick={() => setCoached(q.id)}>
+											<AssistantIcon /> Review with the assistant
 										</Button>
 									)}
 									<ReviewSolution questionId={q.id} />
@@ -193,7 +197,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 
 			<Sheet open={coached !== null} onOpenChange={o => !o && setCoached(null)}>
 				<SheetContent className="w-[min(480px,92vw)] gap-0 overflow-hidden p-0 sm:max-w-none">
-					{/* For screen readers; the pane shows the session's title */}
+					{/* For screen readers; the pane shows the conversation's title */}
 					<SheetHeader className="sr-only">
 						<SheetTitle>Review with the assistant</SheetTitle>
 						<SheetDescription>{coachedQuestion?.title}</SheetDescription>
@@ -234,7 +238,7 @@ function PredictionLine({
 }) {
 	if (after === null) return null;
 	const shown = (n: number) => (
-		<span className="font-semibold tabular-nums" style={{ color: scoreColor(n, pass) }}>
+		<span className={cn("font-semibold tabular-nums", TONE_TEXT[scoreTone(n, pass)])}>
 			{Math.round(n)}%
 		</span>
 	);
@@ -417,7 +421,7 @@ function WhatNext({
 						</span>
 						<div className="min-w-0 flex-1">
 							<div className="text-sm">{step.title}</div>
-							<div className="text-muted-foreground text-xs">{step.why}</div>
+							<div className="text-muted-foreground text-caption">{step.why}</div>
 						</div>
 						<Button
 							size="push"
@@ -435,7 +439,7 @@ function WhatNext({
 				title="Close this exam first?"
 				description="Its clusters, task host files and desktop are deleted. The result stays in History."
 				action={closing?.action ?? "Continue"}
-				cancel="Keep Reviewing"
+				cancel="Keep reviewing"
 				onConfirm={() => closing?.run()}
 			/>
 		</section>

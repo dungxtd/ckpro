@@ -18,11 +18,12 @@ import { DomainScores } from "@/components/history/domain-scores";
 import { Screen } from "@/components/shell/screen";
 import { useStudy } from "@/stores/study";
 import { coachApi, type HistoryEntry } from "@/tauri/api";
+import { dateTime, NONE } from "@/words";
 
 /** Past attempts, newest first. */
 export function HistoryRoute() {
 	const history = useStudy(s => s.history);
-	// Attempts with assistant sessions, and the one being read back
+	// Attempts with assistant conversations, and the one being read back
 	const [chatted, setChatted] = useState<Set<string>>(new Set());
 	const [reading, setReading] = useState<HistoryEntry | null>(null);
 	useEffect(() => {
@@ -53,7 +54,7 @@ export function HistoryRoute() {
 						<TableHead>Date</TableHead>
 						<TableHead>Exam</TableHead>
 						<TableHead>Mode</TableHead>
-						<TableHead>Score</TableHead>
+						<TableHead className="text-right">Score</TableHead>
 						<TableHead>Result</TableHead>
 						<TableHead>
 							<span className="sr-only">Assistant</span>
@@ -64,14 +65,14 @@ export function HistoryRoute() {
 					{history.map(h => (
 						<TableRow key={h.attempt_id}>
 							<TableCell className="whitespace-nowrap tabular-nums">
-								{new Date(h.result.started_at ?? 0).toLocaleString(undefined, {
-									dateStyle: "medium",
-									timeStyle: "short",
-								})}
+								{dateTime(h.result.started_at)}
 							</TableCell>
-							<TableCell>{h.title}</TableCell>
+							{/* Takes the room left, a long title cut short */}
+							<TableCell className="w-full max-w-0 truncate">{h.title}</TableCell>
 							<TableCell className="capitalize">{h.mode}</TableCell>
-							<TableCell className="tabular-nums">{h.result.score}%</TableCell>
+							<TableCell className="text-right tabular-nums">
+								{h.result.score === null ? NONE : `${h.result.score}%`}
+							</TableCell>
 							<TableCell>
 								<Badge variant={h.result.passed ? "success" : "destructive"}>
 									{h.result.passed ? "Passed" : "Failed"}
@@ -82,7 +83,9 @@ export function HistoryRoute() {
 									variant="toolbar"
 									size="xs"
 									aria-label={
-										chatted.has(h.attempt_id) ? "Assistant sessions" : "No assistant sessions"
+										chatted.has(h.attempt_id)
+											? "Assistant conversations"
+											: "No assistant conversations"
 									}
 									disabled={!chatted.has(h.attempt_id)}
 									onClick={() => setReading(h)}

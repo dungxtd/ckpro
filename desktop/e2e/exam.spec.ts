@@ -217,7 +217,7 @@ test("the result shows the score, what changed outside, each check, and closing 
 		end_exam: null,
 	});
 	await expect(page.getByText("60%")).toBeVisible();
-	await expect(page.getByText("Below the pass line")).toBeVisible();
+	await expect(page.getByText("Failed", { exact: true })).toBeVisible();
 	await expect(page.getByText(/pass line 66%/)).toBeVisible();
 	await expect(page.getByText("ckpro-desktop was paused outside ckpro: resumed")).toBeVisible();
 
@@ -233,7 +233,7 @@ test("the result shows the score, what changed outside, each check, and closing 
 	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
 });
 
-test("a resume that failed keeps the attempt: Try Again resumes it", async ({ page }) => {
+test("a resume that failed keeps the attempt: Try again resumes it", async ({ page }) => {
 	await launch(page, "/exam", {
 		exam_state: {
 			phase: "failed",
@@ -245,7 +245,7 @@ test("a resume that failed keeps the attempt: Try Again resumes it", async ({ pa
 		retry_exam: null,
 	});
 	await expect(page.getByText("cluster k8s did not come back within 2 minutes")).toBeVisible();
-	await page.getByRole("button", { name: "Try Again" }).click();
+	await page.getByRole("button", { name: "Try again" }).click();
 	expect(await calls(page, "retry_exam")).toHaveLength(1);
 	expect(await calls(page, "start_exam")).toHaveLength(0);
 });

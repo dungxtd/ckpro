@@ -37,22 +37,17 @@ export function mapWeeks(start: Date, end: Date, min = MAP_WEEKS): Date[][] {
 	return weeks;
 }
 
-/**
- * A score's one colour, from how far it is toward the pass line: red at 0,
- * orange then yellow on the way, green from the pass line up. Mixed from the
- * theme's tokens, so it follows light and dark
- */
-export function scoreColor(percent: number, pass: number): string {
-	const t = Math.max(0, Math.min(1, percent / pass));
-	if (t >= 1) return "var(--color-success)";
-	if (t < 0.6)
-		return `color-mix(in oklch, var(--color-warning) ${Math.round((t / 0.6) * 100)}%, var(--color-destructive))`;
-	return `color-mix(in oklch, var(--color-success) ${Math.round(((t - 0.6) / 0.4) * 100)}%, var(--color-warning))`;
-}
-
 /** A score's tone against the pass line: passing, near it, far under it */
 export const scoreTone = (percent: number, pass: number) =>
 	percent >= pass ? "success" : percent >= 40 ? "warning" : "destructive";
+
+/**
+ * A score's colour, as a CSS value: its tone's (`scoreTone`), one of three,
+ * so a score reads the same as its badge and its bar wherever it shows.
+ * The theme's tokens, so it follows light and dark
+ */
+export const scoreColor = (percent: number, pass: number): string =>
+	`var(--color-${scoreTone(percent, pass)})`;
 
 /** How a day's best score is drawn on the map: none, below the pass line, then by score */
 export function level(score: number | undefined, pass: number): 0 | 1 | 2 | 3 | 4 {

@@ -1,9 +1,13 @@
+import { Alert } from "@ckpro/ui/components/alert";
+import { Button } from "@ckpro/ui/components/button";
+import { ConfirmDialog } from "@ckpro/ui/components/confirm-dialog";
 import { Loading } from "@ckpro/ui/components/loading";
 import { useDismissSurface } from "@ckpro/ui/components/popover";
 import RFB from "@novnc/novnc";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { connectClipboard } from "@/components/exam/desktop-clipboard";
-import { desktopApi } from "@/tauri/api";
+import { desktopApi, errorText } from "@/tauri/api";
 
 /** noVNC internals the HiDPI resize hooks into (no public API for it) */
 type Internals = {
@@ -22,6 +26,10 @@ const RIGHT_BUTTON = 4;
 
 /** How long resizing must have stopped before the desktop takes the new size */
 const RESIZE_SETTLE_MS = 400;
+
+/** How long connecting may take before the candidate is told, and offered a
+ * way out: the desktop starts in seconds, so this long means it is stuck */
+const STUCK_MS = 30_000;
 
 /**
  * The exam's remote desktop (the `base` machine), over VNC. The desktop
@@ -44,6 +52,11 @@ export function DesktopView({
 	const zoomRef = useRef(zoom);
 	const resolutionRef = useRef(resolution);
 	const [connected, setConnected] = useState(false);
+	// Still not connected after `STUCK_MS`, and why the last try failed
+	const [stuck, setStuck] = useState(false);
+	const lastError = useRef<string | null>(null);
+	// Ask for the desktop now, not at the next retry (set by the connect loop)
+	const kick = useRef<() => void>(() => {});
 	// noVNC stops its canvas's mouse events: a press on it still closes menus
 	const surface = useDismissSurface();
 	// noVNC hands a press's later events (the release) to an element of its
@@ -59,7 +72,10 @@ export function DesktopView({
 			if (stopped || !screen.current) return;
 			// Rust answers once the desktop is up (or after a while without it:
 			// asked again then); a failure waits a moment before asking again
-			const session = await desktopApi.session().catch(() => undefined);
+			const session = await desktopApi.session().catch(e => {
+				lastError.current = errorText(e);
+				return undefined;
+			});
 			// Closed while it was asked for: nothing to connect, nothing to retry
 			if (stopped || !screen.current) return;
 			if (!session) {
@@ -163,6 +179,12 @@ export function DesktopView({
 			});
 		};
 
+		kick.current = () => {
+			// One already on its way (an RFB handshaking): it answers itself
+			if (stopped || rfbRef.current) return;
+			clearTimeout(retry);
+			connect();
+		};
 		connect();
 		return () => {
 			stopped = true;
@@ -171,6 +193,34 @@ export function DesktopView({
 			rfbRef.current?.disconnect();
 		};
 	}, []);
+
+	// Connecting runs on (it retries by itself); past `STUCK_MS` the wait says
+	// so, and starts again from a try again or a reset
+	const [attempt, setAttempt] = useState(0);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new attempt restarts the wait
+	useEffect(() => {
+		setStuck(false);
+		if (connected) return;
+		const t = setTimeout(() => setStuck(true), STUCK_MS);
+		return () => clearTimeout(t);
+	}, [connected, attempt]);
+	const tryAgain = useCallback(() => {
+		lastError.current = null;
+		setAttempt(n => n + 1);
+		kick.current();
+	}, []);
+	const [resetting, setResetting] = useState(false);
+	const reset = async () => {
+		setResetting(true);
+		try {
+			await desktopApi.reset();
+			tryAgain();
+		} catch (e) {
+			toast.error(`Could not reset the desktop: ${errorText(e)}`);
+		} finally {
+			setResetting(false);
+		}
+	};
 
 	// A new zoom or resolution: ask the desktop for its new size
 	useEffect(() => {
@@ -184,8 +234,33 @@ export function DesktopView({
 		<div ref={surface} className="relative h-full w-full bg-desktop">
 			<div ref={screen} className="h-full w-full" />
 			{!connected && (
-				<div className="absolute inset-0">
-					<Loading fill label="Connecting to the exam desktop…" />
+				<div className="absolute inset-0 flex items-center justify-center p-6">
+					{stuck ? (
+						<Alert variant="warning" className="max-w-md flex-col items-start bg-card">
+							<span className="font-medium">The exam desktop is not answering.</span>
+							<span className="text-caption text-muted-foreground">
+								{lastError.current ??
+									"It may still be starting. Resetting it starts it again, with its windows closed."}
+							</span>
+							<div className="mt-1 flex gap-2">
+								<Button size="push" variant="push" onClick={tryAgain}>
+									Try again
+								</Button>
+								<ConfirmDialog
+									title="Reset the desktop?"
+									description="Its open windows close."
+									action="Reset"
+									onConfirm={reset}
+								>
+									<Button size="push" variant="push" disabled={resetting}>
+										{resetting ? "Resetting…" : "Reset desktop…"}
+									</Button>
+								</ConfirmDialog>
+							</div>
+						</Alert>
+					) : (
+						<Loading fill label="Connecting to the exam desktop…" />
+					)}
 				</div>
 			)}
 		</div>

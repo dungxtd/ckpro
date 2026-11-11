@@ -1,7 +1,7 @@
+import { Alert } from "@ckpro/ui/components/alert";
 import { Button } from "@ckpro/ui/components/button";
 import { Chip } from "@ckpro/ui/components/chip";
 import { Input } from "@ckpro/ui/components/input";
-import { Loading } from "@ckpro/ui/components/loading";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
 import {
 	Select,
@@ -64,7 +64,9 @@ export function AiSettings() {
 		}))
 	);
 	const [settings, setSettings] = useState<AgentSettings | null>(null);
-	// What was read as the app opened (no checking here); Recheck reads again
+	// Why they could not be read: said in place, with a way to read them again
+	const [error, setError] = useState<string | null>(null);
+	// What was read as the app opened (no checking here); Check again reads again
 	const runtime = coach.runtime;
 	const [checking, setChecking] = useState(false);
 	const [open, setOpen] = useState<Provider | null>(null);
@@ -74,9 +76,11 @@ export function AiSettings() {
 		await Promise.all([loadRuntime(), loadAccount()]);
 		setChecking(false);
 	}, []);
-	useEffect(() => {
-		agentApi.settings().then(setSettings, e => toast.error(errorText(e)));
+	const read = useCallback(() => {
+		setError(null);
+		agentApi.settings().then(setSettings, e => setError(errorText(e)));
 	}, []);
+	useEffect(read, [read]);
 	useEffect(() => {
 		if (enabled) coach.warm();
 	}, [enabled, coach.warm]);
@@ -128,18 +132,30 @@ export function AiSettings() {
 					</Row>
 				)}
 			</Group>
-			{enabled && !settings && <Loading fill label="Loading the agents…" />}
+			{enabled &&
+				!settings &&
+				(error ? (
+					<Alert variant="destructive" className="flex-col items-start">
+						<span className="font-medium">The assistant's settings could not be read.</span>
+						<span className="text-caption text-muted-foreground">{error}</span>
+						<Button size="push" variant="push" className="mt-1" onClick={read}>
+							Try again
+						</Button>
+					</Alert>
+				) : (
+					<AgentsSkeleton />
+				))}
 			{enabled && settings && (
 				<>
 					<Group
 						title="Agents"
-						description="Agents turned on and signed in are offered when you start a session."
+						description="Agents turned on and signed in are offered when you start a conversation."
 					>
 						{AGENTS.map(a => {
 							const on = settings.enabled.includes(a.id);
 							return (
 								// The switch turns it on or off in place; the rest of the row opens it
-								<div key={a.id} className="flex items-center gap-3 pr-4 hover:bg-foreground/5">
+								<div key={a.id} className="flex items-center gap-3 pr-4 hover:bg-hover">
 									<button
 										type="button"
 										onClick={() => setOpen(a.id)}
@@ -148,7 +164,7 @@ export function AiSettings() {
 										<a.Icon className={cn("size-5 shrink-0", a.tint, !on && "opacity-50")} />
 										<div className="min-w-0 flex-1">
 											<div className="text-lead leading-snug">{a.name}</div>
-											<div className="truncate text-muted-foreground text-xs">
+											<div className="truncate text-muted-foreground text-caption">
 												{agentSummary(on, runtime, coach.account)}
 											</div>
 										</div>
@@ -210,6 +226,23 @@ export function AiSettings() {
 
 type Section = { settings: AgentSettings; save: (patch: Partial<AgentSettings>) => void };
 
+/** The agents' card while their settings are read: its shape, without words,
+ * so the page does not jump when they come */
+function AgentsSkeleton() {
+	return (
+		<Group title="Agents">
+			<div aria-busy className="flex items-center gap-3 px-4 py-3">
+				<span className="size-5 shrink-0 animate-pulse rounded-md bg-fill-quiet" />
+				<span className="flex flex-1 flex-col gap-1.5">
+					<span className="h-3 w-28 animate-pulse rounded-full bg-fill-quiet" />
+					<span className="h-2.5 w-44 animate-pulse rounded-full bg-fill-quiet" />
+				</span>
+			</div>
+			<span className="sr-only">Loading the agents…</span>
+		</Group>
+	);
+}
+
 /** One line under an agent's name: where it runs and as whom, or what it needs */
 function agentSummary(
 	on: boolean,
@@ -236,7 +269,7 @@ function AgentState({
 	if (!on || runtime === null || signedIn === null) return null;
 	const ready = !runtime.problem && signedIn;
 	return (
-		<span className="flex items-center gap-1.5 text-muted-foreground text-xs">
+		<span className="flex items-center gap-1.5 text-muted-foreground text-caption">
 			<StatusDot tone={ready ? "ok" : "warn"} className="size-1.5" />
 			{ready ? "Ready" : runtime.problem ? "Not found" : "Sign in"}
 		</span>
@@ -275,10 +308,10 @@ function ClaudeCodePanel({
 				<div className="flex items-center justify-between gap-3">
 					<div className="text-lead leading-snug">Claude CLI</div>
 					<Button size="push" variant="push" disabled={checking} onClick={onRecheck}>
-						<RotateCw className={cn(checking && "animate-spin")} /> Recheck
+						<RotateCw className={cn(checking && "animate-spin")} /> Check again
 					</Button>
 				</div>
-				<div className="break-all text-muted-foreground text-xs">
+				<div className="break-all text-muted-foreground text-caption">
 					{runtime === null
 						? "Checking…"
 						: runtime.claude
@@ -299,7 +332,7 @@ function ClaudeCodePanel({
 						placeholder="Custom path to claude"
 						aria-label="Custom path to the Claude CLI"
 						spellCheck={false}
-						className="h-8 font-mono text-xs md:text-xs"
+						className="h-8 font-mono text-caption md:text-caption"
 					/>
 					<Button
 						type="submit"
@@ -321,7 +354,7 @@ function ClaudeCodePanel({
 					<span className="text-muted-foreground text-sm">Checking…</span>
 				) : account.signed_in ? null : (
 					<Button size="push" variant="pushDefault" onClick={() => setSigningIn(true)}>
-						Sign In…
+						Sign in…
 					</Button>
 				)}
 			</Row>
@@ -454,7 +487,7 @@ function ToolAccess({ settings, save }: Section) {
 			<div className="ml-4 flex flex-col gap-2 border-border border-t py-3 pr-4">
 				<div>
 					<div className="text-lead leading-snug">Never run</div>
-					<div className="text-muted-foreground text-xs">
+					<div className="text-muted-foreground text-caption">
 						Commands containing these are refused, whatever you allow. Always refused: kind, docker,
 						reboot and shutdown, rm -r /.
 					</div>
@@ -486,7 +519,7 @@ function ToolAccess({ settings, save }: Section) {
 						placeholder="kubectl delete namespace"
 						aria-label="Command to never run"
 						spellCheck={false}
-						className="h-8 font-mono text-xs md:text-xs"
+						className="h-8 font-mono text-caption md:text-caption"
 					/>
 					<Button type="submit" size="push" variant="push" disabled={!entry.trim()}>
 						Add
@@ -502,7 +535,7 @@ function Privacy({ settings, save }: Section) {
 	return (
 		<Group
 			title="Privacy"
-			description="For every agent: the task always goes with a question; these decide what else does. A session is named from its first question by a quick model."
+			description="For every agent: the task always goes with a question; these decide what else does. A conversation is named from its first question by a quick model."
 		>
 			<Row label="Share the last check" detail="Which checks passed and why the others failed">
 				<Switch
