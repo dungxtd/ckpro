@@ -36,7 +36,8 @@ export function ActivityChip({ compact = false }: { compact?: boolean }) {
 		if (latest !== undefined) setNow(Date.now());
 	}, [latest]);
 	const shown = running[0] ?? failed;
-	if (!shown) return null;
+	// On the Environment page the activity list shows it already
+	if (!shown || pathname === "/environment") return null;
 
 	const isFailed = shown.status === "failed";
 	const words = isFailed ? `Failed: ${shown.title}` : shown.title;

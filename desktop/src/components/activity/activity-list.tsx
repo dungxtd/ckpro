@@ -82,7 +82,12 @@ export function ActivityList({ focus, focusKey }: { focus?: number; focusKey?: s
 					onOpenChange={o => setOpen(o ? a.id : null)}
 					summary={
 						<>
-							<ActivityStatusIcon status={a.status} />
+							{/* Opened, a running one turns at its step below: one spinner */}
+							{open === a.id && a.status === "running" ? (
+								<span className="size-4 shrink-0" />
+							) : (
+								<ActivityStatusIcon status={a.status} />
+							)}
 							<span
 								className={cn(
 									"min-w-0 flex-1 truncate",
