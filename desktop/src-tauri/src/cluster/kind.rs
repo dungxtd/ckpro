@@ -221,11 +221,17 @@ async fn download(url: &str) -> reqwest::Result<bytes::Bytes> {
     download_with(url, std::time::Duration::from_secs(1)).await
 }
 
-/// `download`, waiting `unit` times 2, 4, 8 between tries
+/// `download`, waiting `unit` times 2, 4, 8 between tries. A connection
+/// that stalls times out (and is tried again) instead of hanging
 async fn download_with(url: &str, unit: std::time::Duration) -> reqwest::Result<bytes::Bytes> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(15))
+        // Between two reads, not for the whole body (kind is ~10 MB)
+        .read_timeout(std::time::Duration::from_secs(30))
+        .build()?;
     let mut attempt = 1;
     loop {
-        let result = async { reqwest::get(url).await?.error_for_status()?.bytes().await }.await;
+        let result = async { client.get(url).send().await?.error_for_status()?.bytes().await }.await;
         match result {
             Err(e) if attempt < DOWNLOAD_ATTEMPTS && passing(&e) => {
                 let wait = unit * (1 << attempt);
@@ -242,7 +248,9 @@ async fn download_with(url: &str, unit: std::time::Duration) -> reqwest::Result<
 fn passing(e: &reqwest::Error) -> bool {
     match e.status() {
         Some(status) => status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS,
-        None => e.is_timeout() || e.is_connect() || e.is_request() || e.is_body(),
+        // Not a request that could not be built or a TLS certificate refused:
+        // those fail the same every time
+        None => e.is_timeout() || e.is_connect() || e.is_body(),
     }
 }
 
