@@ -19,7 +19,7 @@ import { bestByDay, minutesByDay, scoreOf, startedAt } from "@/components/study/
 import { PracticeMap } from "@/components/study/practice-map";
 import { addDays, dayKey, monday, monthWeeks, parseDay, streak } from "@/days";
 import { useExam } from "@/stores/exam";
-import { useShownTargets } from "@/stores/settings";
+import { useFocus, useShownTargets, useTargets } from "@/stores/settings";
 import { useStudy } from "@/stores/study";
 import { errorText, examApi, type Mode, type PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
@@ -44,6 +44,8 @@ const short = (d: Date) =>
 export function CalendarRoute() {
 	const [params, setParams] = useSearchParams();
 	const targets = useShownTargets();
+	const aimed = useTargets();
+	const [focus, setFocus] = useFocus();
 	const history = useStudy(s => s.history);
 	const version = useStudy(s => s.version);
 	const [plans, setPlans] = useState<PlanView[]>([]);
@@ -223,6 +225,17 @@ export function CalendarRoute() {
 					<ChevronRight />
 				</IconButton>
 				<h2 className="ml-2 flex-1 truncate font-semibold text-lead">{title}</h2>
+				{aimed.length > 1 && (
+					<SegmentedControl
+						label="Exams shown"
+						value={focus ?? "all"}
+						onChange={v => setFocus(v === "all" ? null : v)}
+						options={[
+							{ value: "all", label: "All exams" },
+							...aimed.map(t => ({ value: t.certification, label: t.certification.toUpperCase() })),
+						]}
+					/>
+				)}
 				<SegmentedControl
 					label="View"
 					value={view}
@@ -252,7 +265,7 @@ export function CalendarRoute() {
 			</StatGroup>
 			{view === "map" ? (
 				<>
-					<Card padding="md" className="rounded-2xl">
+					<Card variant="tinted" padding="md" className="rounded-2xl">
 						<PracticeMap
 							mode="score"
 							start={parseDay(prepStart)}
