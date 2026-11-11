@@ -1,22 +1,48 @@
 @import "@ckpro/ui/styles.css";
 
-/* The exam's own accents, as the ExamUI colours them: the values to use
-   (host, namespace) and the question's concepts */
+/* The app's own colours, per theme. The exam's accents, as the ExamUI
+   colours them: the values to use (host, namespace) and the question's
+   concepts; content syntax colours, deepened on light to read on white and
+   on the grey page. The assistant's colour, whichever agent answers (its
+   mark, what it did); not a vendor's. A certification's domains, heaviest
+   first, where they are told apart (Create's coverage): a categorical set
+   kept off the accent blue and the assistant's violet */
+:root,
+[data-theme="light"] {
+	--exam-value: #be185d;
+	--exam-concept: #0369a1;
+	--assistant: #6b5ce7;
+	--domain-1: #fa5252;
+	--domain-2: #15aabf;
+	--domain-3: #40c057;
+	--domain-4: #fab005;
+	--domain-5: #fd7e14;
+}
+[data-theme="dark"] {
+	--exam-value: #f472b6;
+	--exam-concept: #38bdf8;
+	--assistant: #7c6cf2;
+	--domain-1: #ff6b6b;
+	--domain-2: #3bc9db;
+	--domain-3: #51cf66;
+	--domain-4: #fcc419;
+	--domain-5: #ff922b;
+}
+
+@theme inline {
+	--color-exam-value: var(--exam-value);
+	--color-exam-concept: var(--exam-concept);
+	--color-assistant: var(--assistant);
+	--color-domain-1: var(--domain-1);
+	--color-domain-2: var(--domain-2);
+	--color-domain-3: var(--domain-3);
+	--color-domain-4: var(--domain-4);
+	--color-domain-5: var(--domain-5);
+}
+
 @theme {
-	--color-exam-value: #f472b6;
-	--color-exam-concept: #38bdf8;
-	/* The assistant's colour, whichever agent answers (its mark, what it
-	   did); not a vendor's */
-	--color-assistant: #7c6cf2;
 	/* Claude Code's own colour, beside its logo where the agent is named */
 	--color-claude: #d97757;
-	/* A certification's domains, heaviest first, where they are told apart
-	   (Create's coverage) */
-	--color-domain-1: #ff6b6b;
-	--color-domain-2: #4dabf7;
-	--color-domain-3: #51cf66;
-	--color-domain-4: #fcc419;
-	--color-domain-5: #b197fc;
 	/* Windows' close button under the pointer (shell/window-controls.tsx) */
 	--color-window-close: #c42b1c;
 	--color-window-close-foreground: #ffffff;

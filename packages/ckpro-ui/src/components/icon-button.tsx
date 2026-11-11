@@ -1,5 +1,6 @@
 import { capsuleTint } from "@ckpro/ui/components/capsule";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckpro/ui/components/tooltip";
+import { pressMotion } from "@ckpro/ui/lib/motion";
 import { cn } from "@ckpro/ui/lib/utils";
 import type * as React from "react";
 import { useRef, useState } from "react";
@@ -23,9 +24,9 @@ export interface IconButtonOptions {
 }
 
 /**
- * The one style for icon-only buttons across the app. Same motion for every
- * variant: hover grows it slightly, press shrinks it. No colour changes on
- * hover.
+ * The one style for icon-only buttons across the app. Every variant gives a
+ * little under a press; only `glass`, over a picture, grows and glows on
+ * hover (a tint would not show there). The others tint or brighten.
  */
 export function iconButtonVariants({
 	variant = "glass",
@@ -33,15 +34,15 @@ export function iconButtonVariants({
 	active,
 }: IconButtonOptions = {}) {
 	return cn(
-		"inline-flex shrink-0 transition-[transform,scale,background-color,opacity,filter] duration-200 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95 disabled:pointer-events-none disabled:opacity-50 [@media(hover:hover)]:hover:scale-110",
-		// A glow under it, but in the capsule, whose pill holds it close
-		variant !== "capsule" && "hover-glow",
+		"inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+		pressMotion,
+		// Over a picture: grows and glows under the pointer
 		variant === "glass" &&
-			"glass-blur bg-black/35 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3),inset_0_0_0_0.5px_rgb(255_255_255/0.12)] hover:bg-black/55",
+			"hover-glow glass-blur bg-black/35 text-white shadow-(--shadow-glass-rim) hover:bg-black/55 motion-safe:[@media(hover:hover)]:hover:scale-110",
 		variant === "plain" && "opacity-80 hover:opacity-100",
 		variant === "capsule" && capsuleTint,
 		variant === "toolbar" &&
-			"rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground active:scale-100 [@media(hover:hover)]:hover:scale-100 disabled:opacity-40",
+			"rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground disabled:opacity-40",
 		size === "xs" && "size-6 [&_svg]:size-3.5",
 		size === "bar" && "size-7 [&_svg]:size-4",
 		size === "sm" && "size-8 [&_svg]:size-4",

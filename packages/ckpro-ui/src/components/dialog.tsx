@@ -1,3 +1,4 @@
+import { overlayMotion, panelMotion } from "@ckpro/ui/lib/motion";
 import { cn } from "@ckpro/ui/lib/utils";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import type * as React from "react";
@@ -25,10 +26,7 @@ function DialogOverlay({
 	return (
 		<DialogPrimitive.Overlay
 			data-slot="dialog-overlay"
-			className={cn(
-				"data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-modal bg-black/40",
-				className
-			)}
+			className={cn("fixed inset-0 z-modal bg-black/40", overlayMotion, className)}
 			{...props}
 		/>
 	);
@@ -45,7 +43,8 @@ function DialogContent({
 			<DialogPrimitive.Content
 				data-slot="dialog-content"
 				className={cn(
-					"glass data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-modal grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-sheet p-6 duration-200",
+					"glass fixed top-[50%] left-[50%] z-modal grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-sheet p-6",
+					panelMotion,
 					className
 				)}
 				{...props}
@@ -76,11 +75,14 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
 	);
 }
 
+/** A dialog's title, the same in every dialog (AlertDialog's too) */
+export const dialogTitle = "font-semibold text-lg leading-tight";
+
 function DialogTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
 	return (
 		<DialogPrimitive.Title
 			data-slot="dialog-title"
-			className={cn("text-lg leading-none font-semibold", className)}
+			className={cn(dialogTitle, className)}
 			{...props}
 		/>
 	);

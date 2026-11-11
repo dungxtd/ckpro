@@ -7,7 +7,55 @@ import type * as React from "react";
  * its hover and focus, for rows laid out by their own screen
  */
 export const disclosureRow =
-	"flex items-center gap-2 rounded-md px-1.5 text-left outline-none hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring";
+	"flex items-center gap-2 rounded-md px-1.5 text-left outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring";
+
+/** The chevron of a row that opens: pointing right, turned down when open */
+export function DisclosureChevron({ open, className }: { open: boolean; className?: string }) {
+	return (
+		<ChevronRight
+			aria-hidden
+			className={cn(
+				"size-3.5 shrink-0 transition-transform duration-150 ease-out motion-reduce:transition-none",
+				open && "rotate-90",
+				className
+			)}
+		/>
+	);
+}
+
+/**
+ * A row that shows or hides what is under it, laid out by its screen: what
+ * it is about (`children`), then the chevron, at the end by default or at
+ * the `start`. `chevronClassName` sizes or hides it (a row with nothing to
+ * open keeps its place: `invisible`)
+ */
+export function DisclosureButton({
+	open,
+	chevron = "end",
+	chevronClassName,
+	className,
+	children,
+	type = "button",
+	...props
+}: React.ComponentProps<"button"> & {
+	open: boolean;
+	chevron?: "start" | "end";
+	chevronClassName?: string;
+}) {
+	const mark = <DisclosureChevron open={open} className={chevronClassName} />;
+	return (
+		<button
+			type={type}
+			aria-expanded={open}
+			className={cn(disclosureRow, "cursor-pointer", className)}
+			{...props}
+		>
+			{chevron === "start" && mark}
+			{children}
+			{chevron === "end" && mark}
+		</button>
+	);
+}
 
 /** A row that shows or hides what is under it (a log, details). */
 export function Disclosure({
@@ -28,17 +76,14 @@ export function Disclosure({
 }) {
 	return (
 		<div id={id} data-slot="disclosure" className={className}>
-			<button
-				type="button"
-				aria-expanded={open}
+			<DisclosureButton
+				open={open}
+				chevron="start"
 				onClick={() => onOpenChange(!open)}
-				className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm outline-none transition-colors hover:bg-foreground/5 focus-visible:bg-foreground/5"
+				className="w-full rounded-none px-3 py-2 text-sm transition-colors focus-visible:bg-hover focus-visible:ring-0"
 			>
-				<ChevronRight
-					className={cn("size-3.5 shrink-0 transition-transform", open && "rotate-90")}
-				/>
 				{summary}
-			</button>
+			</DisclosureButton>
 			{open && <div className="px-3 py-3">{children}</div>}
 		</div>
 	);

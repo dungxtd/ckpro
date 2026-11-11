@@ -1,3 +1,4 @@
+import { panelMotion } from "@ckpro/ui/lib/motion";
 import { cn, floatingPadding } from "@ckpro/ui/lib/utils";
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
 import type * as React from "react";
@@ -36,7 +37,8 @@ function HoverCardContent({
 				sideOffset={sideOffset}
 				collisionPadding={collisionPadding ?? floatingPadding()}
 				className={cn(
-					"z-floating max-w-(--radix-hover-card-content-available-width) origin-(--radix-hover-card-content-transform-origin) outline-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+					"z-floating max-w-(--radix-hover-card-content-available-width) origin-(--radix-hover-card-content-transform-origin) outline-none",
+					panelMotion,
 					className
 				)}
 				{...props}

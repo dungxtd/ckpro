@@ -7,7 +7,7 @@ import type * as React from "react";
  * Commands and manifests keep their lines (they scroll); `wrap` folds long
  * lines instead, for logs and messages read rather than copied. */
 export const codeBlock =
-	"overflow-auto whitespace-pre rounded-lg border border-border bg-background p-2 font-mono text-xs";
+	"overflow-auto whitespace-pre rounded-lg border border-border bg-background p-2 font-mono text-caption leading-4";
 
 export function CodeBlock({
 	wrap,
@@ -40,7 +40,7 @@ export function CodeBlock({
 		<div className="overflow-hidden rounded-lg border border-border bg-card">
 			<div className="flex items-center gap-2 border-border border-b px-2.5 py-1">
 				{typeof title === "string" ? (
-					<span className="rounded bg-border px-1.5 py-0.5 font-medium text-3xs uppercase">
+					<span className="rounded-sm bg-border px-1.5 py-0.5 font-medium text-3xs uppercase">
 						{title}
 					</span>
 				) : (

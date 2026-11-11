@@ -1,8 +1,9 @@
 import { flushSync } from "react-dom";
 
-/** The window's moves: as long as the sidebar's, on its easing */
-const DURATION_MS = 420;
-const EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
+/** The window's moves: on the kit's strong ease-out (globals.css
+ * `--ease-out`), quick enough that a layout change never waits on it */
+const DURATION_MS = 280;
+const EASING = "cubic-bezier(0.23, 1, 0.32, 1)";
 
 /** What moves in a morph: by name, how to find it (asked before the change and after) */
 export type MorphParts = Record<string, () => HTMLElement | null>;

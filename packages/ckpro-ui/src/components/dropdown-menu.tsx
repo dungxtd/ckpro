@@ -1,4 +1,5 @@
 import { menu } from "@ckpro/ui/components/menu";
+import { menuMotion } from "@ckpro/ui/lib/motion";
 import { cn } from "@ckpro/ui/lib/utils";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight } from "lucide-react";
@@ -14,10 +15,12 @@ const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
-/** The surface: never larger than the room the window leaves */
+/** The surface: never larger than the room the window leaves; it grows
+ * from its trigger (a submenu from its row) */
 const surface = cn(
 	menu.surface,
-	"z-floating max-h-(--radix-dropdown-menu-content-available-height) min-w-48 overflow-y-auto outline-none fade-in-0 zoom-in-95 data-[state=open]:animate-in"
+	"z-floating max-h-(--radix-dropdown-menu-content-available-height) min-w-48 origin-(--radix-dropdown-menu-content-transform-origin) overflow-y-auto outline-none",
+	menuMotion
 );
 
 function DropdownMenuContent({

@@ -1,4 +1,5 @@
 import { menu } from "@ckpro/ui/components/menu";
+import { menuMotion } from "@ckpro/ui/lib/motion";
 import { cn } from "@ckpro/ui/lib/utils";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { CheckIcon, ChevronDownIcon, ChevronsUpDownIcon, ChevronUpIcon } from "lucide-react";
@@ -29,14 +30,14 @@ function SelectTrigger({
 			className={cn(
 				// macOS pop-up button: the value plus a small round ⌃⌄ button. Opens
 				// the menu over itself with the current item lined up.
-				"group/popup inline-flex w-fit cursor-pointer items-center justify-end gap-2 whitespace-nowrap rounded-control py-1 pr-1 pl-2 text-callout outline-none transition-colors hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-muted-foreground *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2",
+				"group/popup inline-flex w-fit cursor-pointer items-center justify-end gap-2 whitespace-nowrap rounded-lg py-1 pr-1 pl-2 text-callout outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-muted-foreground *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2",
 				className
 			)}
 			{...props}
 		>
 			{children}
 			<SelectPrimitive.Icon asChild>
-				<span className="grid size-[22px] shrink-0 place-items-center rounded-full bg-[var(--seg-bg)] text-foreground/80 transition-colors group-hover/popup:bg-[var(--seg-on)] group-hover/popup:shadow-sm">
+				<span className="grid size-5.5 shrink-0 place-items-center rounded-full bg-[var(--seg-bg)] text-foreground/80 transition-colors group-hover/popup:bg-[var(--seg-on)] group-hover/popup:shadow-(--shadow-thumb)">
 					<ChevronsUpDownIcon className="size-3" strokeWidth={2.5} />
 				</span>
 			</SelectPrimitive.Icon>
@@ -87,7 +88,8 @@ function SelectContent({
 				data-slot="select-content"
 				className={cn(
 					menu.surface,
-					"relative z-floating max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-y-auto overflow-x-hidden p-0 data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+					"relative z-floating max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-y-auto overflow-x-hidden p-0",
+					menuMotion,
 					position === "popper" &&
 						"data-[side=left]:-translate-x-1 data-[side=top]:-translate-y-1 data-[side=right]:translate-x-1 data-[side=bottom]:translate-y-1",
 					className
@@ -98,7 +100,7 @@ function SelectContent({
 				<SelectScrollUpButton />
 				<SelectPrimitive.Viewport
 					className={cn(
-						"p-[5px]",
+						"p-1",
 						position === "popper" &&
 							"h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
 					)}

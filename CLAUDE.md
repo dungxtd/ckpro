@@ -47,7 +47,8 @@ Architecture: `docs/ARCHITECTURE.md`.
   `SegmentedControl`, `Stepper`, `Select`, `Switch`, `Popover` with the
   `menu` classes, `DropdownMenu` (submenus), `Dialog`/`AlertDialog`,
   `ConfirmDialog`, `Tooltip`, `Truncated`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`), `Alert`, `CodeBlock`,
-  `Badge` (`BadgeButton`), `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal` (`Terminal.Prompt`), `Placeholder`, `HoverCard`, `Progress` (`marker`), `ProgressRing`, `ResizeHandle`, `Splitter` (`usePanelSize`), `Spinner`, `Loading`. A hand-rolled control or a class
+  `Badge` (`BadgeButton`), `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal` (`Terminal.Prompt`), `Placeholder`, `HoverCard`, `Progress` (`marker`), `ProgressRing`, `ResizeHandle`, `Splitter` (`usePanelSize`), `Spinner`, `Loading`,
+  `MenuItem`, `DisclosureButton`, `InlineCode`, `DayMarker`. A hand-rolled control or a class
   string used twice becomes a kit component or variant.
 - **Kit helpers**: `useElementSize` (an element's size as it changes),
   `morph` (a state change as one move: parts travel from their old boxes

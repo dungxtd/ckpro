@@ -1,4 +1,5 @@
 import { menu } from "@ckpro/ui/components/menu";
+import { menuMotion } from "@ckpro/ui/lib/motion";
 import { cn } from "@ckpro/ui/lib/utils";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import { Check, ChevronRight } from "lucide-react";
@@ -20,7 +21,8 @@ function ContextMenuContent({
 				data-slot="context-menu-content"
 				className={cn(
 					menu.surface,
-					"z-floating min-w-48 fade-in-0 zoom-in-95 animate-in duration-100 outline-none",
+					"z-floating min-w-48 origin-(--radix-context-menu-content-transform-origin) outline-none",
+					menuMotion,
 					className
 				)}
 				{...props}
@@ -113,7 +115,12 @@ function ContextMenuSubContent({
 		<ContextMenuPrimitive.Portal>
 			<ContextMenuPrimitive.SubContent
 				collisionPadding={collisionPadding}
-				className={cn(menu.surface, "z-floating min-w-44 outline-none", className)}
+				className={cn(
+					menu.surface,
+					"z-floating min-w-44 origin-(--radix-context-menu-content-transform-origin) outline-none",
+					menuMotion,
+					className
+				)}
 				{...props}
 			/>
 		</ContextMenuPrimitive.Portal>

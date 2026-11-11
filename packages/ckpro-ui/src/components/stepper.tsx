@@ -22,12 +22,12 @@ export function Stepper({
 	className?: string;
 }) {
 	const btn =
-		"grid h-6 w-7 cursor-pointer place-items-center rounded-tight outline-none transition-colors hover:bg-foreground/10 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-35 [&_svg]:size-3.5";
+		"grid h-6 w-7 cursor-pointer place-items-center rounded-md outline-none transition-colors hover:bg-foreground/10 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-35 [&_svg]:size-3.5";
 	return (
 		<fieldset
 			aria-label={label}
 			className={cn(
-				"m-0 inline-flex min-w-0 items-center rounded-segment border-0 bg-[var(--seg-bg)] p-0.5",
+				"m-0 inline-flex min-w-0 items-center rounded-lg border-0 bg-[var(--seg-bg)] p-0.5",
 				className
 			)}
 		>

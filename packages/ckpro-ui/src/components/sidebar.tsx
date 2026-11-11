@@ -101,7 +101,7 @@ export function SidebarItem({
 }: SidebarItemProps) {
 	const edited = leading !== undefined || trailing !== undefined;
 	const rowClass = cn(
-		"flex w-full items-center gap-3 rounded-lg px-2.5 py-1.5 text-left text-[14px] text-foreground/85 outline-none transition-colors duration-150 hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring aria-[current]:bg-sidebar-selected aria-[current]:font-semibold aria-[current]:text-foreground motion-reduce:transition-none [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground aria-[current]:[&>svg]:text-foreground",
+		"flex w-full items-center gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm text-foreground/85 outline-none transition-colors duration-150 hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring aria-[current]:bg-sidebar-selected aria-[current]:font-semibold aria-[current]:text-foreground motion-reduce:transition-none [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground aria-[current]:[&>svg]:text-foreground",
 		className
 	);
 	const body = (

@@ -3,13 +3,13 @@ import { cn } from "@ckpro/ui/lib/utils";
 import type React from "react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
-// A macOS notice pill at the bottom right: a near-solid dark grey surface
-// with a hairline rim, its icon and text semibold, its action, and a round
-// close button always at the end; 22px radius, the same in both themes. Its text is one
-// line, cut short when long (lead with what happened: "Deleted <name>").
-// A success is green and an error red (icon, text and action alike, from
-// `--normal-text`); anything else white. Sonner injects its own unlayered
-// CSS, so the overrides are !important.
+// A macOS notice pill at the bottom right, on the popover surface of the
+// theme (solid, its floating shadow and hairline), its icon and text
+// semibold, its action, and a round close button always at the end. Its text
+// is one line, cut short when long (lead with what happened: "Deleted
+// <name>"). A success shows a green icon and an error a red one; the text
+// stays the popover's, which reads on it in both themes. Sonner injects its
+// own unlayered CSS, so the overrides are !important.
 const Toaster = ({ toastOptions, ...props }: ToasterProps) => (
 	<Sonner
 		position="bottom-right"
@@ -18,10 +18,10 @@ const Toaster = ({ toastOptions, ...props }: ToasterProps) => (
 		className="toaster group cursor-default select-none"
 		style={
 			{
-				"--normal-bg": "rgba(44, 44, 46, 0.96)",
-				"--normal-text": "rgba(255, 255, 255, 0.96)",
+				"--normal-bg": "var(--popover)",
+				"--normal-text": "var(--popover-foreground)",
 				"--normal-border": "transparent",
-				"--border-radius": "22px",
+				"--border-radius": "var(--radius-toast)",
 			} as React.CSSProperties
 		}
 		toastOptions={{
@@ -30,24 +30,23 @@ const Toaster = ({ toastOptions, ...props }: ToasterProps) => (
 				// Pill fits its text, anchored right; sonner's fixed 356px width (and
 				// full-window width under 600px) is overridden.
 				toast:
-					"!left-auto !right-0 !w-fit !max-w-[min(420px,calc(100vw-48px))] !gap-2.5 !rounded-[22px] !py-2.5 !pr-2.5 !pl-4 !text-[14px] !font-semibold !shadow-[inset_0_0_0_0.5px_rgba(255,255,255,0.12),0_8px_28px_rgba(0,0,0,0.35)] !backdrop-blur-[30px][&_[data-icon]]:!text-(--normal-text) [&_[data-icon]_svg]:size-[19px]",
-				success: "[--normal-text:var(--color-success)]",
-				error: "[--normal-text:var(--color-destructive)]",
+					"!left-auto !right-0 !w-fit !max-w-[min(420px,calc(100vw-48px))] !gap-2.5 !rounded-toast !py-2.5 !pr-2.5 !pl-4 !text-sm !font-semibold !shadow-(--shadow-float) [&_[data-icon]_svg]:size-4.5",
+				success: "[&_[data-icon]]:!text-success",
+				error: "[&_[data-icon]]:!text-destructive",
 				// One line: a long name is cut, never wrapping the pill
 				title: "!truncate",
-				// Under the title, in its colour, softer (sonner's own grey is unreadable on the pill)
+				// Under the title, in its colour, softer (sonner's own grey is too faint)
 				description: "!truncate !font-normal !text-(--normal-text) !opacity-75",
 				// Plain ✕ at the end of the pill (sonner pins it to the top-left corner).
 				closeButton:
-					"!static !order-[99] !ml-1.5 !size-7 !shrink-0 !transform-none !rounded-full !border-0 !bg-white/10 !text-white/75 hover:!bg-white/20 hover:!text-white [&_svg]:!size-3.5",
+					"!static !order-[99] !ml-1.5 !size-7 !shrink-0 !transform-none !rounded-full !border-0 !bg-fill-quiet !text-popover-foreground/75 hover:!bg-foreground/15 hover:!text-popover-foreground [&_svg]:!size-3.5",
 				// Action ("Release Notes"): the kit's small button sizing, coloured from the
 				// pill's own variables (--normal-text on a faint tint of itself), so it
-				// follows whatever the pill is. Not a themed glass fill: the pill is dark in
-				// both themes, and a white one turned the label invisible. Sonner's own
-				// unlayered button CSS needs the ! overrides.
+				// follows whatever the pill is. Sonner's own unlayered button CSS needs
+				// the ! overrides.
 				actionButton: cn(
 					buttonVariants({ variant: "ghost", size: "sm" }),
-					"!order-[98] !ml-2 !h-7 !shrink-0 !rounded-full !border-0 !bg-[color-mix(in_srgb,var(--normal-text)_16%,transparent)] !px-3 !font-semibold !text-(--normal-text) hover:!bg-[color-mix(in_srgb,var(--normal-text)_28%,transparent)]"
+					"!order-[98] !ml-2 !h-7 !shrink-0 !rounded-full !border-0 !bg-[color-mix(in_srgb,var(--normal-text)_10%,transparent)] !px-3 !font-semibold !text-(--normal-text) hover:!bg-[color-mix(in_srgb,var(--normal-text)_18%,transparent)]"
 				),
 				content: "!min-w-0 !flex-1",
 				...toastOptions?.classNames,

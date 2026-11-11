@@ -2,17 +2,23 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
-const fill = cva("block h-full rounded-full transition-[width] duration-500", {
-	variants: {
-		tone: {
-			highlight: "bg-highlight",
-			success: "bg-success",
-			warning: "bg-warning",
-			destructive: "bg-destructive",
+// The fill is the track's full width, slid back by what is left: a transform,
+// so a change animates on the compositor, and the fill keeps its round end
+// (scaling it would squash the end's curve)
+const fill = cva(
+	"block h-full w-full rounded-full transition-transform duration-300 ease-out motion-reduce:transition-none",
+	{
+		variants: {
+			tone: {
+				highlight: "bg-highlight",
+				success: "bg-success",
+				warning: "bg-warning",
+				destructive: "bg-destructive",
+			},
 		},
-	},
-	defaultVariants: { tone: "highlight" },
-});
+		defaultVariants: { tone: "highlight" },
+	}
+);
 
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 
@@ -44,7 +50,10 @@ export function Progress({
 				aria-valuemax={100}
 				className={cn("block h-1.5 overflow-hidden rounded-full bg-foreground/10", className)}
 			>
-				<span className={fill({ tone })} style={{ width: `${percent}%`, backgroundColor: color }} />
+				<span
+					className={fill({ tone })}
+					style={{ transform: `translateX(${percent - 100}%)`, backgroundColor: color }}
+				/>
 			</span>
 			{marker !== undefined && (
 				<span
@@ -80,7 +89,7 @@ export function ProgressRing({
 			className={cn("grid size-20 shrink-0 place-items-center rounded-full", className)}
 			style={{ background: `conic-gradient(var(--success) 0 ${percent}%, var(--muted) 0)` }}
 		>
-			<span className="grid size-[calc(100%-1rem)] place-items-center rounded-full bg-card font-bold text-lg tabular-nums">
+			<span className="grid size-[calc(100%-1rem)] place-items-center rounded-full bg-card font-semibold text-lg tabular-nums">
 				{children}
 			</span>
 		</span>

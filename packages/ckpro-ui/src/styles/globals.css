@@ -7,12 +7,14 @@
 @source "..";
 
 /* Apple system colours (iOS / macOS): plain backgrounds, grouped cards, solid
- * menus and sheets, hairline separators, system blue for selection/focus.
+ * menus and sheets, hairline separators. One accent, `--highlight` (the macOS
+ * selection blue): selection, focus rings, the main action, what is planned;
+ * nothing else is blue. One grey family, Apple's cool system greys (a touch
+ * of blue in every grey), in both themes.
  * `data-theme` on the root picks light or dark. */
 :root,
 [data-theme="light"] {
-	--radius: 0.65rem;
-	--background: #e4e4e3; /* a step darker than the macOS sidebar (#ededec) */
+	--background: #e3e3e8; /* a step darker than the sidebar panel */
 	--foreground: #000000; /* label */
 	--card: #ffffff; /* grouped cards: white on the grey page */
 	--card-foreground: #000000;
@@ -22,7 +24,7 @@
 	--primary-foreground: #ffffff;
 	--secondary: #e5e5ea; /* tertiary fill */
 	--secondary-foreground: #000000;
-	--muted: #dadad9;
+	--muted: #d9d9de;
 	--muted-foreground: #8a8a8e; /* secondaryLabel */
 	--accent: #e5e5ea;
 	--accent-foreground: #000000;
@@ -45,8 +47,19 @@
 		inset 0 1px 0 rgb(255 255 255 / 0.9), 0 0 0 1px rgb(0 0 0 / 0.07), 0 1px 3px rgb(0 0 0 / 0.06);
 	--border: rgb(60 60 67 / 0.18); /* separator */
 	--input: #e5e5ea;
-	--ring: #007aff;
+	--ring: var(--highlight);
+	/* Shadows, by what casts them: a floating layer, a filled control (the
+	   main action), a push button's edge, a thumb on its track (a segment, a
+	   switch's knob, a selected chip), and the lit rim of a dark glass circle
+	   over a picture */
 	--shadow-float: 0 10px 38px rgb(0 0 0 / 0.14), 0 0 0 0.5px rgb(0 0 0 / 0.12);
+	--shadow-control: 0 0 0 0.5px rgb(0 0 0 / 0.12), 0 1px 2px rgb(0 0 0 / 0.12);
+	--shadow-push: inset 0 0 0 1px var(--push-edge), 0 1px 2px rgb(0 0 0 / 0.08);
+	--shadow-thumb:
+		0 1px 3px rgb(0 0 0 / 0.25), inset 0 0.5px 0 rgb(255 255 255 / 0.2),
+		0 0 0 0.5px rgb(0 0 0 / 0.08);
+	--shadow-glass-rim:
+		inset 0 1px 0 rgb(255 255 255 / 0.3), inset 0 0 0 0.5px rgb(255 255 255 / 0.12);
 	/* macOS menu material, measured from System Settings screenshots. */
 	--switch-off: #e5e5ea;
 	--seg-bg: rgb(0 0 0 / 0.06);
@@ -55,37 +68,38 @@
 	--push: #ffffff;
 	--push-edge: rgb(0 0 0 / 0.12);
 	--range-track: rgb(0 0 0 / 0.12);
-	--menu-bg: linear-gradient(rgb(252 252 252 / 0.82), rgb(244 244 245 / 0.82));
+	--menu-bg: linear-gradient(rgb(252 252 254 / 0.82), rgb(243 243 246 / 0.82));
 	--menu-edge: rgb(0 0 0 / 0.16); /* outer hairline */
 	--menu-rim: rgb(255 255 255 / 0.9); /* inner bright rim */
 	--menu-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
 	--hover-glow: 0 2px 6px rgb(0 0 0 / 0.1);
 	/* The window's sidebar, a panel inset in the window, and the floating
 	   capsule it folds into */
-	--sidebar-panel: #f2f2f1;
+	--sidebar-panel: #f2f2f7;
 	--sidebar-selected: rgb(0 0 0 / 0.1);
 	--sidebar-hover: rgb(0 0 0 / 0.05);
-	--capsule: rgb(250 250 250 / 0.72);
+	--capsule: rgb(250 250 252 / 0.72);
 	--capsule-edge: rgb(0 0 0 / 0.12);
 	--capsule-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
-	/* A terminal, in the theme: on a light page a cool slate ground with a
-	   firm edge, apart from the white cards, its tones darker to read on it */
-	--terminal: #e6ebf1;
-	--terminal-foreground: #1d2330;
-	--terminal-edge: rgb(30 41 59 / 0.18);
-	--terminal-prompt: #0a5fd8;
+	/* A terminal, in the theme: on a light page a grey ground a step lighter
+	   than the page with a firm edge, apart from the white cards, its tones
+	   darker to read on it (the prompt the accent, deepened) */
+	--terminal: #ebebf0;
+	--terminal-foreground: #1c1c1e;
+	--terminal-edge: rgb(60 60 67 / 0.24);
+	--terminal-prompt: color-mix(in oklab, var(--highlight), black 15%);
 	--terminal-muted: rgb(0 0 0 / 0.45);
 	--terminal-faint: rgb(0 0 0 / 0.3);
 	--terminal-ok: #248a3d;
 	--terminal-warn: #c93400;
 	--terminal-bad: #d70015;
-	--terminal-note: #0a5fd8;
+	--terminal-note: var(--terminal-prompt);
 }
 
 [data-theme="dark"] {
-	--background: #1e1e1e; /* macOS dark window content */
+	--background: #1c1c1e; /* macOS dark window content */
 	--foreground: #ffffff;
-	--card: #2a2a2a; /* grouped cards */
+	--card: #2a2a2d; /* grouped cards */
 	--card-foreground: #ffffff;
 	--popover: #2c2c2e;
 	--popover-foreground: #ffffff;
@@ -93,7 +107,7 @@
 	--primary-foreground: #000000;
 	--secondary: #2c2c2e;
 	--secondary-foreground: #ffffff;
-	--muted: #2a2a2a;
+	--muted: #2a2a2d;
 	--muted-foreground: #98989d;
 	--accent: #3a3a3c;
 	--accent-foreground: #ffffff;
@@ -102,7 +116,7 @@
 	--warning: #ff9f0a;
 	--highlight: #3478f6;
 	--highlight-foreground: #ffffff;
-	--glass: #2c2c2c;
+	--glass: #2c2c2e;
 	--glass-border: rgb(84 84 88 / 0.6);
 	--glass-highlight: transparent;
 	--glass-rim: transparent;
@@ -111,8 +125,14 @@
 	--surface-edge: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 0 0 1px rgb(255 255 255 / 0.08);
 	--border: rgb(84 84 88 / 0.6);
 	--input: #3a3a3c;
-	--ring: #0a84ff;
+	--ring: var(--highlight);
 	--shadow-float: 0 10px 38px rgb(0 0 0 / 0.5), 0 0 0 0.5px rgb(255 255 255 / 0.12);
+	--shadow-control: 0 0 0 0.5px rgb(0 0 0 / 0.3), 0 1px 2px rgb(0 0 0 / 0.3);
+	--shadow-push: inset 0 0 0 1px var(--push-edge), 0 1px 2px rgb(0 0 0 / 0.2);
+	--shadow-thumb:
+		0 1px 3px rgb(0 0 0 / 0.3), inset 0 0.5px 0 rgb(255 255 255 / 0.2), 0 0 0 0.5px rgb(0 0 0 / 0.1);
+	--shadow-glass-rim:
+		inset 0 1px 0 rgb(255 255 255 / 0.3), inset 0 0 0 0.5px rgb(255 255 255 / 0.12);
 	--switch-off: #4a4a4c;
 	--seg-bg: rgb(0 0 0 / 0.28); /* recessed track, reads on any dark surface */
 	--seg-on: #76767b; /* raised thumb, clearly lighter than the track */
@@ -121,7 +141,7 @@
 	--push: rgb(255 255 255 / 0.04);
 	--push-edge: rgb(255 255 255 / 0.16);
 	--range-track: rgb(255 255 255 / 0.18);
-	--menu-bg: linear-gradient(rgb(112 111 109 / 0.78), rgb(96 95 93 / 0.78));
+	--menu-bg: linear-gradient(rgb(109 109 115 / 0.78), rgb(93 93 99 / 0.78));
 	--menu-edge: rgb(0 0 0 / 0.85); /* near-black outer hairline (#070707) */
 	--menu-rim: rgb(255 255 255 / 0.24); /* bright inner rim */
 	--menu-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
@@ -133,15 +153,16 @@
 	--capsule-edge: rgb(255 255 255 / 0.14);
 	--capsule-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
 	--terminal: #0d0d0e;
-	--terminal-foreground: #d4d4d4;
+	--terminal-foreground: #d1d1d6;
 	--terminal-edge: rgb(255 255 255 / 0.05);
-	--terminal-prompt: #6ea8fe;
+	/* The accent, lightened to read on the near-black ground */
+	--terminal-prompt: color-mix(in oklab, var(--highlight), white 30%);
 	--terminal-muted: rgb(255 255 255 / 0.45);
 	--terminal-faint: rgb(255 255 255 / 0.3);
 	--terminal-ok: var(--success);
 	--terminal-warn: var(--warning);
 	--terminal-bad: var(--destructive);
-	--terminal-note: var(--highlight);
+	--terminal-note: var(--terminal-prompt);
 }
 
 @theme inline {
@@ -189,6 +210,12 @@
 	--color-terminal-note: var(--terminal-note);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
+	/* Quiet fills, the foreground thinned so they read on any surface (page,
+	   card, popover, either theme): `bg-hover` under the pointer,
+	   `bg-fill-quiet` a resting tint (a chip, inline code, a recessed well).
+	   Inline, so a themed subtree resolves them with its own foreground. */
+	--color-hover: color-mix(in oklab, var(--foreground) 5%, transparent);
+	--color-fill-quiet: color-mix(in oklab, var(--foreground) 7%, transparent);
 }
 
 @custom-variant dark {
@@ -241,16 +268,18 @@
 	z-index: 110;
 }
 
-/* Surfaces, after iOS / macOS. The utility names are historical ("glass");
- * they now draw solid system surfaces: no see-through panels, no blur over
- * artwork. */
+/* Surfaces, after iOS / macOS. The utility names are historical ("glass").
+ * Page surfaces, dialogs, sheets and toasts are solid. Blur is kept for what
+ * floats briefly over the content and must stay legible on whatever is under
+ * it: menus and popovers (`menu-surface`), the capsule, and controls laid
+ * over a picture (`glass-blur`, the overlay badge). Nothing else blurs. */
 :root {
 	--glass-drop: 0 0 #0000;
 	--glass-inner: 0 0 #0000;
 }
 
-/* Floating layers (sheets, dialogs, menus, toasts): solid popover colour,
- * hairline edge, soft shadow, like a macOS menu or iOS sheet. */
+/* Floating layers (sheets, dialogs, toasts): solid popover colour, hairline
+ * edge, soft shadow, like an iOS sheet. */
 @utility glass {
 	background-color: var(--popover);
 	color: var(--popover-foreground);
@@ -266,8 +295,8 @@
 	box-shadow: var(--surface-edge), var(--glass-drop);
 }
 
-/* macOS menu material (select menus): translucent, blurred, hairline edge.
- * Small and short-lived, so the blur is cheap. */
+/* macOS menu material (menus, popovers, select menus): translucent, blurred,
+ * hairline edge. Small and short-lived, so the blur is cheap. */
 @utility menu-surface {
 	background-image: var(--menu-bg);
 	backdrop-filter: blur(20px) saturate(1.5);
@@ -292,12 +321,15 @@
 	--glass-drop: 0 4px 16px rgb(0 0 0 / 0.12), 0 0 0 0.5px var(--glass-border);
 }
 
-/* Hover glow for buttons: a soft light glow in dark theme, a soft shadow in
- * light. A drop-shadow filter follows the button's shape (pill, circle, or a
- * bare icon glyph) and leaves its box-shadow edges alone. */
+/* Hover glow, only for controls over a picture (glass and solid buttons, the
+ * glass icon button), where a tint would not show: a soft light glow in dark
+ * theme, a soft shadow in light. A drop-shadow filter follows the button's
+ * shape (pill, circle, or a bare icon glyph) and leaves its box-shadow edges
+ * alone. Controls on the app's own surfaces tint on hover instead. */
 @utility hover-glow {
-	transition-property: transform, background-color, color, opacity, filter;
-	transition-duration: 200ms;
+	transition-property: transform, scale, background-color, color, opacity, filter;
+	transition-duration: 150ms;
+	transition-timing-function: var(--ease-out);
 	&:hover {
 		filter: drop-shadow(var(--hover-glow));
 	}
@@ -307,7 +339,7 @@
 @utility glass-selected {
 	background-color: var(--glass-selected);
 	color: var(--glass-selected-foreground);
-	box-shadow: 0 1px 3px rgb(0 0 0 / 0.16);
+	box-shadow: var(--shadow-thumb);
 }
 
 /* Reduce transparency / increase contrast: solid surfaces and a real border. */
@@ -321,30 +353,10 @@
 	}
 }
 
-/* Loading placeholder: a soft highlight sweeping across the surface. */
-@utility skeleton-shimmer {
-	background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
-	background-image: linear-gradient(
-		90deg,
-		transparent 25%,
-		color-mix(in oklab, var(--foreground) 9%, transparent) 50%,
-		transparent 75%
-	);
-	background-size: 200% 100%;
-	animation: shimmer 1.6s linear infinite;
-}
-
-@keyframes shimmer {
-	from {
-		background-position: 200% 0;
-	}
-	to {
-		background-position: -200% 0;
-	}
-}
-
 /* Small type steps the app uses. No line-height is paired, so they size text
-   exactly like the arbitrary values they replace. */
+   exactly like the arbitrary values they replace. `text-caption` is the
+   kit's name for 12px (Tailwind's `text-xs` is the same size with a 16px
+   line-height); the kit itself uses `text-caption`. */
 @theme {
 	--text-3xs: 10px;
 	--text-2xs: 11px;
@@ -353,16 +365,45 @@
 	--text-lead: 15px;
 	/* A screen's title */
 	--text-title: 26px;
+	/* The one big figure a screen is about (an exam's score on its results) */
+	--text-display: 36px;
+	--text-display--line-height: 1.1;
+	--text-display--letter-spacing: -0.02em;
 }
 
-/* Corner radii that repeat across the app. */
+/* Corner radii: one scale, Tailwind's own steps, each with one job.
+ *   sm  4px   small marks inside text (inline code, a language tag)
+ *   md  6px   something compact or inside another rounded thing: a segment
+ *             in its track, a stepper's buttons, a toolbar icon button, a
+ *             picker in a line of text, a row that opens what is under it
+ *   lg  8px   every text button and select trigger, every field (Input,
+ *             Textarea), the segmented track, alerts, code blocks, tooltips
+ *             (a tooltip is control-sized, so it takes a control's corner)
+ *   xl  12px  cards, terminals and every floating surface (menus,
+ *             popovers, hover cards); a menu row is lg, the surface's
+ *             corner less its 4px padding
+ *   full      pills: chips, badges, the capsule, round icon buttons
+ *   sheet 26px dialogs and sheets; toast 22px the notice pill
+ * Inside a surface a corner is the surface's less its padding, so the
+ * curves run parallel. */
 @theme {
-	--radius-tight: 6px;
-	--radius-control: 7px;
-	--radius-segment: 8px;
-	--radius-poster: 10px;
-	--radius-menu: 12px;
+	--radius-sm: 4px;
+	--radius-md: 6px;
+	--radius-lg: 8px;
+	--radius-xl: 12px;
+	--radius-2xl: 16px;
+	--radius-toast: 22px;
 	--radius-sheet: 26px;
+}
+
+/* Motion: things arrive on a strong ease-out (fast, then settling) and
+ * leave faster than they came. Entrances 150 to 300ms by size (a menu, a
+ * dialog, a sheet), exits 100 to 200ms, press feedback 100ms. What moves or
+ * scales keeps only its fade under reduced motion (`motion-safe:` on the
+ * movement). This replaces Tailwind's gentler `ease-out`, so the utility and
+ * the kit's animations share one curve. */
+@theme {
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* Loading (components/loading.tsx): fades in after a moment, so a wait that
@@ -376,25 +417,6 @@
 		to {
 			opacity: 1;
 		}
-	}
-}
-
-/* Indeterminate Progress (components/progress.tsx): a segment sliding across. */
-@theme {
-	--animate-progress-indeterminate: progress-indeterminate 1.2s ease-in-out infinite;
-	@keyframes progress-indeterminate {
-		from {
-			left: -33%;
-		}
-		to {
-			left: 100%;
-		}
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.skeleton-shimmer {
-		animation: none;
 	}
 }
 
@@ -428,7 +450,7 @@
 		box-shadow:
 			0 0 0 0.5px rgb(0 0 0 / 0.2),
 			0 1px 3px rgb(0 0 0 / 0.35);
-		transition: transform 0.15s;
+		transition: transform 0.1s var(--ease-out);
 	}
 	.range-mac:active::-webkit-slider-thumb {
 		transform: scale(1.1);
@@ -437,5 +459,10 @@
 		box-shadow:
 			0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent),
 			0 1px 3px rgb(0 0 0 / 0.35);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.range-mac:active::-webkit-slider-thumb {
+			transform: none;
+		}
 	}
 }

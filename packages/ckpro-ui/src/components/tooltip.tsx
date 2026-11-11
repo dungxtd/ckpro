@@ -37,7 +37,11 @@ function TooltipContent({
 				// so no caller has to say where it goes.
 				collisionPadding={collisionPadding ?? floatingPadding()}
 				className={cn(
-					"z-floating w-fit origin-(--radix-tooltip-content-transform-origin) whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1.5 text-popover-foreground text-xs tabular-nums shadow-md data-[state=closed]:animate-out data-[state=delayed-open]:animate-in data-[state=instant-open]:animate-in data-[state=closed]:fade-out-0 data-[state=delayed-open]:fade-in-0 data-[state=instant-open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=delayed-open]:zoom-in-95 data-[state=instant-open]:zoom-in-95",
+					"z-floating w-fit origin-(--radix-tooltip-content-transform-origin) whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1.5 text-caption text-popover-foreground leading-4 tabular-nums shadow-md",
+					// The first one eases in after its wait; once one is showing, the
+					// next opens at once (instant-open) without moving, so sweeping
+					// across a toolbar does not flicker. Out faster than in
+					"ease-out data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:duration-150 motion-safe:data-[state=delayed-open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-100",
 					className
 				)}
 				{...props}

@@ -9,7 +9,8 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@ckpro/ui/componen
 import { Chip } from "@ckpro/ui/components/chip";
 import { CodeBlock } from "@ckpro/ui/components/code-block";
 import { ConfirmDialog } from "@ckpro/ui/components/confirm-dialog";
-import { Disclosure } from "@ckpro/ui/components/disclosure";
+import { DayMarker } from "@ckpro/ui/components/day-marker";
+import { Disclosure, DisclosureButton } from "@ckpro/ui/components/disclosure";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -23,9 +24,10 @@ import {
 } from "@ckpro/ui/components/dropdown-menu";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@ckpro/ui/components/hover-card";
 import { IconButton } from "@ckpro/ui/components/icon-button";
+import { InlineCode } from "@ckpro/ui/components/inline-code";
 import { Input } from "@ckpro/ui/components/input";
 import { Loading } from "@ckpro/ui/components/loading";
-import { MenuCheck, menu, menuRow } from "@ckpro/ui/components/menu";
+import { MenuItem, menu } from "@ckpro/ui/components/menu";
 import { Placeholder, SampleRows } from "@ckpro/ui/components/placeholder";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Progress, ProgressRing } from "@ckpro/ui/components/progress";
@@ -79,6 +81,7 @@ import {
 	Check,
 	ChevronDown,
 	CircleAlert,
+	Copy,
 	History,
 	Info,
 	LayoutList,
@@ -123,6 +126,12 @@ const TOKENS = [
 	"destructive",
 	"exam-value",
 	"exam-concept",
+	"assistant",
+	"domain-1",
+	"domain-2",
+	"domain-3",
+	"domain-4",
+	"domain-5",
 ];
 
 const LONG_LOG = [
@@ -168,40 +177,80 @@ function Gallery() {
 
 				<Section
 					title="Colour tokens"
-					note="Theme tokens only: no hex or palette colours (red-500) in classNames."
+					note="Theme tokens only: no hex or palette colours (red-500) in classNames. One accent (highlight); the app's colours (exam, assistant, domains) have a value per theme."
 				>
 					<div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
 						{TOKENS.map(t => (
 							<div key={t} className="flex items-center gap-2 rounded-lg border border-border p-2">
 								<span
 									className="size-6 shrink-0 rounded-md border border-border"
-									style={{
-										background: t.startsWith("exam-") ? `var(--color-${t})` : `var(--${t})`,
-									}}
+									style={{ background: `var(--${t})` }}
 								/>
-								<code className="truncate text-xs">{t}</code>
+								<code className="truncate text-caption">{t}</code>
+							</div>
+						))}
+						{/* Quiet fills: the foreground thinned, for any surface */}
+						{(["bg-hover", "bg-fill-quiet"] as const).map(t => (
+							<div key={t} className="flex items-center gap-2 rounded-lg border border-border p-2">
+								<span className={`size-6 shrink-0 rounded-md border border-border ${t}`} />
+								<code className="truncate text-caption">{t}</code>
 							</div>
 						))}
 					</div>
 				</Section>
 
+				<Section
+					title="Radius"
+					note="One scale (globals.css): md inside things and compact controls, lg buttons and fields, xl cards and floating surfaces, full pills, sheet dialogs."
+				>
+					<Row>
+						{(
+							[
+								["rounded-sm", "sm 4"],
+								["rounded-md", "md 6"],
+								["rounded-lg", "lg 8"],
+								["rounded-xl", "xl 12"],
+								["rounded-toast", "toast 22"],
+								["rounded-sheet", "sheet 26"],
+							] as const
+						).map(([radius, name]) => (
+							<span
+								key={radius}
+								className={`grid size-16 place-items-center border border-border bg-card text-caption text-muted-foreground ${radius}`}
+							>
+								{name}
+							</span>
+						))}
+					</Row>
+				</Section>
+
 				<Section title="Type" note="Geist; tabular-nums for numbers that change.">
 					<div className="flex flex-col gap-1">
+						<span className="font-semibold text-display tabular-nums">72%</span>
+						<span className="text-caption text-muted-foreground">
+							text-display · the one big figure (a score)
+						</span>
 						<span className="font-bold text-title">text-title · a screen's title</span>
 						<SectionTitle>SectionTitle · a section</SectionTitle>
 						<SectionTitle size="group">SectionTitle group · over a group of rows</SectionTitle>
 						<span className="text-base">text-base · body</span>
 						<span className="text-sm">text-sm · default UI text</span>
 						<span className="text-callout">text-callout · controls</span>
-						<span className="text-xs">text-xs · secondary</span>
-						<span className="text-caption text-muted-foreground">text-caption · captions</span>
+						<span className="text-caption">
+							text-caption · secondary, captions (12px, the kit's name for text-xs)
+						</span>
+						<span className="text-2xs text-muted-foreground">text-2xs · small print</span>
 						<code className="font-mono text-sm">font-mono · kubectl get pods -A</code>
+						<span className="text-sm">
+							InlineCode · scale the deployment in <InlineCode>team-a</InlineCode> to{" "}
+							<InlineCode className="text-exam-value">3</InlineCode> replicas
+						</span>
 					</div>
 				</Section>
 
 				<Section
 					title="Button"
-					note="Text actions: pushDefault for an area's main action (one), push for the others, quiet for small ones. Icon-only actions use IconButton."
+					note="Text actions: an area's main action in the accent (default, or pushDefault push-sized; one), push for the others, assistant to ask the assistant, quiet for small ones. Only solid and glass, over a picture, grow and glow on hover; every button gives a little under a press. Icon-only actions use IconButton."
 				>
 					<Row>
 						{(
@@ -209,6 +258,7 @@ function Gallery() {
 								"default",
 								"pushDefault",
 								"push",
+								"assistant",
 								"outline",
 								"ghost",
 								"destructive",
@@ -256,6 +306,12 @@ function Gallery() {
 						</IconButton>
 						<IconButton variant="plain" size="sm" active aria-label="Active">
 							<Sparkles />
+						</IconButton>
+						<IconButton variant="toolbar" size="xs" aria-label="Toolbar">
+							<Copy />
+						</IconButton>
+						<IconButton variant="toolbar" size="xs" active aria-label="Toolbar, on">
+							<Copy />
 						</IconButton>
 						<span className="flex items-center gap-0.5 rounded-full bg-sidebar-panel p-1">
 							<IconButton
@@ -375,7 +431,7 @@ function Gallery() {
 
 				<Section
 					title="Chip · Badge"
-					note="Chip: a pill you can pick or remove. Badge: a small status label; BadgeButton one that acts (narrow in a calendar cell)."
+					note="Chip: a pill you can pick or remove; planned (outlined) and exam (solid) mark what is set for a day. Badge: a small status label; BadgeButton one that acts (narrow in a calendar cell)."
 				>
 					<Row>
 						<Chip selected={chip} onClick={() => setChip(c => !c)}>
@@ -384,15 +440,29 @@ function Gallery() {
 						<Chip count={3}>With count</Chip>
 						<Chip onRemove={() => toast("Removed")}>Removable</Chip>
 						<Chip>Static</Chip>
+						<Chip variant="planned">Planned</Chip>
+						<Chip variant="exam">Exam</Chip>
 					</Row>
 					<Row>
-						{(["subtle", "accent", "solid", "success", "destructive", "overlay"] as const).map(
-							v => (
-								<Badge key={v} variant={v}>
-									{v}
-								</Badge>
-							)
-						)}
+						{(
+							[
+								"subtle",
+								"accent",
+								"solid",
+								"success",
+								"warning",
+								"destructive",
+								"planned",
+								"exam",
+								"overlay",
+								"tag",
+								"warningTag",
+							] as const
+						).map(v => (
+							<Badge key={v} variant={v}>
+								{v}
+							</Badge>
+						))}
 					</Row>
 					<Row>
 						<BadgeButton variant="accent" onClick={() => toast("Switched")}>
@@ -459,7 +529,7 @@ function Gallery() {
 					<CodeBlock
 						title="bash"
 						actions={
-							<Button size="push" variant="ghost" className="h-6 px-2 text-xs">
+							<Button size="push" variant="ghost" className="h-6 px-2 text-caption">
 								Copy
 							</Button>
 						}
@@ -506,13 +576,6 @@ function Gallery() {
 						<Progress label="warning" value={50} tone="warning" />
 						<Progress label="destructive" value={20} tone="destructive" />
 						<Progress label="with a pass line" value={58} tone="warning" marker={66} />
-						{/* A score's own colour, from the scale (study/data.ts scoreColor) */}
-						<Progress
-							label="a colour of its own"
-							value={21}
-							marker={66}
-							color="color-mix(in oklch, var(--color-warning) 52%, var(--color-destructive))"
-						/>
 					</div>
 					<div className="flex gap-3">
 						<ProgressRing value={50} label="1 of 2 done">
@@ -531,6 +594,49 @@ function Gallery() {
 							<CodeBlock wrap>▸ Creating nodes{"\n"}▸ Waiting for the control plane</CodeBlock>
 						</Disclosure>
 					</Card>
+					{/* A row laid out by its screen: what it is about, the chevron at the end */}
+					<div className="flex max-w-md flex-col">
+						<DisclosureButton
+							open={open}
+							onClick={() => setOpen(o => !o)}
+							className="w-full py-1 text-callout"
+						>
+							<Check className="size-3.5 text-success" />
+							<span className="min-w-0 flex-1 truncate">DisclosureButton · a step's log</span>
+							<span className="text-caption text-muted-foreground tabular-nums">31 s</span>
+						</DisclosureButton>
+						<DisclosureButton
+							open={false}
+							disabled
+							chevronClassName="invisible"
+							className="w-full py-1 text-callout text-muted-foreground"
+						>
+							<span className="min-w-0 flex-1 truncate">Nothing to open</span>
+						</DisclosureButton>
+					</div>
+				</Section>
+
+				<Section
+					title="DayMarker"
+					note="A day's number in a calendar-like grid: today ringed, the exam's day tinted, the picked day solid; the strongest shows."
+				>
+					<Row>
+						<DayMarker>3</DayMarker>
+						<DayMarker today>4</DayMarker>
+						<DayMarker exam>5</DayMarker>
+						<DayMarker picked>6</DayMarker>
+						<DayMarker today picked>
+							7
+						</DayMarker>
+						<DayMarker outside>31</DayMarker>
+						<DayMarker size="sm">Mon 3</DayMarker>
+						<DayMarker size="sm" today>
+							Tue 4
+						</DayMarker>
+						<DayMarker size="sm" picked>
+							Wed 5
+						</DayMarker>
+					</Row>
 				</Section>
 
 				<Section
@@ -764,23 +870,12 @@ function Gallery() {
 							</PopoverTrigger>
 							<PopoverContent className={`${menu.surface} w-56`}>
 								<div className={menu.header}>Section</div>
-								<button type="button" className={menuRow()}>
-									<MenuCheck />
-									Checked row
-								</button>
-								<button type="button" className={menuRow()}>
-									Row <span className={menu.hint}>⌘K</span>
-								</button>
-								<button type="button" className={menuRow(menu.twoLine)}>
-									<span className="flex min-w-0 flex-col">
-										Two-line row
-										<span className={menu.detail}>Its description</span>
-									</span>
-								</button>
+								<MenuItem checked>Checked row</MenuItem>
+								<MenuItem hint="⌘K">Row with a hint</MenuItem>
+								<MenuItem icon={<Copy />}>Row with an icon</MenuItem>
+								<MenuItem detail="Its description">Two-line row</MenuItem>
 								<div className={menu.separator} />
-								<button type="button" className={menuRow()}>
-									Another
-								</button>
+								<MenuItem disabled>Disabled</MenuItem>
 							</PopoverContent>
 						</Popover>
 						<ConfirmDialog
@@ -845,6 +940,11 @@ function Gallery() {
 						<span className="text-muted-foreground text-sm">
 							AssistantIcon: the assistant, whichever agent answers
 						</span>
+					</Row>
+					<Row>
+						<Button variant="assistant" size="push">
+							<AssistantIcon /> Review with the assistant
+						</Button>
 					</Row>
 					<Row>
 						<span className="text-sm">Click to copy:</span>
