@@ -1,0 +1,7 @@
+# MinGW's GCC links a default manifest of its own (`default-manifest.o`)
+# beside the one tauri-build embeds; ld keeps the first, tauri's, and warns
+# "multiple non-default manifests" on every link. Nothing else comes from the
+# linker there, so its messages are not shown for this target (MSVC builds,
+# the releases', have no such manifest)
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-A", "linker_messages"]
