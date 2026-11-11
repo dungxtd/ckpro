@@ -252,6 +252,44 @@
 	}
 }
 
+/* A scroller fading out at the edges that have more (`useScrollEdges`
+ * marks them), so it shows there is more without a scrollbar */
+@utility fade-x {
+	--fade: 24px;
+	&[data-more-start] {
+		mask-image: linear-gradient(90deg, transparent, #000 var(--fade));
+	}
+	&[data-more-end] {
+		mask-image: linear-gradient(90deg, #000 calc(100% - var(--fade)), transparent);
+	}
+	&[data-more-start][data-more-end] {
+		mask-image: linear-gradient(
+			90deg,
+			transparent,
+			#000 var(--fade),
+			#000 calc(100% - var(--fade)),
+			transparent
+		);
+	}
+}
+@utility fade-y {
+	--fade: 28px;
+	&[data-more-start] {
+		mask-image: linear-gradient(transparent, #000 var(--fade));
+	}
+	&[data-more-end] {
+		mask-image: linear-gradient(#000 calc(100% - var(--fade)), transparent);
+	}
+	&[data-more-start][data-more-end] {
+		mask-image: linear-gradient(
+			transparent,
+			#000 var(--fade),
+			#000 calc(100% - var(--fade)),
+			transparent
+		);
+	}
+}
+
 @utility no-scrollbar {
 	@apply [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
 }

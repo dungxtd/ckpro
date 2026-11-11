@@ -77,6 +77,7 @@ import { Terminal } from "@ckpro/ui/components/terminal";
 import { Textarea } from "@ckpro/ui/components/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckpro/ui/components/tooltip";
 import { Truncated } from "@ckpro/ui/components/truncated";
+import { useScrollEdges } from "@ckpro/ui/hooks/use-scroll-edges";
 import {
 	Check,
 	ChevronDown,
@@ -640,6 +641,12 @@ function Gallery() {
 				</Section>
 
 				<Section
+					title="Scroll edges"
+					note="useScrollEdges + fade-x / fade-y: a scroller fades at the edge that has more; a wheel scrolls it sideways."
+				>
+					<FadeDemo />
+				</Section>
+				<Section
 					title="Sidebar and Capsule"
 					note="The window's sidebar over its translucent material, and the floating capsule it folds into."
 				>
@@ -1079,6 +1086,34 @@ function SplitterSample() {
 			</div>
 			<Splitter label="Resize the column" {...column.handle} />
 			<div className="flex-1 bg-muted/40" />
+		</div>
+	);
+}
+
+function FadeDemo() {
+	const [row] = useScrollEdges<HTMLDivElement>("x");
+	const [list] = useScrollEdges<HTMLDivElement>("y");
+	return (
+		<div className="grid max-w-xl gap-3">
+			<div ref={row} className="no-scrollbar fade-x flex gap-2 overflow-x-auto">
+				{Array.from({ length: 14 }, (_, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: a fixed sample
+					<Card key={i} padding="sm" className="w-32 shrink-0">
+						Item {i + 1}
+					</Card>
+				))}
+			</div>
+			<div
+				ref={list}
+				className="no-scrollbar fade-y h-32 overflow-y-auto rounded-xl border border-border"
+			>
+				{Array.from({ length: 12 }, (_, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: a fixed sample
+					<div key={i} className="border-border border-b px-3 py-1.5 text-sm">
+						Row {i + 1}
+					</div>
+				))}
+			</div>
 		</div>
 	);
 }
