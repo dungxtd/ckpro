@@ -313,7 +313,7 @@ export function PracticeMap({
 										{ boxShadow: "inset 0 0 0 2px var(--color-foreground)", opacity: 0.45 },
 										{ boxShadow: "inset 0 0 0 0 var(--color-foreground)", opacity: 1 },
 									],
-									{ duration: 600, easing: "ease-in-out", iterations: 3 }
+									{ duration: 700, easing: "ease-in-out" }
 								);
 							// After the smooth scroll (a timer: not every web view tells when a scroll ends)
 							setTimeout(flash, still ? 0 : 450);
