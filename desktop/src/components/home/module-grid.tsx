@@ -253,14 +253,17 @@ export function ModuleGrid({ modules, defaults }: { modules: ModuleSpec[]; defau
 	};
 
 	const order = reading(places);
-	const placeOf = (id: string): React.CSSProperties => {
+	// The module being dragged stays in the cell it was picked up from (it
+	// follows the pointer from there); the slot shows where it lands
+	const dragged = slot && drag.current?.id === slot.id ? drag.current.start : null;
+	const placeOf = (id: string, landing = false): React.CSSProperties => {
 		const [w, h] = SPAN[sizeOf(id)];
-		const p = places[id];
+		const p = (!landing && dragged && id === slot?.id ? dragged : places)[id];
 		return narrow
 			? { gridColumn: `span ${Math.min(w, 2)}`, gridRow: `span ${h}`, order: order.indexOf(id) }
 			: { gridColumn: `${p.x + 1} / span ${w}`, gridRow: `${p.y + 1} / span ${h}` };
 	};
-	const slotPlace = slot && moving ? placeOf(slot.id) : null;
+	const slotPlace = slot && moving ? placeOf(slot.id, true) : null;
 
 	return (
 		<div className="flex flex-col gap-4">

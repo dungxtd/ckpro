@@ -78,3 +78,33 @@ test("History lists every attempt, newest first", async ({ page }) => {
 	await expect(rows.nth(1)).toContainText("CKA Practice Lab - Core Concepts");
 	await expect(rows.nth(1)).toContainText("94%");
 });
+
+test("a module dragged stays under the pointer as the others make room", async ({ page }) => {
+	await page.setViewportSize({ width: 1300, height: 1400 });
+	await launch(page, "/");
+	await page.getByRole("button", { name: "Manage modules" }).click();
+	await page.getByRole("button", { name: "Move modules…" }).click();
+	const m = page.getByRole("group", { name: "Passed" });
+	const b = await m.boundingBox();
+	if (!b) throw new Error("Passed is not laid out");
+	const sx = b.x + 20,
+		sy = b.y + 20;
+	await page.mouse.move(sx, sy);
+	await page.mouse.down();
+	const offs: [number, number][] = [];
+	for (let i = 1; i <= 25; i++) {
+		const x = sx - i * 22,
+			y = sy + i * 8;
+		await page.mouse.move(x, y);
+		await page.waitForTimeout(30);
+		const r = await m.boundingBox();
+		if (!r) throw new Error("Passed is gone");
+		offs.push([x - r.x, y - r.y]);
+	}
+	await page.mouse.up();
+	// Where it was held stays where the pointer is (no jump as the slot moves)
+	for (const [dx, dy] of offs) {
+		expect(Math.abs(dx - 20)).toBeLessThan(10);
+		expect(Math.abs(dy - 20)).toBeLessThan(10);
+	}
+});
