@@ -281,11 +281,31 @@ export function PracticeMap({
 						className="absolute top-1/2 right-0 -translate-y-1/2 rounded-full bg-highlight px-2.5 py-0.5 font-semibold text-2xs text-highlight-foreground shadow-(--shadow-control)"
 						onClick={() => {
 							const c = scrollEl?.querySelector<HTMLElement>(`[data-day="${ahead.date}"]`);
-							if (c && scrollEl)
-								scrollEl.scrollTo({
-									left: c.offsetLeft - scrollEl.clientWidth + 48,
-									behavior: "smooth",
-								});
+							if (!c || !scrollEl) return;
+							// Off the chip: no tip left over, and the chip goes once the day is in view
+							setTip(null);
+							setAhead(null);
+							const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+							scrollEl.scrollTo({
+								left: c.offsetLeft - scrollEl.clientWidth + 48,
+								behavior: still ? "auto" : "smooth",
+							});
+							// The exam day lights up once the map has got there
+							const flash = () =>
+								c.animate(
+									[
+										{ boxShadow: "0 0 0 0 var(--color-highlight)", scale: "1" },
+										{
+											boxShadow:
+												"0 0 0 5px color-mix(in oklab, var(--color-highlight) 35%, transparent)",
+											scale: "1.35",
+										},
+										{ boxShadow: "0 0 0 0 transparent", scale: "1" },
+									],
+									{ duration: 700, easing: "ease-out", iterations: 2 }
+								);
+							// After the smooth scroll (a timer: not every web view tells when a scroll ends)
+							setTimeout(flash, still ? 0 : 450);
 						}}
 					>
 						{ahead.certification.toUpperCase()} {short(parseDay(ahead.date))} ›
