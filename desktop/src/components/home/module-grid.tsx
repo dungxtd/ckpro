@@ -1,8 +1,9 @@
 import { Button } from "@ckpro/ui/components/button";
-import { Chip } from "@ckpro/ui/components/chip";
+import { MenuItem, menu } from "@ckpro/ui/components/menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { useElementSize } from "@ckpro/ui/hooks/use-element-size";
 import { cn } from "@ckpro/ui/lib/utils";
-import { Minus, Plus } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import type * as React from "react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -41,18 +42,7 @@ const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
  * can be hidden (−) and added back; Reset returns to the default, each
  * undoable. Narrower than `NARROW_PX`: two columns in the saved order
  */
-export function ModuleGrid({
-	modules,
-	defaults,
-	editing,
-	onEditing,
-}: {
-	modules: ModuleSpec[];
-	defaults: Places;
-	/** Arranging, turned on by Home's Manage modules (in its title row) */
-	editing: boolean;
-	onEditing: (on: boolean) => void;
-}) {
+export function ModuleGrid({ modules, defaults }: { modules: ModuleSpec[]; defaults: Places }) {
 	const [layout, setLayout] = useHomeLayout();
 	const sizeOf = (id: string) => modules.find(m => m.id === id)?.size ?? "s";
 	const hidden = (layout.hidden ?? []).filter(id => modules.some(m => m.id === id));
@@ -64,6 +54,10 @@ export function ModuleGrid({
 	);
 	// While a module is being moved: the places it would leave
 	const [moving, setMoving] = useState<Places | null>(null);
+	// Moving modules by drag or keys: turned on from Manage modules
+	const [editing, setEditing] = useState(false);
+	// The Manage modules popover
+	const [managing, setManaging] = useState(false);
 	const places = moving ?? saved;
 	const [grid, { width }] = useElementSize<HTMLDivElement>();
 	const narrow = width > 0 && width < NARROW_PX;
@@ -300,7 +294,7 @@ export function ModuleGrid({
 							className={cn(
 								"module relative min-w-0",
 								editing &&
-									"cursor-grab rounded-2xl outline-[1.5px] outline-foreground/20 outline-offset-[3px] outline-dashed focus-visible:outline-2 focus-visible:outline-highlight focus-visible:outline-solid [&>*:not(.hide)]:pointer-events-none [&_a]:invisible",
+									"cursor-grab rounded-2xl focus-visible:outline-2 focus-visible:outline-highlight focus-visible:outline-offset-2 [&>*]:pointer-events-none",
 								(lifted?.id === m.id || slot?.id === m.id) &&
 									"z-10 cursor-grabbing shadow-(--shadow-float) outline-2 outline-highlight outline-solid",
 								editing && narrow && "cursor-default"
@@ -319,40 +313,22 @@ export function ModuleGrid({
 							}}
 						>
 							{m.node}
-							{editing && (
-								<button
-									type="button"
-									aria-label={`Hide ${m.name}`}
-									className="hide absolute top-2 right-2 z-10 grid size-5 place-items-center rounded-full bg-foreground/45 text-background hover:bg-foreground/60"
-									onClick={() => hide(m.id)}
-								>
-									<Minus className="size-3.5" />
-								</button>
-							)}
 						</div>
 					))}
 			</div>
 			{editing ? (
-				<div className="flex flex-wrap items-center gap-2 rounded-2xl bg-fill-quiet px-3 py-2.5">
-					<span className="w-full text-caption text-muted-foreground">
+				<div className="flex items-center gap-2 self-center rounded-full bg-fill-quiet py-1 pr-1 pl-4">
+					<span className="text-caption text-muted-foreground">
 						{narrow
-							? "Widen the window to move modules; they can still be hidden and added"
+							? "Widen the window to move modules"
 							: "Drag a module, or focus one and press Space, then the arrow keys"}
 					</span>
-					{hidden.map(id => (
-						<Chip key={id} size="xs" onClick={() => add(id)} aria-label={`Add ${nameOf(id)}`}>
-							<Plus className="size-3" /> {nameOf(id)}
-						</Chip>
-					))}
-					<span className="flex-1" />
-					<Button size="push" variant="push" onClick={reset}>
-						Reset layout
-					</Button>
 					<Button
 						size="push"
 						variant="pushDefault"
+						className="rounded-full"
 						onClick={() => {
-							onEditing(false);
+							setEditing(false);
 							setLifted(null);
 							say("Home arranged");
 						}}
@@ -360,7 +336,49 @@ export function ModuleGrid({
 						Done
 					</Button>
 				</div>
-			) : null}
+			) : (
+				<Popover open={managing} onOpenChange={setManaging}>
+					<PopoverTrigger asChild>
+						<Button variant="ghost" size="sm" className="self-center rounded-full bg-fill-quiet">
+							<SlidersHorizontal /> Manage modules
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent side="top" className={`${menu.surface} w-60`}>
+						<div className={menu.header}>Shown on Home</div>
+						{modules.map(m => {
+							const shown = !hidden.includes(m.id);
+							return (
+								<MenuItem
+									key={m.id}
+									checked={shown}
+									onClick={() => (shown ? hide(m.id) : add(m.id))}
+								>
+									{m.name}
+								</MenuItem>
+							);
+						})}
+						<div className={menu.separator} />
+						<MenuItem
+							disabled={narrow}
+							onClick={() => {
+								setManaging(false);
+								setEditing(true);
+								say("Moving modules: focus one and press Space, then the arrow keys");
+							}}
+						>
+							Move modules…
+						</MenuItem>
+						<MenuItem
+							onClick={() => {
+								setManaging(false);
+								reset();
+							}}
+						>
+							Reset layout
+						</MenuItem>
+					</PopoverContent>
+				</Popover>
+			)}
 			<div ref={live} aria-live="polite" className="sr-only" />
 		</div>
 	);

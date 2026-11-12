@@ -10,11 +10,10 @@ test("Home shows its modules: today, the exam day, the practice map", async ({ p
 	await expect(page.getByRole("group", { name: "Recent" })).toBeVisible();
 });
 
-test("Home is arranged: a module hidden, moved by keyboard, saved", async ({ page }) => {
+test("Home is arranged: a module hidden and shown from Manage modules, one moved by keyboard", async ({
+	page,
+}) => {
 	await launch(page, "/");
-	await page.getByRole("button", { name: "Manage modules" }).click();
-	await page.getByRole("button", { name: "Hide Recent" }).click();
-	await expect(page.getByRole("group", { name: "Recent" })).toHaveCount(0);
 	const saved = async () => {
 		const all = await calls(page, "save_settings");
 		return (
@@ -29,19 +28,22 @@ test("Home is arranged: a module hidden, moved by keyboard, saved", async ({ pag
 			}
 		).settings.home;
 	};
+	await page.getByRole("button", { name: "Manage modules" }).click();
+	await page.getByRole("button", { name: "Recent", pressed: true }).click();
+	await expect(page.getByRole("group", { name: "Recent" })).toHaveCount(0);
 	expect((await saved()).hidden).toEqual(["recent"]);
-	// Passed lifted, moved a column left, dropped
+	await page.getByRole("button", { name: "Recent", pressed: false }).click();
+	await expect(page.getByRole("group", { name: "Recent" })).toBeVisible();
+	// Moving: from the same popover, opened again
+	await page.keyboard.press("Escape");
+	await page.getByRole("button", { name: "Manage modules" }).click();
+	await page.getByRole("button", { name: "Move modules…" }).click();
 	const passed = page.getByRole("group", { name: "Passed" });
 	await passed.focus();
 	await page.keyboard.press("Space");
 	await page.keyboard.press("ArrowLeft");
 	await page.keyboard.press("Space");
-	const home = await saved();
-	expect(home.custom).toBe(true);
-	expect(home.places.find(p => p.module === "passed")).toMatchObject({ x: 2 });
-	// Added back from the tray
-	await page.getByRole("button", { name: "Add Recent" }).click();
-	await expect(page.getByRole("group", { name: "Recent" })).toBeVisible();
+	expect((await saved()).places.find(p => p.module === "passed")).toMatchObject({ x: 2 });
 	await page.getByRole("button", { name: "Done" }).click();
 });
 

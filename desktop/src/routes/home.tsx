@@ -1,7 +1,5 @@
-import { Button } from "@ckpro/ui/components/button";
 import { Loading } from "@ckpro/ui/components/loading";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
-import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { DockerBanner } from "@/components/environment/docker-banner";
@@ -96,8 +94,6 @@ export function HomeRoute() {
 	// are read again then
 	const version = useStudy(s => s.version);
 	const [retry, setRetry] = useState(0);
-	// Arranging Home (Manage modules)
-	const [editing, setEditing] = useState(false);
 	const navigate = useNavigate();
 
 	const now = new Date();
@@ -370,15 +366,6 @@ export function HomeRoute() {
 							]}
 						/>
 					)}
-					<Button
-						size="push"
-						variant="push"
-						aria-pressed={editing}
-						disabled={editing}
-						onClick={() => setEditing(true)}
-					>
-						<SlidersHorizontal /> Manage modules
-					</Button>
 				</div>
 			}
 			width="wide"
@@ -392,8 +379,6 @@ export function HomeRoute() {
 			</p>
 			<DockerBanner />
 			<ModuleGrid
-				editing={editing}
-				onEditing={setEditing}
 				modules={modules}
 				defaults={DEFAULTS[(fresh ? "new" : "used") + (assistant ? "" : "NoAi")]}
 			/>
