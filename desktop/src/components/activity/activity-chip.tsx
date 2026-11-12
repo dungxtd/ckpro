@@ -11,10 +11,10 @@ const FAILED_SHOWN_MS = 5 * 60_000;
 /**
  * Top-bar status while something runs in the background (clusters starting
  * after the app reopened, a cluster being created…), or just failed. Opens
- * the Environment screen at its log. `compact` beside the capsule, which takes the
- * middle of the bar: the icon alone, its words for assistive technology
+ * the Environment screen at its log. An icon in the corner, its words sliding
+ * out under the pointer; a cancelled one (stopped on purpose) is not shown
  */
-export function ActivityChip({ compact = false }: { compact?: boolean }) {
+export function ActivityChip() {
 	const list = useActivityList();
 	const navigate = useNavigate();
 	const { pathname } = useLocation();
@@ -41,25 +41,35 @@ export function ActivityChip({ compact = false }: { compact?: boolean }) {
 
 	const isFailed = shown.status === "failed";
 	const words = isFailed ? `Failed: ${shown.title}` : shown.title;
+	const count = running.length > 1 ? running.length : undefined;
+	const open = () =>
+		navigate("/environment", {
+			state: { activity: shown.id },
+			replace: pathname === "/environment",
+		});
+	const tone =
+		isFailed && "bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive";
 	return (
-		<Chip
-			title={compact ? words : undefined}
-			// Already there: the same history entry, opened at this log
-			onClick={() =>
-				navigate("/environment", {
-					state: { activity: shown.id },
-					replace: pathname === "/environment",
-				})
-			}
-			className={cn(
-				"ml-auto max-w-80",
-				isFailed &&
-					"bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive"
-			)}
-			count={running.length > 1 ? running.length : undefined}
-		>
-			<ActivityStatusIcon status={shown.status} className="size-3.5 text-current" />
-			<span className={compact ? "sr-only" : "truncate"}>{words}</span>
-		</Chip>
+		// An icon in the corner; under the pointer (or focused) it slides out to
+		// its words, over what is beside it: the bar's layout never moves
+		<span className="group/chip relative ml-auto flex h-7 items-center">
+			<Chip aria-hidden tabIndex={-1} className={cn("invisible", tone)} count={count}>
+				<ActivityStatusIcon status={shown.status} className="size-3.5 text-current" />
+			</Chip>
+			<Chip
+				onClick={open}
+				aria-label={words}
+				className={cn(
+					"absolute top-0 right-0 z-10 shadow-(--shadow-control) transition-[background-color,color] motion-safe:transition-[max-width] motion-safe:duration-200",
+					tone
+				)}
+				count={count}
+			>
+				<ActivityStatusIcon status={shown.status} className="size-3.5 text-current" />
+				<span className="max-w-0 truncate opacity-0 transition-[max-width,opacity] duration-200 ease-out group-focus-within/chip:max-w-72 group-focus-within/chip:opacity-100 group-hover/chip:max-w-72 group-hover/chip:opacity-100 motion-reduce:transition-none">
+					{words}
+				</span>
+			</Chip>
+		</span>
 	);
 }

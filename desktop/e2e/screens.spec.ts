@@ -108,3 +108,34 @@ test("a module dragged stays under the pointer as the others make room", async (
 		expect(Math.abs(dy - 20)).toBeLessThan(10);
 	}
 });
+
+const activity = (id: number, status: string, title: string) => ({
+	id,
+	title,
+	steps: ["Creating cluster k8s"],
+	current: 0,
+	detail: null,
+	status,
+	error: status === "failed" ? "kind failed" : "Cancelled",
+	started_at: Date.parse("2026-11-02T09:58:00"),
+	finished_at: Date.parse("2026-11-02T09:59:00"),
+	log: [],
+});
+
+test("the top bar says nothing of a set-up cancelled on purpose", async ({ page }) => {
+	await launch(page, "/", { activities: [activity(2, "cancelled", "Set up CKA Core Concepts")] });
+	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+	await expect(page.getByRole("button", { name: /Set up CKA Core Concepts/ })).toHaveCount(0);
+});
+
+test("the top bar shows a failure as an icon whose words slide out under the pointer", async ({
+	page,
+}) => {
+	await launch(page, "/", { activities: [activity(3, "failed", "Create cluster k8s")] });
+	const chip = page.getByRole("button", { name: "Failed: Create cluster k8s" });
+	await expect(chip).toBeVisible();
+	const words = chip.getByText("Failed: Create cluster k8s");
+	expect((await words.boundingBox())?.width ?? 0).toBeLessThan(2);
+	await chip.hover();
+	await expect.poll(async () => (await words.boundingBox())?.width ?? 0).toBeGreaterThan(40);
+});
