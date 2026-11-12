@@ -2,6 +2,7 @@ mod ai;
 mod cli;
 mod cluster;
 mod commands;
+mod demo;
 mod error;
 mod former;
 mod lab;
@@ -162,6 +163,12 @@ pub const DATABASE: &str = "ckpro.db";
 /// Kubeconfigs, keys and the database are the user's only: the directory is
 /// made private before anything goes in, whichever runs first.
 pub fn data_dir() -> std::path::PathBuf {
+    // Another data directory, to look at the app with other data (`ckpro demo`)
+    if let Some(dir) = std::env::var_os("CKPRO_DATA_DIR").filter(|d| !d.is_empty()) {
+        let dir = std::path::PathBuf::from(dir);
+        let _ = std::fs::create_dir_all(&dir);
+        return dir;
+    }
     let dir = dirs::data_dir().unwrap_or_else(std::env::temp_dir).join(APP_ID);
     // What the app kept under its former name comes along, the first time
     former::move_data(&dir);

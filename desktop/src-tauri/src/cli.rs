@@ -29,6 +29,10 @@ enum Command {
     /// Print the images to publish (name, image with its tag, build args):
     /// CI builds and pushes them, the app pulls them
     Images,
+    /// Fill an empty data directory with a preparation in full swing (three
+    /// exams, weeks of attempts, plans), to open with CKPRO_DATA_DIR=<dir>
+    #[command(hide = true)]
+    Demo { dir: PathBuf },
     /// Stop or remove ckpro's containers as the app quits (the app starts
     /// this; it finds them by cluster so quitting waits for nothing)
     #[command(hide = true)]
@@ -100,7 +104,7 @@ enum LabCommand {
 pub fn is_cli(args: &[String]) -> bool {
     matches!(
         args.get(1).map(String::as_str),
-        Some("lab" | "schema" | "images" | "quit" | "help" | "--help" | "-h" | "--version" | "-V")
+        Some("lab" | "schema" | "images" | "quit" | "demo" | "help" | "--help" | "-h" | "--version" | "-V")
     )
 }
 
@@ -120,6 +124,19 @@ pub fn main() -> ExitCode {
                 tokio::time::timeout(std::time::Duration::from_secs(120), crate::runtime::docker::quit(action, &clusters, &containers)).await
             });
             if matches!(done, Ok(Ok(()))) { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+        }
+        Command::Demo { dir } => {
+            let pack = crate::load_pack(None);
+            match crate::demo::seed(&dir, &pack) {
+                Ok(done) => {
+                    println!("{done}\nOpen it: CKPRO_DATA_DIR={} pnpm tauri dev", dir.display());
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    ExitCode::FAILURE
+                }
+            }
         }
         Command::Images => {
             println!("{}", serde_json::to_string_pretty(&crate::runtime::infra::manifest()).unwrap_or_default());

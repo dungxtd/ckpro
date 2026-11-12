@@ -19,7 +19,7 @@ mod studio;
 
 pub use coach::CoachMessage;
 pub use plans::StoredPlan;
-pub use settings::Settings;
+pub use settings::{ExamTarget, Settings};
 pub use studio::{StudioMessage, StudioSessionRow, ToolUse};
 
 /// Schema versions, applied in order (`PRAGMA user_version` is how many ran)
