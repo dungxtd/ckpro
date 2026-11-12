@@ -289,6 +289,16 @@ function OpenFailed({ message, onRetry }: { message: string; onRetry: () => void
 // Which platform the window is on, for the little CSS that differs (index.css)
 document.documentElement.dataset.platform = mac ? "mac" : "windows";
 
+// A desktop app, not a web page: no browser menu (Reload, Inspect) on a
+// right click. The app's own menus open first (they stop the event), and a
+// field being typed in keeps its menu (copy, paste)
+window.addEventListener("contextmenu", e => {
+	if (e.defaultPrevented) return;
+	const target = e.target as HTMLElement | null;
+	if (target?.closest("input, textarea, [contenteditable='true']")) return;
+	e.preventDefault();
+});
+
 window.addEventListener("unhandledrejection", e => {
 	toast.error(errorText(e.reason));
 });
