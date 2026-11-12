@@ -269,7 +269,7 @@ export function HomeRoute() {
 						best={bestByDay(ofShown)}
 						pass={measured[0]?.readiness?.pass_score ?? 66}
 						planned={planDays}
-						onPick={day => navigate(`/calendar?view=day&day=${day}`)}
+						onPick={day => navigate(`/calendar?day=${day}`)}
 					/>
 				</ModuleCard>
 			),

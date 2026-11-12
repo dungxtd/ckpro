@@ -412,7 +412,7 @@ export function ThisWeek({
 					</span>
 				</>
 			}
-			link={{ to: `/calendar?view=week&day=${days[0]}`, label: "Calendar" }}
+			link={{ to: `/calendar?day=${days[0]}`, label: "Calendar" }}
 		>
 			<div className="flex min-h-0 flex-1 items-end justify-between gap-4">
 				<div className="flex flex-col">

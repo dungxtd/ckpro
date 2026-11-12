@@ -43,7 +43,7 @@ export function Today({
 	const next = plans.find(p => p.done === null);
 	const share = plans.length ? (done * 100) / plans.length : 0;
 	return (
-		<ModuleCard title="Today" link={{ to: `/calendar?view=day&day=${today}`, label: "Calendar" }}>
+		<ModuleCard title="Today" link={{ to: `/calendar?day=${today}`, label: "Calendar" }}>
 			<div className="flex shrink-0 items-center gap-4">
 				{plans.length > 0 && (
 					<ProgressRing
@@ -92,7 +92,7 @@ export function Today({
 								size="push"
 								variant="push"
 								className="mt-2"
-								onClick={() => navigate(`/calendar?view=day&day=${today}`)}
+								onClick={() => navigate(`/calendar?day=${today}`)}
 							>
 								Plan today
 							</Button>

@@ -2,9 +2,8 @@ import { expect, test } from "@playwright/test";
 import { calls, launch, reply } from "./backend";
 
 test("an exam planned on a day can be undone", async ({ page }) => {
-	await launch(page, "/calendar?view=month", { plan_add: 9, plan_remove: null });
-	await expect(page.getByText("November 2026")).toBeVisible();
-	await page.getByRole("button", { name: "Plan an exam on 2026-11-05" }).click();
+	await launch(page, "/calendar?day=2026-11-05", { plan_add: 9, plan_remove: null });
+	await page.getByRole("button", { name: "Add", exact: true }).click();
 	await page.getByRole("searchbox", { name: "Plan an exam, 2026-11-05" }).fill("helm");
 	await page.keyboard.press("Enter");
 	expect(await calls(page, "plan_add")).toEqual([
@@ -15,19 +14,21 @@ test("an exam planned on a day can be undone", async ({ page }) => {
 });
 
 test("a plan is taken as an exam, or removed", async ({ page }) => {
-	await launch(page, "/calendar?view=month", { plan_update: null, plan_remove: null });
+	await launch(page, "/calendar?day=2026-10-27", { plan_update: null, plan_remove: null });
 	await page
 		.getByRole("button", { name: "CKA Practice Lab - Advanced Administration: take it as an exam" })
 		.click();
 	await expect.poll(() => calls(page, "plan_update")).toEqual([{ id: 3, day: null, mode: "exam" }]);
+	// Another day of the week, picked from the week strip
+	await page.getByRole("button", { name: /Saturday, October 31/ }).click();
 	await page.getByRole("button", { name: "Remove Helm Fundamentals Lab" }).click();
 	await expect.poll(() => calls(page, "plan_remove")).toHaveLength(1);
 });
 
 test("a plan that cannot be kept says why", async ({ page }) => {
-	await launch(page, "/calendar?view=month");
+	await launch(page, "/calendar?day=2026-11-05");
 	await reply(page, "plan_add", { $error: { code: "not_found", message: "no exam 'gone'" } });
-	await page.getByRole("button", { name: "Plan an exam on 2026-11-05" }).click();
+	await page.getByRole("button", { name: "Add", exact: true }).click();
 	await page.getByRole("searchbox", { name: "Plan an exam, 2026-11-05" }).fill("Core");
 	await page.keyboard.press("Enter");
 	await expect(page.getByText("no exam 'gone'")).toBeVisible();
