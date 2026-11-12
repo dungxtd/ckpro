@@ -1,5 +1,7 @@
+import { Button } from "@ckpro/ui/components/button";
 import { Loading } from "@ckpro/ui/components/loading";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
+import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { DockerBanner } from "@/components/environment/docker-banner";
@@ -9,6 +11,7 @@ import {
 	AskClaude,
 	Domains,
 	ExamDay,
+	InProgress,
 	type Measured,
 	ModuleCard,
 	Passed,
@@ -24,6 +27,7 @@ import {
 	longestStreak,
 	minutesByDay,
 	retryList,
+	scoreOf,
 	startedAt,
 	suggestion,
 	weakest,
@@ -49,6 +53,7 @@ const DEFAULTS: Record<string, Places> = {
 		map: { x: 0, y: 3 },
 		retry: { x: 2, y: 3 },
 		week: { x: 0, y: 5 },
+		"in-progress": { x: 2, y: 5 },
 		domains: { x: 3, y: 5 },
 		recent: { x: 0, y: 6 },
 	},
@@ -60,6 +65,7 @@ const DEFAULTS: Record<string, Places> = {
 		map: { x: 0, y: 2 },
 		retry: { x: 2, y: 2 },
 		week: { x: 0, y: 4 },
+		"in-progress": { x: 2, y: 4 },
 		domains: { x: 3, y: 4 },
 		recent: { x: 0, y: 5 },
 	},
@@ -90,6 +96,8 @@ export function HomeRoute() {
 	// are read again then
 	const version = useStudy(s => s.version);
 	const [retry, setRetry] = useState(0);
+	// Arranging Home (Manage modules)
+	const [editing, setEditing] = useState(false);
 	const navigate = useNavigate();
 
 	const now = new Date();
@@ -180,6 +188,18 @@ export function HomeRoute() {
 	for (const p of shownPlans.filter(p => p.done === null && p.day > today))
 		planDays.set(p.day, [...(planDays.get(p.day) ?? []), p.certification]);
 	const retries = retryList(ofShown);
+	// The exams tried and not passed yet, the latest first
+	const unpassed = [...new Set(ofShown.filter(worked).map(h => h.exam_id))]
+		.map(id => {
+			const tries = ofShown.filter(h => h.exam_id === id && worked(h));
+			return {
+				examId: id,
+				title: tries[0].title,
+				best: Math.max(...tries.map(h => scoreOf(h))),
+				pass: tries[0].pass_score,
+			};
+		})
+		.filter(e => e.best < e.pass);
 	const weekKeys = Array.from({ length: 7 }, (_, i) => dayKey(addDays(weekStart, i)));
 	const weekAttempts = ofShown.filter(h =>
 		weekKeys.includes(dayKey(new Date(startedAt(h))))
@@ -285,6 +305,12 @@ export function HomeRoute() {
 					},
 					{ id: "passed", name: "Passed", size: "s" as const, node: <Passed history={ofShown} /> },
 					{
+						id: "in-progress",
+						name: "In progress",
+						size: "s" as const,
+						node: <InProgress exams={unpassed} />,
+					},
+					{
 						id: "retry",
 						name: "Retry list",
 						size: "l" as const,
@@ -329,17 +355,31 @@ export function HomeRoute() {
 		<Screen
 			title="Home"
 			actions={
-				aimed.length > 1 ? (
-					<SegmentedControl
-						label="Exams shown"
-						value={focus ?? "all"}
-						onChange={v => setFocus(v === "all" ? null : v)}
-						options={[
-							{ value: "all", label: "All exams" },
-							...aimed.map(t => ({ value: t.certification, label: t.certification.toUpperCase() })),
-						]}
-					/>
-				) : undefined
+				<div className="flex items-center gap-2">
+					{aimed.length > 1 && (
+						<SegmentedControl
+							label="Exams shown"
+							value={focus ?? "all"}
+							onChange={v => setFocus(v === "all" ? null : v)}
+							options={[
+								{ value: "all", label: "All exams" },
+								...aimed.map(t => ({
+									value: t.certification,
+									label: t.certification.toUpperCase(),
+								})),
+							]}
+						/>
+					)}
+					<Button
+						size="push"
+						variant="push"
+						aria-pressed={editing}
+						disabled={editing}
+						onClick={() => setEditing(true)}
+					>
+						<SlidersHorizontal /> Manage modules
+					</Button>
+				</div>
 			}
 			width="wide"
 			className="gap-4"
@@ -352,6 +392,8 @@ export function HomeRoute() {
 			</p>
 			<DockerBanner />
 			<ModuleGrid
+				editing={editing}
+				onEditing={setEditing}
 				modules={modules}
 				defaults={DEFAULTS[(fresh ? "new" : "used") + (assistant ? "" : "NoAi")]}
 			/>

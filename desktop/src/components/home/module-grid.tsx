@@ -2,7 +2,7 @@ import { Button } from "@ckpro/ui/components/button";
 import { Chip } from "@ckpro/ui/components/chip";
 import { useElementSize } from "@ckpro/ui/hooks/use-element-size";
 import { cn } from "@ckpro/ui/lib/utils";
-import { Minus, Plus, SlidersHorizontal } from "lucide-react";
+import { Minus, Plus } from "lucide-react";
 import type * as React from "react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -41,7 +41,18 @@ const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
  * can be hidden (−) and added back; Reset returns to the default, each
  * undoable. Narrower than `NARROW_PX`: two columns in the saved order
  */
-export function ModuleGrid({ modules, defaults }: { modules: ModuleSpec[]; defaults: Places }) {
+export function ModuleGrid({
+	modules,
+	defaults,
+	editing,
+	onEditing,
+}: {
+	modules: ModuleSpec[];
+	defaults: Places;
+	/** Arranging, turned on by Home's Manage modules (in its title row) */
+	editing: boolean;
+	onEditing: (on: boolean) => void;
+}) {
 	const [layout, setLayout] = useHomeLayout();
 	const sizeOf = (id: string) => modules.find(m => m.id === id)?.size ?? "s";
 	const hidden = (layout.hidden ?? []).filter(id => modules.some(m => m.id === id));
@@ -54,7 +65,6 @@ export function ModuleGrid({ modules, defaults }: { modules: ModuleSpec[]; defau
 	// While a module is being moved: the places it would leave
 	const [moving, setMoving] = useState<Places | null>(null);
 	const places = moving ?? saved;
-	const [editing, setEditing] = useState(false);
 	const [grid, { width }] = useElementSize<HTMLDivElement>();
 	const narrow = width > 0 && width < NARROW_PX;
 	const live = useRef<HTMLDivElement>(null);
@@ -342,7 +352,7 @@ export function ModuleGrid({ modules, defaults }: { modules: ModuleSpec[]; defau
 						size="push"
 						variant="pushDefault"
 						onClick={() => {
-							setEditing(false);
+							onEditing(false);
 							setLifted(null);
 							say("Home arranged");
 						}}
@@ -350,19 +360,7 @@ export function ModuleGrid({ modules, defaults }: { modules: ModuleSpec[]; defau
 						Done
 					</Button>
 				</div>
-			) : (
-				<Button
-					variant="ghost"
-					size="sm"
-					className="self-center rounded-full bg-fill-quiet"
-					onClick={() => {
-						setEditing(true);
-						say("Arranging Home: focus a module and press Space to move it");
-					}}
-				>
-					<SlidersHorizontal /> Manage modules
-				</Button>
-			)}
+			) : null}
 			<div ref={live} aria-live="polite" className="sr-only" />
 		</div>
 	);
