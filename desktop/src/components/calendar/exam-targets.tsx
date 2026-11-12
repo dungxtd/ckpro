@@ -6,7 +6,7 @@ import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
 import { Flag, Plus } from "lucide-react";
 import { useId, useState } from "react";
 import { daysUntil } from "@/components/study/data";
-import { addDays, dayKey, parseDay } from "@/days";
+import { addDays, dayKey, parseDay, readDay } from "@/days";
 import { useExam } from "@/stores/exam";
 import { useSettings, useTargets } from "@/stores/settings";
 import type { ExamTarget } from "@/tauri/api";
@@ -89,14 +89,16 @@ function TargetEditor({
 	const [open, setOpen] = useState(false);
 	const dayId = useId();
 	const [certification, setCertification] = useState(target?.certification ?? "");
-	const [date, setDate] = useState(target?.date ?? dayKey(addDays(new Date(), 60)));
+	// The day as typed, read as a day as it is typed
+	const [typed, setTyped] = useState(target?.date ?? dayKey(addDays(new Date(), 60)));
+	const date = readDay(typed) ?? "";
 	const [rest, setRest] = useState<number[]>(target?.rest_days ?? []);
 	const reset = () => {
 		setCertification(target?.certification ?? certifications[0] ?? "");
-		setDate(target?.date ?? dayKey(addDays(new Date(), 60)));
+		setTyped(target?.date ?? dayKey(addDays(new Date(), 60)));
 		setRest(target?.rest_days ?? []);
 	};
-	const valid = certification !== "" && /^\d{4}-\d{2}-\d{2}$/.test(date);
+	const valid = certification !== "" && date !== "" && date >= today;
 	// CKS can only be taken with a passed CKA: said, not enforced
 	const cka = others.find(o => o.certification === "cka");
 	const cksEarly = certification === "cks" && (!cka || cka.date >= date);
@@ -134,11 +136,18 @@ function TargetEditor({
 					</label>
 					<Input
 						id={dayId}
-						type="date"
-						value={date}
-						min={today}
-						onChange={e => setDate(e.target.value)}
+						value={typed}
+						placeholder="31 Jan 2027, 31/1, 2027-01-31"
+						aria-invalid={typed.trim() !== "" && !valid}
+						onChange={e => setTyped(e.target.value)}
 					/>
+					<span className="text-caption text-muted-foreground">
+						{date === ""
+							? "Type a day: 31 Jan 2027, 31/1, 2027-01-31"
+							: date < today
+								? "That day has passed"
+								: `${parseDay(date).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · ${plural(daysUntil(date, new Date()), "day")} from now`}
+					</span>
 				</div>
 				<div className="flex flex-col gap-1">
 					<span className="text-caption text-muted-foreground">Days kept free</span>

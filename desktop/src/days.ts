@@ -30,3 +30,40 @@ export function streak(days: Set<string>, today: Date): number {
 	}
 	return n;
 }
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+/**
+ * A day as typed, as YYYY-MM-DD, or null when it is not one: 2027-01-31,
+ * 31/1/2027, 31/1 or 31 Jan (the next one from `today`), Jan 31 2027
+ */
+export function readDay(typed: string, today = new Date()): string | null {
+	const text = typed.trim().toLowerCase();
+	const make = (y: number, m: number, d: number) => {
+		const date = new Date(y, m - 1, d);
+		return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d
+			? dayKey(date)
+			: null;
+	};
+	// Without a year: the next such day, today included
+	const next = (m: number, d: number) => {
+		const year = today.getFullYear();
+		const day = make(year, m, d);
+		return day && day >= dayKey(today) ? day : make(year + 1, m, d);
+	};
+	let m = text.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+	if (m) return make(+m[1], +m[2], +m[3]);
+	m = text.match(/^(\d{1,2})[-/.](\d{1,2})(?:[-/.](\d{2,4}))?$/);
+	if (m) {
+		if (!m[3]) return next(+m[2], +m[1]);
+		return make(m[3].length === 2 ? 2000 + +m[3] : +m[3], +m[2], +m[1]);
+	}
+	const month = (name: string) => MONTHS.indexOf(name.slice(0, 3)) + 1;
+	m = text.match(/^(\d{1,2})\s+([a-z]+)\.?(?:\s+(\d{4}))?$/) ?? null;
+	if (m && month(m[2]) > 0)
+		return m[3] ? make(+m[3], month(m[2]), +m[1]) : next(month(m[2]), +m[1]);
+	m = text.match(/^([a-z]+)\.?\s+(\d{1,2}),?(?:\s+(\d{4}))?$/);
+	if (m && month(m[1]) > 0)
+		return m[3] ? make(+m[3], month(m[1]), +m[2]) : next(month(m[1]), +m[2]);
+	return null;
+}
