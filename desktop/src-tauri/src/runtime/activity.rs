@@ -20,6 +20,8 @@ pub enum ActivityStatus {
     Running,
     Done,
     Failed,
+    /// Stopped on purpose (an exam closed while it was being set up): not a failure
+    Cancelled,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
@@ -219,7 +221,7 @@ impl Op {
     pub fn end<T>(self, result: crate::error::AppResult<T>) -> crate::error::AppResult<T> {
         match &result {
             Ok(_) => self.done(),
-            Err(crate::error::AppError::Cancelled { .. }) => self.fail("Cancelled"),
+            Err(crate::error::AppError::Cancelled { .. }) => self.cancel(),
             Err(e) => {
                 crate::telemetry::activity_failed(&self.title(), &e.to_string());
                 self.fail(e)
@@ -229,19 +231,25 @@ impl Op {
     }
 
     pub fn done(mut self) {
-        self.finish(None);
+        self.finish(ActivityStatus::Done, None);
+    }
+
+    /// Stopped on purpose: ends as cancelled, not failed
+    pub fn cancel(mut self) {
+        self.log("Cancelled");
+        self.finish(ActivityStatus::Cancelled, Some("Cancelled".into()));
     }
 
     pub fn fail(mut self, error: impl std::fmt::Display) {
         let error = error.to_string();
         self.log(format!("✗ {error}"));
-        self.finish(Some(error));
+        self.finish(ActivityStatus::Failed, Some(error));
     }
 
-    fn finish(&mut self, error: Option<String>) {
+    fn finish(&mut self, status: ActivityStatus, error: Option<String>) {
         self.finished = true;
         self.handle.activities.update(self.handle.id, |a| {
-            a.status = if error.is_some() { ActivityStatus::Failed } else { ActivityStatus::Done };
+            a.status = status;
             if error.is_none() {
                 a.current = a.steps.len() as u32;
                 a.detail = None;
@@ -261,7 +269,7 @@ impl Op {
 impl Drop for Op {
     fn drop(&mut self) {
         if !self.finished {
-            self.finish(Some("Cancelled".into()));
+            self.finish(ActivityStatus::Cancelled, Some("Cancelled".into()));
         }
     }
 }

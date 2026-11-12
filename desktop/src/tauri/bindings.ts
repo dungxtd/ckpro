@@ -246,7 +246,9 @@ export type ActivityLog = {
 	line: string,
 };
 
-export type ActivityStatus = "running" | "done" | "failed";
+export type ActivityStatus = "running" | "done" | "failed" | 
+/**  Stopped on purpose (an exam closed while it was being set up): not a failure */
+"cancelled";
 
 export type Activity_Deserialize = {
 	id: number,

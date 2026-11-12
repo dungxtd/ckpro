@@ -86,7 +86,11 @@ export function ActivityProgress({
 				/>
 				{total > 1 && (
 					<div className="mt-1 text-caption text-muted-foreground tabular-nums">
-						{done ? "Done" : `Step ${Math.min(activity.current + 1, total)} of ${total}`}
+						{done
+							? "Done"
+							: activity.status === "cancelled"
+								? `Cancelled at step ${Math.min(activity.current + 1, total)} of ${total}`
+								: `Step ${Math.min(activity.current + 1, total)} of ${total}`}
 					</div>
 				)}
 			</div>
