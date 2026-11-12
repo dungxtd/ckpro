@@ -1,12 +1,13 @@
 import { Button } from "@ckpro/ui/components/button";
 import { Card } from "@ckpro/ui/components/card";
+import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Loading } from "@ckpro/ui/components/loading";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
-import { Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { AGENDA_WEEKS, Agenda } from "@/components/calendar/agenda";
+import { Agenda } from "@/components/calendar/agenda";
 import { ExamPicker } from "@/components/calendar/exam-picker";
 import { ExamTargets } from "@/components/calendar/exam-targets";
 import { Screen } from "@/components/shell/screen";
@@ -53,13 +54,10 @@ export function CalendarRoute() {
 		.map(t => t.date)
 		.sort()
 		.at(-1);
-	// The agenda runs from this week, or from the week picked when that is outside it
+	// The map's whole span, and the week picked (it may lie outside it)
 	const thisWeek = monday(parseDay(today));
-	const agendaFrom =
-		weekStart < thisWeek || weekStart >= addDays(thisWeek, 7 * AGENDA_WEEKS) ? weekStart : thisWeek;
-	const agendaTo = dayKey(addDays(agendaFrom, 7 * AGENDA_WEEKS - 1));
-	const from = [prepStart, dayKey(agendaFrom)].sort()[0];
-	const to = [agendaTo, lastExam ?? today].sort().at(-1) as string;
+	const from = [prepStart, dayKey(weekStart)].sort()[0];
+	const to = [dayKey(addDays(weekStart, 6)), lastExam ?? today].sort().at(-1) as string;
 	const go = (day: string) => setParams({ day });
 
 	const reload = useCallback(
@@ -159,7 +157,41 @@ export function CalendarRoute() {
 				/>
 			</Card>
 			<div className="flex items-center gap-2">
-				<h2 className="flex-1 truncate font-semibold text-lead">Agenda</h2>
+				<IconButton
+					variant="toolbar"
+					size="sm"
+					aria-label="Week before"
+					onClick={() => go(dayKey(addDays(date, -7)))}
+				>
+					<ChevronLeft />
+				</IconButton>
+				<Button size="push" variant="push" disabled={anchor === today} onClick={() => go(today)}>
+					Today
+				</Button>
+				<IconButton
+					variant="toolbar"
+					size="sm"
+					aria-label="Week after"
+					onClick={() => go(dayKey(addDays(date, 7)))}
+				>
+					<ChevronRight />
+				</IconButton>
+				<h2 className="ml-1 flex-1 truncate font-semibold text-lead">
+					{+weekStart === +thisWeek
+						? "This week"
+						: +weekStart === +addDays(thisWeek, 7)
+							? "Next week"
+							: +weekStart === +addDays(thisWeek, -7)
+								? "Last week"
+								: `Week of ${weekStart.toLocaleDateString(undefined, { day: "numeric", month: "long" })}`}
+					<span className="ml-2 font-normal text-callout text-muted-foreground">
+						{weekStart.getDate()} –{" "}
+						{addDays(weekStart, 6).toLocaleDateString(undefined, {
+							day: "numeric",
+							month: "short",
+						})}
+					</span>
+				</h2>
 				{aimed.length > 1 && (
 					<SegmentedControl
 						label="Exams shown"
@@ -170,11 +202,6 @@ export function CalendarRoute() {
 							...aimed.map(t => ({ value: t.certification, label: t.certification.toUpperCase() })),
 						]}
 					/>
-				)}
-				{anchor !== today && (
-					<Button size="push" variant="push" onClick={() => go(today)}>
-						Today
-					</Button>
 				)}
 				{/* The day picked on the map, planned from here */}
 				{anchor >= today && (
@@ -193,14 +220,14 @@ export function CalendarRoute() {
 				)}
 			</div>
 			<Agenda
-				from={agendaFrom}
+				week={weekStart}
 				history={history}
 				plans={plans}
 				today={today}
 				exams={targets}
 				picked={anchor}
-				restDays={targets[0]?.rest_days ?? []}
 				several={aimed.length > 1}
+				onPick={go}
 				onAdd={actions.onAdd}
 				onMode={actions.onMode}
 				onRemove={actions.onRemove}
