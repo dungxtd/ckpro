@@ -71,5 +71,5 @@ test("the map opens a day: its week and its plans below", async ({ page }) => {
 	// A day on the map picked: the week strip and the day follow it
 	await page.getByRole("button", { name: /Sat, Oct 31|Sat 31 Oct/ }).click();
 	await expect(page).toHaveURL(/day=2026-10-31/);
-	await expect(page.getByText("Planned, missed")).toBeVisible();
+	await expect(page.getByText("Planned, not taken")).toBeVisible();
 });
