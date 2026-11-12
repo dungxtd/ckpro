@@ -60,3 +60,20 @@ test("Docker down says so, and Try again asks again", async ({ page }) => {
 	await emit(page, "env-changed", { docker: up, clusters: [], issues: [] });
 	await expect(page.getByText("Docker 28, 8 CPUs, 5.8 GB")).toBeVisible();
 });
+
+test("the services say which exam images are downloaded, the task host's among them", async ({
+	page,
+}) => {
+	await launch(page, "/environment");
+	await emit(page, "env-changed", {
+		docker: up,
+		clusters: [],
+		usage: [{ name: "ckpro-mirror", owner: { kind: "service" }, mb: 120 }],
+		images_missing: ["ckpro-desktop"],
+		issues: [],
+	});
+	await page.getByRole("button", { name: /^ckpro/ }).click();
+	await expect(page.getByText("The task host · downloaded")).toBeVisible();
+	await expect(page.getByText("Every cluster node · downloaded")).toBeVisible();
+	await expect(page.getByText("The exam desktop · not downloaded")).toBeVisible();
+});
