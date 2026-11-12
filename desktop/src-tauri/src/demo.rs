@@ -1,9 +1,10 @@
-//! `ckpro demo <dir>`: a data directory filled with a preparation in full
-//! swing, to look at the app with something in it (Home, the Calendar,
-//! History): three exams aimed at (CKA, CKAD, then CKS), seven weeks of
-//! attempts on the bundled exams, their failed checks, and plans to each
-//! exam day. Never the candidate's own data: it refuses a directory that
-//! already holds a database. Open it with `CKPRO_DATA_DIR=<dir>`.
+//! `ckpro demo`: a preparation in full swing put into ckpro's data, to look
+//! at the app with something in it (Home, the Calendar, History): three
+//! exams aimed at (CKA, CKAD, then CKS), seven weeks of attempts on the
+//! bundled exams with their failed checks, and plans to each exam day.
+//! Everything it adds is marked, and `ckpro demo --remove` takes it away
+//! and puts back the exams aimed at before. Into the app's data directory
+//! (the one `CKPRO_DATA_DIR` names, else its own) or `--dir`.
 
 use crate::lab::checks::CheckResult;
 use crate::lab::exam::{ExamResult, HistoryEntry, Mode, QuestionResult};
@@ -28,15 +29,46 @@ fn day(ms: f64) -> String {
     crate::lab::exam::plan::day_of(ms, 0)
 }
 
-pub fn seed(dir: &Path, pack: &LoadedPack) -> Result<String, String> {
-    let db = dir.join(crate::DATABASE);
-    if db.exists() {
-        return Err(format!("{} already holds a database: the demo goes into an empty directory", dir.display()));
-    }
+/// What the demo added, kept so `--remove` takes exactly that away
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct Added {
+    /// The exams aimed at before it, put back on removal
+    targets_before: Vec<ExamTarget>,
+    plans: Vec<i32>,
+}
+const KEY: &str = "demo";
+const ID_PREFIX: &str = "demo-";
+
+fn open(dir: &Path) -> Result<Store, String> {
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    let store = Store::open(&db).map_err(|e| e.to_string())?;
+    Store::open(&dir.join(crate::DATABASE)).map_err(|e| e.to_string())
+}
+
+/// Takes away what the demo added, and puts back the exams aimed at before
+pub fn remove(dir: &Path) -> Result<String, String> {
+    let store = open(dir)?;
+    let Some(added) = store.setting::<Option<Added>>(KEY).map_err(|e| e.to_string())? else {
+        return Ok(format!("No demo in {}", dir.display()));
+    };
+    let attempts = store.remove_history_with_prefix(ID_PREFIX).map_err(|e| e.to_string())?;
+    for id in &added.plans {
+        store.remove_plan(*id).map_err(|e| e.to_string())?;
+    }
+    let mut settings = store.settings().map_err(|e| e.to_string())?;
+    settings.targets = added.targets_before;
+    store.save_settings(&settings).map_err(|e| e.to_string())?;
+    store.save_setting(KEY, &None::<Added>).map_err(|e| e.to_string())?;
+    Ok(format!("Removed the demo's {attempts} attempts and {} plans from {}", added.plans.len(), dir.display()))
+}
+
+pub fn seed(dir: &Path, pack: &LoadedPack) -> Result<String, String> {
+    let store = open(dir)?;
+    if store.setting::<Option<Added>>(KEY).map_err(|e| e.to_string())?.is_some() {
+        return Err(format!("{} holds the demo already: `ckpro demo --remove` first", dir.display()));
+    }
     let now = crate::runtime::activity::now_ms();
     let mut rng = Rng(7);
+    let mut added = Added { targets_before: store.settings().map_err(|e| e.to_string())?.targets, plans: vec![] };
 
     // Three exams: CKA soonest, CKAD after it, CKS (which needs a passed CKA) last
     let targets = vec![
@@ -107,7 +139,7 @@ pub fn seed(dir: &Path, pack: &LoadedPack) -> Result<String, String> {
         let minutes = 25.0 + rng.next() * if rng.next() < 0.2 { 120.0 } else { 60.0 };
         let score = f64::from(points) * 100.0 / f64::from(max);
         let mode = if rng.next() < 0.2 { Mode::Exam } else { Mode::Practice };
-        let id = format!("demo-{back}-{attempts}");
+        let id = format!("{ID_PREFIX}{back}-{attempts}");
         let entry = HistoryEntry {
             attempt_id: id.clone(),
             exam_id: exam_id.clone(),
@@ -151,8 +183,9 @@ pub fn seed(dir: &Path, pack: &LoadedPack) -> Result<String, String> {
         }
         let (exam_id, ..) = &exams[(rng.next() * exams.len() as f64) as usize % exams.len()];
         let mode = if ahead % 14 == 0 { "exam" } else { "practice" };
-        store.add_plan(&day(when), exam_id, mode).map_err(|e| e.to_string())?;
+        added.plans.push(store.add_plan(&day(when), exam_id, mode).map_err(|e| e.to_string())?);
         plans += 1;
     }
+    store.save_setting(KEY, &Some(added)).map_err(|e| e.to_string())?;
     Ok(format!("{attempts} attempts and {plans} plans for CKA, CKAD and CKS in {}", dir.display()))
 }

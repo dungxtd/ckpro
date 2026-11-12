@@ -29,10 +29,16 @@ enum Command {
     /// Print the images to publish (name, image with its tag, build args):
     /// CI builds and pushes them, the app pulls them
     Images,
-    /// Fill an empty data directory with a preparation in full swing (three
-    /// exams, weeks of attempts, plans), to open with CKPRO_DATA_DIR=<dir>
+    /// Put a preparation in full swing into ckpro's data (three exams, weeks
+    /// of attempts, plans), marked; --remove takes it away again
     #[command(hide = true)]
-    Demo { dir: PathBuf },
+    Demo {
+        /// Another data directory than the app's
+        #[arg(long)]
+        dir: Option<PathBuf>,
+        #[arg(long)]
+        remove: bool,
+    },
     /// Stop or remove ckpro's containers as the app quits (the app starts
     /// this; it finds them by cluster so quitting waits for nothing)
     #[command(hide = true)]
@@ -125,11 +131,12 @@ pub fn main() -> ExitCode {
             });
             if matches!(done, Ok(Ok(()))) { ExitCode::SUCCESS } else { ExitCode::FAILURE }
         }
-        Command::Demo { dir } => {
-            let pack = crate::load_pack(None);
-            match crate::demo::seed(&dir, &pack) {
+        Command::Demo { dir, remove } => {
+            let dir = dir.unwrap_or_else(crate::data_dir);
+            let done = if remove { crate::demo::remove(&dir) } else { crate::demo::seed(&dir, &crate::load_pack(None)) };
+            match done {
                 Ok(done) => {
-                    println!("{done}\nOpen it: CKPRO_DATA_DIR={} pnpm tauri dev", dir.display());
+                    println!("{done}\nReload the app (⌘R) to see it");
                     ExitCode::SUCCESS
                 }
                 Err(e) => {
