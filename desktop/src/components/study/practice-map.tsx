@@ -6,6 +6,11 @@ import { activityLevel, level, MAP_WEEKS, mapWeeks } from "@/components/study/da
 import { addDays, dayKey, parseDay } from "@/days";
 import type { ExamTarget } from "@/tauri/api";
 
+/** Where an element starts along the scroller's content (its scroll offset
+ * included), whatever is positioned between them */
+const leftIn = (scroller: HTMLElement, el: HTMLElement) =>
+	el.getBoundingClientRect().left - scroller.getBoundingClientRect().left + scroller.scrollLeft;
+
 /** A day's tint by time practised (less → more) or by best score (the pass line) */
 const ACTIVITY = ["bg-fill-quiet", "bg-success/30", "bg-success/55", "bg-success/80", "bg-success"];
 const SCORE = ["bg-fill-quiet", "bg-warning/60", "bg-success/35", "bg-success/65", "bg-success"];
@@ -69,6 +74,8 @@ export function PracticeMap({
 	const area = useRef<HTMLDivElement>(null);
 	// The next exam past the right edge, reached from a chip
 	const [ahead, setAhead] = useState<ExamTarget | null>(null);
+	// The map scrolled by the chip, the pointer not moved since: no tips
+	const quiet = useRef(false);
 
 	const describe = (d: Date): string => {
 		const k = dayKey(d);
@@ -95,7 +102,7 @@ export function PracticeMap({
 		if (!el || placed.current) return;
 		const todayCell = el.querySelector<HTMLElement>(`[data-day="${today}"]`);
 		if (!todayCell || !el.clientWidth) return;
-		el.scrollLeft = todayCell.offsetLeft - (el.clientWidth * 2) / 3;
+		el.scrollLeft = leftIn(el, todayCell) - (el.clientWidth * 2) / 3;
 		placed.current = true;
 	});
 	// Which exam lies past the right edge, as the map scrolls or resizes
@@ -108,7 +115,7 @@ export function PracticeMap({
 				.sort((a, b) => a.date.localeCompare(b.date))
 				.find(e => {
 					const c = el.querySelector<HTMLElement>(`[data-day="${e.date}"]`);
-					return c && c.offsetLeft + c.offsetWidth > edge;
+					return c && leftIn(el, c) + c.offsetWidth > edge;
 				});
 			setAhead(a => (a?.date === next?.date ? a : (next ?? null)));
 		};
@@ -198,7 +205,12 @@ export function PracticeMap({
 							aria-label={mode === "activity" ? "Practice by day" : "Best score by day"}
 							className="grid grid-flow-col gap-[3px]"
 							style={{ gridTemplateColumns: columns, gridTemplateRows: rows }}
+							onPointerMove={() => {
+								quiet.current = false;
+							}}
 							onPointerOver={e => {
+								// Days sliding under a pointer that has not moved say nothing
+								if (quiet.current) return;
 								const t = (e.target as HTMLElement).closest<HTMLElement>("[data-tip]");
 								if (t) show(t);
 							}}
@@ -285,24 +297,23 @@ export function PracticeMap({
 							// Off the chip: no tip left over, and the chip goes once the day is in view
 							setTip(null);
 							setAhead(null);
+							quiet.current = true;
 							const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+							// The exam day in the middle of the map, clear of the faded edges
 							scrollEl.scrollTo({
-								left: c.offsetLeft - scrollEl.clientWidth + 48,
+								left: leftIn(scrollEl, c) - scrollEl.clientWidth / 2,
 								behavior: still ? "auto" : "smooth",
 							});
-							// The exam day lights up once the map has got there
+							// The exam day lights up once the map has got there: inside its own
+							// square, so the map's edges never cut it
 							const flash = () =>
 								c.animate(
 									[
-										{ boxShadow: "0 0 0 0 var(--color-highlight)", scale: "1" },
-										{
-											boxShadow:
-												"0 0 0 5px color-mix(in oklab, var(--color-highlight) 35%, transparent)",
-											scale: "1.35",
-										},
-										{ boxShadow: "0 0 0 0 transparent", scale: "1" },
+										{ boxShadow: "inset 0 0 0 0 var(--color-foreground)", opacity: 1 },
+										{ boxShadow: "inset 0 0 0 2px var(--color-foreground)", opacity: 0.45 },
+										{ boxShadow: "inset 0 0 0 0 var(--color-foreground)", opacity: 1 },
 									],
-									{ duration: 700, easing: "ease-out", iterations: 2 }
+									{ duration: 600, easing: "ease-in-out", iterations: 3 }
 								);
 							// After the smooth scroll (a timer: not every web view tells when a scroll ends)
 							setTimeout(flash, still ? 0 : 450);

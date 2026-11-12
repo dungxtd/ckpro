@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { calls, launch, reply } from "./backend";
+import { calls, launch, reply, sample } from "./backend";
 
 test("an exam planned on a day can be undone", async ({ page }) => {
 	await launch(page, "/calendar?day=2026-11-05", { plan_add: 9, plan_remove: null });
@@ -72,4 +72,34 @@ test("the map opens a day: its week and its plans below", async ({ page }) => {
 	await page.getByRole("button", { name: /Sat, Oct 31|Sat 31 Oct/ }).click();
 	await expect(page).toHaveURL(/day=2026-10-31/);
 	await expect(page.getByText("Planned, not taken")).toBeVisible();
+});
+
+test("the chip to an exam out of view takes the map there and goes, with no tip left", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1000, height: 800 });
+	await launch(page, "/calendar", {
+		settings: {
+			...sample.settings,
+			targets: [
+				...sample.settings.targets,
+				{ certification: "cks", date: "2027-06-30", started: "2026-11-01", rest_days: [] },
+			],
+		},
+	});
+	await page.getByRole("button", { name: /^CKS .* ›$/ }).click();
+	await expect(page.getByRole("button", { name: /^CKS .* ›$/ })).toHaveCount(0);
+	await page.waitForTimeout(800);
+	await expect(page.getByRole("tooltip")).toHaveCount(0);
+});
+
+test("a right click opens no browser menu", async ({ page }) => {
+	await launch(page, "/calendar");
+	await expect(page.getByRole("heading", { name: "Calendar" })).toBeVisible();
+	const stopped = await page.evaluate(() => {
+		const e = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+		document.querySelector("h1")?.dispatchEvent(e);
+		return e.defaultPrevented;
+	});
+	expect(stopped).toBe(true);
 });
