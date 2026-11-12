@@ -203,6 +203,8 @@ export function EnvironmentRoute() {
 					usage={usage}
 					cacheMb={env.host?.cache_mb}
 					clearing={env.cache_clearing ?? false}
+					missing={missing}
+					downloading={env.images_downloading ?? false}
 				/>
 			)}
 			{open === "others" && usage && <OtherAppsCard usage={usage} />}

@@ -46,14 +46,28 @@ export function Rows({ rows }: { rows: Row[] }) {
 	);
 }
 
+/** The images an exam runs on */
+const IMAGES = [
+	["ckpro-node", "Every cluster node"],
+	["ckpro-jumphost", "The task host"],
+	["ckpro-desktop", "The exam desktop"],
+] as const;
+
 /** ckpro's own services: what runs now and what it takes; the ones that
- * start with an exam say so when they are not running */
+ * start with an exam say so when they are not running. Under them, each
+ * image an exam runs on: downloaded, being downloaded, or not yet */
 export function ServicesCard({
 	usage,
 	cacheMb,
 	clearing,
+	missing,
+	downloading,
 }: {
 	usage: ContainerUse[];
+	/** The images not downloaded yet (`ckpro-…`) */
+	missing: string[];
+	/** They are being downloaded now */
+	downloading: boolean;
 	/** What the image mirror's cache holds, once read */
 	cacheMb?: number;
 	/** The cache is being emptied now */
@@ -104,6 +118,18 @@ export function ServicesCard({
 				<CardDescription>What every exam uses</CardDescription>
 			</CardHeader>
 			<Rows rows={rows} />
+			<div className="mt-3 mb-1 font-semibold text-caption text-muted-foreground">Images</div>
+			<Rows
+				rows={IMAGES.map(([name, what]) => {
+					const absent = missing.includes(name);
+					return {
+						key: `image-${name}`,
+						tone: absent ? (downloading ? "idle" : "warn") : "ok",
+						name,
+						what: `${what} · ${absent ? (downloading ? "downloading…" : "not downloaded") : "downloaded"}`,
+					};
+				})}
+			/>
 		</Card>
 	);
 }
