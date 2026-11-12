@@ -1,19 +1,16 @@
 import { Button } from "@ckpro/ui/components/button";
 import { Card } from "@ckpro/ui/components/card";
-import { dayMarkerVariants } from "@ckpro/ui/components/day-marker";
-import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Loading } from "@ckpro/ui/components/loading";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
-import { Stat, StatGroup } from "@ckpro/ui/components/stat";
-import { cn } from "@ckpro/ui/lib/utils";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { DayView } from "@/components/calendar/day-view";
+import { AGENDA_WEEKS, Agenda } from "@/components/calendar/agenda";
+import { ExamPicker } from "@/components/calendar/exam-picker";
 import { ExamTargets } from "@/components/calendar/exam-targets";
 import { Screen } from "@/components/shell/screen";
-import { bestByDay, minutesByDay, scoreOf, startedAt } from "@/components/study/data";
+import { bestByDay, minutesByDay, startedAt } from "@/components/study/data";
 import { PracticeMap } from "@/components/study/practice-map";
 import { addDays, dayKey, monday, parseDay, streak } from "@/days";
 import { useExam } from "@/stores/exam";
@@ -56,8 +53,13 @@ export function CalendarRoute() {
 		.map(t => t.date)
 		.sort()
 		.at(-1);
-	const from = [prepStart, dayKey(weekStart)].sort()[0];
-	const to = [dayKey(addDays(weekStart, 6)), lastExam ?? today].sort().at(-1) as string;
+	// The agenda runs from this week, or from the week picked when that is outside it
+	const thisWeek = monday(parseDay(today));
+	const agendaFrom =
+		weekStart < thisWeek || weekStart >= addDays(thisWeek, 7 * AGENDA_WEEKS) ? weekStart : thisWeek;
+	const agendaTo = dayKey(addDays(agendaFrom, 7 * AGENDA_WEEKS - 1));
+	const from = [prepStart, dayKey(agendaFrom)].sort()[0];
+	const to = [agendaTo, lastExam ?? today].sort().at(-1) as string;
 	const go = (day: string) => setParams({ day });
 
 	const reload = useCallback(
@@ -119,15 +121,6 @@ export function CalendarRoute() {
 
 	if (history === null) return <Loading fill label="Loading your attempts…" />;
 
-	// The week's figures
-	const span = Array.from({ length: 7 }, (_, i) => dayKey(addDays(weekStart, i)));
-	const inSpan = new Set(span);
-	const attempts = history.filter(h => inSpan.has(dayKey(new Date(startedAt(h)))));
-	const planned = plans.filter(p => inSpan.has(p.day) && p.done === null);
-	const average = attempts.length
-		? Math.round(attempts.reduce((s, h) => s + scoreOf(h), 0) / attempts.length)
-		: null;
-	const studied = new Set(attempts.map(h => dayKey(new Date(startedAt(h))))).size;
 	const run = streak(new Set(history.map(h => dayKey(new Date(startedAt(h))))), now);
 	const plannedDays = new Map<string, string[]>();
 	for (const p of plans.filter(p => p.done === null && p.day > today))
@@ -166,28 +159,7 @@ export function CalendarRoute() {
 				/>
 			</Card>
 			<div className="flex items-center gap-2">
-				<IconButton
-					variant="toolbar"
-					size="sm"
-					aria-label="Week before"
-					onClick={() => go(dayKey(addDays(date, -7)))}
-				>
-					<ChevronLeft />
-				</IconButton>
-				<Button size="push" variant="push" onClick={() => go(today)}>
-					Today
-				</Button>
-				<IconButton
-					variant="toolbar"
-					size="sm"
-					aria-label="Week after"
-					onClick={() => go(dayKey(addDays(date, 7)))}
-				>
-					<ChevronRight />
-				</IconButton>
-				<h2 className="ml-2 flex-1 truncate font-semibold text-lead">
-					Week of {weekStart.toLocaleDateString(undefined, { day: "numeric", month: "long" })}
-				</h2>
+				<h2 className="flex-1 truncate font-semibold text-lead">Agenda</h2>
 				{aimed.length > 1 && (
 					<SegmentedControl
 						label="Exams shown"
@@ -199,61 +171,36 @@ export function CalendarRoute() {
 						]}
 					/>
 				)}
+				{anchor !== today && (
+					<Button size="push" variant="push" onClick={() => go(today)}>
+						Today
+					</Button>
+				)}
+				{/* The day picked on the map, planned from here */}
+				{anchor >= today && (
+					<ExamPicker label={`Plan an exam, ${anchor}`} onPick={id => actions.onAdd(anchor, id)}>
+						<Button size="push" variant="push">
+							<Plus /> Plan on{" "}
+							{anchor === today
+								? "today"
+								: parseDay(anchor).toLocaleDateString(undefined, {
+										weekday: "short",
+										day: "numeric",
+										month: "short",
+									})}
+						</Button>
+					</ExamPicker>
+				)}
 			</div>
-			{/* The week of the day picked; the day opens below */}
-			<div className="grid grid-cols-7 gap-1.5">
-				{span.map(k => {
-					const d = parseDay(k);
-					const dots = plans.filter(p => p.day === k).length;
-					return (
-						<button
-							key={k}
-							type="button"
-							aria-pressed={k === anchor}
-							aria-label={d.toLocaleDateString(undefined, { dateStyle: "full" })}
-							onClick={() => go(k)}
-							className={cn(
-								"flex flex-col items-center gap-1 rounded-xl py-2 hover:bg-hover",
-								k === anchor && "bg-fill-quiet"
-							)}
-						>
-							<span className="text-caption text-muted-foreground">
-								{d.toLocaleDateString(undefined, { weekday: "short" })}
-							</span>
-							<span
-								className={dayMarkerVariants({
-									today: k === today,
-									exam: targets.some(t => t.date === k),
-									picked: k === anchor,
-								})}
-							>
-								{d.getDate()}
-							</span>
-							<span className="flex h-1.5 gap-0.5">
-								{Array.from({ length: Math.min(dots, 3) }, (_, j) => (
-									// biome-ignore lint/suspicious/noArrayIndexKey: a count of dots
-									<i key={j} className="size-1.5 rounded-full bg-highlight" />
-								))}
-							</span>
-						</button>
-					);
-				})}
-			</div>
-			<StatGroup>
-				<Stat value={`${studied} of 7`} label="days studied" />
-				<Stat
-					value={`${attempts.length} of ${attempts.length + planned.length}`}
-					label="taken, of all planned"
-				/>
-				<Stat value={average === null ? "–" : `${average}%`} label="average score" />
-				<Stat value={planned.length} label="still planned" />
-			</StatGroup>
-			<DayView
-				day={anchor}
+			<Agenda
+				from={agendaFrom}
 				history={history}
 				plans={plans}
 				today={today}
 				exams={targets}
+				picked={anchor}
+				restDays={targets[0]?.rest_days ?? []}
+				several={aimed.length > 1}
 				onAdd={actions.onAdd}
 				onMode={actions.onMode}
 				onRemove={actions.onRemove}

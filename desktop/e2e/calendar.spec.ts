@@ -3,7 +3,7 @@ import { calls, launch, reply, sample } from "./backend";
 
 test("an exam planned on a day can be undone", async ({ page }) => {
 	await launch(page, "/calendar?day=2026-11-05", { plan_add: 9, plan_remove: null });
-	await page.getByRole("button", { name: "Add", exact: true }).click();
+	await page.getByRole("button", { name: /^Plan on/ }).click();
 	await page.getByRole("searchbox", { name: "Plan an exam, 2026-11-05" }).fill("helm");
 	await page.keyboard.press("Enter");
 	expect(await calls(page, "plan_add")).toEqual([
@@ -19,8 +19,7 @@ test("a plan is taken as an exam, or removed", async ({ page }) => {
 		.getByRole("button", { name: "CKA Practice Lab - Advanced Administration: take it as an exam" })
 		.click();
 	await expect.poll(() => calls(page, "plan_update")).toEqual([{ id: 3, day: null, mode: "exam" }]);
-	// Another day of the week, picked from the week strip
-	await page.getByRole("button", { name: /Saturday, October 31/ }).click();
+	// Another plan of that week, in the agenda
 	await page.getByRole("button", { name: "Remove Helm Fundamentals Lab" }).click();
 	await expect.poll(() => calls(page, "plan_remove")).toHaveLength(1);
 });
@@ -28,7 +27,7 @@ test("a plan is taken as an exam, or removed", async ({ page }) => {
 test("a plan that cannot be kept says why", async ({ page }) => {
 	await launch(page, "/calendar?day=2026-11-05");
 	await reply(page, "plan_add", { $error: { code: "not_found", message: "no exam 'gone'" } });
-	await page.getByRole("button", { name: "Add", exact: true }).click();
+	await page.getByRole("button", { name: /^Plan on/ }).click();
 	await page.getByRole("searchbox", { name: "Plan an exam, 2026-11-05" }).fill("Core");
 	await page.keyboard.press("Enter");
 	await expect(page.getByText("no exam 'gone'")).toBeVisible();
@@ -71,7 +70,7 @@ test("the map opens a day: its week and its plans below", async ({ page }) => {
 	// A day on the map picked: the week strip and the day follow it
 	await page.getByRole("button", { name: /Sat, Oct 31|Sat 31 Oct/ }).click();
 	await expect(page).toHaveURL(/day=2026-10-31/);
-	await expect(page.getByText("Planned, not taken")).toBeVisible();
+	await expect(page.getByText("not taken").first()).toBeVisible();
 });
 
 test("the chip to an exam out of view takes the map there and goes, with no tip left", async ({
