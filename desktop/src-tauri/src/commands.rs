@@ -12,7 +12,7 @@ use crate::runtime::model::{Env, EnvState};
 use crate::runtime::preflight;
 use crate::studio::proof::{Proof, ProofPlan, Proofs, Scope};
 use std::sync::Arc;
-use tauri::State;
+use tauri::{Manager, State};
 use tauri::ipc::Channel;
 
 /// Current environment; later changes arrive as `EnvChanged` events.
@@ -196,20 +196,27 @@ pub fn readiness(exams: State<'_, Arc<Exams>>, certification: String) -> AppResu
 /// saved them hold drafts again. The exams gone
 #[tauri::command]
 #[specta::specta]
-pub fn delete_exam(
+pub async fn delete_exam(app: tauri::AppHandle, id: String) -> AppResult<Vec<String>> {
+    off_main(app, move |app| {
+        let (exams, store, proofs) = (app.state::<Arc<Exams>>(), app.state::<Arc<Store>>(), app.state::<Proofs>());
+        let gone = exams.delete_exam(&id, &crate::data_dir())?;
+        store.remove_plans_of(&gone)?;
+        store.forget_in_sidebar(&gone)?;
+        let data_dir = crate::data_dir();
+        crate::studio::exams_deleted(&store, &gone, |id| crate::lab::mine::on_disk(&data_dir, id), |session| proofs.proving(session))?;
+        crate::study_changed(app, true);
+        Ok(gone)
+    })
+    .await
+}
+
+/// `work` off the main thread, where the interface runs: files written and
+/// the question bank read again take a while. The app's state from `app`
+async fn off_main<T: Send + 'static>(
     app: tauri::AppHandle,
-    exams: State<'_, Arc<Exams>>,
-    store: State<'_, Arc<Store>>,
-    proofs: State<'_, Proofs>,
-    id: String,
-) -> AppResult<Vec<String>> {
-    let gone = exams.delete_exam(&id, &crate::data_dir())?;
-    store.remove_plans_of(&gone)?;
-    store.forget_in_sidebar(&gone)?;
-    let data_dir = crate::data_dir();
-    crate::studio::exams_deleted(&store, &gone, |id| crate::lab::mine::on_disk(&data_dir, id), |session| proofs.proving(session))?;
-    crate::study_changed(&app, true);
-    Ok(gone)
+    work: impl FnOnce(&tauri::AppHandle) -> AppResult<T> + Send + 'static,
+) -> AppResult<T> {
+    tauri::async_runtime::spawn_blocking(move || work(&app)).await.map_err(|e| AppError::io("working in the background", e))?
 }
 
 /// Reset the exam desktop: a new one, every window closed; the client reconnects.
@@ -642,14 +649,13 @@ pub fn studio_new(store: State<'_, Arc<Store>>) -> AppResult<StudioConversation>
 /// A Create conversation, with its messages and draft
 #[tauri::command]
 #[specta::specta]
-pub fn studio_open(
-    store: State<'_, Arc<Store>>,
-    exams: State<'_, Arc<Exams>>,
-    proofs: State<'_, Proofs>,
-    session: i32,
-) -> AppResult<StudioConversation> {
-    let draft = crate::studio::opened(&store, &exams, &crate::data_dir(), session, || proofs.proving(session))?;
-    Ok(StudioConversation { id: session, messages: store.studio_messages(session)?, draft })
+pub async fn studio_open(app: tauri::AppHandle, session: i32) -> AppResult<StudioConversation> {
+    off_main(app, move |app| {
+        let (store, exams, proofs) = (app.state::<Arc<Store>>(), app.state::<Arc<Exams>>(), app.state::<Proofs>());
+        let draft = crate::studio::opened(&store, &exams, &crate::data_dir(), session, || proofs.proving(session))?;
+        Ok(StudioConversation { id: session, messages: store.studio_messages(session)?, draft })
+    })
+    .await
 }
 
 /// Say something in a Create conversation; the answer streams as it is
@@ -794,14 +800,12 @@ pub fn studio_stop(coach: State<'_, Coach>, session: i32) {
 /// Save the draft as the candidate's exam; its id
 #[tauri::command]
 #[specta::specta]
-pub fn studio_save(
-    app: tauri::AppHandle,
-    store: State<'_, Arc<Store>>,
-    exams: State<'_, Arc<Exams>>,
-    proofs: State<'_, Proofs>,
-    session: i32,
-) -> AppResult<String> {
-    let id = crate::studio::save(&store, &exams, &crate::data_dir(), session, || proofs.proving(session))?;
-    crate::study_changed(&app, true);
-    Ok(id)
+pub async fn studio_save(app: tauri::AppHandle, session: i32) -> AppResult<String> {
+    off_main(app, move |app| {
+        let (store, exams, proofs) = (app.state::<Arc<Store>>(), app.state::<Arc<Exams>>(), app.state::<Proofs>());
+        let id = crate::studio::save(&store, &exams, &crate::data_dir(), session, || proofs.proving(session))?;
+        crate::study_changed(app, true);
+        Ok(id)
+    })
+    .await
 }
