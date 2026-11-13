@@ -1,6 +1,6 @@
 # The checks every change goes through. Only the suites its files touch run;
 # the `ci` job at the end is the one required check, failing if any suite
-# that ran failed.
+# that ran failed, or if telling which to run failed (then none ran).
 name: CI
 
 on:
@@ -31,13 +31,19 @@ jobs:
             interface:
               - 'desktop/src/**'
               - 'desktop/e2e/**'
+              - 'desktop/scripts/**'
               - 'desktop/*.{json,ts,html}'
               - 'packages/**'
+              - 'package.json'
               - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig.base.json'
               - 'biome.json'
               - '.github/workflows/ci.yml'
             rust:
               - 'desktop/src-tauri/**'
+              # The Rust tests hold the committed bindings to the commands
+              - 'desktop/src/tauri/bindings.ts'
               - 'packs/**'
               - '.github/actions/setup-linux/**'
               - '.github/workflows/ci.yml'
@@ -89,7 +95,7 @@ jobs:
             desktop/test-results
           retention-days: 7
 
-  # Rust unit tests and the bundled pack's lint
+  # Rust lint, unit tests and the bundled pack's lint
   rust:
     needs: changes
     if: needs.changes.outputs.rust == 'true'
@@ -97,6 +103,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-linux
+      - name: Lint
+        working-directory: desktop/src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings
       - name: Unit tests
         working-directory: desktop/src-tauri
         run: cargo test --locked --lib
@@ -106,7 +115,7 @@ jobs:
 
   ci:
     if: always()
-    needs: [interface, journeys, rust]
+    needs: [changes, interface, journeys, rust]
     runs-on: ubuntu-latest
     steps:
       - name: Every suite that ran passed

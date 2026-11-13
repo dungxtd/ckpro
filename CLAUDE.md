@@ -82,7 +82,8 @@ being tried or reviewed stays uncommitted until it is settled.
 ```bash
 cd desktop && pnpm typecheck && pnpm test   # unit tests (vitest) beside the code
 pnpm exec biome check <files you touched> --write
-cd src-tauri && cargo test            # unit tests; e2e: cargo test -- --ignored
+cd src-tauri && cargo clippy --all-targets -- -D warnings
+cargo test                            # unit tests; e2e: cargo test -- --ignored
 cargo run -- lab lint ../../packs/core
 ```
 
