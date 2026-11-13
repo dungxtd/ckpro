@@ -580,6 +580,13 @@ function Gallery() {
 						<Progress label="warning" value={50} tone="warning" />
 						<Progress label="destructive" value={20} tone="destructive" />
 						<Progress label="with a pass line" value={58} tone="warning" marker={66} />
+						<Progress label="md, where the bar is the point" value={60} size="md" />
+						{/* Placed in a row: the bar takes what the row leaves */}
+						<span className="flex items-center gap-2 text-caption">
+							Memory
+							<Progress label="in a row" value={45} className="flex-1" />
+							<span className="tabular-nums">45%</span>
+						</span>
 					</div>
 					<div className="flex gap-3">
 						<ProgressRing value={50} label="1 of 2 done">

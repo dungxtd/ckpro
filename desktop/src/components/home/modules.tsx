@@ -139,7 +139,7 @@ export function ExamDay({ targets }: { targets: ExamTarget[] }) {
 				</span>
 			</div>
 			<div className="mt-auto">
-				<Progress value={share} label="The preparation so far" className="bg-foreground/10" />
+				<Progress value={share} label="The preparation so far" />
 				<div className="mt-1.5 flex justify-between text-caption text-muted-foreground tabular-nums">
 					<span>
 						Day {done} of {total} of your preparation
@@ -219,7 +219,6 @@ export function Readiness({ measured, onRetry }: { measured: Measured[]; onRetry
 										marker={pass}
 										tone={scoreTone(score, pass)}
 										label={`${cert(m.certification)} predicted`}
-										className="bg-foreground/10"
 									/>
 									<b className="text-right tabular-nums">{Math.round(score)}%</b>
 								</>
@@ -260,7 +259,7 @@ export function Domains({
 						<div className="flex flex-col gap-2">
 							{[60, 45, 80, 35].map((v, i) => (
 								// biome-ignore lint/suspicious/noArrayIndexKey: a fixed sample
-								<Progress key={i} value={v} label="domain" className="bg-foreground/10" />
+								<Progress key={i} value={v} label="domain" />
 							))}
 						</div>
 					}
@@ -309,7 +308,6 @@ export function Domains({
 											marker={pass}
 											tone={scoreTone(percent, pass)}
 											label={`${domainName(d.domain)} score`}
-											className="bg-foreground/10"
 										/>
 									</div>
 								);

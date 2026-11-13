@@ -20,15 +20,23 @@ const fill = cva(
 	}
 );
 
+// The track: thin by default, `md` where the bar is the point (an activity)
+const track = cva("block w-full overflow-hidden rounded-full bg-foreground/10", {
+	variants: { size: { sm: "h-1.5", md: "h-2" } },
+	defaultVariants: { size: "sm" },
+});
+
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 
 /** How far something is, 0–100, as a thin bar; `marker` draws a line across
  * it at a mark to reach (a pass line); `color` fills it with a colour of its
- * own instead of a tone (a score's, from a scale of tokens) */
+ * own instead of a tone (a score's, from a scale of tokens). `className`
+ * places the bar (`flex-1` in a row); `size` sets its thickness */
 export function Progress({
 	value,
 	label,
 	tone,
+	size,
 	marker,
 	color,
 	className,
@@ -38,17 +46,18 @@ export function Progress({
 	marker?: number;
 	color?: string;
 	className?: string;
-} & VariantProps<typeof fill>) {
+} & VariantProps<typeof fill> &
+	VariantProps<typeof track>) {
 	const percent = clamp(value);
 	return (
-		<span className="relative block">
+		<span className={cn("relative block", className)}>
 			<span
 				role="progressbar"
 				aria-label={label}
 				aria-valuenow={Math.round(percent)}
 				aria-valuemin={0}
 				aria-valuemax={100}
-				className={cn("block h-1.5 overflow-hidden rounded-full bg-foreground/10", className)}
+				className={track({ size })}
 			>
 				<span
 					className={fill({ tone })}

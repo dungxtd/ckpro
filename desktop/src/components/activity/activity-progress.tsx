@@ -82,7 +82,7 @@ export function ActivityProgress({
 					label={activity.title}
 					value={failed ? Math.max(percent, 4) : percent}
 					tone={failed ? "destructive" : "highlight"}
-					className="h-2"
+					size="md"
 				/>
 				{total > 1 && (
 					<div className="mt-1 text-caption text-muted-foreground tabular-nums">
