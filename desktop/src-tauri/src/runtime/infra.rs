@@ -127,7 +127,6 @@ const UPSTREAMS: [(u16, &str, &str); 4] = [
 ];
 
 
-/// Told which exam images are missing, and whether they are being got now
 /// Who is told the images' state: the missing ones, whether they are being
 /// downloaded now, and why the last try could not get them
 type ImagesReport = Box<dyn Fn(Vec<String>, bool, Option<String>) + Send + Sync>;

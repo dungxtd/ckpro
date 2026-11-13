@@ -267,7 +267,7 @@ mod tests {
         assert!(!parse_status("npm error").signed_in);
     }
 
-    /// This Mac's runtime (needs its Claude CLI, signed in, and Node): the
+    /// This computer's runtime (needs its Claude CLI, signed in, and Node): the
     /// assistant uses the login the CLI already has
     #[tokio::test]
     #[ignore]

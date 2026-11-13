@@ -1,5 +1,5 @@
 //! Claude as an ACP agent: the Claude Agent adapter
-//! (`@agentclientprotocol/claude-agent-acp`, through npx) on the Mac's own
+//! (`@agentclientprotocol/claude-agent-acp`, through npx) on the computer's own
 //! Claude CLI and its login. The coach's system prompt replaces Claude
 //! Code's; sessions have no built-in tools, no settings from the machine and
 //! nothing kept on disk.
@@ -82,13 +82,13 @@ pub fn detect_claude() -> Option<PathBuf> {
     platform::find_program(&program_dirs(), "claude")
 }
 
-/// What this Mac offers the assistant (Settings)
+/// What this computer offers the assistant (Settings)
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 pub struct RuntimeInfo {
-    /// This Mac's Claude CLI: where, and its version
+    /// This computer's Claude CLI: where, and its version
     pub claude: Option<String>,
     pub claude_version: Option<String>,
-    /// npx, which runs the adapter on the Mac
+    /// npx, which runs the adapter on this computer
     pub node: Option<String>,
     /// Why the assistant cannot run here
     pub problem: Option<String>,
@@ -255,17 +255,17 @@ impl Agent {
         let set = self.config.read_ok().claude_path.clone();
         let Some(path) = set else {
             return detect_claude().ok_or_else(|| {
-                AppError::assistant("The Claude CLI was not found: install Claude Code, or set its path in Settings > AI")
+                AppError::assistant("The Claude CLI was not found: install Claude Code, or set its path in Settings > Assistant")
             });
         };
         let path = PathBuf::from(path);
         if !path.is_file() {
-            return Err(AppError::assistant(format!("The Claude CLI set in Settings > AI is not there: {}", path.display())));
+            return Err(AppError::assistant(format!("The Claude CLI set in Settings > Assistant is not there: {}", path.display())));
         }
         // The adapter starts the CLI without a shell, which a `claude.cmd` needs
         if !platform::is_program(&path) {
             return Err(AppError::assistant(format!(
-                "The Claude CLI set in Settings > AI must be claude.exe (the native install), not {}",
+                "The Claude CLI set in Settings > Assistant must be claude.exe (the native install), not {}",
                 path.display()
             )));
         }
@@ -327,7 +327,7 @@ impl Agent {
     }
 
     /// The adapter with `args` (`--cli ...` runs the Claude CLI), stdio
-    /// attached, on the Mac's Claude CLI and its login; in a pseudo-terminal
+    /// attached, on the computer's Claude CLI and its login; in a pseudo-terminal
     /// when `in_terminal` (an interactive login)
     pub(super) async fn adapter(&self, args: &[&str], in_terminal: bool) -> AppResult<Command> {
         let telemetry = self.config.read_ok().telemetry;

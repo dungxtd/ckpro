@@ -265,7 +265,7 @@ async fn exam_engine_practice_and_exam_modes() {
     assert!(failing.iter().all(|c| !c.passed));
     println!("ok: practice check fails before solving");
 
-    // The guard: the Mac is shut out of the API server, and what is done
+    // The guard: the host is shut out of the API server, and what is done
     // to the environment outside the exam desktop is put back and noted
     let kubeconfig = f.kind.kubeconfig(cluster);
     eventually("kubectl from the host is refused", 30, async || {

@@ -5,7 +5,7 @@ import type { Provider } from "@/tauri/api";
 /**
  * The agents the assistant can run (each over ACP with its own adapter). The
  * app gives every one the same tools, limits and privacy; what differs is
- * how it runs and signs in (its card in Settings > AI).
+ * how it runs and signs in (its card in Settings > Assistant).
  */
 export const AGENTS: {
 	id: Provider;

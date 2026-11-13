@@ -17,7 +17,7 @@ pub enum AgentPermission {
 }
 
 /// An agent the assistant can run (each over ACP with its own adapter and
-/// the CLI installed on the Mac)
+/// the CLI installed on this computer)
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum Provider {
@@ -40,7 +40,7 @@ pub struct AgentSettings {
     /// Text that, found in a command, keeps it from running (the candidate's
     /// own, besides the built-in list)
     pub never_run: Vec<String>,
-    /// A Claude CLI to use instead of the one found on this Mac
+    /// A Claude CLI to use instead of the one found on this computer
     pub claude_path: Option<String>,
     /// What Claude may be given: the last check, a look at the cluster
     pub share_checks: bool,

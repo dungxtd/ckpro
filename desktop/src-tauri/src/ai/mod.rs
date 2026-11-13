@@ -123,7 +123,7 @@ pub struct Coach {
     /// several at once, each stopped on its own
     studio_running: Mutex<HashMap<i32, CancellationToken>>,
     open: tokio::sync::Mutex<OpenSessions>,
-    /// Claude Code is turned on (Settings > AI): off, nothing asks it
+    /// Claude Code is turned on (Settings > Assistant): off, nothing asks it
     enabled: std::sync::atomic::AtomicBool,
     /// The assistant is on at all (Settings > Assistant, "Use the
     /// assistant"): off, the app has no AI anywhere
@@ -200,7 +200,7 @@ impl Coach {
         if self.enabled.load(std::sync::atomic::Ordering::SeqCst) {
             Ok(())
         } else {
-            Err(AppError::assistant("Claude Code is turned off in Settings > AI"))
+            Err(AppError::assistant("Claude Code is turned off in Settings > Assistant"))
         }
     }
 
@@ -230,7 +230,7 @@ impl Coach {
             true => CoachStatus { ready: true, problem: None },
             false => CoachStatus {
                 ready: false,
-                problem: Some("Install Claude Code and Node.js, or set the Claude CLI's path in Settings > AI".into()),
+                problem: Some("Install Claude Code and Node.js, or set the Claude CLI's path in Settings > Assistant".into()),
             },
         }
     }
@@ -255,7 +255,7 @@ impl Coach {
         changed
     }
 
-    /// What this Mac offers the assistant (Settings)
+    /// What this computer offers the assistant (Settings)
     pub async fn runtime(&self) -> agent::RuntimeInfo {
         self.agent.info().await
     }
@@ -288,7 +288,7 @@ impl Coach {
         // is graded) and never in an exam (coach_subject refuses it anyway)
         let profile = if subject.review { Profile::Ask } else { profile };
         let cancel = self.start(exams)?;
-        // What the candidate shares with Claude (Settings > AI > Privacy)
+        // What the candidate shares with Claude (Settings > Assistant > Privacy)
         let shared = policy::AgentSettings::load_or_guarded(store);
         let checks = if context.checks && shared.share_checks { checks } else { &[] };
         // Ask is given a look at the cluster; Agent looks itself, from the

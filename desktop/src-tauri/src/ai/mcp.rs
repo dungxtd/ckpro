@@ -209,8 +209,6 @@ fn tail(text: &str, max: usize) -> String {
     format!("[… {} bytes cut]\n{}", start, &text[start..])
 }
 
-/// A question as Markdown: what the candidate reads, and the reference
-/// answer if `solution`
 /// What an agent session gets: commands on the task host, and the checks
 fn tools() -> Value {
     json!([

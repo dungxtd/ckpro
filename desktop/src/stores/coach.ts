@@ -62,9 +62,9 @@ interface CoachStore {
 	efforts: ModelOption[];
 	effort: string;
 	setEffort: (effort: string) => void;
-	/** The agents turned on in Settings > AI (offered once signed in) */
+	/** The agents turned on in Settings > Assistant (offered once signed in) */
 	enabledAgents: Provider[];
-	/** What the candidate lets go to Claude at all (Settings > AI > Privacy) */
+	/** What the candidate lets go to Claude at all (Settings > Assistant > Privacy) */
 	shared: { checks: boolean; cluster: boolean };
 	/** What goes with a question besides the task (the context chips) */
 	context: CoachContext;

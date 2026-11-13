@@ -115,8 +115,8 @@ export const commands = {
 	agentSettings: () => typedError<AgentSettings_Serialize, AppError>(__TAURI_INVOKE("agent_settings")),
 	saveAgentSettings: (settings: AgentSettings_Deserialize) => typedError<AgentSettings_Serialize, AppError>(__TAURI_INVOKE("save_agent_settings", { settings })),
 	/**
-	 *  What runs the assistant (this Mac's Claude CLI or Docker), and what this
-	 *  Mac has.
+	 *  What runs the assistant (this computer's Claude CLI or Docker), and what this
+	 *  computer has.
 	 */
 	coachRuntime: () => typedError<RuntimeInfo_Serialize, AppError>(__TAURI_INVOKE("coach_runtime")),
 	/**  The question's coach session in the current attempt: its name and messages. */
@@ -320,7 +320,7 @@ export type AgentSettings_Deserialize = {
 	 *  own, besides the built-in list)
 	 */
 	never_run?: string[],
-	/**  A Claude CLI to use instead of the one found on this Mac */
+	/**  A Claude CLI to use instead of the one found on this computer */
 	claude_path?: string | null,
 	/**  What Claude may be given: the last check, a look at the cluster */
 	share_checks?: boolean,
@@ -348,7 +348,7 @@ export type AgentSettings_Serialize = {
 	 *  own, besides the built-in list)
 	 */
 	never_run: string[],
-	/**  A Claude CLI to use instead of the one found on this Mac */
+	/**  A Claude CLI to use instead of the one found on this computer */
 	claude_path: string | null,
 	/**  What Claude may be given: the last check, a look at the cluster */
 	share_checks: boolean,
@@ -1458,7 +1458,7 @@ export type Proof_Serialize = {
 
 /**
  *  An agent the assistant can run (each over ACP with its own adapter and
- *  the CLI installed on the Mac)
+ *  the CLI installed on this computer)
  */
 export type Provider = 
 /**  Claude Code, through the Claude Agent adapter */
@@ -1523,26 +1523,26 @@ export type Readiness =
 /**  Who said it, in a coach conversation */
 export type Role = "user" | "assistant";
 
-/**  What this Mac offers the assistant (Settings) */
+/**  What this computer offers the assistant (Settings) */
 export type RuntimeInfo = RuntimeInfo_Serialize | RuntimeInfo_Deserialize;
 
-/**  What this Mac offers the assistant (Settings) */
+/**  What this computer offers the assistant (Settings) */
 export type RuntimeInfo_Deserialize = {
-	/**  This Mac's Claude CLI: where, and its version */
+	/**  This computer's Claude CLI: where, and its version */
 	claude?: string | null,
 	claude_version?: string | null,
-	/**  npx, which runs the adapter on the Mac */
+	/**  npx, which runs the adapter on this computer */
 	node?: string | null,
 	/**  Why the assistant cannot run here */
 	problem?: string | null,
 };
 
-/**  What this Mac offers the assistant (Settings) */
+/**  What this computer offers the assistant (Settings) */
 export type RuntimeInfo_Serialize = {
-	/**  This Mac's Claude CLI: where, and its version */
+	/**  This computer's Claude CLI: where, and its version */
 	claude: string | null,
 	claude_version: string | null,
-	/**  npx, which runs the adapter on the Mac */
+	/**  npx, which runs the adapter on this computer */
 	node: string | null,
 	/**  Why the assistant cannot run here */
 	problem: string | null,

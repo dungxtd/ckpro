@@ -187,7 +187,6 @@ async fn run(
     }
 }
 
-/// Rebuild the cluster list from the kind containers this app owns.
 /// A kind node's container changed state (an exec or a network event does
 /// not change the cluster list)
 fn is_node_change(event: &bollard::models::EventMessage) -> bool {
@@ -196,6 +195,7 @@ fn is_node_change(event: &bollard::models::EventMessage) -> bool {
         && event.actor.as_ref().and_then(|a| a.attributes.as_ref()).is_some_and(|a| a.contains_key(CLUSTER_LABEL))
 }
 
+/// Rebuild the cluster list from the kind containers this app owns
 async fn sync(
     docker: &Docker,
     env: &Arc<Env>,

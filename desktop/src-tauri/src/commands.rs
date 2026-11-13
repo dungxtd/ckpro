@@ -264,8 +264,8 @@ pub async fn save_agent_settings(
     Ok(settings)
 }
 
-/// What runs the assistant (this Mac's Claude CLI or Docker), and what this
-/// Mac has.
+/// What runs the assistant (this computer's Claude CLI or Docker), and what this
+/// computer has.
 #[tauri::command]
 #[specta::specta]
 pub async fn coach_runtime(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>) -> AppResult<RuntimeInfo> {

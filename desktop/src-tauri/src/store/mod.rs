@@ -250,7 +250,6 @@ impl Store {
         Ok(())
     }
 
-    /// Newest first; entries that no longer parse are skipped
     /// The attempts whose ids start with `prefix` go (the demo's, `ckpro demo --remove`)
     pub fn remove_history_with_prefix(&self, prefix: &str) -> AppResult<usize> {
         self.conn()
@@ -258,6 +257,7 @@ impl Store {
             .map_err(db)
     }
 
+    /// Newest first; entries that no longer parse are skipped
     pub fn history<T: DeserializeOwned>(&self) -> AppResult<Vec<T>> {
         let conn = self.conn();
         let mut query = conn.prepare("SELECT entry FROM history ORDER BY finished_at DESC").map_err(db)?;

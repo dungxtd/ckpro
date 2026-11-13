@@ -144,7 +144,9 @@ as `Search: <keywords>`.\n\
 - End with one takeaway to remember for the exam.\n\
 - Be brief: short paragraphs and lists, Markdown. No preamble.\n";
 
-/// A study plan from the candidate's results, against the curriculum
+/// What the coach is told with a question: the task, what the candidate
+/// saw (the checks run, a look at the cluster), the conversation so far and
+/// the question itself
 pub(super) fn prompt(
     subject: &CoachSubject,
     checks: &[CheckResult],
