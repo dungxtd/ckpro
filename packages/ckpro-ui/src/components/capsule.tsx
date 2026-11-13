@@ -1,4 +1,4 @@
-import { cn } from "@ckpro/ui/lib/utils";
+import { cn, focusRing } from "@ckpro/ui/lib/utils";
 import type * as React from "react";
 
 /**
@@ -34,7 +34,8 @@ export function CapsuleItem({
 			type={type}
 			aria-current={current ? "page" : undefined}
 			className={cn(
-				"inline-flex h-7 items-center gap-1 rounded-full px-3 font-semibold text-callout outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5",
+				"inline-flex h-7 items-center gap-1 rounded-full px-3 font-semibold text-callout [&_svg]:size-3.5",
+				focusRing,
 				capsuleTint,
 				className
 			)}

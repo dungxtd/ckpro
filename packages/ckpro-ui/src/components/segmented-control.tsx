@@ -1,4 +1,4 @@
-import { cn } from "@ckpro/ui/lib/utils";
+import { cn, focusRing } from "@ckpro/ui/lib/utils";
 import type * as React from "react";
 
 export interface SegmentedOption<T extends string> {
@@ -66,7 +66,8 @@ export function SegmentedControl<T extends string>({
 						tabIndex={stop ? 0 : -1}
 						onClick={() => onChange(option.value)}
 						className={cn(
-							"h-6 cursor-pointer whitespace-nowrap rounded-md px-3 text-callout outline-none transition-[background-color,box-shadow] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
+							"h-6 cursor-pointer whitespace-nowrap rounded-md px-3 text-callout transition-[background-color,box-shadow] duration-150 ease-out motion-reduce:transition-none",
+							focusRing,
 							selected
 								? "bg-[var(--seg-on)] font-medium text-foreground shadow-(--shadow-thumb)"
 								: "text-foreground/75 hover:text-foreground"

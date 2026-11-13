@@ -1,5 +1,5 @@
 import { pressMotion } from "@ckpro/ui/lib/motion";
-import { cn } from "@ckpro/ui/lib/utils";
+import { cn, focusRing } from "@ckpro/ui/lib/utils";
 import { XIcon } from "lucide-react";
 import type * as React from "react";
 
@@ -37,7 +37,8 @@ export function Chip({
 	...props
 }: ChipProps) {
 	const base = cn(
-		"inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+		"inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full font-medium transition-colors",
+		focusRing,
 		size === "xs"
 			? "h-5.5 gap-1 text-2xs"
 			: size === "sm"
@@ -80,7 +81,10 @@ export function Chip({
 					// Which chip: "Remove" alone does not say
 					aria-label={typeof children === "string" ? `Remove ${children}` : "Remove"}
 					onClick={onRemove}
-					className="grid size-5 cursor-pointer place-items-center rounded-full bg-[var(--seg-bg)] hover:bg-foreground/15"
+					className={cn(
+						"grid size-5 cursor-pointer place-items-center rounded-full bg-[var(--seg-bg)] hover:bg-foreground/15",
+						focusRing
+					)}
 				>
 					<XIcon className="size-3" />
 				</button>

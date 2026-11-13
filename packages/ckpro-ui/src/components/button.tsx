@@ -1,5 +1,5 @@
 import { pressMotion } from "@ckpro/ui/lib/motion";
-import { cn } from "@ckpro/ui/lib/utils";
+import { cn, focusRing } from "@ckpro/ui/lib/utils";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
@@ -14,7 +14,8 @@ const accentFill =
 
 const buttonVariants = cva(
 	cn(
-		"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+		"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+		focusRing,
 		pressMotion
 	),
 	{

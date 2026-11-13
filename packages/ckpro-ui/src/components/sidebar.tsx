@@ -1,4 +1,4 @@
-import { cn } from "@ckpro/ui/lib/utils";
+import { cn, focusRing } from "@ckpro/ui/lib/utils";
 import { ChevronRight, Eye, EyeOff, GripHorizontal, Minus } from "lucide-react";
 import type * as React from "react";
 
@@ -55,7 +55,10 @@ export function SidebarGroupToggle({
 				type="button"
 				aria-expanded={open}
 				onClick={onToggle}
-				className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-2.5 pb-1 text-left font-semibold text-2xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+				className={cn(
+					"flex min-w-0 flex-1 items-center gap-1 rounded-md px-2.5 pb-1 text-left font-semibold text-2xs text-muted-foreground hover:text-foreground",
+					focusRing
+				)}
 			>
 				<span className="flex-1">{label}</span>
 				{!open && count !== undefined && <span className="font-normal tabular-nums">{count}</span>}
@@ -101,7 +104,8 @@ export function SidebarItem({
 }: SidebarItemProps) {
 	const edited = leading !== undefined || trailing !== undefined;
 	const rowClass = cn(
-		"flex w-full items-center gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm text-foreground/85 outline-none transition-colors duration-150 hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-ring aria-[current]:bg-sidebar-selected aria-[current]:font-semibold aria-[current]:text-foreground motion-reduce:transition-none [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground aria-[current]:[&>svg]:text-foreground",
+		"flex w-full items-center gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm text-foreground/85 transition-colors duration-150 hover:bg-sidebar-hover aria-[current]:bg-sidebar-selected aria-[current]:font-semibold aria-[current]:text-foreground motion-reduce:transition-none [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-muted-foreground aria-[current]:[&>svg]:text-foreground",
+		focusRing,
 		className
 	);
 	const body = (
@@ -164,7 +168,10 @@ export function SidebarEye({
 			aria-label={`${hidden ? "Show" : "Hide"} ${name}`}
 			aria-pressed={!hidden}
 			onClick={onToggle}
-			className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground outline-none hover:bg-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+			className={cn(
+				"grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
+				focusRing
+			)}
 		>
 			{hidden ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
 		</button>
@@ -178,7 +185,10 @@ export function SidebarRemove({ name, onRemove }: { name: string; onRemove: () =
 			type="button"
 			aria-label={`Delete ${name}`}
 			onClick={onRemove}
-			className="grid size-4 shrink-0 place-items-center rounded-full bg-destructive text-destructive-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			className={cn(
+				"grid size-4 shrink-0 place-items-center rounded-full bg-destructive text-destructive-foreground",
+				focusRing
+			)}
 		>
 			<Minus className="size-3" strokeWidth={3} />
 		</button>

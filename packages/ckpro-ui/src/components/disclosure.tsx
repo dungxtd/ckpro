@@ -1,4 +1,4 @@
-import { cn } from "@ckpro/ui/lib/utils";
+import { cn, focusRing } from "@ckpro/ui/lib/utils";
 import { ChevronRight } from "lucide-react";
 import type * as React from "react";
 
@@ -6,8 +6,10 @@ import type * as React from "react";
  * A compact row that opens something under it (a step's log, a tool call):
  * its hover and focus, for rows laid out by their own screen
  */
-export const disclosureRow =
-	"flex items-center gap-2 rounded-md px-1.5 text-left outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring";
+export const disclosureRow = cn(
+	"flex items-center gap-2 rounded-md px-1.5 text-left hover:bg-hover",
+	focusRing
+);
 
 /** The chevron of a row that opens: pointing right, turned down when open */
 export function DisclosureChevron({ open, className }: { open: boolean; className?: string }) {

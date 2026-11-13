@@ -1,6 +1,6 @@
 import { menu } from "@ckpro/ui/components/menu";
 import { menuMotion } from "@ckpro/ui/lib/motion";
-import { cn } from "@ckpro/ui/lib/utils";
+import { cn, focusRing } from "@ckpro/ui/lib/utils";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { CheckIcon, ChevronDownIcon, ChevronsUpDownIcon, ChevronUpIcon } from "lucide-react";
 import type * as React from "react";
@@ -30,7 +30,8 @@ function SelectTrigger({
 			className={cn(
 				// macOS pop-up button: the value plus a small round ⌃⌄ button. Opens
 				// the menu over itself with the current item lined up.
-				"group/popup inline-flex w-fit cursor-pointer items-center justify-end gap-2 whitespace-nowrap rounded-lg py-1 pr-1 pl-2 text-callout outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-muted-foreground *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2",
+				"group/popup inline-flex w-fit cursor-pointer items-center justify-end gap-2 whitespace-nowrap rounded-lg py-1 pr-1 pl-2 text-callout transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-muted-foreground *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2",
+				focusRing,
 				className
 			)}
 			{...props}

@@ -18,6 +18,11 @@ export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
 }
 
+/** The one keyboard focus mark for a control: a 2px ring in the accent,
+ * from the keyboard only. Fields (Input, Textarea) keep their own softer
+ * ring, as a field lit for typing */
+export const focusRing = "outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
 /** Height of the strip along the window's top edge floating surfaces stay out
  * of (macOS: the window buttons float over the web view; 0 elsewhere) */
 export function titlebarHeight(): number {

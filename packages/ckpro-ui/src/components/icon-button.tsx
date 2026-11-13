@@ -1,7 +1,7 @@
 import { capsuleTint } from "@ckpro/ui/components/capsule";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckpro/ui/components/tooltip";
 import { pressMotion } from "@ckpro/ui/lib/motion";
-import { cn } from "@ckpro/ui/lib/utils";
+import { cn, focusRing } from "@ckpro/ui/lib/utils";
 import type * as React from "react";
 import { useRef, useState } from "react";
 
@@ -34,7 +34,8 @@ export function iconButtonVariants({
 	active,
 }: IconButtonOptions = {}) {
 	return cn(
-		"inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+		"inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full disabled:pointer-events-none disabled:opacity-50",
+		focusRing,
 		pressMotion,
 		// Over a picture: grows and glows under the pointer
 		variant === "glass" &&

@@ -1,4 +1,4 @@
-import { cn } from "@ckpro/ui/lib/utils";
+import { cn, focusRing } from "@ckpro/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
@@ -57,7 +57,8 @@ export function BadgeButton({
 			type="button"
 			className={cn(
 				badgeVariants({ variant, size }),
-				"cursor-pointer outline-none transition-colors hover:opacity-80 focus-visible:ring-1 focus-visible:ring-ring",
+				"cursor-pointer transition-colors hover:opacity-80",
+				focusRing,
 				// Accent deepens instead, as a selected row's tint does
 				variant === "accent" && "hover:bg-highlight/30 hover:opacity-100",
 				className

@@ -1,4 +1,4 @@
-import { cn } from "@ckpro/ui/lib/utils";
+import { cn, focusRing } from "@ckpro/ui/lib/utils";
 import { Minus, Plus } from "lucide-react";
 import type * as React from "react";
 
@@ -21,8 +21,10 @@ export function Stepper({
 	incrementDisabled?: boolean;
 	className?: string;
 }) {
-	const btn =
-		"grid h-6 w-7 cursor-pointer place-items-center rounded-md outline-none transition-colors hover:bg-foreground/10 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-35 [&_svg]:size-3.5";
+	const btn = cn(
+		"grid h-6 w-7 cursor-pointer place-items-center rounded-md transition-colors hover:bg-foreground/10 disabled:pointer-events-none disabled:opacity-35 [&_svg]:size-3.5",
+		focusRing
+	);
 	return (
 		<fieldset
 			aria-label={label}
