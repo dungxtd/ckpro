@@ -533,7 +533,9 @@ impl Agent {
         let mut cancelling = false;
         let result = loop {
             tokio::select! {
-                result = &mut request => break result,
+                // What came first is read first: the updates sent before the
+                // reply (the last text, the usage) are not left behind it
+                biased;
                 Some(update) = subscription.updates.recv() => match update {
                     Update::Permission(params, reply) => on_event(AgentEvent::Permission(params, reply)),
                     Update::Session(update) => match update["sessionUpdate"].as_str() {
@@ -553,8 +555,11 @@ impl Agent {
                     _ => {}
                     },
                 },
+                result = &mut request => break result,
                 () = cancel.cancelled(), if !cancelling => {
                     cancelling = true;
+                    // The candidate's open permission cards go with the turn
+                    c.cancel_permissions(session);
                     let _ = c.notify("session/cancel", json!({ "sessionId": session })).await;
                 }
             }
@@ -570,6 +575,12 @@ impl Agent {
                     }
                 }
                 Some("tool_call" | "tool_call_update") => on_update(&update),
+                Some("usage_update") => {
+                    usage = Some(ContextUsage {
+                        used: update["used"].as_u64().unwrap_or(0) as u32,
+                        size: update["size"].as_u64().unwrap_or(0) as u32,
+                    });
+                }
                 _ => {}
             }
         }

@@ -26,6 +26,10 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 const AUTH_REQUIRED: i64 = -32000;
 
 type Pending = Mutex<HashMap<u64, oneshot::Sender<Result<Value, Value>>>>;
+/// The agent's permission requests waiting for the candidate, by request id
+/// (as JSON): their session, and how to answer them cancelled at once
+type Asking = Mutex<HashMap<String, (String, tokio_util::sync::CancellationToken)>>;
+
 /// Who follows each session now: one answer at a time, by its subscription
 type Subscribers = Mutex<HashMap<String, (u64, mpsc::UnboundedSender<Update>)>>;
 
@@ -41,6 +45,7 @@ pub struct Connection {
     next_id: AtomicU64,
     pending: Arc<Pending>,
     subscribers: Arc<Subscribers>,
+    asking: Arc<Asking>,
     /// Tells one subscription from the next on the same session
     next_subscription: AtomicU64,
     /// Gone once the agent exits
@@ -99,12 +104,13 @@ impl Connection {
         let stderr = tree.stderr().expect("piped");
         let pending: Arc<Pending> = Arc::default();
         let subscribers: Arc<Subscribers> = Arc::default();
+        let asking: Arc<Asking> = Arc::default();
         let alive = Arc::new(std::sync::atomic::AtomicBool::new(true));
         let (replies_tx, mut replies_rx) = mpsc::unbounded_channel::<Value>();
 
         // The agent's messages: replies, its requests, session updates
         {
-            let (pending, subscribers, alive) = (pending.clone(), subscribers.clone(), alive.clone());
+            let (pending, subscribers, asking, alive) = (pending.clone(), subscribers.clone(), asking.clone(), alive.clone());
             tokio::spawn(async move {
                 let mut lines = BufReader::new(stdout).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
@@ -133,8 +139,21 @@ impl Connection {
                                     .get(&session)
                                     .is_some_and(|(_, s)| s.send(Update::Permission(params, tx)).is_ok());
                                 let (id, replies_tx) = (id.clone(), replies_tx.clone());
+                                // Answered by the candidate, or cancelled with the turn
+                                // or by the agent (`$/cancel_request`)
+                                let stop = tokio_util::sync::CancellationToken::new();
+                                asking.locked().insert(id.to_string(), (session, stop.clone()));
+                                let asking = asking.clone();
                                 tokio::spawn(async move {
-                                    let outcome = if asked { rx.await.unwrap_or_else(|_| cancelled()) } else { cancelled() };
+                                    let outcome = if asked {
+                                        tokio::select! {
+                                            reply = rx => reply.unwrap_or_else(|_| cancelled()),
+                                            () = stop.cancelled() => cancelled(),
+                                        }
+                                    } else {
+                                        cancelled()
+                                    };
+                                    asking.locked().remove(&id.to_string());
                                     let _ = replies_tx.send(json!({ "jsonrpc": "2.0", "id": id, "result": outcome }));
                                 });
                             } else {
@@ -150,6 +169,13 @@ impl Connection {
                                 && let Some((_, tx)) = subscribers.locked().get(session)
                             {
                                 let _ = tx.send(Update::Session(params.get("update").cloned().unwrap_or(Value::Null)));
+                            }
+                        }
+                        // The agent gave up one of its requests: a permission it asked goes
+                        (None, Some("$/cancel_request")) => {
+                            let request = message["params"]["requestId"].to_string();
+                            if let Some((_, stop)) = asking.locked().get(&request) {
+                                stop.cancel();
                             }
                         }
                         _ => {}
@@ -176,6 +202,7 @@ impl Connection {
             next_id: AtomicU64::new(0),
             pending,
             subscribers,
+            asking,
             next_subscription: AtomicU64::new(0),
             alive,
             _tree: tree,
@@ -251,6 +278,16 @@ impl Connection {
 
     pub async fn notify(&self, method: &str, params: Value) -> AppResult<()> {
         self.write(&json!({ "jsonrpc": "2.0", "method": method, "params": params })).await
+    }
+
+    /// Answer the session's permission requests still waiting as cancelled
+    /// (the turn is being stopped: the protocol has the client do so)
+    pub fn cancel_permissions(&self, session: &str) {
+        for (asked, stop) in self.asking.locked().values() {
+            if asked == session {
+                stop.cancel();
+            }
+        }
     }
 
     /// The updates of a session and its permission requests, while the
