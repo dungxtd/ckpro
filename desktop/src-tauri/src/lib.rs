@@ -163,14 +163,14 @@ pub const DATABASE: &str = "ckpro.db";
 /// made private before anything goes in, whichever runs first.
 pub fn data_dir() -> std::path::PathBuf {
     // Another data directory, to look at the app with other data (`ckpro demo`)
-    if let Some(dir) = std::env::var_os("CKPRO_DATA_DIR").filter(|d| !d.is_empty()) {
-        let dir = std::path::PathBuf::from(dir);
-        let _ = std::fs::create_dir_all(&dir);
-        return dir;
-    }
-    let dir = dirs::data_dir().unwrap_or_else(std::env::temp_dir).join(APP_ID);
+    let dir = match std::env::var_os("CKPRO_DATA_DIR").filter(|d| !d.is_empty()) {
+        Some(dir) => std::path::PathBuf::from(dir),
+        None => dirs::data_dir().unwrap_or_else(std::env::temp_dir).join(APP_ID),
+    };
     let _ = std::fs::create_dir_all(&dir);
-    let _ = platform::make_private(&dir);
+    if let Err(e) = platform::make_private(&dir) {
+        tracing::warn!(dir = %dir.display(), error = %e, "the data directory could not be made private");
+    }
     dir
 }
 
