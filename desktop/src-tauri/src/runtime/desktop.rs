@@ -232,15 +232,8 @@ fn ssh_hosts(hosts: &[String], jumphost: &str) -> String {
 }
 
 async fn upload(docker: &Docker, name: &str, files: &[(&str, String)]) -> AppResult<()> {
-    let mut archive = tar::Builder::new(Vec::new());
-    for (path, content) in files {
-        let mut header = tar::Header::new_gnu();
-        header.set_size(content.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        archive.append_data(&mut header, path, content.as_bytes()).map_err(|e| AppError::io("packing desktop files", e))?;
-    }
-    let archive = archive.into_inner().map_err(|e| AppError::io("packing desktop files", e))?;
+    let archive = super::docker::tar_of(files.iter().map(|(path, content)| (*path, content.as_bytes())))
+        .map_err(|e| AppError::io("packing desktop files", e))?;
     docker
         .upload_to_container(
             name,

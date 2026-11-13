@@ -34,7 +34,7 @@ pub const BUILTINS: [&str; 12] = [
 pub fn builtins(logical: &str, physical: &str) -> Values {
     let mut values = Values::new();
     values.insert("cluster".into(), logical.into());
-    values.insert("control_plane".into(), format!("{physical}-control-plane"));
+    values.insert("control_plane".into(), crate::cluster::kind::control_plane(physical));
     values.insert("etcd_certs".into(), crate::runtime::jumphost::Jumphost::etcd_certs(logical));
     // kind names workers <cluster>-worker, <cluster>-worker2, ...
     values.insert("worker1".into(), format!("{physical}-worker"));

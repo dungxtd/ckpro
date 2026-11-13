@@ -11,7 +11,7 @@ const METRICS_SERVER: &str = include_str!("../../resources/metrics-server.yaml")
 pub async fn install_addons(docker: &Docker, cluster: &str) -> AppResult<()> {
     let out = exec::run(
         docker,
-        &format!("{cluster}-control-plane"),
+        &super::kind::control_plane(cluster),
         &["kubectl", "--kubeconfig=/etc/kubernetes/admin.conf", "apply", "-f", "-"],
         &[],
         Some(METRICS_SERVER.as_bytes()),

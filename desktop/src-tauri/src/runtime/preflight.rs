@@ -59,11 +59,10 @@ impl Footprint {
     /// pods still run). One sample per node, without waiting for a CPU reading
     pub async fn measure(docker: &bollard::Docker, clusters: &[String]) -> Option<Self> {
         let nodes = crate::cluster::kind::node_containers(docker, None).await.ok()?;
-        let samples = nodes.iter().filter(|n| clusters.contains(&n.cluster) && n.state == "running").map(|n| async move {
-            let options = bollard::query_parameters::StatsOptions { stream: false, one_shot: true };
-            let stats = futures_util::StreamExt::next(&mut docker.stats(&n.name, Some(options))).await?.ok()?;
-            Some((n.control_plane, used_mb(&stats.memory_stats?)))
-        });
+        let samples = nodes
+            .iter()
+            .filter(|n| clusters.contains(&n.cluster) && n.state == "running")
+            .map(|n| async move { Some((n.control_plane, super::usage::sample_mb(docker, &n.name).await?)) });
         let mut footprint = Self::default();
         for (control_plane, mb) in futures_util::future::join_all(samples).await.into_iter().flatten() {
             let role = if control_plane { &mut footprint.control_plane_mb } else { &mut footprint.worker_mb };
@@ -78,12 +77,6 @@ impl Footprint {
         let mix = |old: u32, new: u32| if old == 0 || new == 0 { old.max(new) } else { (old + new) / 2 };
         Self { control_plane_mb: mix(self.control_plane_mb, new.control_plane_mb), worker_mb: mix(self.worker_mb, new.worker_mb) }
     }
-}
-
-/// Memory in use, without the page cache the kernel gives back under pressure
-pub(crate) fn used_mb(memory: &bollard::models::ContainerMemoryStats) -> u32 {
-    let cache = memory.stats.as_ref().and_then(|s| s.get("inactive_file").or_else(|| s.get("cache"))).copied().unwrap_or(0);
-    (memory.usage.unwrap_or(0).saturating_sub(cache) / (1024 * 1024)) as u32
 }
 
 /// Memory the running clusters take now (estimated per node), but `except`

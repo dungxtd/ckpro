@@ -8,10 +8,7 @@ use crate::cluster::kind::CLUSTER_LABEL;
 use bollard::Docker;
 use bollard::query_parameters::{ListContainersOptions, StatsOptions};
 use futures_util::StreamExt;
-
-/// The compose label naming a container's service (`compose_labels`)
-const SERVICE_LABEL: &str = "com.docker.compose.service";
-const PROJECT_LABEL: &str = "com.docker.compose.project";
+use super::docker::{PROJECT_LABEL, SERVICE_LABEL};
 
 /// The running containers and their memory now, largest first. `owned`:
 /// ckpro's clusters (other kind clusters count as other apps)
@@ -24,15 +21,27 @@ pub async fn measure(docker: &Docker, owned: &[String]) -> Vec<ContainerUse> {
         let labels = c.labels.unwrap_or_default();
         let owner = owner(&labels, owned);
         Some(async move {
-            let options = StatsOptions { stream: false, one_shot: true };
-            let stats = docker.stats(&name, Some(options)).next().await?.ok()?;
-            let mb = super::preflight::used_mb(&stats.memory_stats?);
+            let mb = sample_mb(docker, &name).await?;
             Some(ContainerUse { name, owner, mb })
         })
     });
     let mut used: Vec<ContainerUse> = futures_util::future::join_all(samples).await.into_iter().flatten().collect();
     used.sort_by_key(|c| std::cmp::Reverse(c.mb));
     used
+}
+
+/// What container `name` takes now, page cache left out (MB): one sample,
+/// without waiting for a CPU reading
+pub async fn sample_mb(docker: &Docker, name: &str) -> Option<u32> {
+    let options = StatsOptions { stream: false, one_shot: true };
+    let stats = docker.stats(name, Some(options)).next().await?.ok()?;
+    Some(used_mb(&stats.memory_stats?))
+}
+
+/// Memory in use, without the page cache the kernel gives back under pressure
+fn used_mb(memory: &bollard::models::ContainerMemoryStats) -> u32 {
+    let cache = memory.stats.as_ref().and_then(|s| s.get("inactive_file").or_else(|| s.get("cache"))).copied().unwrap_or(0);
+    (memory.usage.unwrap_or(0).saturating_sub(cache) / (1024 * 1024)) as u32
 }
 
 /// Whose a container is, from its labels

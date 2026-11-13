@@ -107,17 +107,35 @@ pub async fn wait(timeout: std::time::Duration, waiting: impl FnOnce()) -> AppRe
 /// managers (OrbStack, Docker Desktop) group them as one app.
 pub const COMPOSE_PROJECT: &str = "ckpro";
 
+/// The compose labels naming a container's project and service
+pub const PROJECT_LABEL: &str = "com.docker.compose.project";
+pub const SERVICE_LABEL: &str = "com.docker.compose.service";
+
 /// Labels that put a container in the ckpro compose project as `service`.
 /// Compose (v5) counts a container as its own only with a config hash: without
 /// one, `docker compose -p ckpro down` and the managers' Delete find nothing.
 /// No compose file stands behind it, so the hash is a fixed one
 pub fn compose_labels(service: &str) -> Vec<(String, String)> {
     vec![
-        ("com.docker.compose.project".into(), COMPOSE_PROJECT.into()),
-        ("com.docker.compose.service".into(), service.into()),
+        (PROJECT_LABEL.into(), COMPOSE_PROJECT.into()),
+        (SERVICE_LABEL.into(), service.into()),
         ("com.docker.compose.oneoff".into(), "False".into()),
         ("com.docker.compose.config-hash".into(), COMPOSE_PROJECT.into()),
     ]
+}
+
+/// `files` (path, content) as a tar archive, for Docker to unpack or build
+/// from
+pub fn tar_of<'a>(files: impl IntoIterator<Item = (&'a str, &'a [u8])>) -> std::io::Result<Vec<u8>> {
+    let mut archive = tar::Builder::new(Vec::new());
+    for (path, content) in files {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(content.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        archive.append_data(&mut header, path, content)?;
+    }
+    archive.into_inner()
 }
 
 /// The `docker` CLI on this machine (kind runs it, without a shell).
@@ -164,7 +182,7 @@ pub fn on_quit(action: OnQuit, clusters: &[String], named: &[String]) {
 /// `ckpro quit`: stop or remove the nodes of `clusters` and the `named`
 /// containers; what is not there is skipped
 pub async fn quit(action: OnQuit, clusters: &[String], named: &[String]) -> AppResult<()> {
-    const CLUSTER: &str = "io.x-k8s.kind.cluster";
+    use crate::cluster::kind::CLUSTER_LABEL as CLUSTER;
     let docker = connect().await?;
     let options = bollard::query_parameters::ListContainersOptions {
         all: action == OnQuit::Remove,
@@ -178,15 +196,24 @@ pub async fn quit(action: OnQuit, clusters: &[String], named: &[String]) -> AppR
     let jobs = targets.iter().map(|id| {
         let docker = docker.clone();
         async move {
-            match action {
+            let done = match action {
                 OnQuit::Stop => {
                     let options = bollard::query_parameters::StopContainerOptions { t: Some(5), ..Default::default() };
-                    let _ = docker.stop_container(id, Some(options)).await;
+                    docker.stop_container(id, Some(options)).await
                 }
                 OnQuit::Remove => {
                     let options = bollard::query_parameters::RemoveContainerOptions { force: true, v: true, ..Default::default() };
-                    let _ = docker.remove_container(id, Some(options)).await;
+                    docker.remove_container(id, Some(options)).await
                 }
+            };
+            // Gone, or stopped already: nothing left to do
+            let settled = |e: &bollard::errors::Error| {
+                is_gone(e) || matches!(e, bollard::errors::Error::DockerResponseServerError { status_code: 304, .. })
+            };
+            if let Err(e) = done
+                && !settled(&e)
+            {
+                tracing::warn!(container = %id, error = %e, "quitting: the container stays as it was");
             }
         }
     });

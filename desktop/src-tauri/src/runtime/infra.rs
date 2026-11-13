@@ -383,7 +383,7 @@ async fn remove_untagged(docker: &Docker, log: &(dyn Fn(String) + Sync)) {
         // Not a build running elsewhere (verify from the CLI while the app
         // builds): its latest layer is untagged until the next step
         ("until".to_string(), vec!["30m".to_string()]),
-        ("label".to_string(), vec![format!("com.docker.compose.project={}", super::docker::COMPOSE_PROJECT)]),
+        ("label".to_string(), vec![format!("{}={}", super::docker::PROJECT_LABEL, super::docker::COMPOSE_PROJECT)]),
     ]);
     if let Ok(pruned) = docker
         .prune_images(Some(bollard::query_parameters::PruneImagesOptions { filters: Some(filters) }))
@@ -531,17 +531,7 @@ async fn obtain(docker: &Docker, image: &Image, log: &(dyn Fn(String) + Sync), m
 
 /// Build `tag` from the image's files, streaming the build output to `log`.
 async fn build(docker: &Docker, tag: &str, image: &Image, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
-    let mut context = tar::Builder::new(Vec::new());
-    for (name, content) in image.files {
-        let mut header = tar::Header::new_gnu();
-        header.set_size(content.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        context
-            .append_data(&mut header, name, *content)
-            .map_err(|e| AppError::io("packing build context", e))?;
-    }
-    let context = context.into_inner().map_err(|e| AppError::io("packing build context", e))?;
+    let context = super::docker::tar_of(image.files.iter().copied()).map_err(|e| AppError::io("packing build context", e))?;
 
     let options = BuildImageOptions {
         dockerfile: "Dockerfile".into(),

@@ -180,7 +180,7 @@ impl Guard {
         match &gateway {
             Some(gateway) => {
                 for cluster in &watch.clusters {
-                    block_host(docker, &format!("{cluster}-control-plane"), gateway).await;
+                    block_host(docker, &crate::cluster::kind::control_plane(cluster), gateway).await;
                 }
             }
             None => tracing::warn!("the kind network has no gateway: the host is not shut out of the clusters"),
@@ -195,7 +195,7 @@ impl Guard {
         if let Some((gateway, clusters)) = closed {
             let Some(docker) = docker else { return };
             for cluster in &clusters {
-                unblock_host(docker, &format!("{cluster}-control-plane"), &gateway).await;
+                unblock_host(docker, &crate::cluster::kind::control_plane(cluster), &gateway).await;
             }
         }
         self.applied.locked().take();
@@ -229,7 +229,7 @@ impl Guard {
         }
         if let Some(gateway) = gateway {
             for cluster in &clusters {
-                block_host(docker, &format!("{cluster}-control-plane"), &gateway).await;
+                block_host(docker, &crate::cluster::kind::control_plane(cluster), &gateway).await;
             }
         }
     }

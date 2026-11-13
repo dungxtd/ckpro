@@ -285,6 +285,11 @@ fn cluster_config(workers: u8, registry_config: &Path) -> String {
 
 /// Label kind puts on every node container: the cluster's name
 pub const CLUSTER_LABEL: &str = "io.x-k8s.kind.cluster";
+
+/// The control plane's container (and node) name in kind cluster `cluster`
+pub fn control_plane(cluster: &str) -> String {
+    format!("{cluster}-control-plane")
+}
 const ROLE_LABEL: &str = "io.x-k8s.kind.role";
 
 /// A kind node container, as Docker lists it.

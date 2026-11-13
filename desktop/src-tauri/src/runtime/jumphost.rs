@@ -203,7 +203,7 @@ impl Jumphost {
 /// ca.crt, client.crt and client.key for etcdctl, from the control plane.
 async fn export_etcd_certs(docker: &Docker, cluster: &str, dest: &Path) -> AppResult<()> {
     let mut stream = docker.download_from_container(
-        &format!("{cluster}-control-plane"),
+        &crate::cluster::kind::control_plane(cluster),
         Some(DownloadFromContainerOptions { path: "/etc/kubernetes/pki/etcd".into() }),
     );
     let mut archive = Vec::new();
