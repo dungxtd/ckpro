@@ -71,35 +71,36 @@ export function Today({
 									? `${done} of ${plans.length} done`
 									: "Nothing planned for today"}
 					</p>
-					{failed ? (
-						<Button size="push" variant="push" className="mt-2" onClick={onRetry}>
-							Try again
-						</Button>
-					) : next ? (
-						// A plan not begun yet: started, in the mode it was planned in
+				</div>
+				{/* The summary's action, at its end as actions are */}
+				{failed ? (
+					<Button size="push" variant="push" className="shrink-0" onClick={onRetry}>
+						Try again
+					</Button>
+				) : next ? (
+					// A plan not begun yet: started, in the mode it was planned in
+					<Button
+						size="push"
+						variant="pushDefault"
+						className="shrink-0"
+						disabled={busy}
+						onClick={() => start(next.exam_id, next.mode)}
+					>
+						<Play /> Start next
+					</Button>
+				) : (
+					known &&
+					!plans.length && (
 						<Button
 							size="push"
-							variant="pushDefault"
-							className="mt-2"
-							disabled={busy}
-							onClick={() => start(next.exam_id, next.mode)}
+							variant="push"
+							className="shrink-0"
+							onClick={() => navigate(`/calendar?day=${today}`)}
 						>
-							<Play /> Start next
+							Plan today
 						</Button>
-					) : (
-						known &&
-						!plans.length && (
-							<Button
-								size="push"
-								variant="push"
-								className="mt-2"
-								onClick={() => navigate(`/calendar?day=${today}`)}
-							>
-								Plan today
-							</Button>
-						)
-					)}
-				</div>
+					)
+				)}
 			</div>
 			{known && !plans.length && suggested && (
 				<Card
