@@ -106,6 +106,19 @@ pub const DEFAULT: &str = "default";
 
 /// The choices of config option `id` (`model`, `effort`) in a `session/new`
 /// or `session/set_config_option` result
+/// The permission mode every session runs in: each tool call asks, and the
+/// candidate's say goes through the app's permission card. The candidate's
+/// own Claude settings (`permissions.defaultMode`) may start a session in
+/// another (auto, accept edits, bypass), which would skip that card
+const PERMISSION_MODE: &str = "default";
+
+/// A session's permission mode, as the agent reports it (its `mode` config
+/// option, or the modes it lists)
+fn permission_mode(result: &serde_json::Value) -> Option<&str> {
+    let option = result["configOptions"].as_array().and_then(|o| o.iter().find(|o| o["id"] == "mode"));
+    option.and_then(|o| o["currentValue"].as_str()).or_else(|| result["modes"]["currentModeId"].as_str())
+}
+
 fn config_options(result: &serde_json::Value, id: &str) -> Vec<ModelOption> {
     let Some(options) = result["configOptions"].as_array() else { return Vec::new() };
     options
@@ -382,11 +395,25 @@ impl Agent {
                         "strictMcpConfig": true,
                         "settingSources": [],
                         "persistSession": false,
+                        // Never a mode that skips every permission
+                        "allowDangerouslySkipPermissions": false,
                     } } },
                 }),
             )
             .await?;
         let session = result["sessionId"].as_str().ok_or_else(|| AppError::assistant("the agent gave no session"))?.to_string();
+        // Each tool call asks, whatever mode the candidate's own Claude
+        // settings start a session in: a session that cannot be set so is
+        // not used
+        if permission_mode(&result).is_some_and(|mode| mode != PERMISSION_MODE) {
+            let set = c
+                .request("session/set_config_option", json!({ "sessionId": session, "configId": "mode", "value": PERMISSION_MODE }))
+                .await;
+            if set.as_ref().ok().and_then(permission_mode) != Some(PERMISSION_MODE) {
+                self.close(&session).await;
+                return Err(AppError::assistant("the agent would run tools without asking: its permission mode could not be set"));
+            }
+        }
         let models = config_options(&result, "model");
         self.note_efforts(DEFAULT, &result);
         // A model this login does not offer (an alias of another plan): the
@@ -582,6 +609,15 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The mode a session reports, from its config options or its modes
+    #[test]
+    fn the_permission_mode_is_read_where_the_agent_says_it() {
+        let options = json!({ "configOptions": [{ "id": "model", "currentValue": "x" }, { "id": "mode", "currentValue": "auto" }] });
+        assert_eq!(permission_mode(&options), Some("auto"));
+        assert_eq!(permission_mode(&json!({ "modes": { "currentModeId": "default" } })), Some("default"));
+        assert_eq!(permission_mode(&json!({})), None);
+    }
 
     /// This machine's Claude CLI and npx, as the app finds them (needs both
     /// installed)
