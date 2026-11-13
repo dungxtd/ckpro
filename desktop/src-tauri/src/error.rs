@@ -95,8 +95,33 @@ impl AppError {
     }
 }
 
+/// What Docker said, typed: what is not there is `NotFound`, an engine that
+/// stopped answering is `DockerUnavailable`; the rest is `Docker`
 impl From<bollard::errors::Error> for AppError {
     fn from(e: bollard::errors::Error) -> Self {
-        Self::docker(e)
+        use bollard::errors::Error as E;
+        match e {
+            E::DockerResponseServerError { status_code: 404, message } => Self::NotFound { message },
+            E::RequestTimeoutError
+            | E::IOError { .. }
+            | E::HyperResponseError { .. }
+            | E::HyperLegacyError { .. }
+            | E::SocketNotFoundError(_) => Self::DockerUnavailable { message: format!("Docker did not answer: {e}") },
+            e => Self::docker(e),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn docker_errors_are_typed_by_what_happened() {
+        let gone = bollard::errors::Error::DockerResponseServerError { status_code: 404, message: "No such container: x".into() };
+        assert!(matches!(AppError::from(gone), AppError::NotFound { message } if message == "No such container: x"));
+        assert!(matches!(AppError::from(bollard::errors::Error::RequestTimeoutError), AppError::DockerUnavailable { .. }));
+        let refused = bollard::errors::Error::DockerResponseServerError { status_code: 409, message: "in use".into() };
+        assert!(matches!(AppError::from(refused), AppError::Docker { .. }));
     }
 }

@@ -128,13 +128,8 @@ impl Jumphost {
     }
 
     async fn remove_container(&self, docker: &Docker) -> AppResult<()> {
-        match docker
-            .remove_container(&self.name, Some(RemoveContainerOptions { force: true, v: true, ..Default::default() }))
-            .await
-        {
-            Ok(()) | Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => Ok(()),
-            Err(e) => Err(e.into()),
-        }
+        let options = RemoveContainerOptions { force: true, v: true, ..Default::default() };
+        super::docker::unless_gone(docker.remove_container(&self.name, Some(options)).await).map(drop)
     }
 
     /// Rewrite the kubeconfig (one context per logical cluster) and the etcd

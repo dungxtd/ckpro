@@ -95,10 +95,8 @@ fn posix_tz(offset_minutes: i32) -> String {
 /// How to reach the running desktop, if there is one. Read from Docker each
 /// time: the host port changes when the container restarts.
 pub async fn session(docker: &Docker, name: &str) -> AppResult<Option<DesktopSession>> {
-    let info = match docker.inspect_container(name, None).await {
-        Ok(info) => info,
-        Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => return Ok(None),
-        Err(e) => return Err(e.into()),
+    let Some(info) = super::docker::unless_gone(docker.inspect_container(name, None).await)? else {
+        return Ok(None);
     };
     if !info.state.as_ref().and_then(|s| s.running).unwrap_or(false) {
         return Ok(None);
@@ -154,10 +152,8 @@ fn allows(prefix: &str, url: &str) -> bool {
 }
 
 pub async fn remove(docker: &Docker, name: &str) -> AppResult<()> {
-    match docker.remove_container(name, Some(RemoveContainerOptions { force: true, v: true, ..Default::default() })).await {
-        Ok(()) | Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => Ok(()),
-        Err(e) => Err(e.into()),
-    }
+    let options = RemoveContainerOptions { force: true, v: true, ..Default::default() };
+    super::docker::unless_gone(docker.remove_container(name, Some(options)).await).map(drop)
 }
 
 /// Only the allowed documentation; search on those sites works (it is part

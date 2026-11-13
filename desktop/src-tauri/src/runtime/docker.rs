@@ -23,6 +23,21 @@ pub const INSTALL: &str = crate::platform::DOCKER_INSTALL;
 /// How to give Docker more memory here, for when an exam does not fit
 pub const MEMORY: &str = crate::platform::DOCKER_MEMORY;
 
+/// Whether Docker answered that the thing asked for is not there
+pub fn is_gone(e: &bollard::errors::Error) -> bool {
+    matches!(e, bollard::errors::Error::DockerResponseServerError { status_code: 404, .. })
+}
+
+/// What Docker gave, `None` when the thing is not there: a removal of what is
+/// gone is done, an inspection of it finds nothing
+pub fn unless_gone<T>(result: Result<T, bollard::errors::Error>) -> AppResult<Option<T>> {
+    match result {
+        Ok(value) => Ok(Some(value)),
+        Err(e) if is_gone(&e) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
 /// The engine answers a ping in time
 pub async fn answers(docker: &Docker) -> bool {
     tokio::time::timeout(PING_TIMEOUT, docker.ping()).await.is_ok_and(|r| r.is_ok())

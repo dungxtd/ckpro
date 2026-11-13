@@ -191,11 +191,9 @@ impl Infra {
     pub async fn missing_images(&self, docker: &Docker) -> Option<Vec<String>> {
         let mut missing = Vec::new();
         for image in IMAGES {
-            match docker.inspect_image(&image.tag()).await {
-                Ok(_) => {}
-                Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => {
-                    missing.push(format!("ckpro-{}", image.name));
-                }
+            match super::docker::unless_gone(docker.inspect_image(&image.tag()).await) {
+                Ok(Some(_)) => {}
+                Ok(None) => missing.push(format!("ckpro-{}", image.name)),
                 Err(_) => return None,
             }
         }
@@ -317,15 +315,9 @@ impl Infra {
     pub async fn clear_cache(&self, _held: &CacheHold<'_>, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         let force = bollard::query_parameters::RemoveContainerOptions { force: true, ..Default::default() };
         log(format!("Removing {MIRROR}"));
-        match docker.remove_container(MIRROR, Some(force)).await {
-            Ok(()) | Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => {}
-            Err(e) => return Err(e.into()),
-        }
+        super::docker::unless_gone(docker.remove_container(MIRROR, Some(force)).await)?;
         log(format!("Removing its cache (the {MIRROR} volume)"));
-        match docker.remove_volume(MIRROR, None::<bollard::query_parameters::RemoveVolumeOptions>).await {
-            Ok(()) | Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => {}
-            Err(e) => return Err(e.into()),
-        }
+        super::docker::unless_gone(docker.remove_volume(MIRROR, None::<bollard::query_parameters::RemoveVolumeOptions>).await)?;
         log(format!("Starting {MIRROR} again, empty"));
         ensure_mirror(docker).await
     }
@@ -404,16 +396,13 @@ async fn remove_untagged(docker: &Docker, log: &(dyn Fn(String) + Sync)) {
 
 /// Start the container if it exists; false when it does not.
 pub(crate) async fn start_existing(docker: &Docker, name: &str) -> AppResult<bool> {
-    match docker.inspect_container(name, None).await {
-        Ok(info) => {
-            if !info.state.and_then(|s| s.running).unwrap_or(false) {
-                docker.start_container(name, None::<bollard::query_parameters::StartContainerOptions>).await?;
-            }
-            Ok(true)
-        }
-        Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => Ok(false),
-        Err(e) => Err(e.into()),
+    let Some(info) = super::docker::unless_gone(docker.inspect_container(name, None).await)? else {
+        return Ok(false);
+    };
+    if !info.state.and_then(|s| s.running).unwrap_or(false) {
+        docker.start_container(name, None::<bollard::query_parameters::StartContainerOptions>).await?;
     }
+    Ok(true)
 }
 
 pub(crate) async fn create_and_start(docker: &Docker, name: &str, config: ContainerCreateBody) -> AppResult<()> {

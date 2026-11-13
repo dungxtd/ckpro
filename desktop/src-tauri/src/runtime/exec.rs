@@ -50,11 +50,9 @@ pub async fn run_tail(
             },
         )
         .await
-        .map_err(|e| match e {
-            bollard::errors::Error::DockerResponseServerError { status_code: 404, .. } => {
-                AppError::not_found(format!("{container} is not running"))
-            }
-            e => AppError::docker(e),
+        .map_err(|e| match super::docker::is_gone(&e) {
+            true => AppError::not_found(format!("{container} is not running")),
+            false => e.into(),
         })?;
     // ckpro's own: the guard does not report it as outside access
     super::guard::own_exec(&exec.id);
