@@ -343,7 +343,9 @@ export function Passed({ history }: { history: HistoryEntry[] }) {
 /** The questions whose last try failed checks, as a shelf; one practised from its card */
 export function RetryList({ retries, several }: { retries: Retry[]; several: boolean }) {
 	const [ref] = useScrollEdges<HTMLDivElement>("x");
-	const start = useExam(s => s.start);
+	const askStart = useExam(s => s.askStart);
+	// The exam a question is in, by its name in the catalog
+	const catalog = useExam(s => s.catalog);
 	const busy = useExamBusy();
 	return (
 		<ModuleCard
@@ -365,7 +367,13 @@ export function RetryList({ retries, several }: { retries: Retry[]; several: boo
 							key={r.id}
 							type="button"
 							disabled={busy}
-							onClick={() => start(r.examId, "practice")}
+							onClick={() =>
+								askStart(
+									r.examId,
+									"practice",
+									catalog.find(e => e.id === r.examId)?.title ?? r.title
+								)
+							}
 							aria-label={`Practise ${shortTitle(r.title)} again`}
 							className="flex w-36 shrink-0 flex-col justify-between rounded-xl bg-fill-quiet p-2.5 text-left hover:bg-hover disabled:opacity-60"
 						>
@@ -558,7 +566,7 @@ export type Unpassed = { examId: string; title: string; best: number; pass: numb
 /** The exams tried and not passed yet, the latest on top of a small fan;
  * Continue practises it again */
 export function InProgress({ exams }: { exams: Unpassed[] }) {
-	const start = useExam(s => s.start);
+	const askStart = useExam(s => s.askStart);
 	const busy = useExamBusy();
 	const top = exams[0];
 	const tints = ["bg-highlight/80", "bg-assistant/80", "bg-warning/80"];
@@ -572,7 +580,7 @@ export function InProgress({ exams }: { exams: Unpassed[] }) {
 				<button
 					type="button"
 					disabled={busy}
-					onClick={() => start(top.examId, "practice")}
+					onClick={() => askStart(top.examId, "practice", top.title)}
 					className="absolute top-3.5 right-4 z-10 flex items-center text-caption text-highlight hover:underline disabled:opacity-50"
 				>
 					Continue

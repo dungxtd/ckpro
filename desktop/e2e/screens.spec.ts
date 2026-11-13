@@ -140,9 +140,28 @@ test("the top bar shows a failure as an icon whose words slide out under the poi
 	await expect.poll(async () => (await words.boundingBox())?.width ?? 0).toBeGreaterThan(40);
 });
 
-test("today's plan starts from one button, not two", async ({ page }) => {
-	const plan = { ...sample.plans[0], day: "2026-11-02", done: null, mode: "practice" };
-	await launch(page, "/", { plans_between: [plan] });
-	await expect(page.getByText("0 of 1 done")).toBeVisible();
-	await expect(page.getByRole("button", { name: /^Start practice/ })).toHaveCount(1);
+test("today's next exam starts at once; a plan pressed starts once confirmed", async ({ page }) => {
+	const first = { ...sample.plans[0], id: 901, day: "2026-11-02", done: null, mode: "practice" };
+	const second = { ...first, id: 902, mode: "exam" };
+	await launch(page, "/", { plans_between: [first, second], start_exam: null });
+	await expect(page.getByText("0 of 2 done")).toBeVisible();
+	// One way to start the next one, not a button per plan beside it
+	await page.getByRole("button", { name: "Start next" }).click();
+	expect(await calls(page, "start_exam")).toEqual([
+		{ id: first.exam_id, mode: "practice", replace: false },
+	]);
+	// A plan pressed asks first; Cancel starts nothing
+	await page.getByRole("button", { name: /^Start exam: / }).click();
+	const dialog = page.getByRole("alertdialog");
+	await expect(dialog).toContainText("Timed as the real exam");
+	await dialog.getByRole("button", { name: "Cancel" }).click();
+	expect(await calls(page, "start_exam")).toHaveLength(1);
+	await page.getByRole("button", { name: /^Start exam: / }).click();
+	await page.getByRole("alertdialog").getByRole("button", { name: "Start" }).click();
+	await expect.poll(() => calls(page, "start_exam")).toHaveLength(2);
+	expect((await calls(page, "start_exam"))[1]).toEqual({
+		id: first.exam_id,
+		mode: "exam",
+		replace: false,
+	});
 });

@@ -38,6 +38,8 @@ interface ExamStore extends AttemptUi {
 	catalog: ExamSummary[];
 	/** Exam waiting for confirmation to replace existing clusters */
 	pendingReplace: { id: string; mode: Mode; message: string } | null;
+	/** Exam picked in a list (a plan, a retry), waiting for confirmation to start */
+	pendingStart: { id: string; mode: Mode; title: string } | null;
 	error: string | null;
 	/** An exam being started, closed or tried again, until Rust answers: the
 	 * buttons that would ask again wait (Rust refuses a second ask, with an
@@ -50,6 +52,9 @@ interface ExamStore extends AttemptUi {
 	loadCatalog: () => Promise<void>;
 	start: (id: string, mode: Mode, replace?: boolean) => Promise<void>;
 	cancelReplace: () => void;
+	/** Ask before starting an exam picked in a list (`StartPrompt` asks) */
+	askStart: (id: string, mode: Mode, title: string) => void;
+	cancelStart: () => void;
 	submit: () => Promise<void>;
 	/** Whether it closed (Start Over starts the new one only then) */
 	end: () => Promise<boolean>;
@@ -113,6 +118,7 @@ export const useExam = create<ExamStore>()(
 			state: null,
 			catalog: [],
 			pendingReplace: null,
+			pendingStart: null,
 			error: null,
 			pending: null,
 			connectError: null,
@@ -187,6 +193,7 @@ export const useExam = create<ExamStore>()(
 				set(s => {
 					s.error = null;
 					s.pendingReplace = null;
+					s.pendingStart = null;
 					s.pending = "starting";
 				});
 				try {
@@ -220,6 +227,16 @@ export const useExam = create<ExamStore>()(
 			cancelReplace: () =>
 				set(s => {
 					s.pendingReplace = null;
+				}),
+
+			askStart: (id, mode, title) =>
+				set(s => {
+					s.pendingStart = { id, mode, title };
+				}),
+
+			cancelStart: () =>
+				set(s => {
+					s.pendingStart = null;
 				}),
 
 			submit: async () => {

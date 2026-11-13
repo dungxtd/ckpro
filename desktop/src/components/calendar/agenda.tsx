@@ -2,6 +2,7 @@ import { Button } from "@ckpro/ui/components/button";
 import { Card } from "@ckpro/ui/components/card";
 import { dayMarkerVariants } from "@ckpro/ui/components/day-marker";
 import { IconButton } from "@ckpro/ui/components/icon-button";
+import { RowCover } from "@ckpro/ui/components/row-cover";
 import { cn } from "@ckpro/ui/lib/utils";
 import { Flag, Play, Plus, X } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -66,7 +67,7 @@ export function Agenda({
 	onMode: (plan: PlanView) => void;
 	onRemove: (plan: PlanView) => void;
 }) {
-	const start = useExam(s => s.start);
+	const askStart = useExam(s => s.askStart);
 	const busy = useExamBusy();
 	const list = useRef<HTMLDivElement>(null);
 	// The day picked comes into view
@@ -183,7 +184,7 @@ export function Agenda({
 														? `a${item.attempt.attempt_id}`
 														: `e${item.target.certification}`
 											}
-											className="group/row flex min-h-9 items-center gap-3 rounded-lg px-2 hover:bg-hover"
+											className="group/row relative flex min-h-9 items-center gap-3 rounded-lg px-2 hover:bg-hover"
 										>
 											{item.kind === "exam" ? (
 												<>
@@ -229,6 +230,16 @@ export function Agenda({
 												</>
 											) : (
 												<>
+													{/* Today's or later: pressed, it starts once confirmed */}
+													{day >= today && (
+														<RowCover
+															aria-label={`${item.plan.mode === "exam" ? "Start exam" : "Start practice"}: ${shortTitle(item.plan.title)}`}
+															disabled={busy}
+															onClick={() =>
+																askStart(item.plan.exam_id, item.plan.mode, item.plan.title)
+															}
+														/>
+													)}
 													<span
 														aria-hidden
 														className="size-2.5 shrink-0 rounded-[3px] ring-[1.5px] ring-muted-foreground/60 ring-inset"
@@ -243,27 +254,21 @@ export function Agenda({
 																</span>
 															)}
 														</span>
-														<ModeToggle plan={item.plan} onMode={onMode} />
+														<ModeToggle plan={item.plan} onMode={onMode} className="relative" />
 														{day < today && (
 															<span className="text-caption text-muted-foreground">not taken</span>
 														)}
 													</span>
 													<span className={cn("flex items-center gap-1", quiet(day))}>
 														{day >= today && (
-															<Button
-																size="push"
-																variant={day === today ? "pushDefault" : "push"}
-																disabled={busy}
-																onClick={() => start(item.plan.exam_id, item.plan.mode)}
-															>
-																<Play /> Start
-															</Button>
+															<Play aria-hidden className="size-4 text-muted-foreground" />
 														)}
 														<IconButton
 															variant="toolbar"
 															size="sm"
 															aria-label={`Remove ${item.plan.title}`}
 															onClick={() => onRemove(item.plan)}
+															className="relative"
 														>
 															<X />
 														</IconButton>

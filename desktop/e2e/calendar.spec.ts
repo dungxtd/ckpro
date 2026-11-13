@@ -128,3 +128,16 @@ test("a right click opens no browser menu", async ({ page }) => {
 	});
 	expect(stopped).toBe(true);
 });
+
+test("a plan of the day pressed starts once confirmed", async ({ page }) => {
+	const plan = { ...sample.plans[0], id: 903, day: "2026-11-02", done: null, mode: "practice" };
+	await launch(page, "/calendar?day=2026-11-02", { plans_between: [plan], start_exam: null });
+	await page
+		.getByRole("button", { name: /^Start practice: / })
+		.first()
+		.click();
+	await page.getByRole("alertdialog").getByRole("button", { name: "Start" }).click();
+	await expect
+		.poll(() => calls(page, "start_exam"))
+		.toEqual([{ id: plan.exam_id, mode: "practice", replace: false }]);
+});
