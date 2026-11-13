@@ -3,14 +3,13 @@ import { cn, focusRing } from "@ckpro/ui/lib/utils";
 import { XIcon } from "lucide-react";
 import type * as React from "react";
 
-type ChipProps = Omit<React.ComponentProps<"button">, "onClick"> & {
+type ChipProps = React.ComponentProps<"button"> & {
 	/** Selected: dark (light theme) / grey (dark theme) fill. */
 	selected?: boolean;
 	/** Small count badge after the label. */
 	count?: number;
 	/** Makes the chip static and adds a × remove button. */
 	onRemove?: () => void;
-	onClick?: () => void;
 	/** xs 22px (context in a composer) · sm 28px (filters, scopes) · md 32px (source sort/quality). */
 	size?: "xs" | "sm" | "md";
 	/** default: a quiet tint (dark fill when `selected`). planned: outlined in
@@ -71,9 +70,12 @@ export function Chip({
 		</span>
 	);
 
+	// What the caller adds (an id, aria-* and data-*, a ref) goes on the root,
+	// whichever element it is: a span when the chip does not act itself
+	const root = props as React.ComponentProps<"span">;
 	if (onRemove) {
 		return (
-			<span className={base}>
+			<span {...root} className={base}>
 				{children}
 				{badge}
 				<button
@@ -93,7 +95,7 @@ export function Chip({
 	}
 	if (!onClick) {
 		return (
-			<span className={base}>
+			<span {...root} className={base}>
 				{children}
 				{badge}
 			</span>
