@@ -48,9 +48,10 @@ RUN mkdir -p /root/.kube /root/.ssh \
 # sshd for the exam desktop, on the private exam network only. The desktop
 # sends CKPRO_HOST (the host name it used): login switches to that cluster
 # and shows it in the prompt
-RUN passwd -d root \
+RUN usermod -p '*' root \
  && mkdir -p /run/sshd \
- && printf '%s\n' 'PermitRootLogin yes' 'PermitEmptyPasswords yes' 'UsePAM no' 'AcceptEnv CKPRO_HOST' \
+ && printf '%s\n' 'PermitRootLogin prohibit-password' 'PasswordAuthentication no' \
+      'KbdInteractiveAuthentication no' 'UsePAM no' 'AcceptEnv CKPRO_HOST' \
       > /etc/ssh/sshd_config.d/ckpro.conf \
  && printf '%s\n' \
       'if [ -n "$CKPRO_HOST" ]; then' \

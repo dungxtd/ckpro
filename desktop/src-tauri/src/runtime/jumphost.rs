@@ -132,6 +132,27 @@ impl Jumphost {
         super::docker::unless_gone(docker.remove_container(&self.name, Some(options)).await).map(drop)
     }
 
+    /// The key ssh signs in with on the exam's network: the task host's own,
+    /// made in its container the first time, given to every node and to the
+    /// exam desktop. No password opens a node or the task host, whoever
+    /// reaches their network (the host, a pod, another user)
+    pub async fn ssh_key(&self, docker: &Docker) -> AppResult<SshKey> {
+        let public = format!("{SSH_KEY}.pub");
+        let mut read = super::exec::run(docker, &self.name, &["cat", &public], &[], None).await?;
+        if read.exit_code != 0 {
+            let made = super::exec::run(docker, &self.name, &["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "ckpro", "-f", SSH_KEY], &[], None).await?;
+            if made.exit_code != 0 {
+                return Err(AppError::cluster(format!("making the task host's ssh key: {}", made.text.trim())));
+            }
+            read = super::exec::run(docker, &self.name, &["cat", &public], &[], None).await?;
+        }
+        let private = super::exec::run(docker, &self.name, &["cat", SSH_KEY], &[], None).await?;
+        if read.exit_code != 0 || private.exit_code != 0 {
+            return Err(AppError::cluster("reading the task host's ssh key"));
+        }
+        Ok(SshKey { public: read.text.trim().to_string(), private: private.text })
+    }
+
     /// `refresh_access`, refused when the task host cannot reach one of
     /// `needed` (logical clusters): an exam without it cannot be worked on
     pub async fn give_access(&self, docker: &Docker, kind: &Kind, placement: &Placement, needed: &[String]) -> AppResult<()> {
@@ -181,6 +202,38 @@ impl Jumphost {
             }
         }
 
+        // ssh with the task host's key: given to the task host itself (the
+        // desktop signs in there) and to every node; a cluster whose nodes did
+        // not take it cannot be worked on
+        let key = self.ssh_key(docker).await;
+        match &key {
+            Ok(key) => {
+                if let Err(e) = authorize(docker, &self.name, &key.public).await {
+                    tracing::warn!(error = %e, "ssh key for the task host");
+                }
+            }
+            Err(e) => tracing::warn!(error = %e, "ssh key of the task host"),
+        }
+        let nodes = crate::cluster::kind::node_containers(docker, None).await.unwrap_or_default();
+        for (logical, physical) in placement {
+            let given = match &key {
+                Ok(key) => {
+                    let mut given = true;
+                    for node in nodes.iter().filter(|n| n.cluster == *physical && n.state == "running") {
+                        if let Err(e) = authorize(docker, &node.name, &key.public).await {
+                            tracing::warn!(node = %node.name, error = %e, "ssh key for a node");
+                            given = false;
+                        }
+                    }
+                    given
+                }
+                Err(_) => false,
+            };
+            if !given && !unreachable.contains(logical) {
+                unreachable.push(logical.clone());
+            }
+        }
+
         match merged {
             Some(mut config) => {
                 if let Some(ctx) = previous_context.filter(|c| placement.contains_key(c)) {
@@ -198,6 +251,27 @@ impl Jumphost {
         }
         Ok(unreachable)
     }
+}
+
+/// Where the task host keeps its ssh key (its own container's file system)
+const SSH_KEY: &str = "/root/.ssh/id_ed25519";
+
+/// The task host's ssh key pair (OpenSSH formats)
+pub struct SshKey {
+    pub public: String,
+    pub private: String,
+}
+
+/// Let `public` sign in as root to `container` (the task host, a node), and
+/// nothing else: the key replaces whatever was allowed before
+async fn authorize(docker: &Docker, container: &str, public: &str) -> AppResult<()> {
+    let script = "umask 077 && mkdir -p /root/.ssh && cat > /root/.ssh/authorized_keys";
+    let line = format!("{public}\n");
+    let out = super::exec::run(docker, container, &["sh", "-c", script], &[], Some(line.as_bytes())).await?;
+    if out.exit_code != 0 {
+        return Err(AppError::cluster(format!("giving {container} the ssh key: {}", out.text.trim())));
+    }
+    Ok(())
 }
 
 /// ca.crt, client.crt and client.key for etcdctl, from the control plane.

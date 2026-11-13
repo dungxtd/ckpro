@@ -3,7 +3,7 @@
     "args": {
       "BASE": "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
     },
-    "image": "ghcr.io/dungxtd/ckpro-node:f82a58fe",
+    "image": "ghcr.io/dungxtd/ckpro-node:6ee9f276",
     "name": "node"
   },
   {
@@ -13,7 +13,7 @@
       "KUBECTL_VERSION": "v1.35.8",
       "YQ_VERSION": "v4.54.1"
     },
-    "image": "ghcr.io/dungxtd/ckpro-jumphost:fec1d09e",
+    "image": "ghcr.io/dungxtd/ckpro-jumphost:891f82be",
     "name": "jumphost"
   },
   {

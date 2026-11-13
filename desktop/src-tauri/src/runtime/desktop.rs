@@ -40,6 +40,7 @@ pub async fn start(
     allowed: &[String],
     hosts: &[String],
     jumphost: &str,
+    ssh_key: &str,
     offset_minutes: i32,
 ) -> AppResult<()> {
     remove(docker, name).await?;
@@ -77,7 +78,33 @@ pub async fn start(
     // In place before the session starts, so Firefox reads them on first launch
     let files = [(POLICIES, firefox_policies(allowed)), (SSH_HOSTS, ssh_hosts(hosts, jumphost))];
     upload(docker, name, &files).await?;
+    give_key(docker, name, ssh_key).await?;
     docker.start_container(name, None::<bollard::query_parameters::StartContainerOptions>).await?;
+    Ok(())
+}
+
+/// The candidate's ssh key (the task host's, which the task host and the
+/// nodes take): theirs alone, as ssh wants a key. Its own upload, whose files
+/// Docker gives to the container's user
+async fn give_key(docker: &Docker, name: &str, private: &str) -> AppResult<()> {
+    let pack = || -> std::io::Result<Vec<u8>> {
+        let mut archive = tar::Builder::new(Vec::new());
+        let mut dir = tar::Header::new_gnu();
+        dir.set_entry_type(tar::EntryType::Directory);
+        dir.set_mode(0o700);
+        dir.set_size(0);
+        dir.set_cksum();
+        archive.append_data(&mut dir, "home/candidate/.ssh/", std::io::empty())?;
+        let mut key = tar::Header::new_gnu();
+        key.set_size(private.len() as u64);
+        key.set_mode(0o600);
+        key.set_cksum();
+        archive.append_data(&mut key, "home/candidate/.ssh/id_ed25519", private.as_bytes())?;
+        archive.into_inner()
+    };
+    let archive = pack().map_err(|e| AppError::io("packing the ssh key", e))?;
+    let options = UploadToContainerOptions { path: "/".into(), copy_uidgid: Some("1".into()), ..Default::default() };
+    docker.upload_to_container(name, Some(options), bollard::body_full(archive.into())).await?;
     Ok(())
 }
 

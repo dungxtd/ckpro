@@ -7,8 +7,9 @@ FROM ${BASE}
 RUN apt-get update \
  && apt-get install -y --no-install-recommends openssh-server \
  && rm -rf /var/lib/apt/lists/* \
- && passwd -d root \
- && printf '%s\n' 'PermitRootLogin yes' 'PermitEmptyPasswords yes' 'UsePAM no' \
+ && usermod -p '*' root \
+ && printf '%s\n' 'PermitRootLogin prohibit-password' 'PasswordAuthentication no' \
+      'KbdInteractiveAuthentication no' 'UsePAM no' \
       > /etc/ssh/sshd_config.d/ckpro.conf \
  && systemctl enable ssh \
  && echo 'export KUBECONFIG=/etc/kubernetes/admin.conf' >> /root/.bashrc
