@@ -2,6 +2,7 @@ import { Button } from "@ckpro/ui/components/button";
 import { Card } from "@ckpro/ui/components/card";
 import { ProgressRing } from "@ckpro/ui/components/progress";
 import { RowCover } from "@ckpro/ui/components/row-cover";
+import { Separator } from "@ckpro/ui/components/separator";
 import { cn } from "@ckpro/ui/lib/utils";
 import { Check, Play } from "lucide-react";
 import { useNavigate } from "react-router";
@@ -117,15 +118,16 @@ export function Today({
 						</div>
 						<div className="text-2xs text-muted-foreground">Suggested: {suggested.reason}</div>
 					</div>
-					<Play aria-hidden className="size-4 shrink-0 text-muted-foreground" />
 				</Card>
 			)}
-			<ModuleScroll className="mt-2">
+			{/* The plans below the summary: one line between, none between them */}
+			{plans.length > 0 && <Separator className="mt-3" />}
+			<ModuleScroll className="mt-1">
 				{plans.map(p => (
 					<div
 						key={p.id}
 						className={cn(
-							"relative flex items-center gap-3 border-border border-t py-2",
+							"relative flex items-center gap-3 rounded-lg px-2 py-2",
 							p.done === null && "hover:bg-hover"
 						)}
 					>
@@ -164,9 +166,6 @@ export function Today({
 								{p === next && <span className="text-highlight"> · Next</span>}
 							</div>
 						</div>
-						{p.done === null && (
-							<Play aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-						)}
 					</div>
 				))}
 			</ModuleScroll>

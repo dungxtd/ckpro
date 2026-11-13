@@ -4,7 +4,7 @@ import { dayMarkerVariants } from "@ckpro/ui/components/day-marker";
 import { IconButton } from "@ckpro/ui/components/icon-button";
 import { RowCover } from "@ckpro/ui/components/row-cover";
 import { cn } from "@ckpro/ui/lib/utils";
-import { Flag, Play, Plus, X } from "lucide-react";
+import { Flag, Plus, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { scoreOf, startedAt } from "@/components/study/data";
 import { addDays, dayKey, parseDay } from "@/days";
@@ -260,9 +260,6 @@ export function Agenda({
 														)}
 													</span>
 													<span className={cn("flex items-center gap-1", quiet(day))}>
-														{day >= today && (
-															<Play aria-hidden className="size-4 text-muted-foreground" />
-														)}
 														<IconButton
 															variant="toolbar"
 															size="sm"

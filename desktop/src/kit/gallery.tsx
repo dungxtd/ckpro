@@ -90,7 +90,6 @@ import {
 	Lightbulb,
 	Monitor,
 	PanelLeft,
-	Play,
 	Plus,
 	Settings,
 	Sparkles,
@@ -559,7 +558,6 @@ function Gallery() {
 								<BadgeButton variant="accent" className="relative">
 									Practice
 								</BadgeButton>
-								<Play aria-hidden className="size-4 text-muted-foreground" />
 							</div>
 						))}
 					</div>
