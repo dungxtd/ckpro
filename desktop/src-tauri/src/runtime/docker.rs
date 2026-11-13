@@ -49,10 +49,10 @@ pub async fn connect() -> AppResult<Docker> {
 
 /// First reachable Docker engine.
 async fn find() -> AppResult<Docker> {
-    if let Ok(docker) = Docker::connect_with_local_defaults() {
-        if answers(&docker).await {
-            return Ok(docker);
-        }
+    if let Ok(docker) = Docker::connect_with_local_defaults()
+        && answers(&docker).await
+    {
+        return Ok(docker);
     }
     // Other Docker distributions' engines (OrbStack, Colima, rootless Docker)
     for docker in crate::platform::other_docker_engines() {

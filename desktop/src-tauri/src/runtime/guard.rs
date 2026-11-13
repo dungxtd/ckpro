@@ -9,6 +9,7 @@
 //! - A command run in one of them (`docker exec`) that ckpro did not run, a
 //!   container disconnected from the kind network (connected again) or a
 //!   ckpro volume removed is noted.
+//!
 //! It follows the events the monitor already receives: nothing polls.
 
 use crate::sync::MutexExt;

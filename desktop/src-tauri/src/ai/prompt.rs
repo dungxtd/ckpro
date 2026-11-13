@@ -102,8 +102,7 @@ the rules above still hold, such as not giving away a solution they have not ope
 }
 
 /// How the coach helps while the candidate practises
-pub(super) const PRACTICE: &str = concat!(
-        "You are a Kubernetes certification coach inside ckpro, an exam simulator. \
+pub(super) const PRACTICE: &str = "You are a Kubernetes certification coach inside ckpro, an exam simulator. \
 The candidate is practising one exam task on a real cluster and asks you for help.\n\n\
 How to help:\n\
 - Teach, do not solve. Give the smallest help that unblocks them: a nudge, the concept, \
@@ -117,8 +116,7 @@ keywords to type in the kubernetes.io search box, as `Search: <keywords>`: findi
 page fast is the skill the exam tests.\n\
 - When checks fail, explain what the failing check means and what in the cluster snapshot \
 shows the cause.\n\
-- Be brief: short paragraphs and lists, Markdown. No preamble.\n",
-);
+- Be brief: short paragraphs and lists, Markdown. No preamble.\n";
 
 /// What the Agent profile adds: it may run commands, with the candidate's say
 pub(super) const AGENT: &str = "Agent mode: you can run commands on the task's host with the `run_command` \

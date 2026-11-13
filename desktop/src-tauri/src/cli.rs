@@ -152,7 +152,7 @@ pub fn main() -> ExitCode {
     }
 }
 
-fn generate_question(root: &PathBuf, certification: String, domain: String, difficulty: &str, topic: String) -> ExitCode {
+fn generate_question(root: &std::path::Path, certification: String, domain: String, difficulty: &str, topic: String) -> ExitCode {
     let Some(core) = load::load(root).0 else {
         return lint_pack(root, false);
     };
@@ -194,7 +194,7 @@ fn generate_question(root: &PathBuf, certification: String, domain: String, diff
     }
 }
 
-fn lint_pack(root: &PathBuf, json: bool) -> ExitCode {
+fn lint_pack(root: &std::path::Path, json: bool) -> ExitCode {
     let (pack, mut findings) = load::load(root);
     if let Some(pack) = &pack {
         findings.extend(lint::lint(pack));
@@ -223,7 +223,7 @@ fn lint_pack(root: &PathBuf, json: bool) -> ExitCode {
 /// Memory a verify run needs (a cluster, its task host): about 2 GB
 const RUN_MB: u64 = 2048;
 
-fn verify_pack(root: &PathBuf, exams: &[String], questions: &[String], keep: bool, parallel: Option<usize>, json: bool) -> ExitCode {
+fn verify_pack(root: &std::path::Path, exams: &[String], questions: &[String], keep: bool, parallel: Option<usize>, json: bool) -> ExitCode {
     let (pack, mut findings) = load::load(root);
     let Some(pack) = pack else {
         return lint_pack(root, false);

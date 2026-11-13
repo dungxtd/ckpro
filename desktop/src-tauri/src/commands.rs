@@ -301,6 +301,7 @@ pub fn coach_history(
 /// answer streams on `events` and resolves to the whole answer.
 #[tauri::command]
 #[specta::specta]
+#[allow(clippy::too_many_arguments)]
 pub async fn coach_ask(
     coach: State<'_, Coach>,
     exams: State<'_, Arc<Exams>>,

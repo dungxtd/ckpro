@@ -112,15 +112,17 @@ pub struct CoachReply {
 
 /// The practice coach: one ACP session per question's conversation, one
 /// answer at a time (a new one stops the one being written)
+/// The ACP sessions behind open coach sessions: (attempt, question) →
+/// (ACP session, model, effort, profile)
+type OpenSessions = HashMap<(String, String), (String, String, String, Profile)>;
+
 pub struct Coach {
     agent: Agent,
     running: Mutex<Option<CancellationToken>>,
     /// The answers being written in Create conversations, by conversation:
     /// several at once, each stopped on its own
     studio_running: Mutex<HashMap<i32, CancellationToken>>,
-    /// The ACP sessions behind open coach sessions: (attempt, question) →
-    /// (ACP session, model, effort, profile)
-    open: tokio::sync::Mutex<HashMap<(String, String), (String, String, String, Profile)>>,
+    open: tokio::sync::Mutex<OpenSessions>,
     /// Claude Code is turned on (Settings > AI): off, nothing asks it
     enabled: std::sync::atomic::AtomicBool,
     /// The assistant is on at all (Settings > Assistant, "Use the

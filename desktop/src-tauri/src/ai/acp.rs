@@ -146,10 +146,10 @@ impl Connection {
                         // A notification: session updates go to the session's subscriber
                         (None, Some("session/update")) => {
                             let params = message.get("params").cloned().unwrap_or(Value::Null);
-                            if let Some(session) = params.get("sessionId").and_then(Value::as_str) {
-                                if let Some((_, tx)) = subscribers.locked().get(session) {
-                                    let _ = tx.send(Update::Session(params.get("update").cloned().unwrap_or(Value::Null)));
-                                }
+                            if let Some(session) = params.get("sessionId").and_then(Value::as_str)
+                                && let Some((_, tx)) = subscribers.locked().get(session)
+                            {
+                                let _ = tx.send(Update::Session(params.get("update").cloned().unwrap_or(Value::Null)));
                             }
                         }
                         _ => {}

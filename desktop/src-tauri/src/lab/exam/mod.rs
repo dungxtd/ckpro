@@ -274,6 +274,7 @@ struct Seen {
 }
 
 impl Exams {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         pack: LoadedPack,
         kind: Arc<Kind>,
@@ -714,7 +715,7 @@ impl Exams {
             match op.end(prepared) {
                 Ok(()) => {
                     let started_at = now_ms();
-                    let ends_at = (mode == Mode::Exam).then(|| started_at + duration as f64 * 1000.0);
+                    let ends_at = (mode == Mode::Exam).then_some(started_at + duration as f64 * 1000.0);
                     this.set(ExamState::Running { attempt: attempt.clone(), started_at, ends_at });
                     if let Some(ends_at) = ends_at {
                         this.submit_at(attempt.id.clone(), ends_at);

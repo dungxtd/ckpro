@@ -131,7 +131,7 @@ pub async fn generate(
 
             op.step(3, Some(format!("“{}” on a new cluster", question.title)));
             let log = |line: String| op.log(line);
-            let reports = verify::verify(&staging, &[id.clone()], data_dir, infra, false, &log).await?;
+            let reports = verify::verify(&staging, std::slice::from_ref(&id), data_dir, infra, false, &log).await?;
             let Some(report) = reports.into_iter().next() else {
                 return Err(AppError::assistant("verify returned no report"));
             };

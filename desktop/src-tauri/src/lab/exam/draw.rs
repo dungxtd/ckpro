@@ -76,7 +76,7 @@ pub fn catalog(pack: &LoadedPack, measured: &crate::runtime::preflight::Footprin
                 .iter()
                 .filter(|id| pack.questions.get(*id).is_some_and(|q| q.value.runnable()))
                 .count() as u32;
-            let topology = worst_topology(&pack, &e.value);
+            let topology = worst_topology(pack, &e.value);
             Some(ExamSummary {
                 memory_mb: crate::runtime::preflight::exam_memory_mb(&topology),
                 minimum_mb: crate::runtime::preflight::exam_minimum_mb(&topology, measured),
@@ -150,7 +150,7 @@ pub(super) fn allocate(count: u32, weights: &BTreeMap<String, u32>) -> Vec<(Stri
         .map(|(d, w)| (d.clone(), count * w / total, (count * w) % total))
         .collect();
     let mut left = count - shares.iter().map(|s| s.1).sum::<u32>();
-    shares.sort_by(|a, b| b.2.cmp(&a.2));
+    shares.sort_by_key(|s| std::cmp::Reverse(s.2));
     for share in shares.iter_mut() {
         if left == 0 {
             break;

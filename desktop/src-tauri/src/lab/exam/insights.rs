@@ -195,7 +195,7 @@ pub fn study_stats(pack: &LoadedPack, history: &[HistoryEntry]) -> Vec<StudyStat
                     .iter()
                     .map(|(domain, weight)| DomainStat { domain: domain.clone(), weight: *weight, points: 0, max_points: 0, questions: 0 })
                     .collect();
-                domains.sort_by(|a, b| b.weight.cmp(&a.weight));
+                domains.sort_by_key(|d| std::cmp::Reverse(d.weight));
                 stats.push(StudyStats { certification: cert_id.clone(), title: cert.title.clone(), scores: Vec::new(), domains });
                 stats.len() - 1
             }

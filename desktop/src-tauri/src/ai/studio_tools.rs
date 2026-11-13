@@ -21,12 +21,15 @@ const QUESTION_MAX_BYTES: usize = 24 * 1024;
 const ATTEMPTS: usize = 20;
 const ATTEMPTS_MAX: usize = 100;
 
+/// Told when a conversation's draft changed
+type DraftChanged = Box<dyn Fn(i32, &ExamDraft) + Send + Sync>;
+
 pub struct Tools {
     exams: Arc<Exams>,
     store: Arc<Store>,
     data_dir: PathBuf,
     /// The draft of a conversation changed
-    changed: Box<dyn Fn(i32, &ExamDraft) + Send + Sync>,
+    changed: DraftChanged,
     /// Whether a conversation's exam is being proven (then it is not changed)
     proving: Box<dyn Fn(i32) -> bool + Send + Sync>,
 }
