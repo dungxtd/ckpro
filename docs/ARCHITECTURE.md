@@ -1,6 +1,6 @@
 # Architecture
 
-ckpro (`ckpro`) is a Tauri v2 app: a Rust core that owns the environment,
+ckpro is a Tauri v2 app: a Rust core that owns the environment,
 the exam, the study plan and the assistant, and a React 19 interface that
 shows their state. Everything runs in the host's Docker engine; the app
 keeps its state in one SQLite database in its data directory. Every feature

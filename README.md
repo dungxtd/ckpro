@@ -65,5 +65,3 @@ cargo test -- --ignored                    # end-to-end tests on Docker
 cargo run -- lab lint ../../packs/core     # check the question pack
 cargo run -- lab verify ../../packs/core   # prove it on real clusters
 ```
-
-Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
