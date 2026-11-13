@@ -1,4 +1,5 @@
-import type { ExamSort, ExamSummary, HistoryEntry, SidebarLayout } from "@/tauri/api";
+import type { ExamStats } from "@/stores/study";
+import type { ExamSort, ExamSummary, SidebarLayout } from "@/tauri/api";
 
 const CERT_ORDER = ["cka", "ckad", "cks"];
 
@@ -10,19 +11,6 @@ const rank = (order: string[], key: string, fallback: number) => {
 };
 
 /** An exam's last attempt: when it started, and its score */
-export type ExamStats = Map<string, { last: number; score: number | null }>;
-
-/** Each exam's latest finished attempt, from the history */
-export function examStats(history: HistoryEntry[]): ExamStats {
-	const stats: ExamStats = new Map();
-	for (const h of history) {
-		const last = h.result.started_at ?? 0;
-		if ((stats.get(h.exam_id)?.last ?? -1) < last)
-			stats.set(h.exam_id, { last, score: h.result.score });
-	}
-	return stats;
-}
-
 /** The ways a certification's exams sort, by name in its menu */
 export const SORTS: { value: ExamSort; label: string }[] = [
 	{ value: "manual", label: "Manually" },

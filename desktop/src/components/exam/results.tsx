@@ -36,7 +36,7 @@ import { freeDay, scoreTone, suggestion } from "@/components/study/data";
 import { CopyBlock } from "@/components/text/copy-text";
 import { Markdown } from "@/components/text/markdown";
 import { addDays, dayKey } from "@/days";
-import { useExam } from "@/stores/exam";
+import { useCatalog, useExam } from "@/stores/exam";
 import { useAssistantEnabled, useTargets } from "@/stores/settings";
 import { useStudy } from "@/stores/study";
 import type { Attempt, ExamResult, Mode } from "@/tauri/api";
@@ -296,8 +296,7 @@ function WhatNext({
 	const navigate = useNavigate();
 	const end = useExam(s => s.end);
 	const start = useExam(s => s.start);
-	const catalog = useExam(s => s.catalog);
-	const loadCatalog = useExam(s => s.loadCatalog);
+	const catalog = useCatalog();
 	const history = useStudy(s => s.history);
 	// The rest days of the exam this attempt prepares for (or the first aimed at)
 	const targets = useTargets();
@@ -308,9 +307,6 @@ function WhatNext({
 	const [day, setDay] = useState<Date | null>(null);
 	const [closing, setClosing] = useState<Step | null>(null);
 
-	useEffect(() => {
-		if (catalog.length === 0) loadCatalog();
-	}, [catalog.length, loadCatalog]);
 	// The first day from tomorrow kept for study and free of plans
 	useEffect(() => {
 		const from = addDays(new Date(), 1);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { examStats } from "@/stores/study";
 import type { ExamSummary, HistoryEntry, SidebarLayout } from "@/tauri/api";
-import { arrange, examStats, moved, pinned, stepped, toggled } from "./layout";
+import { arrange, moved, pinned, stepped, toggled } from "./layout";
 
 const exam = (id: string, certification: string, title = id) =>
 	({ id, certification, title }) as ExamSummary;

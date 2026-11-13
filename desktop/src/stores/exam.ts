@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
@@ -342,3 +343,14 @@ export const useExam = create<ExamStore>()(
 /** An exam being started, closed or tried again: the buttons that would
  * start another wait */
 export const useExamBusy = () => useExam(s => s.pending !== null);
+
+/** The exams, read once if they were not yet (they stay for the life of the
+ * app, read again when one is saved or deleted) */
+export function useCatalog() {
+	const catalog = useExam(s => s.catalog);
+	const loadCatalog = useExam(s => s.loadCatalog);
+	useEffect(() => {
+		if (useExam.getState().catalog.length === 0) loadCatalog();
+	}, [loadCatalog]);
+	return catalog;
+}

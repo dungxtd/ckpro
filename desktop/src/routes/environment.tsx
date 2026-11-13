@@ -20,7 +20,7 @@ import {
 import { parts as partsOf, purpose } from "@/components/environment/usage";
 import { Screen } from "@/components/shell/screen";
 import { useEnvironment } from "@/stores/environment";
-import { useExam } from "@/stores/exam";
+import { useCatalog, useExam } from "@/stores/exam";
 import { useTargets } from "@/stores/settings";
 import { type EnvState, envApi } from "@/tauri/api";
 import { memory, plural } from "@/words";
@@ -65,8 +65,7 @@ export function EnvironmentRoute() {
 	const examClusters = useExam(s =>
 		s.state && "attempt" in s.state && s.state.attempt ? s.state.attempt.clusters : NO_CLUSTERS
 	);
-	const catalog = useExam(s => s.catalog);
-	const loadCatalog = useExam(s => s.loadCatalog);
+	const catalog = useCatalog();
 	// The exams aimed at: only theirs are weighed (all when none is)
 	const aimed = useTargets().map(t => t.certification);
 	// The part of the map whose details show (the first, until one is picked)
@@ -79,9 +78,6 @@ export function EnvironmentRoute() {
 			envApi.watchNodes(false);
 		};
 	}, []);
-	useEffect(() => {
-		if (catalog.length === 0) loadCatalog();
-	}, [catalog.length, loadCatalog]);
 	// The top bar's chip: that activity, its log open. Taken once and cleared
 	// from the history entry, so Back to it later leaves the list as it was
 	const location = useLocation();

@@ -299,10 +299,7 @@ export function AssistantPane({
 			</div>
 
 			<FindInSession area={pane} messages={found} version={written} />
-			<div
-				ref={scroller}
-				className="min-h-0 flex-1 select-text overflow-y-auto overflow-x-hidden p-2"
-			>
+			<div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-2">
 				{messages.length === 0 ? (
 					// Quiet: Claude's mark, one line and ways to start (when there
 					// is someone to ask), and what is needed (Docker); signing in

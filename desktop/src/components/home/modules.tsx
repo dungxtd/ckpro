@@ -584,7 +584,7 @@ export function InProgress({ exams }: { exams: Unpassed[] }) {
 					<span
 						key={e.examId}
 						className={cn(
-							"absolute bottom-0 h-[70px] w-14 rounded-md p-1.5 font-semibold text-[9px] text-white leading-tight shadow-(--shadow-control)",
+							"absolute bottom-0 h-[70px] w-14 rounded-md p-1.5 font-semibold text-[9px] text-highlight-foreground leading-tight shadow-(--shadow-control)",
 							tints[i],
 							i === 0
 								? "left-6 z-[2] rotate-2"

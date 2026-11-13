@@ -32,7 +32,7 @@ import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { SHORTCUTS } from "@/shortcuts";
 import { useEnvironment } from "@/stores/environment";
-import { useExam } from "@/stores/exam";
+import { useCatalog, useExam } from "@/stores/exam";
 import { useSettings, useSidebarLayout } from "@/stores/settings";
 import { useStudy } from "@/stores/study";
 import { type ExamSort, type ExamSummary, errorText, examApi } from "@/tauri/api";
@@ -44,17 +44,6 @@ import { arrange, moved, pinned, SORTS, stepped, toggled } from "./layout";
 /** Docker's memory when it is up */
 const useDockerMb = () =>
 	useEnvironment(s => (s.env?.docker.state === "up" ? s.env.docker.memory_mb : null));
-
-/** The exams, for the sidebar: read once the app opens, whatever screen is
- * shown; their last attempts read again whenever one is over */
-function useCatalog() {
-	const catalog = useExam(s => s.catalog);
-	const loadCatalog = useExam(s => s.loadCatalog);
-	useEffect(() => {
-		if (useExam.getState().catalog.length === 0) loadCatalog();
-	}, [loadCatalog]);
-	return catalog;
-}
 
 /**
  * The exams in the sidebar: the pinned ones first, then by certification,

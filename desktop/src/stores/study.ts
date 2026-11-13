@@ -1,7 +1,19 @@
 import { create } from "zustand";
-import { type ExamStats, examStats } from "@/components/catalog/layout";
 import { examApi, type HistoryEntry, type StudyStats } from "@/tauri/api";
 import { useExam } from "./exam";
+
+export type ExamStats = Map<string, { last: number; score: number | null }>;
+
+/** Each exam's latest finished attempt, from the history */
+export function examStats(history: HistoryEntry[]): ExamStats {
+	const stats: ExamStats = new Map();
+	for (const h of history) {
+		const last = h.result.started_at ?? 0;
+		if ((stats.get(h.exam_id)?.last ?? -1) < last)
+			stats.set(h.exam_id, { last, score: h.result.score });
+	}
+	return stats;
+}
 
 /**
  * The candidate's study as Rust keeps it: the attempts (newest first), each
