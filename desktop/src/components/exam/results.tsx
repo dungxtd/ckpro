@@ -200,7 +200,10 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 			</section>
 
 			<Sheet open={coached !== null} onOpenChange={o => !o && setCoached(null)}>
-				<SheetContent className="w-[min(480px,92vw)] gap-0 overflow-hidden p-0 sm:max-w-none">
+				<SheetContent
+					closeButton={false}
+					className="w-[min(480px,92vw)] gap-0 overflow-hidden p-0 sm:max-w-none"
+				>
 					{/* For screen readers; the pane shows the conversation's title */}
 					<SheetHeader className="sr-only">
 						<SheetTitle>Review with the assistant</SheetTitle>

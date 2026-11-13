@@ -44,6 +44,7 @@ import {
 import { Separator } from "@ckpro/ui/components/separator";
 import {
 	Sheet,
+	SheetClose,
 	SheetContent,
 	SheetDescription,
 	SheetHeader,
@@ -916,6 +917,25 @@ function Gallery() {
 									<SheetTitle>A side panel</SheetTitle>
 									<SheetDescription>For review panes and details.</SheetDescription>
 								</SheetHeader>
+							</SheetContent>
+						</Sheet>
+						{/* What it shows closes itself (the assistant pane): no second Close */}
+						<Sheet>
+							<SheetTrigger asChild>
+								<Button size="push" variant="push">
+									Sheet, its own Close
+								</Button>
+							</SheetTrigger>
+							<SheetContent closeButton={false}>
+								<SheetHeader>
+									<SheetTitle>A pane with a Close of its own</SheetTitle>
+									<SheetDescription>closeButton=false leaves it the only one.</SheetDescription>
+								</SheetHeader>
+								<SheetClose asChild>
+									<Button size="push" variant="push" className="mx-4">
+										Close
+									</Button>
+								</SheetClose>
 							</SheetContent>
 						</Sheet>
 					</Row>

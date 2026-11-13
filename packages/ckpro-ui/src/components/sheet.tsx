@@ -42,13 +42,16 @@ function SheetOverlay({
 	);
 }
 
+/** `closeButton={false}` when what the sheet shows has a Close of its own */
 function SheetContent({
 	className,
 	children,
 	side = "right",
+	closeButton = true,
 	...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
 	side?: "top" | "right" | "bottom" | "left";
+	closeButton?: boolean;
 }) {
 	return (
 		<SheetPortal>
@@ -72,12 +75,14 @@ function SheetContent({
 				{...props}
 			>
 				{children}
-				<SheetPrimitive.Close
-					className={cn(iconButtonVariants({ size: "sm" }), "absolute top-4 right-4")}
-				>
-					<XIcon />
-					<span className="sr-only">Close</span>
-				</SheetPrimitive.Close>
+				{closeButton && (
+					<SheetPrimitive.Close
+						className={cn(iconButtonVariants({ size: "sm" }), "absolute top-4 right-4")}
+					>
+						<XIcon />
+						<span className="sr-only">Close</span>
+					</SheetPrimitive.Close>
+				)}
 			</SheetPrimitive.Content>
 		</SheetPortal>
 	);
