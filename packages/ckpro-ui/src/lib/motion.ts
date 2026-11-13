@@ -12,7 +12,7 @@ const grow = "motion-safe:data-[state=open]:zoom-in-95 motion-safe:data-[state=c
 /** Menus, selects and their submenus: small, so quick (150ms in, 100ms out) */
 export const menuMotion = `${fade} ${grow} data-[state=open]:duration-150 data-[state=closed]:duration-100`;
 
-/** Popovers, hover cards and dialogs: larger, a little slower (200ms in, 150ms out) */
+/** Popovers and dialogs: larger, a little slower (200ms in, 150ms out) */
 export const panelMotion = `${fade} ${grow} data-[state=open]:duration-200 data-[state=closed]:duration-150`;
 
 /** The dimmed backdrop under a dialog or sheet: a fade alone, as long as what it is under */

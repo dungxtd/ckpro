@@ -73,7 +73,6 @@
 	/* A push button (a secondary action): raised white */
 	--push: #ffffff;
 	--push-edge: rgb(0 0 0 / 0.12);
-	--range-track: rgb(0 0 0 / 0.12);
 	--menu-bg: linear-gradient(rgb(252 252 254 / 0.82), rgb(243 243 246 / 0.82));
 	--menu-edge: rgb(0 0 0 / 0.16); /* outer hairline */
 	--menu-rim: rgb(255 255 255 / 0.9); /* inner bright rim */
@@ -149,7 +148,6 @@
 	   as a disabled one */
 	--push: rgb(255 255 255 / 0.04);
 	--push-edge: rgb(255 255 255 / 0.16);
-	--range-track: rgb(255 255 255 / 0.18);
 	--menu-bg: linear-gradient(rgb(109 109 115 / 0.78), rgb(93 93 99 / 0.78));
 	--menu-edge: rgb(0 0 0 / 0.85); /* near-black outer hairline (#070707) */
 	--menu-rim: rgb(255 255 255 / 0.24); /* bright inner rim */
@@ -428,8 +426,8 @@
  *             Textarea), the segmented track, alerts, code blocks, tooltips
  *             (a tooltip is control-sized, so it takes a control's corner)
  *   xl  12px  cards, terminals and every floating surface (menus,
- *             popovers, hover cards); a menu row is lg, the surface's
- *             corner less its 4px padding
+ *             popovers); a menu row is lg, the surface's corner
+ *             less its 4px padding
  *   full      pills: chips, badges, the capsule, round icon buttons
  *   sheet 26px dialogs and sheets; toast 22px the notice pill
  * Inside a surface a corner is the surface's less its padding, so the
@@ -464,53 +462,6 @@
 		}
 		to {
 			opacity: 1;
-		}
-	}
-}
-
-/* macOS slider (kit Range): thin accent-filled track, white knob. */
-@layer components {
-	.range-mac {
-		appearance: none;
-		-webkit-appearance: none;
-		height: 18px;
-		width: 100%;
-		cursor: pointer;
-		background: transparent;
-		outline: none;
-	}
-	.range-mac::-webkit-slider-runnable-track {
-		height: 4px;
-		border-radius: 999px;
-		background: linear-gradient(
-			to right,
-			var(--highlight) var(--fill, 50%),
-			var(--range-track) var(--fill, 50%)
-		);
-	}
-	.range-mac::-webkit-slider-thumb {
-		-webkit-appearance: none;
-		margin-top: -7px;
-		width: 18px;
-		height: 18px;
-		border-radius: 50%;
-		background: #fff;
-		box-shadow:
-			0 0 0 0.5px rgb(0 0 0 / 0.2),
-			0 1px 3px rgb(0 0 0 / 0.35);
-		transition: transform 0.1s var(--ease-out);
-	}
-	.range-mac:active::-webkit-slider-thumb {
-		transform: scale(1.1);
-	}
-	.range-mac:focus-visible::-webkit-slider-thumb {
-		box-shadow:
-			0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent),
-			0 1px 3px rgb(0 0 0 / 0.35);
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.range-mac:active::-webkit-slider-thumb {
-			transform: none;
 		}
 	}
 }

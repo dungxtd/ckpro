@@ -104,5 +104,3 @@ export function ProgressRing({
 		</span>
 	);
 }
-
-export type ProgressTone = NonNullable<VariantProps<typeof fill>["tone"]>;

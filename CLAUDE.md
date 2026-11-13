@@ -47,12 +47,11 @@ Architecture: `docs/ARCHITECTURE.md`.
   `SegmentedControl`, `Stepper`, `Select`, `Switch`, `Popover` with the
   `menu` classes, `DropdownMenu` (submenus), `Dialog`/`AlertDialog`,
   `ConfirmDialog`, `Tooltip`, `Truncated`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`), `Alert`, `CodeBlock`,
-  `Badge` (`BadgeButton`), `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal` (`Terminal.Prompt`), `Placeholder`, `HoverCard`, `Progress` (`marker`), `ProgressRing`, `ResizeHandle`, `Splitter` (`usePanelSize`), `Spinner`, `Loading`,
+  `Badge` (`BadgeButton`), `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal` (`Terminal.Prompt`), `Placeholder`, `Progress` (`marker`), `ProgressRing`, `ResizeHandle`, `Splitter` (`usePanelSize`), `Spinner`, `Loading`,
   `MenuItem`, `DisclosureButton`, `InlineCode`, `DayMarker`. A hand-rolled control or a class
   string used twice becomes a kit component or variant.
 - **Kit helpers**: `useElementSize` (an element's size as it changes),
-  `morph` (a state change as one move: parts travel from their old boxes
-  to their new ones, the same on every web view), `useDragOrder`.
+  `useDragOrder`.
 - **The design system, live**: `desktop/kit.html` (`pnpm exec vite`, then
   `/kit.html`). New components and variants go there.
 - **Tokens, not colours**: the kit's theme tokens (`background`, `card`,
