@@ -26,7 +26,8 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 const AUTH_REQUIRED: i64 = -32000;
 
 type Pending = Mutex<HashMap<u64, oneshot::Sender<Result<Value, Value>>>>;
-type Subscribers = Mutex<HashMap<String, mpsc::UnboundedSender<Update>>>;
+/// Who follows each session now: one answer at a time, by its subscription
+type Subscribers = Mutex<HashMap<String, (u64, mpsc::UnboundedSender<Update>)>>;
 
 /// What the agent sends about a session: an update, or a permission to ask
 /// the candidate (answered on the sender with the chosen outcome)
@@ -40,6 +41,8 @@ pub struct Connection {
     next_id: AtomicU64,
     pending: Arc<Pending>,
     subscribers: Arc<Subscribers>,
+    /// Tells one subscription from the next on the same session
+    next_subscription: AtomicU64,
     /// Gone once the agent exits
     alive: Arc<std::sync::atomic::AtomicBool>,
     /// npx, node and the Claude CLI under it: stopped with the connection
@@ -53,6 +56,34 @@ struct PendingEntry<'a>(&'a Pending, u64);
 impl Drop for PendingEntry<'_> {
     fn drop(&mut self) {
         self.0.locked().remove(&self.1);
+    }
+}
+
+/// A session's updates and permission requests, for the answer that follows
+/// it now. Dropped, however that answer ends, it stops following; a later
+/// answer's subscription to the same session, which replaced this one, is
+/// left alone (the stopped answer ends after the new one began)
+pub struct Subscription {
+    subscribers: Arc<Subscribers>,
+    session: String,
+    id: u64,
+    pub updates: mpsc::UnboundedReceiver<Update>,
+}
+
+impl Subscription {
+    fn new(subscribers: &Arc<Subscribers>, session: &str, id: u64) -> Self {
+        let (tx, updates) = mpsc::unbounded_channel();
+        subscribers.locked().insert(session.to_string(), (id, tx));
+        Self { subscribers: subscribers.clone(), session: session.to_string(), id, updates }
+    }
+}
+
+impl Drop for Subscription {
+    fn drop(&mut self) {
+        let mut subscribers = self.subscribers.locked();
+        if subscribers.get(&self.session).is_some_and(|(id, _)| *id == self.id) {
+            subscribers.remove(&self.session);
+        }
     }
 }
 
@@ -100,7 +131,7 @@ impl Connection {
                                 let asked = subscribers
                                     .locked()
                                     .get(&session)
-                                    .is_some_and(|s| s.send(Update::Permission(params, tx)).is_ok());
+                                    .is_some_and(|(_, s)| s.send(Update::Permission(params, tx)).is_ok());
                                 let (id, replies_tx) = (id.clone(), replies_tx.clone());
                                 tokio::spawn(async move {
                                     let outcome = if asked { rx.await.unwrap_or_else(|_| cancelled()) } else { cancelled() };
@@ -116,7 +147,7 @@ impl Connection {
                         (None, Some("session/update")) => {
                             let params = message.get("params").cloned().unwrap_or(Value::Null);
                             if let Some(session) = params.get("sessionId").and_then(Value::as_str) {
-                                if let Some(tx) = subscribers.locked().get(session) {
+                                if let Some((_, tx)) = subscribers.locked().get(session) {
                                     let _ = tx.send(Update::Session(params.get("update").cloned().unwrap_or(Value::Null)));
                                 }
                             }
@@ -145,6 +176,7 @@ impl Connection {
             next_id: AtomicU64::new(0),
             pending,
             subscribers,
+            next_subscription: AtomicU64::new(0),
             alive,
             _tree: tree,
         });
@@ -221,14 +253,30 @@ impl Connection {
         self.write(&json!({ "jsonrpc": "2.0", "method": method, "params": params })).await
     }
 
-    /// The updates of a session and its permission requests, until `unsubscribe`
-    pub fn subscribe(&self, session: &str) -> mpsc::UnboundedReceiver<Update> {
-        let (tx, rx) = mpsc::unbounded_channel();
-        self.subscribers.locked().insert(session.to_string(), tx);
-        rx
+    /// The updates of a session and its permission requests, while the
+    /// subscription lives (an earlier one on the session hears no more)
+    pub fn subscribe(&self, session: &str) -> Subscription {
+        Subscription::new(&self.subscribers, session, self.next_subscription.fetch_add(1, Ordering::SeqCst))
     }
+}
 
-    pub fn unsubscribe(&self, session: &str) {
-        self.subscribers.locked().remove(session);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A stopped answer ends after the next one on the same session began:
+    /// its end leaves the next one's updates flowing
+    #[test]
+    fn an_answer_ending_late_leaves_the_next_one_subscribed() {
+        let subscribers: Arc<Subscribers> = Arc::default();
+        let first = Subscription::new(&subscribers, "s", 0);
+        let mut second = Subscription::new(&subscribers, "s", 1);
+        drop(first);
+        let (_, tx) = subscribers.locked().get("s").map(|(id, tx)| (*id, tx.clone())).unwrap();
+        assert!(tx.send(Update::Session(json!({ "n": 1 }))).is_ok());
+        assert!(matches!(second.updates.try_recv(), Ok(Update::Session(v)) if v["n"] == 1));
+        // Its own end stops it
+        drop(second);
+        assert!(subscribers.locked().get("s").is_none());
     }
 }

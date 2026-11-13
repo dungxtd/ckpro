@@ -498,7 +498,7 @@ impl Agent {
             on_event(AgentEvent::Tool(call.clone()));
         };
         let c = self.connection().await?;
-        let mut updates = c.subscribe(session);
+        let mut subscription = c.subscribe(session);
         let request = c.request_within(PROMPT_TIMEOUT, "session/prompt", json!({ "sessionId": session, "prompt": [{ "type": "text", "text": text }] }));
         tokio::pin!(request);
         let mut answer = String::new();
@@ -507,7 +507,7 @@ impl Agent {
         let result = loop {
             tokio::select! {
                 result = &mut request => break result,
-                Some(update) = updates.recv() => match update {
+                Some(update) = subscription.updates.recv() => match update {
                     Update::Permission(params, reply) => on_event(AgentEvent::Permission(params, reply)),
                     Update::Session(update) => match update["sessionUpdate"].as_str() {
                     Some("tool_call" | "tool_call_update") => on_update(&update),
@@ -533,7 +533,7 @@ impl Agent {
             }
         };
         // Updates that arrived with the reply
-        while let Ok(update) = updates.try_recv() {
+        while let Ok(update) = subscription.updates.try_recv() {
             let Update::Session(update) = update else { continue };
             match update["sessionUpdate"].as_str() {
                 Some("agent_message_chunk") => {
@@ -546,7 +546,7 @@ impl Agent {
                 _ => {}
             }
         }
-        c.unsubscribe(session);
+        drop(subscription);
         match result?["stopReason"].as_str() {
             Some("cancelled") => Err(AppError::Cancelled { message: "stopped".into() }),
             Some("refusal") => Err(AppError::assistant("the model declined to answer")),
