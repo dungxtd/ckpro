@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContainerUse } from "@/tauri/bindings";
-import { otherApps, parts, purpose, serviceName } from "./usage";
+import { otherApps, outside, parts, purpose, serviceName } from "./usage";
 
 const use = (name: string, mb: number, owner: ContainerUse["owner"]): ContainerUse => ({
 	name,
@@ -32,6 +32,23 @@ describe("the memory map", () => {
 			["services", 60, "services"],
 			["others", 1000, "others"],
 		]);
+	});
+
+	it("adds what the machine takes outside the containers, once measured", () => {
+		// 16 GB, 7 GB available: 9 GB in use, 2.56 GB of it the containers'
+		const memory = { total_mb: 16384, available_mb: 7168 };
+		expect(outside(usage, memory)).toBe(16384 - 7168 - 2560);
+		expect(parts(usage, ["k8s"], [], memory).at(-1)).toEqual({
+			key: "machine",
+			label: "Outside containers",
+			mb: 6656,
+			kind: "machine",
+		});
+		// What the containers take is never less than nothing outside them
+		expect(outside(usage, { total_mb: 4096, available_mb: 3072 })).toBe(0);
+		expect(parts(usage, ["k8s"], [], { total_mb: 4096, available_mb: 3072 }).at(-1)?.key).toBe(
+			"others"
+		);
 	});
 
 	it("keeps a cluster of the app whose nodes are all stopped", () => {

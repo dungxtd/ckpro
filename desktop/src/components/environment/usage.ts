@@ -1,4 +1,4 @@
-import type { ContainerUse } from "@/tauri/bindings";
+import type { ContainerUse, MachineMemory } from "@/tauri/bindings";
 
 /** What a cluster is there for: the attempt's, a Create proof's, or neither */
 export type Purpose = "exam" | "proof" | "other";
@@ -16,16 +16,32 @@ export interface Part {
 	key: string;
 	label: string;
 	mb: number;
-	kind: Purpose | "services" | "others";
+	kind: Purpose | "services" | "others" | "machine";
+}
+
+/**
+ * What Docker's machine takes outside every container: its memory in use
+ * less the containers'. The engine itself in OrbStack or Docker Desktop;
+ * with Docker Engine on Linux, the computer's own programs too
+ */
+export function outside(usage: ContainerUse[], memory: MachineMemory): number {
+	const containers = usage.reduce((n, c) => n + c.mb, 0);
+	return Math.max(0, memory.total_mb - memory.available_mb - containers);
 }
 
 /**
  * Docker's memory in parts: each of ckpro's clusters, its services together,
- * other apps together; largest cluster first. What is left is the free part.
- * `known`: the app's clusters, each a part even when nothing of it runs (a
- * stopped node takes nothing, and is still to repair)
+ * other apps together, then what the machine takes outside the containers
+ * (once `memory` is measured); largest cluster first. What is left is the
+ * free part. `known`: the app's clusters, each a part even when nothing of
+ * it runs (a stopped node takes nothing, and is still to repair)
  */
-export function parts(usage: ContainerUse[], examClusters: string[], known: string[] = []): Part[] {
+export function parts(
+	usage: ContainerUse[],
+	examClusters: string[],
+	known: string[] = [],
+	memory: MachineMemory | null = null
+): Part[] {
 	const clusters = new Map<string, number>(known.map(name => [name, 0]));
 	let services = 0;
 	let others = 0;
@@ -40,6 +56,9 @@ export function parts(usage: ContainerUse[], examClusters: string[], known: stri
 		.sort((a, b) => b.mb - a.mb);
 	if (services > 0) list.push({ key: "services", label: "ckpro", mb: services, kind: "services" });
 	if (others > 0) list.push({ key: "others", label: "Other apps", mb: others, kind: "others" });
+	const machine = memory ? outside(usage, memory) : 0;
+	if (machine > 0)
+		list.push({ key: "machine", label: "Outside containers", mb: machine, kind: "machine" });
 	return list;
 }
 

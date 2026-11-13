@@ -11,6 +11,7 @@ const TONE: Record<Part["kind"], string> = {
 	services: "border-border bg-fill-quiet",
 	// Not ckpro's: dashed and unfilled, as the kit draws what the app does not own
 	others: "border-border border-dashed bg-transparent",
+	machine: "border-border border-dashed bg-transparent",
 };
 
 const WHAT: Record<Part["kind"], string> = {
@@ -19,11 +20,13 @@ const WHAT: Record<Part["kind"], string> = {
 	other: "Cluster",
 	services: "Services",
 	others: "Not ckpro's",
+	machine: "Not ckpro's",
 };
 
 /**
  * Docker's memory as one box, in parts by what uses it: ckpro's clusters
- * (their nodes inside), its services, other apps, then the free room, where
+ * (their nodes inside), its services, other apps, what the machine takes
+ * outside the containers, then the free room, where
  * an exam's estimated need is drawn to compare (an estimate, not a verdict).
  * A part opens its details below
  */

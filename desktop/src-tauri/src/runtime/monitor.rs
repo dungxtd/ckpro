@@ -284,18 +284,21 @@ async fn sync(
     env.update(|s| s.clusters = clusters);
 }
 
-/// What the containers take, and now and then Docker's disk and limits,
-/// while the Environment page shows them; nothing otherwise
+/// What the containers and the rest of Docker's machine take, and now and
+/// then Docker's disk and limits, while the Environment page shows them;
+/// nothing otherwise
 async fn publish_usage(docker: &Docker, env: &Env, kind: &Kind, facts_at: &mut Option<std::time::Instant>) {
     if !env.watching_nodes() {
         *facts_at = None;
         env.update(|s| {
             s.usage = None;
             s.host = None;
+            s.memory = None;
         });
         return;
     }
-    let usage = super::usage::measure(docker, &kind.owned_clusters()).await;
+    let owned = kind.owned_clusters();
+    let (usage, memory) = tokio::join!(super::usage::measure(docker, &owned), super::usage::machine_memory(docker));
     let stale = facts_at.is_none_or(|at| at.elapsed() >= FACTS_EVERY);
     let host = if stale {
         *facts_at = Some(std::time::Instant::now());
@@ -305,6 +308,7 @@ async fn publish_usage(docker: &Docker, env: &Env, kind: &Kind, facts_at: &mut O
     };
     env.update(|s| {
         s.usage = Some(usage);
+        s.memory = memory;
         if let Some(host) = host {
             s.host = host;
         }

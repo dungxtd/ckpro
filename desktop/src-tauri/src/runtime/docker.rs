@@ -20,6 +20,9 @@ pub const START: &str = crate::platform::DOCKER_START;
 /// How to get Docker here, for when its CLI is not found
 pub const INSTALL: &str = crate::platform::DOCKER_INSTALL;
 
+/// How to give Docker more memory here, for when an exam does not fit
+pub const MEMORY: &str = crate::platform::DOCKER_MEMORY;
+
 /// The engine answers a ping in time
 pub async fn answers(docker: &Docker) -> bool {
     tokio::time::timeout(PING_TIMEOUT, docker.ping()).await.is_ok_and(|r| r.is_ok())

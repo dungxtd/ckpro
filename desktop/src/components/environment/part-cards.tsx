@@ -5,9 +5,9 @@ import { StatusDot, type StatusTone } from "@ckpro/ui/components/status-dot";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { envApi, errorText } from "@/tauri/api";
-import type { ContainerUse } from "@/tauri/bindings";
+import type { ContainerUse, MachineMemory } from "@/tauri/bindings";
 import { memory } from "@/words";
-import { otherApps, serviceName } from "./usage";
+import { otherApps, outside, serviceName } from "./usage";
 
 /** A row of a details card: its state as a dot, a name to copy, what it
  * is, the memory it takes (when measured) */
@@ -141,11 +141,43 @@ export function OtherAppsCard({ usage }: { usage: ContainerUse[] }) {
 		<Card padding="sm">
 			<CardHeader>
 				<CardTitle>Other apps</CardTitle>
-				<CardDescription>
-					ckpro leaves these alone; stop them in OrbStack or Docker Desktop to free their memory
-				</CardDescription>
+				<CardDescription>ckpro leaves these alone; stop them to free their memory</CardDescription>
 			</CardHeader>
 			<Rows rows={rows} />
+		</Card>
+	);
+}
+
+/** What Docker's machine takes outside every container, and what it has
+ * left: what ckpro weighs before it starts an exam or a proof */
+export function MachineCard({ usage, memory }: { usage: ContainerUse[]; memory: MachineMemory }) {
+	return (
+		<Card padding="sm">
+			<CardHeader>
+				<CardTitle>Outside containers</CardTitle>
+				<CardDescription>
+					With Docker Engine on Linux, this computer's own programs (a browser, an editor); with
+					OrbStack or Docker Desktop, the engine itself. ckpro counts them before an exam starts
+				</CardDescription>
+			</CardHeader>
+			<Rows
+				rows={[
+					{
+						key: "outside",
+						tone: "ok",
+						name: "In use",
+						what: "outside every container",
+						mb: outside(usage, memory),
+					},
+					{
+						key: "available",
+						tone: "idle",
+						name: "Available",
+						what: "what new containers can take, page cache given back",
+						mb: memory.available_mb,
+					},
+				]}
+			/>
 		</Card>
 	);
 }

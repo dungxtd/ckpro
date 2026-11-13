@@ -546,7 +546,8 @@ pub async fn start_exam(
     // Before anything is created: this machine can run it, beside the proofs
     // running (their clusters are not among the app's)
     if let Some(summary) = exams.catalog().into_iter().find(|e| e.id == id) {
-        preflight::exam_fits(&env.snapshot(), summary.minimum_mb + proofs.reserved_mb(), &summary.clusters)?;
+        let state = preflight::measured(&env).await;
+        preflight::exam_fits(&state, summary.minimum_mb + proofs.reserved_mb(), &summary.clusters)?;
     }
     // An exam has no assistant: what it was doing stops (answers, proofs)
     if mode == Mode::Exam {
@@ -719,14 +720,14 @@ pub fn studio_edit(
 /// why it cannot run now if so
 #[tauri::command]
 #[specta::specta]
-pub fn studio_plan(
+pub async fn studio_plan(
     store: State<'_, Arc<Store>>,
     exams: State<'_, Arc<Exams>>,
     env: State<'_, Arc<Env>>,
     proofs: State<'_, Proofs>,
     session: i32,
 ) -> AppResult<ProofPlan> {
-    let fits = proof_fits(&env, &proofs);
+    let fits = proof_fits(preflight::measured(&env).await, &proofs);
     crate::studio::plan(&store, &exams, &crate::data_dir(), session, fits)
 }
 
@@ -747,7 +748,7 @@ pub async fn studio_verify(
     scope: Scope,
 ) -> AppResult<crate::studio::draft::ExamDraft> {
     no_exam(&exams)?;
-    let fits = proof_fits(&env, &proofs);
+    let fits = proof_fits(preflight::measured(&env).await, &proofs);
     let app = crate::studio::Proving {
         store: &store,
         exams: &exams,
@@ -759,10 +760,11 @@ pub async fn studio_verify(
     crate::studio::verify(app, session, scope, fits).await
 }
 
-/// Whether a proof's run of so many MB fits in what Docker has left, the
-/// proofs running counted (their clusters are not among the app's)
-fn proof_fits<'a>(env: &'a Env, proofs: &'a Proofs) -> impl Fn(u32) -> AppResult<()> + 'a {
-    move |mb| preflight::fits(&env.snapshot(), "Proving the exam", mb + proofs.reserved_mb(), &[])
+/// Whether a proof's run of so many MB fits in what Docker has left
+/// (`state`, measured), the proofs running counted (their clusters are not
+/// among the app's)
+fn proof_fits(state: EnvState, proofs: &Proofs) -> impl Fn(u32) -> AppResult<()> + '_ {
+    move |mb| preflight::fits(&state, "Proving the exam", mb + proofs.reserved_mb(), &[])
 }
 
 /// The exams being proven, by conversation

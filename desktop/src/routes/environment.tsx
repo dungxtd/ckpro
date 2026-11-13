@@ -11,7 +11,12 @@ import { ActivityList } from "@/components/activity/activity-list";
 import { ClusterCard } from "@/components/environment/cluster-card";
 import { IssuesPanel } from "@/components/environment/issues-panel";
 import { MemoryMap } from "@/components/environment/memory-map";
-import { OtherAppsCard, ProofClusterCard, ServicesCard } from "@/components/environment/part-cards";
+import {
+	MachineCard,
+	OtherAppsCard,
+	ProofClusterCard,
+	ServicesCard,
+} from "@/components/environment/part-cards";
 import { parts as partsOf, purpose } from "@/components/environment/usage";
 import { Screen } from "@/components/shell/screen";
 import { useEnvironment } from "@/stores/environment";
@@ -94,13 +99,19 @@ export function EnvironmentRoute() {
 	const missing = env.images_missing ?? [];
 	const passed = env.passed ?? [];
 	const usage = env.usage ?? null;
+	// Docker's machine as its kernel counts it, once measured: what its
+	// programs take outside the containers counts too (all of this computer's
+	// with Docker Engine on Linux)
+	const machine = env.memory ?? null;
 	const parts = usage
 		? partsOf(
 				usage,
 				examClusters,
-				env.clusters.map(c => c.name)
+				env.clusters.map(c => c.name),
+				machine
 			)
 		: [];
+	const totalMb = machine?.total_mb ?? (docker.state === "up" ? docker.memory_mb : 0);
 	const open = picked && parts.some(p => p.key === picked) ? picked : (parts[0]?.key ?? null);
 	// An exam's comfortable need, of the certification aimed at (else any):
 	// drawn beside the free room as an estimate
@@ -122,15 +133,15 @@ export function EnvironmentRoute() {
 					<>
 						<p className="text-sm">
 							<strong className="tabular-nums">
-								{memory(Math.max(0, docker.memory_mb - parts.reduce((n, p) => n + p.mb, 0)))} free
+								{memory(Math.max(0, totalMb - parts.reduce((n, p) => n + p.mb, 0)))} free
 							</strong>{" "}
 							<span className="text-muted-foreground">
-								of the {memory(docker.memory_mb)} Docker has
+								of the {memory(totalMb)} Docker has
 								{docker.engine && `, on ${docker.engine}`}.
 							</span>
 						</p>
 						<MemoryMap
-							totalMb={docker.memory_mb}
+							totalMb={totalMb}
 							parts={parts}
 							clusters={env.clusters}
 							usage={usage}
@@ -195,9 +206,12 @@ export function EnvironmentRoute() {
 						<ClusterCard key={c.name} cluster={c} purpose={purpose(c.name, examClusters)} />
 					))}
 			{/* A cluster of ckpro's the app does not manage itself (a proof's) */}
-			{!cluster && open && open !== "services" && open !== "others" && usage && (
-				<ProofClusterCard cluster={open} usage={usage} />
-			)}
+			{!cluster &&
+				open &&
+				open !== "services" &&
+				open !== "others" &&
+				open !== "machine" &&
+				usage && <ProofClusterCard cluster={open} usage={usage} />}
 			{open === "services" && usage && (
 				<ServicesCard
 					usage={usage}
@@ -208,6 +222,7 @@ export function EnvironmentRoute() {
 				/>
 			)}
 			{open === "others" && usage && <OtherAppsCard usage={usage} />}
+			{open === "machine" && usage && machine && <MachineCard usage={usage} memory={machine} />}
 			{env.clusters.length === 0 && !parts.some(p => p.kind === "proof" || p.kind === "exam") && (
 				<p className="text-muted-foreground text-sm">
 					No clusters: an exam makes the ones it needs when it starts.

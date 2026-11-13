@@ -66,8 +66,12 @@ packs/core/               the question bank (YAML) and its JSON Schemas
   a session that ends anyway is started again, and it takes a new size only
   once a window or panel resize has stopped.
 - `preflight.rs` sizes an exam against the engine's memory before it starts,
-  using what nodes were measured to take on this machine. It is the only
-  judge of whether an exam fits; the interface's memory hint is a display.
+  using what nodes were measured to take on this machine, and against what
+  Docker's machine has available then (`/proc/meminfo`, read in the image
+  mirror: with Docker Engine on Linux, the computer's own programs take
+  their part). It is the only judge of whether an exam fits; the
+  interface's memory hint is a display. What to do when memory is short is
+  the platform's to say (`DOCKER_MEMORY`).
 - `guard.rs` keeps a running attempt's environment as it was set up: the
   control planes drop the host's API traffic, containers stopped or paused
   outside the app are started again, outside `docker exec`s and network

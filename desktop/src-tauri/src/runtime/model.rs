@@ -44,6 +44,23 @@ pub struct EnvState {
     /// Environment page is open (none while it does not run)
     #[serde(default)]
     pub host: Option<HostFacts>,
+    /// The memory of Docker's machine, measured with `usage` (none
+    /// otherwise, or while the image mirror does not run)
+    #[serde(default)]
+    pub memory: Option<MachineMemory>,
+}
+
+/// The memory of the machine Docker runs on, as its kernel reports it
+/// (`/proc/meminfo`, read in a container): the engine's virtual machine
+/// with OrbStack or Docker Desktop, this computer itself with Docker Engine
+/// on Linux, whose programs share it with the containers
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct MachineMemory {
+    /// All of it, in MB
+    pub total_mb: u32,
+    /// What new containers can take without swapping (`MemAvailable`): what
+    /// every program and container there leaves, page cache given back
+    pub available_mb: u32,
 }
 
 /// What the Docker machine has, as its own tools report it

@@ -39,6 +39,7 @@ impl Platform for Os {
 
     const DOCKER_START: &'static str = "Start OrbStack or Docker Desktop";
     const DOCKER_INSTALL: &'static str = "Install OrbStack or Docker Desktop";
+    const DOCKER_MEMORY: &'static str = "Raise the memory limit in OrbStack or Docker Desktop, or delete a cluster";
 
     fn quiet(_: &mut std::process::Command) {}
 

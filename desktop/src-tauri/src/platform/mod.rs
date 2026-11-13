@@ -45,6 +45,8 @@ pub trait Platform {
     const DOCKER_START: &'static str;
     /// How to get Docker here, for when its CLI is not found
     const DOCKER_INSTALL: &'static str;
+    /// How to give Docker more memory here, for when an exam does not fit
+    const DOCKER_MEMORY: &'static str;
 
     /// `command` with no window of its own (a console program the app starts)
     fn quiet(command: &mut std::process::Command);
@@ -114,6 +116,7 @@ pub fn other_docker_engines() -> Vec<bollard::Docker> {
 
 pub const DOCKER_START: &str = Os::DOCKER_START;
 pub const DOCKER_INSTALL: &str = Os::DOCKER_INSTALL;
+pub const DOCKER_MEMORY: &str = Os::DOCKER_MEMORY;
 
 /// `Command::new(program)` with no window of its own: every program the app
 /// starts goes through here

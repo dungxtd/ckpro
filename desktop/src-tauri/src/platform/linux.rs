@@ -36,6 +36,10 @@ impl Platform for Os {
 
     const DOCKER_START: &'static str = "Start Docker (sudo systemctl start docker), your user in the docker group";
     const DOCKER_INSTALL: &'static str = "Install Docker Engine";
+    /// Docker Engine shares this computer's memory with every program on it
+    /// (Docker Desktop's runs in a machine of its own, sized in its settings)
+    const DOCKER_MEMORY: &'static str =
+        "Close programs you do not need, or delete a cluster (with Docker Desktop, raise its memory limit)";
 
     fn quiet(_: &mut std::process::Command) {}
 

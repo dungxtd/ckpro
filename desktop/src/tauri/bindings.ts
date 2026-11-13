@@ -766,6 +766,11 @@ export type EnvState_Deserialize = {
 	 *  Environment page is open (none while it does not run)
 	 */
 	host?: HostFacts | null,
+	/**
+	 *  The memory of Docker's machine, measured with `usage` (none
+	 *  otherwise, or while the image mirror does not run)
+	 */
+	memory?: MachineMemory | null,
 };
 
 export type EnvState_Serialize = {
@@ -809,6 +814,11 @@ export type EnvState_Serialize = {
 	 *  Environment page is open (none while it does not run)
 	 */
 	host: HostFacts | null,
+	/**
+	 *  The memory of Docker's machine, measured with `usage` (none
+	 *  otherwise, or while the image mirror does not run)
+	 */
+	memory: MachineMemory | null,
 };
 
 /**  Pushed to the UI on every exam state change. */
@@ -1148,6 +1158,22 @@ export type Issue = {
 	message: string,
 	/**  What the user can do about it */
 	hint: string,
+};
+
+/**
+ *  The memory of the machine Docker runs on, as its kernel reports it
+ *  (`/proc/meminfo`, read in a container): the engine's virtual machine
+ *  with OrbStack or Docker Desktop, this computer itself with Docker Engine
+ *  on Linux, whose programs share it with the containers
+ */
+export type MachineMemory = {
+	/**  All of it, in MB */
+	total_mb: number,
+	/**
+	 *  What new containers can take without swapping (`MemAvailable`): what
+	 *  every program and container there leaves, page cache given back
+	 */
+	available_mb: number,
 };
 
 export type Mode = "exam" | "practice";

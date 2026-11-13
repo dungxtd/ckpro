@@ -1,7 +1,7 @@
 //! Checks before creating a cluster, so the user learns up front what is
 //! missing instead of from a failed kind run.
 
-use super::model::{ContainerStatus, DockerState, EnvState, NodeRole};
+use super::model::{ContainerStatus, DockerState, Env, EnvState, NodeRole};
 use serde::{Deserialize, Serialize};
 
 /// Rough memory use of kind nodes, measured on kubeadm v1.35 nodes (a
@@ -98,6 +98,21 @@ fn in_use_mb(state: &EnvState, except: &[String]) -> u32 {
         .sum()
 }
 
+/// The environment, with the memory of Docker's machine read now: what the
+/// checks below weigh before something starts (the monitor reads it only
+/// while the Environment page is open). Kept as it was when it cannot be
+/// read (Docker down, the mirror not running)
+pub async fn measured(env: &Env) -> EnvState {
+    let mut state = env.snapshot();
+    if matches!(state.docker, DockerState::Up { .. })
+        && let Ok(docker) = super::docker::connect().await
+        && let Some(memory) = super::usage::machine_memory(&docker).await
+    {
+        state.memory = Some(memory);
+    }
+    state
+}
+
 /// Whether an exam needing at least `needed_mb` (`exam_minimum_mb`) fits in
 /// what Docker has left: the reason when it does not, before anything is
 /// created. Its own `clusters`, if they run, are replaced by it: not counted
@@ -106,7 +121,11 @@ pub fn exam_fits(state: &EnvState, needed_mb: u32, clusters: &[String]) -> crate
 }
 
 /// Whether `what` (a sentence's subject: "This exam") needing `needed_mb`
-/// fits in what Docker has left, but `clusters`: the reason when it does not
+/// fits in what Docker has left, but `clusters`: the reason when it does not.
+/// Two ways, both to pass: Docker's memory less ckpro's running nodes (as
+/// estimated), and, once measured (`measured`), what Docker's machine has
+/// available now, which also leaves out what its programs and other
+/// containers take (with Docker Engine on Linux, the whole computer's)
 pub fn fits(state: &EnvState, what: &str, needed_mb: u32, clusters: &[String]) -> crate::error::AppResult<()> {
     use crate::error::AppError;
     let (cpus, memory_mb) = match state.docker {
@@ -126,12 +145,27 @@ pub fn fits(state: &EnvState, what: &str, needed_mb: u32, clusters: &[String]) -
     let free = memory_mb.saturating_sub(in_use);
     if free < needed_mb {
         return Err(AppError::preflight(format!(
-            "{what} needs at least {:.1} GB of memory; Docker has {:.1} GB free ({:.1} GB in all, ~{:.1} GB used by running clusters). Raise the memory limit in OrbStack or Docker Desktop, or delete a cluster.",
+            "{what} needs at least {:.1} GB of memory; Docker has {:.1} GB free ({:.1} GB in all, ~{:.1} GB used by running clusters). {}.",
             gb(needed_mb),
             gb(free),
             gb(memory_mb),
-            gb(in_use)
+            gb(in_use),
+            super::docker::MEMORY
         )));
+    }
+    if let Some(machine) = state.memory {
+        // The clusters it replaces give their memory back
+        let replaced = in_use_mb(state, &[]).saturating_sub(in_use);
+        let available = machine.available_mb.saturating_add(replaced);
+        if available < needed_mb {
+            return Err(AppError::preflight(format!(
+                "{what} needs at least {:.1} GB of memory; Docker's machine has {:.1} GB available now, of {:.1} GB (its programs and containers take the rest). {}.",
+                gb(needed_mb),
+                gb(available),
+                gb(machine.total_mb),
+                super::docker::MEMORY
+            )));
+        }
     }
     Ok(())
 }
@@ -188,5 +222,28 @@ mod tests {
         assert!(exam_fits(&state, 3324, &[]).is_err());
         // ...unless it replaces that cluster
         assert!(exam_fits(&state, 3324, &["k8s".to_string()]).is_ok());
+    }
+
+    /// Docker Engine on Linux: Docker's memory is the computer's, and its
+    /// programs take a part of it the estimate does not see
+    #[test]
+    fn what_the_machine_has_available_counts_once_measured() {
+        use crate::runtime::model::MachineMemory;
+        let mut state = docker(16384, 8);
+        // The estimate has room: 16 GB, no cluster
+        assert!(exam_fits(&state, 3000, &[]).is_ok());
+        // The browser and the editor took most of it
+        state.memory = Some(MachineMemory { total_mb: 16384, available_mb: 2048 });
+        let short = exam_fits(&state, 3000, &[]).unwrap_err().to_string();
+        assert!(short.contains("at least 2.9 GB") && short.contains("2.0 GB available now, of 16.0 GB"), "{short}");
+        // A cluster it replaces gives its memory back
+        let node = |name: &str, role| NodeState { name: name.into(), role, container: ContainerStatus::Running, ready: Readiness::Unknown, version: None };
+        state.clusters = vec![ClusterState {
+            name: "k8s".into(),
+            nodes: vec![node("k8s-control-plane", NodeRole::ControlPlane), node("k8s-worker", NodeRole::Worker)],
+            guarded: false,
+        }];
+        assert!(exam_fits(&state, 3000, &[]).is_err());
+        assert!(exam_fits(&state, 3000, &["k8s".to_string()]).is_ok());
     }
 }

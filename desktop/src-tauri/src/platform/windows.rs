@@ -52,6 +52,9 @@ impl Platform for Os {
 
     const DOCKER_START: &'static str = "Start Docker Desktop";
     const DOCKER_INSTALL: &'static str = "Install Docker Desktop";
+    /// On WSL 2 the limit is WSL's own, not Docker Desktop's
+    const DOCKER_MEMORY: &'static str =
+        "Raise Docker Desktop's memory limit (on WSL 2: memory in .wslconfig), or delete a cluster";
 
     fn quiet(command: &mut std::process::Command) {
         command.creation_flags(CREATE_NO_WINDOW);

@@ -3,7 +3,7 @@
 //! the same Docker. One sample per container (no streaming), only while the
 //! page is open.
 
-use super::model::{ContainerUse, HostFacts, Owner};
+use super::model::{ContainerUse, HostFacts, MachineMemory, Owner};
 use crate::cluster::kind::CLUSTER_LABEL;
 use bollard::Docker;
 use bollard::query_parameters::{ListContainersOptions, StatsOptions};
@@ -64,6 +64,24 @@ pub async fn host_facts(docker: &Docker) -> Option<HostFacts> {
     (out.exit_code == 0).then(|| parse_facts(&out.text)).flatten()
 }
 
+/// The memory of Docker's machine, read in the image mirror: every
+/// container shares its kernel, whose `/proc/meminfo` is the machine's
+/// (none while the mirror does not run)
+pub async fn machine_memory(docker: &Docker) -> Option<MachineMemory> {
+    let out = super::exec::run(docker, super::infra::MIRROR, &["cat", "/proc/meminfo"], &[], None).await.ok()?;
+    (out.exit_code == 0).then(|| parse_memory(&out.text)).flatten()
+}
+
+/// `/proc/meminfo`'s `MemTotal` and `MemAvailable` (in kB there)
+fn parse_memory(text: &str) -> Option<MachineMemory> {
+    let mb = |key: &str| -> Option<u32> {
+        let line = text.lines().find(|l| l.split(':').next() == Some(key))?;
+        let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+        u32::try_from(kb / 1024).ok()
+    };
+    Some(MachineMemory { total_mb: mb("MemTotal")?, available_mb: mb("MemAvailable")? })
+}
+
 /// `df -Pk` (its line), `du -sk`, then the two inotify limits
 fn parse_facts(text: &str) -> Option<HostFacts> {
     let mut lines = text.lines().filter(|l| !l.trim().is_empty());
@@ -109,5 +127,13 @@ mod tests {
         assert_eq!((facts.disk_free_mb, facts.cache_mb), (251_293, 1424));
         assert_eq!((facts.inotify_watches, facts.inotify_instances), (1_048_576, 8192));
         assert!(parse_facts("df: not found").is_none());
+    }
+
+    #[test]
+    fn the_machines_memory_is_read_from_its_kernel() {
+        let text = "MemTotal:       15844352 kB\nMemFree:         1539072 kB\nMemAvailable:    7371776 kB\nBuffers:          123 kB\n";
+        assert_eq!(parse_memory(text), Some(MachineMemory { total_mb: 15_473, available_mb: 7199 }));
+        // A kernel too old to say what is available: not guessed
+        assert_eq!(parse_memory("MemTotal:       15844352 kB\nMemFree:         1539072 kB\n"), None);
     }
 }
