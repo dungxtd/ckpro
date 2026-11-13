@@ -40,8 +40,8 @@ fn owner(labels: &std::collections::HashMap<String, String>, owned: &[String]) -
     if let Some(cluster) = labels.get(CLUSTER_LABEL) {
         // The app's clusters, and the ones of proofs and verify runs, whose
         // nodes the kind shim labels as ckpro's
-        let ckpros = labels.get(PROJECT_LABEL).is_some_and(|p| p == super::docker::COMPOSE_PROJECT);
-        return if owned.contains(cluster) || ckpros {
+        let ours = labels.get(PROJECT_LABEL).is_some_and(|p| p == super::docker::COMPOSE_PROJECT);
+        return if owned.contains(cluster) || ours {
             Owner::Cluster { cluster: cluster.clone() }
         } else {
             Owner::Other { cluster: Some(cluster.clone()) }
