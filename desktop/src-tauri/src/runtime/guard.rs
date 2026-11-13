@@ -2,8 +2,8 @@
 //! Docker, so nothing can be locked away; what can be closed is closed, the
 //! rest is noticed at once, put back, and written on the result:
 //! - The clusters' API servers refuse the host (the kind network's gateway,
-//!   where the Mac's port forward arrives): `kubectl` from the Mac does not
-//!   reach them during an attempt. The task host, the nodes and pods do.
+//!   where the host's port forward arrives): `kubectl` from the host does
+//!   not reach them during an attempt. The task host, the nodes and pods do.
 //! - A container of the attempt (nodes, desktop, task host, mirror) stopped,
 //!   killed or paused outside ckpro is started again; removed, it is noted.
 //! - A command run in one of them (`docker exec`) that ckpro did not run, a
@@ -176,22 +176,29 @@ impl Guard {
             gateway: gateway.clone(),
             ..Default::default()
         });
-        if let Some(gateway) = &gateway {
-            for cluster in &watch.clusters {
-                block_host(docker, &format!("{cluster}-control-plane"), gateway).await;
+        match &gateway {
+            Some(gateway) => {
+                for cluster in &watch.clusters {
+                    block_host(docker, &format!("{cluster}-control-plane"), gateway).await;
+                }
             }
+            None => tracing::warn!("the kind network has no gateway: the host is not shut out of the clusters"),
         }
     }
 
-    /// Stop guarding (the attempt ends): the host may reach the clusters again
+    /// Stop guarding (the attempt ends): the host may reach the clusters
+    /// again. What was closed is opened only with Docker: without it the
+    /// guard stays as it is, and `recheck` opens it once Docker is back
     async fn deactivate(&self, docker: Option<&Docker>) {
-        self.applied.locked().take();
-        let Some(active) = self.lock().take() else { return };
-        if let (Some(docker), Some(gateway)) = (docker, &active.gateway) {
-            for cluster in &active.clusters {
-                unblock_host(docker, &format!("{cluster}-control-plane"), gateway).await;
+        let closed = self.lock().as_ref().and_then(|a| a.gateway.clone().map(|g| (g, a.clusters.clone())));
+        if let Some((gateway, clusters)) = closed {
+            let Some(docker) = docker else { return };
+            for cluster in &clusters {
+                unblock_host(docker, &format!("{cluster}-control-plane"), &gateway).await;
             }
         }
+        self.applied.locked().take();
+        self.lock().take();
     }
 
     /// After a gap in the events (Docker reconnected): start what of the
@@ -367,25 +374,68 @@ impl Guard {
     }
 }
 
-/// Refuse the host's connections to the API server (port 6443 from the
-/// gateway); idempotent
+/// `iptables <action>` on the guard's rule in `node`: the host's connections
+/// to the API server (port 6443 from the gateway) dropped. Its exit code
+async fn iptables(docker: &Docker, node: &str, action: &str, gateway: &str) -> crate::error::AppResult<i64> {
+    let rule = ["INPUT", "-p", "tcp", "--dport", "6443", "-s", gateway, "-m", "comment", "--comment", RULE_COMMENT, "-j", "DROP"];
+    let args: Vec<&str> = ["iptables", action].into_iter().chain(rule).collect();
+    Ok(exec::run(docker, node, &args, &[], None).await?.exit_code)
+}
+
+/// Refuse the host's connections to the API server; idempotent (a recheck
+/// finds the rule there and leaves it)
 async fn block_host(docker: &Docker, node: &str, gateway: &str) {
-    let rule = format!("INPUT -p tcp --dport 6443 -s {gateway} -m comment --comment {RULE_COMMENT} -j DROP");
-    let script = format!("iptables -C {rule} 2>/dev/null || iptables -I {rule}");
-    if let Err(e) = exec::run(docker, node, &["sh", "-c", &script], &[], None).await {
-        tracing::warn!(%node, error = %e, "closing the API server to the host");
+    if let Ok(0) = iptables(docker, node, "-C", gateway).await {
+        return;
+    }
+    match iptables(docker, node, "-I", gateway).await {
+        Ok(0) => {}
+        Ok(code) => tracing::warn!(%node, code, "closing the API server to the host: iptables refused"),
+        Err(e) => tracing::warn!(%node, error = %e, "closing the API server to the host"),
     }
 }
 
+/// Every copy of the rule goes (`-D` removes one; a resumed attempt may have
+/// added another)
 async fn unblock_host(docker: &Docker, node: &str, gateway: &str) {
-    let rule = format!("INPUT -p tcp --dport 6443 -s {gateway} -m comment --comment {RULE_COMMENT} -j DROP");
-    let script = format!("while iptables -D {rule} 2>/dev/null; do :; done");
-    let _ = exec::run(docker, node, &["sh", "-c", &script], &[], None).await;
+    for _ in 0..16 {
+        if !matches!(iptables(docker, node, "-D", gateway).await, Ok(0)) {
+            break;
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn watch() -> Watch {
+        Watch { clusters: vec!["k8s".into()], containers: Vec::new() }
+    }
+
+    /// The attempt ends while Docker does not answer: the host stays shut
+    /// out until it does, and the guard says so and finishes then
+    #[tokio::test]
+    async fn an_end_without_docker_is_finished_later() {
+        let guard = Guard::new(|_| {});
+        *guard.lock() = Some(Active { clusters: HashSet::from(["k8s".to_string()]), gateway: Some("172.18.0.1".into()), ..Default::default() });
+        *guard.applied.locked() = Some(watch());
+        guard.deactivate(None).await;
+        assert!(guard.guards("k8s"), "still closed, so still said to be guarded");
+        assert!(guard.applied.locked().is_some(), "left for recheck to finish");
+    }
+
+    /// Nothing was closed (no gateway): an end without Docker has nothing to
+    /// undo
+    #[tokio::test]
+    async fn an_end_with_nothing_closed_needs_no_docker() {
+        let guard = Guard::new(|_| {});
+        *guard.lock() = Some(Active { clusters: HashSet::from(["k8s".to_string()]), ..Default::default() });
+        *guard.applied.locked() = Some(watch());
+        guard.deactivate(None).await;
+        assert!(!guard.guards("k8s"));
+        assert!(guard.applied.locked().is_none());
+    }
 
     #[test]
     fn the_app_s_own_execs_are_judged_once() {
