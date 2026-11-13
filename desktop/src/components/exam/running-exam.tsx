@@ -81,12 +81,15 @@ export function RunningExam({
 	const setAssistantOpen = useCoach(s => s.setOpen);
 	// Desktop zoom and resolution, the panels' sizes and the assistant pane
 	// live in the app database: the desk reopens as it was left
-	const { settings, update } = useSettings(
-		useShallow(s => ({ settings: s.settings, update: s.update }))
-	);
+	// Each field it reads: a change to another setting leaves the desk as it is
+	const update = useSettings(s => s.update);
+	const assistantEnabled = useSettings(s => s.settings.assistant_enabled);
+	const assistantWanted = useSettings(s => s.settings.assistant_open);
+	const taskWidth = useSettings(s => s.settings.task_width);
+	const assistantWidth = useSettings(s => s.settings.assistant_width);
 	// The assistant: practice only, and only if the app offers it
-	const assistantAvailable = attempt.mode === "practice" && settings.assistant_enabled;
-	const assistantOpen = settings.assistant_open && assistantAvailable;
+	const assistantAvailable = attempt.mode === "practice" && assistantEnabled;
+	const assistantOpen = assistantWanted && assistantAvailable;
 	const desktop = useDesktopSettings();
 	const [tab, setTab] = useState<DeskView>("desktop");
 	useTimeAlerts(endsAt);
@@ -101,7 +104,7 @@ export function RunningExam({
 	// The task panel's right border: its share of the desk, in percent
 	const task = usePanelSize({
 		area: desk,
-		saved: settings.task_width ?? 33,
+		saved: taskWidth ?? 33,
 		save: task_width => update({ task_width }),
 		min: 20,
 		max: 70,
@@ -111,7 +114,7 @@ export function RunningExam({
 	// The assistant pane's left border: its width in pixels
 	const assistant = usePanelSize({
 		area: desk,
-		saved: settings.assistant_width,
+		saved: assistantWidth,
 		save: assistant_width => update({ assistant_width: Math.round(assistant_width) }),
 		min: 300,
 		max: 720,

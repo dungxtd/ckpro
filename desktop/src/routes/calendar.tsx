@@ -4,7 +4,7 @@ import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Loading } from "@ckpro/ui/components/loading";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { Agenda } from "@/components/calendar/agenda";
@@ -60,10 +60,16 @@ export function CalendarRoute() {
 	const to = [dayKey(addDays(weekStart, 6)), lastExam ?? today].sort().at(-1) as string;
 	const go = (day: string) => setParams({ day });
 
-	const reload = useCallback(
-		() => examApi.plans(from, to).then(setPlans, () => setPlans([])),
-		[from, to]
-	);
+	// Only the last read's answer is kept: moving on quickly, an earlier
+	// week's answer may come after the later one
+	const asked = useRef(0);
+	const reload = useCallback(() => {
+		const ask = ++asked.current;
+		return examApi.plans(from, to).then(
+			plans => ask === asked.current && setPlans(plans),
+			() => ask === asked.current && setPlans([])
+		);
+	}, [from, to]);
 	// Again as the study changes (a plan, an exam deleted with its plans)
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a new version is the cue
 	useEffect(() => {

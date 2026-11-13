@@ -47,8 +47,8 @@ export function QuestionPanel({
 	const result = checks[question.id];
 	const solution = useExam(s => s.solutions[question.id]);
 	const loadSolution = useExam(s => s.loadSolution);
-	const settings = useSettings(s => s.settings);
-	const size = Math.min(SIZES.length - 1, settings.question_size);
+	const questionSize = useSettings(s => s.settings.question_size);
+	const size = Math.min(SIZES.length - 1, questionSize);
 	// The host and namespace to copy, as values in the text are drawn
 	const code = cn(inlineCode, "text-exam-value");
 
@@ -184,10 +184,9 @@ export function PracticeActions({ question }: { question: QuestionView }) {
 
 /** The question's text size, kept in the app database */
 export function TextSize() {
-	const { settings, update } = useSettings(
-		useShallow(s => ({ settings: s.settings, update: s.update }))
-	);
-	const size = Math.min(SIZES.length - 1, settings.question_size);
+	const update = useSettings(s => s.update);
+	const questionSize = useSettings(s => s.settings.question_size);
+	const size = Math.min(SIZES.length - 1, questionSize);
 	return (
 		<Stepper
 			label="Text size"

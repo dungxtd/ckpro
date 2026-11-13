@@ -7,7 +7,6 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { RotateCcw, Settings } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useShallow } from "zustand/react/shallow";
 import { useSettings } from "@/stores/settings";
 import { desktopApi, errorText } from "@/tauri/api";
 
@@ -23,10 +22,10 @@ const ZOOMS = [1, 1.25, 1.5, 1.75, 2];
 
 /** The desktop's size and resolution, kept in the settings */
 export function useDesktopSettings(): DesktopMenuProps {
-	const { settings, update } = useSettings(
-		useShallow(s => ({ settings: s.settings, update: s.update }))
-	);
-	const zoom = ZOOMS.find(z => z === settings.desktop_zoom) ?? 1;
+	const update = useSettings(s => s.update);
+	const desktopZoom = useSettings(s => s.settings.desktop_zoom);
+	const desktopResolution = useSettings(s => s.settings.desktop_resolution);
+	const zoom = ZOOMS.find(z => z === desktopZoom) ?? 1;
 	const at = ZOOMS.indexOf(zoom);
 	return {
 		zoom,
@@ -34,7 +33,7 @@ export function useDesktopSettings(): DesktopMenuProps {
 		canZoomIn: at < ZOOMS.length - 1,
 		onZoom: step =>
 			update({ desktop_zoom: ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, at + step))] ?? 1 }),
-		resolution: settings.desktop_resolution ?? null,
+		resolution: desktopResolution ?? null,
 		onResolution: resolution => update({ desktop_resolution: resolution }),
 	};
 }
