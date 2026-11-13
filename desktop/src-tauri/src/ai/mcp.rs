@@ -94,7 +94,7 @@ impl Server {
         if let Some(reason) = refused(command) {
             return Err(AppError::invalid(format!("Not run: {reason}. Do it another way, or ask the candidate to.")));
         }
-        let settings = super::policy::AgentSettings::load(&self.store).unwrap_or_default().normalized();
+        let settings = super::policy::AgentSettings::load_or_guarded(&self.store);
         if let Some(entry) = settings.never_runs(command) {
             return Err(AppError::invalid(format!("Not run: the candidate never lets the assistant run commands with \"{entry}\". Ask them to run it.")));
         }

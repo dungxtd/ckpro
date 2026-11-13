@@ -296,7 +296,7 @@ let proving = app.handle().clone();
             let store = Arc::new(store::Store::open(&data_dir.join(DATABASE))?);
             store.import_files(&data_dir);
             // The assistant runs where its settings say
-            app.state::<ai::Coach>().apply(&ai::policy::AgentSettings::load(&store).unwrap_or_default().normalized());
+            app.state::<ai::Coach>().apply(&ai::policy::AgentSettings::load_or_guarded(&store));
             app.state::<ai::Coach>().switch(store.settings().map(|s| s.assistant_enabled).unwrap_or(true));
             // Docker, the clusters and the guard; the attempt being resumed
             // starts its own clusters, task host and desktop

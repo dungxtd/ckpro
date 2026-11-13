@@ -74,10 +74,21 @@ impl Default for AgentSettings {
 pub const COMMAND_MAX_SECS: u32 = 300;
 
 impl AgentSettings {
-    /// As kept in the app database (the defaults until saved)
-    /// As kept, within bounds (an empty list of agents is the one agent on)
+    /// As kept, within bounds (an empty list of agents is the one agent on);
+    /// the defaults until saved. Kept but unreadable: `guarded`
     pub fn load(store: &crate::store::Store) -> crate::error::AppResult<Self> {
-        store.setting::<Self>("agent").map(Self::normalized)
+        store.setting_or::<Self>("agent", Self::guarded).map(Self::normalized)
+    }
+
+    /// As kept, or `guarded` when the database cannot say: what the candidate
+    /// chose is not known, so nothing is shared and every command asks
+    pub fn load_or_guarded(store: &crate::store::Store) -> Self {
+        Self::load(store).unwrap_or_else(|_| Self::guarded())
+    }
+
+    /// The candidate's choices unknown: nothing goes to Claude unasked
+    pub fn guarded() -> Self {
+        Self { permission: AgentPermission::Confirm, share_checks: false, share_cluster: false, ..Self::default() }
     }
 
     pub fn save(&self, store: &crate::store::Store) -> crate::error::AppResult<()> {
@@ -164,6 +175,18 @@ fn filter(step: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Settings that cannot be read share nothing and run nothing unasked;
+    /// unset, they are the defaults
+    #[test]
+    fn unreadable_settings_share_nothing() {
+        let store = crate::store::Store::in_memory().unwrap();
+        assert!(AgentSettings::load(&store).unwrap().share_checks);
+        store.save_setting("agent", &"not the settings").unwrap();
+        let read = AgentSettings::load(&store).unwrap();
+        assert!(!read.share_checks && !read.share_cluster);
+        assert_eq!(read.permission, AgentPermission::Confirm);
+    }
 
     #[test]
     fn reading_commands_are_told_apart() {

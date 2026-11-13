@@ -181,12 +181,23 @@ impl Store {
 
     /// A value kept as JSON under `key`; its default when unset or unreadable
     pub fn setting<T: DeserializeOwned + Default>(&self, key: &str) -> AppResult<T> {
+        self.setting_or(key, T::default)
+    }
+
+    /// A value kept as JSON under `key`: its default when unset, `unreadable`'s
+    /// when it cannot be read (damaged, or written by a newer ckpro), which
+    /// the log tells
+    pub fn setting_or<T: DeserializeOwned + Default>(&self, key: &str, unreadable: impl FnOnce() -> T) -> AppResult<T> {
         let json: Option<String> = self
             .conn()
             .query_row("SELECT value FROM settings WHERE key = ?1", params![key], |r| r.get(0))
             .optional()
             .map_err(db)?;
-        Ok(json.and_then(|json| serde_json::from_str(&json).ok()).unwrap_or_default())
+        let Some(json) = json else { return Ok(T::default()) };
+        Ok(serde_json::from_str(&json).unwrap_or_else(|e| {
+            tracing::warn!(key, error = %e, "a setting could not be read");
+            unreadable()
+        }))
     }
 
     pub fn save_setting<T: Serialize>(&self, key: &str, value: &T) -> AppResult<()> {

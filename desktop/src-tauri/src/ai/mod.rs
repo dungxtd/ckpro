@@ -287,7 +287,7 @@ impl Coach {
         let profile = if subject.review { Profile::Ask } else { profile };
         let cancel = self.start(exams)?;
         // What the candidate shares with Claude (Settings > AI > Privacy)
-        let shared = policy::AgentSettings::load(store).unwrap_or_default();
+        let shared = policy::AgentSettings::load_or_guarded(store);
         let checks = if context.checks && shared.share_checks { checks } else { &[] };
         // Ask is given a look at the cluster; Agent looks itself, from the
         // task and the checks, with read-only commands
