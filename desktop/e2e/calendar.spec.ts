@@ -40,6 +40,32 @@ test("the calendar asks for plans in the candidate's own time", async ({ page })
 	expect(first.offsetMinutes).toBe(await page.evaluate(() => -new Date().getTimezoneOffset()));
 });
 
+test("a segmented control is one Tab stop: the arrows choose, Home and End go to the ends", async ({
+	page,
+}) => {
+	await launch(page, "/calendar");
+	await page.getByRole("button", { name: "Add an exam you prepare for" }).click();
+	const radios = page.getByRole("radiogroup", { name: "Certification" }).getByRole("radio");
+	const last = (await radios.count()) - 1;
+	expect(last).toBeGreaterThan(0);
+	const chosen = async (i: number) => {
+		await expect(radios.nth(i)).toBeChecked();
+		await expect(radios.nth(i)).toBeFocused();
+		await expect(page.getByRole("radiogroup").locator("[tabindex='0']")).toHaveCount(1);
+	};
+	await radios.first().focus();
+	await page.keyboard.press("ArrowRight");
+	await chosen(1);
+	await page.keyboard.press("End");
+	await chosen(last);
+	await page.keyboard.press("ArrowDown");
+	await chosen(0);
+	await page.keyboard.press("ArrowLeft");
+	await chosen(last);
+	await page.keyboard.press("Home");
+	await chosen(0);
+});
+
 test("the exams prepared for are set in the Calendar: added, changed, removed", async ({
 	page,
 }) => {
