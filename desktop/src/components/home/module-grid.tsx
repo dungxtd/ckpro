@@ -2,6 +2,7 @@ import { Button } from "@ckpro/ui/components/button";
 import { MenuItem, menu } from "@ckpro/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { useElementSize } from "@ckpro/ui/hooks/use-element-size";
+import { reducedMotion } from "@ckpro/ui/lib/motion";
 import { cn } from "@ckpro/ui/lib/utils";
 import { SlidersHorizontal } from "lucide-react";
 import type * as React from "react";
@@ -32,7 +33,7 @@ export type ModuleSpec = {
 };
 
 const EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
-const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const still = reducedMotion;
 
 /**
  * Home's modules on a 4-column grid, each where the candidate put it.

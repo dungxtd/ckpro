@@ -25,3 +25,8 @@ export const overlayMotion = `${fade} data-[state=open]:duration-200 data-[state
  */
 export const pressMotion =
 	"transition-[color,background-color,box-shadow,opacity,scale] duration-150 ease-out active:duration-100 motion-safe:active:scale-[0.97]";
+
+/** Whether the system asks for less motion: script-driven moves skip their
+ * animation then, as CSS ones do with `motion-reduce` */
+export const reducedMotion = () =>
+	typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;

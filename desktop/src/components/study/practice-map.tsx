@@ -1,4 +1,5 @@
 import { useScrollEdges } from "@ckpro/ui/hooks/use-scroll-edges";
+import { reducedMotion } from "@ckpro/ui/lib/motion";
 import { cn } from "@ckpro/ui/lib/utils";
 import type * as React from "react";
 import { useLayoutEffect, useRef, useState } from "react";
@@ -298,7 +299,7 @@ export function PracticeMap({
 							setTip(null);
 							setAhead(null);
 							quiet.current = true;
-							const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+							const still = reducedMotion();
 							// The exam day in the middle of the map, clear of the faded edges
 							scrollEl.scrollTo({
 								left: leftIn(scrollEl, c) - scrollEl.clientWidth / 2,

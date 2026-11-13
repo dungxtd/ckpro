@@ -1,5 +1,6 @@
 import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Input } from "@ckpro/ui/components/input";
+import { command } from "@ckpro/ui/lib/platform";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
@@ -69,7 +70,7 @@ export function FindInSession({
 		};
 		const keys = (e: KeyboardEvent) => {
 			const inside = el.contains(document.activeElement) || pointerIn.current;
-			if (inside && (e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "f") {
+			if (inside && command(e) && !e.shiftKey && e.key.toLowerCase() === "f") {
 				e.preventDefault();
 				setOpen(true);
 				requestAnimationFrame(() => field.current?.select());
