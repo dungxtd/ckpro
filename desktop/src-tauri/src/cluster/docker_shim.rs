@@ -16,12 +16,10 @@ pub const REAL_DOCKER: &str = "CKPRO_REAL_DOCKER";
 pub fn program() -> std::io::Result<PathBuf> {
     let exe = std::env::current_exe()?;
     if cfg!(test) {
-        // target/<profile>/deps/<test> -> target/<profile>/ckpro
-        let app = exe
-            .parent()
-            .and_then(Path::parent)
-            .map(|dir| dir.join(crate::platform::program_file("ckpro")))
-            .filter(|app| app.is_file());
+        // The app in target/<profile>, above the test wherever cargo puts it
+        // (deps/<test>, or build/ckpro/<hash>/out/<test> in newer cargo)
+        let file = crate::platform::program_file("ckpro");
+        let app = exe.ancestors().skip(1).map(|dir| dir.join(&file)).find(|app| app.is_file());
         return app.ok_or_else(|| std::io::Error::other("build the app first (cargo build): tests run kind through it"));
     }
     Ok(exe)

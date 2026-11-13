@@ -160,7 +160,9 @@ pub fn on_quit(action: OnQuit, clusters: &[String], named: &[String]) {
     if clusters.is_empty() && named.is_empty() {
         return;
     }
-    let Ok(app) = std::env::current_exe() else { return };
+    // The app itself (in tests, the app built beside them: a test binary
+    // has no `quit`)
+    let Ok(app) = crate::cluster::docker_shim::program() else { return };
     let mut args = vec!["quit".to_string(), if action == OnQuit::Stop { "stop" } else { "remove" }.to_string()];
     for c in clusters {
         args.extend(["--cluster".to_string(), c.clone()]);
