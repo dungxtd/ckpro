@@ -99,9 +99,8 @@ async fn run(
         tracing::info!("connected to docker");
 
         if !reconciled {
-            // The containers left under the app's former name go first, and
-            // the verify runs an earlier process left (the Create screen's)
-            crate::former::remove_containers(&docker).await;
+            // The verify runs an earlier process left go first (the Create
+            // screen's)
             crate::lab::verify::sweep_stale(&crate::data_dir(), &|line| tracing::info!("{line}")).await;
             reconcile::on_startup(&docker, &kind, &activities, &jobs, &resuming).await;
             reconciled = true;

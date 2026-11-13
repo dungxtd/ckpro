@@ -4,7 +4,6 @@ mod cluster;
 mod commands;
 mod demo;
 mod error;
-mod former;
 mod lab;
 mod observability;
 mod platform;
@@ -170,8 +169,6 @@ pub fn data_dir() -> std::path::PathBuf {
         return dir;
     }
     let dir = dirs::data_dir().unwrap_or_else(std::env::temp_dir).join(APP_ID);
-    // What the app kept under its former name comes along, the first time
-    former::move_data(&dir);
     let _ = std::fs::create_dir_all(&dir);
     let _ = platform::make_private(&dir);
     dir
