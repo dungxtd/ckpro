@@ -3,15 +3,13 @@
 /* The app's own colours, per theme. The exam's accents, as the ExamUI
    colours them: the values to use (host, namespace) and the question's
    concepts; content syntax colours, deepened on light to read on white and
-   on the grey page. The assistant's colour, whichever agent answers (its
-   mark, what it did); not a vendor's. A certification's domains, heaviest
-   first, where they are told apart (Create's coverage): a categorical set
-   kept off the accent blue and the assistant's violet */
+   on the grey page. A certification's domains, heaviest first, where they
+   are told apart (Create's coverage): a categorical set kept off the accent
+   blue and the assistant's violet (the kit's `assistant`) */
 :root,
 [data-theme="light"] {
 	--exam-value: #be185d;
 	--exam-concept: #0369a1;
-	--assistant: #6b5ce7;
 	--domain-1: #fa5252;
 	--domain-2: #15aabf;
 	--domain-3: #40c057;
@@ -24,7 +22,6 @@
 [data-theme="dark"] {
 	--exam-value: #f472b6;
 	--exam-concept: #38bdf8;
-	--assistant: #7c6cf2;
 	--domain-1: #ff6b6b;
 	--domain-2: #3bc9db;
 	--domain-3: #51cf66;
@@ -37,7 +34,6 @@
 @theme inline {
 	--color-exam-value: var(--exam-value);
 	--color-exam-concept: var(--exam-concept);
-	--color-assistant: var(--assistant);
 	--color-domain-1: var(--domain-1);
 	--color-domain-2: var(--domain-2);
 	--color-domain-3: var(--domain-3);

@@ -33,6 +33,9 @@
 	--warning: #ff9500;
 	--highlight: #3478f6; /* macOS menu selection blue (measured) */
 	--highlight-foreground: #ffffff;
+	/* The assistant's own hue, whichever agent answers (its mark, a button
+	   that asks it); not a vendor's, and off the accent blue */
+	--assistant: #6b5ce7;
 	/* What sits on a solid success or destructive fill */
 	--success-foreground: #000000;
 	--destructive-foreground: #ffffff;
@@ -119,6 +122,7 @@
 	--warning: #ff9f0a;
 	--highlight: #3478f6;
 	--highlight-foreground: #ffffff;
+	--assistant: #7c6cf2;
 	--glass: #2c2c2e;
 	--glass-border: rgb(84 84 88 / 0.6);
 	--glass-highlight: transparent;
@@ -195,6 +199,7 @@
 	--color-glass-selected-foreground: var(--glass-selected-foreground);
 	--color-highlight: var(--highlight);
 	--color-highlight-foreground: var(--highlight-foreground);
+	--color-assistant: var(--assistant);
 	--color-success-foreground: var(--success-foreground);
 	--color-destructive-foreground: var(--destructive-foreground);
 	--color-border: var(--border);
