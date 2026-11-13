@@ -102,7 +102,7 @@ pub async fn delete_cluster(
     let result = async {
         lifecycle::delete(&kind, &name, &send).await?;
         op.step(1, None);
-        jumphost.refresh_access(&crate::runtime::docker::connect().await?, &kind, &app_placement(&kind)).await
+        jumphost.refresh_access(&crate::runtime::docker::connect().await?, &kind, &app_placement(&kind)).await.map(drop)
     }
     .await;
     op.end(result)

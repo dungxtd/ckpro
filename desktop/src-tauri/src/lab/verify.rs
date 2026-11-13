@@ -143,7 +143,8 @@ impl Run {
             lifecycle::create(&self.kind, infra, physical, *workers, log, cancel).await?;
         }
         self.jumphost.ensure(&docker, log).await?;
-        self.jumphost.refresh_access(&docker, &self.kind, &placement).await
+        let needed: Vec<String> = placement.keys().cloned().collect();
+        self.jumphost.give_access(&docker, &self.kind, &placement, &needed).await
     }
 
     /// Run `ids` on the run's clusters: every setup, then per question the

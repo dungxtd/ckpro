@@ -132,9 +132,23 @@ impl Jumphost {
         super::docker::unless_gone(docker.remove_container(&self.name, Some(options)).await).map(drop)
     }
 
+    /// `refresh_access`, refused when the task host cannot reach one of
+    /// `needed` (logical clusters): an exam without it cannot be worked on
+    pub async fn give_access(&self, docker: &Docker, kind: &Kind, placement: &Placement, needed: &[String]) -> AppResult<()> {
+        let unreachable = self.refresh_access(docker, kind, placement).await?;
+        let missing: Vec<&str> = unreachable.iter().filter(|c| needed.contains(c)).map(String::as_str).collect();
+        if missing.is_empty() {
+            Ok(())
+        } else {
+            Err(AppError::cluster(format!("the task host cannot reach cluster {}", missing.join(", "))))
+        }
+    }
+
     /// Rewrite the kubeconfig (one context per logical cluster) and the etcd
-    /// certs for `placement`, keeping the candidate's current context.
-    pub async fn refresh_access(&self, docker: &Docker, kind: &Kind, placement: &Placement) -> AppResult<()> {
+    /// certs for `placement`, keeping the candidate's current context. The
+    /// logical clusters it could not give access to (stopped, say); the
+    /// others are reached whatever happened to those
+    pub async fn refresh_access(&self, docker: &Docker, kind: &Kind, placement: &Placement) -> AppResult<Vec<String>> {
         let _one_at_a_time = self.refreshing.lock().await;
         std::fs::create_dir_all(&self.dir).map_err(|e| AppError::io("creating jumphost dir", e))?;
         let kubeconfig_path = self.dir.join("kubeconfig");
@@ -144,6 +158,7 @@ impl Jumphost {
             .and_then(|k| k.current_context);
 
         let mut merged: Option<Kubeconfig> = None;
+        let mut unreachable = Vec::new();
         let _ = std::fs::remove_dir_all(self.dir.join("etcd"));
         for (logical, physical) in placement {
             match kind.internal_kubeconfig(physical).await {
@@ -156,7 +171,10 @@ impl Jumphost {
                         Some(m) => m.merge(config).map_err(|e| AppError::cluster(e.to_string()))?,
                     });
                 }
-                Err(e) => tracing::warn!(cluster = %physical, error = %e, "kubeconfig for the jumphost"),
+                Err(e) => {
+                    tracing::warn!(cluster = %physical, error = %e, "kubeconfig for the jumphost");
+                    unreachable.push(logical.clone());
+                }
             }
             if let Err(e) = export_etcd_certs(docker, physical, &self.dir.join("etcd").join(logical)).await {
                 tracing::warn!(cluster = %physical, error = %e, "etcd certs for the jumphost");
@@ -178,7 +196,7 @@ impl Jumphost {
                 let _ = std::fs::remove_file(&kubeconfig_path);
             }
         }
-        Ok(())
+        Ok(unreachable)
     }
 }
 

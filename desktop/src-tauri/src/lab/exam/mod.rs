@@ -583,7 +583,7 @@ impl Exams {
             let log = |line: String| op.log(line);
             self.jumphost.ensure(&docker, &log).await?;
         }
-        self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await?;
+        self.jumphost.give_access(&docker, &self.kind, &jumphost::app_placement(&self.kind), &attempt.clusters).await?;
         step += 1;
         op.step(step, None);
         if !crate::runtime::infra::start_existing(&docker, &self.desktop).await? {
@@ -770,7 +770,7 @@ impl Exams {
         }
         next(None);
         self.jumphost.reset(&docker, &log).await?;
-        self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await?;
+        self.jumphost.give_access(&docker, &self.kind, &jumphost::app_placement(&self.kind), &attempt.clusters).await?;
         next(None);
         self.start_desktop(&docker, allowed, &attempt.clusters).await?;
         if !setups.is_empty() {
