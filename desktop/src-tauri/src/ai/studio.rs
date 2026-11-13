@@ -41,8 +41,13 @@ impl Coach {
         let _busy = self.busy();
         // Its own: answers in other conversations go on
         let cancel = CancellationToken::new();
-        if let Some(previous) = self.studio_running.locked().insert(session, cancel.clone()) {
-            previous.cancel();
+        {
+            // Judged again under the lock `stop_answers` takes (see `Coach::start`)
+            let mut running = self.studio_running.locked();
+            exams.assistant_allowed()?;
+            if let Some(previous) = running.insert(session, cancel.clone()) {
+                previous.cancel();
+            }
         }
         let answer = self.studio_answer(exams, store, session, text, model, effort, &cancel, on_event).await;
         // Stopped, or a newer one took its place: not ours to take out

@@ -4,7 +4,7 @@
 //! `/mcp/<question>` a practice question's session, `/studio/<conversation>`
 //! a Create conversation (`ai::studio_tools`).
 
-use super::mcp::Server;
+use super::mcp::{Allowed, Server};
 use super::studio_tools::Tools as Studio;
 use crate::error::{AppError, AppResult};
 use crate::store::Store;
@@ -21,17 +21,18 @@ pub struct McpHttp {
     token: String,
 }
 
-/// What a request reaches: the store (a question's tools), the Create
-/// conversations' tools, and the token it must carry
-type Context = Arc<(Arc<Store>, Option<Arc<Studio>>, String)>;
+/// What a request reaches: the store and whether they may act now (a
+/// question's tools), the Create conversations' tools, and the token it
+/// must carry
+type Context = Arc<(Arc<Store>, Allowed, Option<Arc<Studio>>, String)>;
 
 impl McpHttp {
     /// Listen on a free loopback port until the app quits
-    pub async fn start(store: Arc<Store>, studio: Option<Arc<Studio>>) -> AppResult<Self> {
+    pub async fn start(store: Arc<Store>, allowed: Allowed, studio: Option<Arc<Studio>>) -> AppResult<Self> {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.map_err(|e| AppError::io("starting the MCP server", e))?;
         let port = listener.local_addr().map_err(|e| AppError::io("starting the MCP server", e))?.port();
         let token: String = (0..32).map(|_| format!("{:02x}", rand::random::<u8>())).collect();
-        let context: Context = Arc::new((store, studio, token.clone()));
+        let context: Context = Arc::new((store, allowed, studio, token.clone()));
         tokio::spawn(async move {
             // A few sessions at a time; a client that never sends its request
             // does not hold a connection for long
@@ -91,7 +92,7 @@ const MAX_CONNECTIONS: usize = 16;
 
 
 async fn handle(context: Context, request: Request<Incoming>) -> Result<Response<Full<Bytes>>, std::convert::Infallible> {
-    let (store, studio, token) = &*context;
+    let (store, allowed, studio, token) = &*context;
     let reply = |status: StatusCode, body: &str| {
         let mut response = Response::new(Full::new(Bytes::from(body.to_string())));
         *response.status_mut() = status;
@@ -124,7 +125,7 @@ async fn handle(context: Context, request: Request<Incoming>) -> Result<Response
         return Ok(reply(StatusCode::BAD_REQUEST, ""));
     };
     let answer = match whose {
-        Whose::Question(question) => Server::new(store.clone(), question).handle(&message).await,
+        Whose::Question(question) => Server::new(store.clone(), question, allowed.clone()).handle(&message).await,
         Whose::Studio(session, studio) => studio.handle(session, &message).await,
     };
     Ok(match answer {
@@ -168,7 +169,7 @@ mod tests {
     /// Over real HTTP (curl): the tools answer with this run's token only
     #[tokio::test]
     async fn the_tools_answer_this_runs_token_only() {
-        let server = McpHttp::start(Arc::new(Store::in_memory().unwrap()), None).await.unwrap();
+        let server = McpHttp::start(Arc::new(Store::in_memory().unwrap()), Arc::new(|| Ok(())), None).await.unwrap();
         let entry = server.server_for("core/cka-001/q01-namespace-and-pod-creation");
         let url = entry["url"].as_str().unwrap().to_string();
         let token = entry["headers"][0]["value"].as_str().unwrap().to_string();

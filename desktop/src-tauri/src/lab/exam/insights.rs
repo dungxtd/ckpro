@@ -54,12 +54,12 @@ impl Exams {
     /// an exam-mode attempt (the real exam has no assistant). The solution
     /// comes along only if the candidate has opened it (Exams notes it).
     pub fn coach_subject(&self, question_id: &str) -> AppResult<CoachSubject> {
+        self.assistant_allowed()?;
         let pack = self.pack();
         let (attempt, review) = match self.state() {
             ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => (attempt, false),
             // The exam is over: the review may show everything
             ExamState::Finished { attempt, .. } => (attempt, true),
-            ExamState::Running { attempt, .. } if attempt.mode == Mode::Exam => return Err(AppError::exam_mode()),
             _ => return Err(AppError::invalid("the coach is available in practice mode and after the exam")),
         };
         let question = self.question(question_id)?;
@@ -107,13 +107,32 @@ impl Exams {
 
     /// An exam-mode attempt is under way (no assistant then, as on the real exam)
     pub fn exam_in_progress(&self) -> bool {
-        self.state().exam_in_progress()
+        self.state().exam_in_progress() || self.exam_starting.load(std::sync::atomic::Ordering::SeqCst) > 0
     }
 
     /// The one guard of every assistant entry: refused while an exam-mode
-    /// attempt runs, as in the real exam
+    /// attempt starts or runs, as in the real exam
     pub fn assistant_allowed(&self) -> AppResult<()> {
         if self.exam_in_progress() { Err(AppError::exam_mode()) } else { Ok(()) }
+    }
+
+    /// An exam-mode attempt is about to start: the assistant refuses from now
+    /// until it is dropped (the attempt shows as started by then, or failed
+    /// to). Taken before the assistant is stopped, so what it begins meanwhile
+    /// cannot slip past the stop
+    pub fn exam_starting(&self) -> ExamStarting<'_> {
+        self.exam_starting.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        ExamStarting(self)
+    }
+
+    /// The agent's tools on the cluster (`run_command`, `check_my_work`): only
+    /// while a practice attempt runs, not while it is graded
+    pub fn agent_tools_allowed(&self) -> AppResult<()> {
+        self.assistant_allowed()?;
+        match self.state() {
+            ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => Ok(()),
+            _ => Err(AppError::not_found("no practice attempt is running in ckpro")),
+        }
     }
 
     /// How the candidate did per curriculum domain, per certification they
@@ -195,9 +214,48 @@ pub fn study_stats(pack: &LoadedPack, history: &[HistoryEntry]) -> Vec<StudyStat
     stats
 }
 
+/// An exam-mode start under way (`Exams::exam_starting`)
+pub struct ExamStarting<'a>(&'a Exams);
+
+impl Drop for ExamStarting<'_> {
+    fn drop(&mut self) {
+        self.0.exam_starting.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// From the moment an exam-mode start begins the assistant refuses, the
+    /// coach and the agent's tools with it; a start that goes nowhere gives
+    /// it back
+    #[test]
+    fn an_exam_starting_shuts_the_assistant_out() {
+        use std::sync::Arc;
+        let dir = std::env::temp_dir().join(format!("ckpro-starting-{}", std::process::id()));
+        let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/core");
+        let exams = Exams::new(
+            crate::lab::load::load(&core).0.unwrap(),
+            Arc::new(crate::cluster::kind::Kind::new(dir.clone())),
+            Arc::new(crate::runtime::infra::Infra::new(dir.clone())),
+            Arc::new(crate::runtime::jumphost::Jumphost::for_test(&dir, "starting")),
+            "none",
+            Arc::new(crate::store::Store::in_memory().unwrap()),
+            |_: &ExamState| {},
+            crate::runtime::activity::Activities::silent(),
+            crate::runtime::guard::Guard::new(|_| {}),
+        );
+        assert!(exams.assistant_allowed().is_ok());
+        let starting = exams.exam_starting();
+        assert!(matches!(exams.assistant_allowed(), Err(AppError::ExamMode { .. })));
+        assert!(matches!(exams.coach_subject("any"), Err(AppError::ExamMode { .. })));
+        assert!(matches!(exams.agent_tools_allowed(), Err(AppError::ExamMode { .. })));
+        drop(starting);
+        assert!(exams.assistant_allowed().is_ok());
+        // No practice attempt runs: the agent's tools have nothing to act on
+        assert!(matches!(exams.agent_tools_allowed(), Err(AppError::NotFound { .. })));
+    }
 
     #[test]
     fn standing_names_the_weakest_measured_and_the_unmeasured() {

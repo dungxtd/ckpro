@@ -2,7 +2,7 @@
 //! It reads the question as the candidate sees it, their last "Check my work",
 //! the documentation the exam allows and, when checks fail, a read-only look
 //! at the cluster; the reference answer only once the candidate opened it.
-//! Never during an exam-mode attempt (`Exams::coach_subject` refuses).
+//! Never during an exam-mode attempt (`Exams::assistant_allowed` refuses).
 
 pub mod account;
 mod acp;
@@ -285,7 +285,7 @@ impl Coach {
         // Commands only while practising: never in review (the environment
         // is graded) and never in an exam (coach_subject refuses it anyway)
         let profile = if subject.review { Profile::Ask } else { profile };
-        let cancel = self.start();
+        let cancel = self.start(exams)?;
         // What the candidate shares with Claude (Settings > AI > Privacy)
         let shared = policy::AgentSettings::load(store).unwrap_or_default();
         let checks = if context.checks && shared.share_checks { checks } else { &[] };
@@ -402,13 +402,17 @@ impl Coach {
         Busy(&self.active)
     }
 
-    /// A new answer stops the one being written
-    fn start(&self) -> CancellationToken {
+    /// A new answer stops the one being written. Refused while an exam-mode
+    /// attempt starts or runs, judged under the lock `stop_answers` takes: an
+    /// answer begun as an exam starts is stopped by it, or refused
+    fn start(&self, exams: &Exams) -> AppResult<CancellationToken> {
+        let mut running = self.running.locked();
+        exams.assistant_allowed()?;
         let cancel = CancellationToken::new();
-        if let Some(previous) = self.running.locked().replace(cancel.clone()) {
+        if let Some(previous) = running.replace(cancel.clone()) {
             previous.cancel();
         }
-        cancel
+        Ok(cancel)
     }
 
     pub fn cancel(&self) {

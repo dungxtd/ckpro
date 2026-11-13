@@ -259,6 +259,9 @@ pub struct Exams {
     guard: Arc<Guard>,
     /// The candidate's time, minutes east of UTC, as the interface last said
     offset_minutes: std::sync::atomic::AtomicI32,
+    /// Exam-mode starts under way (`exam_starting`): the assistant refuses
+    /// as if the exam ran already
+    exam_starting: std::sync::atomic::AtomicUsize,
 }
 
 /// What the candidate saw in an attempt (`attempt`): each question's last
@@ -300,6 +303,7 @@ impl Exams {
             publish: Box::new(publish),
             activities,
             guard,
+            exam_starting: Default::default(),
             offset_minutes: Default::default(),
         }
     }

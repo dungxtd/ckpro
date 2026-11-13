@@ -4,7 +4,11 @@
 //! HTTP to the agent.
 //!
 //! Under the assistant's rule: nothing answers while an exam-mode attempt
-//! runs (the real exam has no assistant).
+//! starts or runs (the real exam has no assistant), nor once the practice
+//! attempt is being graded, nor with the assistant turned off.
+
+/// Whether the tools may act now (`Exams::agent_tools_allowed`)
+pub type Allowed = std::sync::Arc<dyn Fn() -> AppResult<()> + Send + Sync>;
 
 use crate::error::{AppError, AppResult};
 use crate::lab::checks;
@@ -25,11 +29,12 @@ pub struct Server {
     store: std::sync::Arc<Store>,
     /// The session's question, in the practice attempt
     question: String,
+    allowed: Allowed,
 }
 
 impl Server {
-    pub fn new(store: std::sync::Arc<Store>, question: String) -> Self {
-        Self { store, question }
+    pub fn new(store: std::sync::Arc<Store>, question: String, allowed: Allowed) -> Self {
+        Self { store, question, allowed }
     }
 
     /// The reply to a message; none for notifications
@@ -46,11 +51,12 @@ impl Server {
 
     /// The session's question in the running practice attempt
     fn question(&self) -> AppResult<(String, Question)> {
-        let (attempt, questions) =
-            exam::saved_running(&self.store).ok_or_else(|| AppError::not_found("no practice attempt is running in ckpro"))?;
-        if attempt.mode == exam::Mode::Exam {
-            return Err(AppError::exam_mode());
+        (self.allowed)()?;
+        if !self.store.settings().is_ok_and(|s| s.assistant_enabled) {
+            return Err(AppError::assistant_off());
         }
+        let (_, questions) =
+            exam::saved_running(&self.store).ok_or_else(|| AppError::not_found("no practice attempt is running in ckpro"))?;
         questions
             .into_iter()
             .find(|(id, _)| *id == self.question)
@@ -261,7 +267,15 @@ mod tests {
 
     #[tokio::test]
     async fn speaks_mcp_with_the_agent_tools_only() {
-        let server = Server::new(std::sync::Arc::new(Store::in_memory().unwrap()), "q1".into());
+        // What the app says of the attempt: none, then an exam, then practice
+        let says = std::sync::Arc::new(std::sync::Mutex::new(Err::<(), _>(AppError::not_found("no practice attempt is running in ckpro"))));
+        let said = says.clone();
+        let allowed: Allowed = std::sync::Arc::new(move || match &*said.lock().unwrap() {
+            Ok(()) => Ok(()),
+            Err(AppError::ExamMode { .. }) => Err(AppError::exam_mode()),
+            Err(e) => Err(AppError::not_found(e.to_string())),
+        });
+        let server = Server::new(std::sync::Arc::new(Store::in_memory().unwrap()), "q1".into(), allowed);
         let init = server.handle(&json!({ "jsonrpc": "2.0", "id": 0, "method": "initialize", "params": { "protocolVersion": "2025-03-26" } })).await.unwrap();
         assert_eq!(init["result"]["protocolVersion"], "2025-03-26");
         assert!(server.handle(&json!({ "jsonrpc": "2.0", "method": "notifications/initialized" })).await.is_none());
@@ -278,9 +292,11 @@ mod tests {
                 "pass_score": 66, "questions": [], "clusters": ["k8s"] } },
             "questions": [],
         });
+        *says.lock().unwrap() = Err(AppError::exam_mode());
         server.store.save_attempt(Some(&running("exam"))).unwrap();
         let (refused, failed) = call(&server, "run_command").await;
         assert!(failed && refused.contains("exam-mode"), "{refused}");
+        *says.lock().unwrap() = Ok(());
         server.store.save_attempt(Some(&running("practice"))).unwrap();
         let (absent, _) = call(&server, "check_my_work").await;
         assert!(absent.contains("not in the attempt"), "{absent}");

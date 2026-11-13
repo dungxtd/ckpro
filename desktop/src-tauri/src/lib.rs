@@ -338,8 +338,10 @@ let proving = app.handle().clone();
                     },
                     move |session| proofs.state::<studio::proof::Proofs>().proving(session),
                 ));
+                let practice = exams.clone();
+                let allowed: ai::mcp::Allowed = Arc::new(move || practice.agent_tools_allowed());
                 tauri::async_runtime::spawn(async move {
-                    match ai::mcp_http::McpHttp::start(store, Some(studio)).await {
+                    match ai::mcp_http::McpHttp::start(store, allowed, Some(studio)).await {
                         Ok(server) => handle.state::<ai::Coach>().serve_tools(server),
                         Err(e) => tracing::warn!(error = %e, "the agent's tools are unavailable"),
                     }

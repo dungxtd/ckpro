@@ -148,7 +148,7 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
         stopped: false,
     };
     // One at a time per conversation: refused before anything is begun
-    let Some(cancel) = app.proofs.begin(session, proof, mb) else {
+    let Some(cancel) = app.proofs.begin(session, proof, mb, || app.exams.assistant_allowed())? else {
         return Err(AppError::busy("this exam is being proven already"));
     };
     // Changed between being read and the proof begun (edits are refused from

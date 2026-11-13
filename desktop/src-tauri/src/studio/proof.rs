@@ -137,15 +137,18 @@ impl Proofs {
 
     /// Start proving the conversation's exam; how to stop it, or none if it
     /// is being proven already
-    pub fn begin(&self, session: i32, proof: Proof, mb: u32) -> Option<CancellationToken> {
+    pub fn begin(&self, session: i32, proof: Proof, mb: u32, allowed: impl FnOnce() -> crate::error::AppResult<()>) -> crate::error::AppResult<Option<CancellationToken>> {
         let mut running = self.running.locked();
+        // Judged under the lock `stop_all` takes: a proof begun as an exam
+        // starts is stopped by it, or refused here
+        allowed()?;
         if running.contains_key(&session) {
-            return None;
+            return Ok(None);
         }
         let cancel = CancellationToken::new();
         (self.changed)(session, Some(&proof));
         running.insert(session, Running { proof, mb, cancel: cancel.clone(), run: None });
-        Some(cancel)
+        Ok(Some(cancel))
     }
 
     /// Its run, being made

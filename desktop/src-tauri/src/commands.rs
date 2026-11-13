@@ -549,7 +549,9 @@ pub async fn start_exam(
         let state = preflight::measured(&env).await;
         preflight::exam_fits(&state, summary.minimum_mb + proofs.reserved_mb(), &summary.clusters)?;
     }
-    // An exam has no assistant: what it was doing stops (answers, proofs)
+    // An exam has no assistant: it refuses from here, then what it was doing
+    // stops (answers, proofs); nothing it begins meanwhile slips past
+    let _starting = (mode == Mode::Exam).then(|| exams.exam_starting());
     if mode == Mode::Exam {
         coach.stop_answers();
         proofs.stop_all();
