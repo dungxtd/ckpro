@@ -31,7 +31,7 @@ function SheetOverlay({
 		<SheetPrimitive.Overlay
 			data-slot="sheet-overlay"
 			className={cn(
-				"fixed inset-0 z-modal bg-black/40",
+				"fixed inset-0 z-modal bg-overlay",
 				overlayMotion,
 				// As long as the sheet it is under
 				"data-[state=open]:duration-300 data-[state=closed]:duration-200",

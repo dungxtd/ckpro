@@ -36,6 +36,8 @@
 	/* The assistant's own hue, whichever agent answers (its mark, a button
 	   that asks it); not a vendor's, and off the accent blue */
 	--assistant: #6b5ce7;
+	/* Behind a dialog or a sheet: the page dimmed */
+	--overlay: rgb(0 0 0 / 0.4);
 	/* What sits on a solid success or destructive fill */
 	--success-foreground: #000000;
 	--destructive-foreground: #ffffff;
@@ -122,6 +124,7 @@
 	--highlight: #3478f6;
 	--highlight-foreground: #ffffff;
 	--assistant: #7c6cf2;
+	--overlay: rgb(0 0 0 / 0.4);
 	--glass: #2c2c2e;
 	--glass-border: rgb(84 84 88 / 0.6);
 	--glass-highlight: transparent;
@@ -198,6 +201,7 @@
 	--color-highlight: var(--highlight);
 	--color-highlight-foreground: var(--highlight-foreground);
 	--color-assistant: var(--assistant);
+	--color-overlay: var(--overlay);
 	--color-success-foreground: var(--success-foreground);
 	--color-destructive-foreground: var(--destructive-foreground);
 	--color-border: var(--border);
