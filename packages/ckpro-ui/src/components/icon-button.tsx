@@ -56,11 +56,19 @@ export function iconButtonVariants({
 	);
 }
 
-type IconButtonProps = React.ComponentProps<"button"> & IconButtonOptions;
+/** An icon alone says nothing: a label is required, `title` or `aria-label` */
+type IconButtonLabel =
+	| { title: string; "aria-label"?: string }
+	| { title?: string; "aria-label": string };
+
+type IconButtonProps = Omit<React.ComponentProps<"button">, "title" | "aria-label"> &
+	IconButtonOptions &
+	IconButtonLabel;
 
 /**
  * An icon says nothing until you hover it: its `title` (or, failing that, its
- * `aria-label`) shows as a tooltip, the kit's own, not the browser's.
+ * `aria-label`) shows as a tooltip, the kit's own, not the browser's. The
+ * button is named by its `aria-label`, or else by its `title`.
  */
 export function IconButton({
 	variant,
@@ -69,15 +77,16 @@ export function IconButton({
 	className,
 	type = "button",
 	title,
+	"aria-label": ariaLabel,
 	...props
 }: IconButtonProps) {
-	const ariaLabel = props["aria-label"];
-	const label = title ?? (typeof ariaLabel === "string" ? ariaLabel : undefined);
+	const label = title ?? ariaLabel;
 	const ref = useRef<HTMLButtonElement>(null);
 	const [open, setOpen] = useState(false);
 	const button = (
 		<button
 			type={type}
+			aria-label={ariaLabel ?? title}
 			className={cn(iconButtonVariants({ variant, size, active }), className)}
 			{...props}
 			// Its own, and a wrapping trigger's (a menu's, passed as a prop)
@@ -89,7 +98,6 @@ export function IconButton({
 			}}
 		/>
 	);
-	if (!label) return button;
 	return (
 		<Tooltip
 			open={open}
