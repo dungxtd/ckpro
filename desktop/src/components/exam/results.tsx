@@ -46,6 +46,10 @@ import { shortTitle } from "@/titles";
 import { NONE, plural } from "@/words";
 
 /** A score's tone as its text colour */
+/** No rest days (no exam aimed at): one array, so the effect that reads
+ * them does not run again on every render */
+const NO_REST: number[] = [];
+
 const TONE_TEXT = {
 	success: "text-success",
 	warning: "text-warning",
@@ -295,7 +299,8 @@ function WhatNext({
 	// The rest days of the exam this attempt prepares for (or the first aimed at)
 	const targets = useTargets();
 	const rest =
-		(targets.find(t => t.certification === attempt.certification) ?? targets[0])?.rest_days ?? [];
+		(targets.find(t => t.certification === attempt.certification) ?? targets[0])?.rest_days ??
+		NO_REST;
 	const assistant = useAssistantEnabled();
 	const [day, setDay] = useState<Date | null>(null);
 	const [closing, setClosing] = useState<Step | null>(null);

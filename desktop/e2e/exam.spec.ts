@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { calls, emit, launch } from "./backend";
+import { calls, emit, launch, sample } from "./backend";
 
 /** An attempt of the sample's first exam: two questions on one cluster */
 const attempt = (mode: "exam" | "practice") => ({
@@ -231,6 +231,18 @@ test("the result shows the score, what changed outside, each check, and closing 
 	expect(await calls(page, "end_exam")).toHaveLength(1);
 	await emit(page, "exam-changed", { phase: "idle" });
 	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+});
+
+test("the result with no exam aimed at asks for the plans once, not on every render", async ({
+	page,
+}) => {
+	await launch(page, "/exam", {
+		settings: { ...sample.settings, targets: [] },
+		exam_state: { phase: "finished", attempt: attempt("exam"), result },
+	});
+	await expect(page.getByText("60%")).toBeVisible();
+	await page.waitForTimeout(500);
+	expect((await calls(page, "plans_between")).length).toBeLessThanOrEqual(2);
 });
 
 test("a resume that failed keeps the attempt: Try again resumes it", async ({ page }) => {
