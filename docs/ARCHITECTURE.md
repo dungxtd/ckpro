@@ -41,7 +41,10 @@ desktop/
     commands.rs           the commands the interface calls
     lib.rs                setup, managed state, events
     error.rs              AppError, the typed error contract
-    cli.rs                `ckpro lab …`, `ckpro images`
+    telemetry.rs          the core's errors to PostHog (beside analytics.ts)
+    observability.rs      the log (`CKPRO_LOG`), to the data directory
+    cli.rs                `ckpro lab …`, `ckpro images`, `ckpro schema`,
+                          `ckpro demo`, `ckpro quit` (the app's own, on quit)
     e2e.rs                end-to-end tests on Docker (opt-in)
   src-tauri/resources/    images: desktop, task host (jumphost), nodes
 packages/ckpro-ui/        the UI kit (Radix, cva)
@@ -139,7 +142,7 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 ## Assistant (`ai/`)
 
 - `acp.rs` is an Agent Client Protocol client over stdio; `agent.rs` runs the
-  Claude adapter through npx on the Mac's Claude CLI (found, or a path set in
+  Claude adapter through npx on the computer's Claude CLI (found, or a path set in
   Settings) and its existing login; `account.rs` reads that login and signs
   in with the CLI when there is none. One switch turns the assistant on or
   off (`policy::AgentSettings`); off, nothing asks an agent. The adapter
@@ -165,9 +168,12 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 ## Rules the core keeps
 
 - **One guard for the assistant**: `Exams::assistant_allowed()` refuses
-  every assistant command and MCP tool while an exam-mode attempt runs
-  (`AppError::ExamMode`); `Coach::require_enabled` refuses while it is off
-  (`AssistantOff`).
+  every assistant command and MCP tool while an exam-mode attempt starts or
+  runs (`AppError::ExamMode`), judged again where each answer and proof
+  begins, under the lock its stop takes; `Coach::require_enabled` refuses
+  while it is off (`AssistantOff`). Every agent session runs in the
+  permission mode that asks, whatever the candidate's own Claude settings
+  say.
 - **Errors are typed** where they happen (`AppError`: `DockerUnavailable`,
   `Busy`, `ExamMode`, `AssistantOff`, `Preflight`, `ClustersExist`, …) and
   reach the interface as `{ code, message }`; it branches on `code`.
@@ -179,12 +185,21 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 - **State lives in SQLite** (`store/`): new fields get `#[serde(default)]`;
   schema changes are new migrations.
 
+## Telemetry
+
+- Product analytics (`desktop/src/analytics.ts`, PostHog): anonymous usage
+  events, errors and replays of the interface; what the candidate writes to
+  the assistant and its answers are masked (`ph-mask`), fields too, and the
+  remote desktop is not recorded. The core's warnings, errors, failed
+  activities and panics go to the same project (`telemetry.rs`). On unless
+  turned off in Settings > About; nothing leaves when the build has no key.
+
 ## Interface
 
 - One rule for controls: the kit first (`@ckpro/ui`); a pattern used twice
   becomes a kit component or variant, shown in the gallery.
 - Layout is CSS: the shell's state is a few data attributes on its root
-  (`data-morphing`, `data-inspecting`) and CSS variables; script only
+  (`data-folded`, `data-moving`, `data-inspecting`) and CSS variables; script only
   decides what CSS cannot (whether the capsule fits whole or as a dock).
 - Each view subscribes to the fields it reads from a store, not the whole
   store.

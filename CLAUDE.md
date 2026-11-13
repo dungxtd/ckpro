@@ -15,7 +15,7 @@ Architecture: `docs/ARCHITECTURE.md`.
   Code, with Node.js for its adapter), used with their own logins. During an
   attempt the guard keeps the
   environment as set up.
-- **State lives in SQLite** (`store.rs`): settings, attempts, history, coach
+- **State lives in SQLite** (`store/`): settings, attempts, history, coach
   sessions. New fields get `#[serde(default)]`; schema changes are new
   migrations, never edits to old ones.
 - **Rust owns the truth**; the interface renders events and never polls.

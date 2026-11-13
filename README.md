@@ -55,13 +55,16 @@ the clusters, task host, exam desktop and registry cache, kind and the
 kubeconfigs. The assistant, optional, uses the agent CLIs installed on the
 computer and their own logins: Claude Code (with Node.js, which runs its adapter).
 
+Anonymous usage analytics and error reports (PostHog) are on by default, with
+what you write to the assistant masked; turn them off in Settings > About.
+
 ## Development
 
 ```bash
 pnpm install
 pnpm dev                                   # the app, with hot reload
 cd desktop/src-tauri && cargo test         # unit tests
-cargo test -- --ignored                    # end-to-end tests on Docker
+cargo test -- --ignored --test-threads=1   # end-to-end tests on Docker
 cargo run -- lab lint ../../packs/core     # check the question pack
 cargo run -- lab verify ../../packs/core   # prove it on real clusters
 ```
