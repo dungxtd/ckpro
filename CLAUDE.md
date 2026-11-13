@@ -48,7 +48,7 @@ Architecture: `docs/ARCHITECTURE.md`.
   `menu` classes, `DropdownMenu` (submenus), `Dialog`/`AlertDialog`,
   `ConfirmDialog`, `Tooltip`, `Truncated`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`), `Alert`, `CodeBlock`,
   `Badge` (`BadgeButton`), `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal` (`Terminal.Prompt`), `Placeholder`, `Progress` (`marker`), `ProgressRing`, `ResizeHandle`, `Splitter` (`usePanelSize`), `Spinner`, `Loading`,
-  `MenuItem`, `DisclosureButton`, `InlineCode`, `DayMarker`. A hand-rolled control or a class
+  `MenuItem`, `DisclosureButton`, `InlineCode`, `DayMarker`, `RowCover` (a list row pressed as a whole). A hand-rolled control or a class
   string used twice becomes a kit component or variant.
 - **Kit helpers**: `useElementSize` (an element's size as it changes),
   `useDragOrder`.

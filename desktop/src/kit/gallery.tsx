@@ -31,6 +31,7 @@ import { Placeholder, SampleRows } from "@ckpro/ui/components/placeholder";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { Progress, ProgressRing } from "@ckpro/ui/components/progress";
 import { ResizeHandle } from "@ckpro/ui/components/resize-handle";
+import { RowCover } from "@ckpro/ui/components/row-cover";
 import { SectionTitle } from "@ckpro/ui/components/section-title";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
 import {
@@ -89,6 +90,7 @@ import {
 	Lightbulb,
 	Monitor,
 	PanelLeft,
+	Play,
 	Plus,
 	Settings,
 	Sparkles,
@@ -542,6 +544,27 @@ function Gallery() {
 					</CodeBlock>
 				</Section>
 
+				<Section
+					title="RowCover"
+					note="A list row pressed as a whole; its own buttons stay pressable above it."
+				>
+					<div className="flex max-w-md flex-col">
+						{["Core Concepts", "Exam Scenario Pack"].map(title => (
+							<div
+								key={title}
+								className="relative flex min-h-9 items-center gap-3 rounded-lg px-2 hover:bg-hover"
+							>
+								<RowCover aria-label={`Start practice: ${title}`} onClick={() => {}} />
+								<span className="min-w-0 flex-1 truncate text-callout">{title}</span>
+								<BadgeButton variant="accent" className="relative">
+									Practice
+								</BadgeButton>
+								<Play aria-hidden className="size-4 text-muted-foreground" />
+							</div>
+						))}
+					</div>
+				</Section>
+
 				<Section title="Table" note="Data in rows: a tinted header, hairlines between rows.">
 					<Table>
 						<TableHeader>
@@ -886,6 +909,18 @@ function Gallery() {
 						>
 							<Button size="push" variant="outlineDestructive">
 								Confirm
+							</Button>
+						</ConfirmDialog>
+						{/* Not destructive, only a while to set up: its button is not red */}
+						<ConfirmDialog
+							tone="default"
+							title="Start practice: Core Concepts?"
+							description="With hints, checks and the assistant, at your own pace."
+							action="Start"
+							onConfirm={() => {}}
+						>
+							<Button size="push" variant="push">
+								Confirm, default
 							</Button>
 						</ConfirmDialog>
 						<Sheet>

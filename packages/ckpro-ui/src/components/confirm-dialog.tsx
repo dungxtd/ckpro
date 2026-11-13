@@ -15,13 +15,15 @@ import type { ReactNode } from "react";
 /**
  * An action that cannot be undone (end an exam, delete a cluster), done only
  * once confirmed: `children` is the button that asks. Without one (asked
- * from a menu), `open` and `onOpenChange` show it
+ * from a menu), `open` and `onOpenChange` show it. `tone="default"` for one
+ * that only takes a while (starting an exam): its button is not red
  */
 export function ConfirmDialog({
 	title,
 	description,
 	action,
 	cancel = "Cancel",
+	tone = "destructive",
 	onConfirm,
 	open,
 	onOpenChange,
@@ -29,9 +31,10 @@ export function ConfirmDialog({
 }: {
 	title: string;
 	description: string;
-	/** The destructive button's label */
+	/** The confirming button's label */
 	action: string;
 	cancel?: string;
+	tone?: "destructive" | "default";
 	onConfirm: () => void;
 	open?: boolean;
 	onOpenChange?: (open: boolean) => void;
@@ -47,10 +50,7 @@ export function ConfirmDialog({
 				</AlertDialogHeader>
 				<AlertDialogFooter>
 					<AlertDialogCancel>{cancel}</AlertDialogCancel>
-					<AlertDialogAction
-						className={buttonVariants({ variant: "destructive" })}
-						onClick={onConfirm}
-					>
+					<AlertDialogAction className={buttonVariants({ variant: tone })} onClick={onConfirm}>
 						{action}
 					</AlertDialogAction>
 				</AlertDialogFooter>
