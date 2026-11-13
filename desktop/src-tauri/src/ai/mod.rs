@@ -134,7 +134,9 @@ pub struct Coach {
     /// offered, and where the answer goes
     permissions: Mutex<HashMap<u32, Waiting>>,
     /// The Claude login being run, if any
-    signing_in: tokio::sync::Mutex<Option<account::SigningIn>>,
+    signing_in: Mutex<Option<account::Login>>,
+    /// Tells one sign-in from the next
+    sign_ins: std::sync::atomic::AtomicU64,
     /// Answers and generations under way: the adapter is not stopped meanwhile
     active: std::sync::atomic::AtomicUsize,
     /// Something was asked since the adapter started: it stays up longer
@@ -168,6 +170,7 @@ impl Coach {
             enabled: std::sync::atomic::AtomicBool::new(true),
             on: std::sync::atomic::AtomicBool::new(true),
             signing_in: Default::default(),
+            sign_ins: Default::default(),
             account: Default::default(),
             active: Default::default(),
             asked: Default::default(),

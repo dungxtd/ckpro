@@ -146,6 +146,19 @@ impl SigningIn {
     pub fn cancel(&self) {
         self.cancel.cancel();
     }
+
+    /// What stops the login, held apart from it (its input may be in use)
+    pub fn canceller(&self) -> CancellationToken {
+        self.cancel.clone()
+    }
+}
+
+/// The login running now: which one (a newer one replaces it), how to stop
+/// it, and its input
+pub struct Login {
+    id: u64,
+    stop: CancellationToken,
+    input: std::sync::Arc<tokio::sync::Mutex<SigningIn>>,
 }
 
 /// Text without terminal control sequences (colours, cursor moves, titles)
@@ -217,22 +230,33 @@ impl super::Coach {
     /// Sign in to Claude; the login's output streams to `on_event`. A new
     /// login stops one still running
     pub async fn sign_in(&self, method: SignInMethod, on_event: impl Fn(SignInEvent)) -> AppResult<()> {
-        if let Some(earlier) = self.signing_in.lock().await.take() {
-            earlier.cancel();
+        let id = self.sign_ins.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if let Some(earlier) = self.signing_in.locked().take() {
+            earlier.stop.cancel();
         }
         let result = sign_in(
             &self.agent,
             method,
             |login| {
-                // The slot was just emptied and only this call fills it
-                if let Ok(mut slot) = self.signing_in.try_lock() {
-                    *slot = Some(login);
+                let mut slot = self.signing_in.locked();
+                // A newer sign-in began meanwhile: this one is stale
+                if slot.as_ref().is_some_and(|newer| newer.id > id) {
+                    login.cancel();
+                    return;
                 }
+                let stop = login.canceller();
+                *slot = Some(Login { id, stop, input: std::sync::Arc::new(tokio::sync::Mutex::new(login)) });
             },
             on_event,
         )
         .await;
-        self.signing_in.lock().await.take();
+        // Its own slot only: a newer sign-in keeps its own
+        {
+            let mut slot = self.signing_in.locked();
+            if slot.as_ref().is_some_and(|login| login.id == id) {
+                slot.take();
+            }
+        }
         self.forget_account();
         // The conversations were opened on the earlier login's adapter
         self.open.lock().await.clear();
@@ -241,15 +265,16 @@ impl super::Coach {
 
     /// A line typed into the running login (the code the browser shows)
     pub async fn sign_in_input(&self, line: &str) -> AppResult<()> {
-        match self.signing_in.lock().await.as_mut() {
-            Some(login) => login.input(line).await,
+        let input = self.signing_in.locked().as_ref().map(|login| login.input.clone());
+        match input {
+            Some(input) => input.lock().await.input(line).await,
             None => Err(AppError::invalid("no sign-in is running")),
         }
     }
 
     pub async fn sign_in_cancel(&self) {
-        if let Some(login) = self.signing_in.lock().await.take() {
-            login.cancel();
+        if let Some(login) = self.signing_in.locked().take() {
+            login.stop.cancel();
         }
     }
 }
