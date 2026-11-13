@@ -496,12 +496,19 @@ async fn exam_engine_practice_and_exam_modes() {
     f.teardown().await;
 }
 
-/// The committed bindings must match the commands (also runs in CI).
+/// The committed bindings must match the commands (also runs in CI): a
+/// command or a type changed, the new ones are in `$TMPDIR/ckpro-bindings.ts`
 #[test]
 fn bindings_export() {
-    specta_builder()
-        .export(typescript(), std::env::temp_dir().join("ckpro-bindings.ts"))
-        .unwrap();
+    let exported = std::env::temp_dir().join("ckpro-bindings.ts");
+    specta_builder().export(typescript(), &exported).unwrap();
+    let committed = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/tauri/bindings.ts");
+    let read = |path: &std::path::Path| std::fs::read_to_string(path).unwrap_or_default();
+    assert!(
+        read(&exported) == read(&committed),
+        "stale desktop/src/tauri/bindings.ts: copy {} over it",
+        exported.display()
+    );
 }
 
 /// Create's proof: an exam of the packs proven whole on a cluster made
