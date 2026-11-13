@@ -146,7 +146,8 @@ export function Today({
 								{p.done !== null && <span className="tabular-nums">, {Math.round(p.done)}%</span>}
 							</div>
 						</div>
-						{p.done === null && (
+						{/* The next one starts from the button above: not twice */}
+						{p.done === null && p !== next && (
 							<Button
 								size="push"
 								variant="push"

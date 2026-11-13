@@ -139,3 +139,10 @@ test("the top bar shows a failure as an icon whose words slide out under the poi
 	await chip.hover();
 	await expect.poll(async () => (await words.boundingBox())?.width ?? 0).toBeGreaterThan(40);
 });
+
+test("today's plan starts from one button, not two", async ({ page }) => {
+	const plan = { ...sample.plans[0], day: "2026-11-02", done: null, mode: "practice" };
+	await launch(page, "/", { plans_between: [plan] });
+	await expect(page.getByText("0 of 1 done")).toBeVisible();
+	await expect(page.getByRole("button", { name: /^Start practice/ })).toHaveCount(1);
+});
