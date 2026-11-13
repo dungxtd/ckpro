@@ -320,9 +320,14 @@ impl Agent {
     }
 
     /// The working directory sessions are given: empty, nothing to read
+    /// Where the adapter runs and its sessions say they are: in the data
+    /// directory, the user's alone. Not a shared temporary folder, where
+    /// another user could make it first and put an npm config or a package
+    /// in it for npx to load
     fn session_cwd(&self) -> String {
-        let dir = std::env::temp_dir().join("ckpro-agent");
+        let dir = crate::data_dir().join("agent");
         let _ = std::fs::create_dir_all(&dir);
+        let _ = crate::platform::make_private(&dir);
         dir.display().to_string()
     }
 
