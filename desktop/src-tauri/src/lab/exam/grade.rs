@@ -160,7 +160,10 @@ impl Exams {
             finished_at: now_ms(),
             questions: results,
             outside: self.guard.take_outside(),
-            assisted: self.store.assisted(&attempt.id).unwrap_or_default(),
+            assisted: self.store.assisted(&attempt.id).unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "reading what the assistant helped with");
+                Default::default()
+            }),
             prediction: None,
         })
     }

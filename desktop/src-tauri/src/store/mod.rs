@@ -194,7 +194,10 @@ impl Store {
     pub fn attempt<T: DeserializeOwned>(&self) -> AppResult<Option<T>> {
         let json: Option<String> =
             self.conn().query_row("SELECT state FROM attempt WHERE id = 1", [], |r| r.get(0)).optional().map_err(db)?;
-        Ok(json.and_then(|json| serde_json::from_str(&json).ok()))
+        // One that cannot be read (written by another ckpro) is not resumed: said
+        Ok(json.and_then(|json| {
+            serde_json::from_str(&json).map_err(|e| tracing::warn!(error = %e, "the saved attempt could not be read")).ok()
+        }))
     }
 
     /// Keep the running attempt, or forget it (`None`)

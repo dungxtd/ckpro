@@ -28,7 +28,7 @@ impl Store {
                 Ok(StoredPlan { id: r.get(0)?, day: r.get(1)?, exam_id: r.get(2)?, mode: r.get(3)? })
             })
             .map_err(db)?;
-        Ok(rows.flatten().collect())
+        rows.collect::<Result<Vec<_>, _>>().map_err(db)
     }
 
     /// Plan an exam on a day; returns its id

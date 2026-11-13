@@ -2,8 +2,10 @@
 name = "ckpro"
 version = "0.2.1"
 description = "ckpro - Kubernetes exam practice"
-authors = ["you"]
+authors = ["dungxtd"]
 edition = "2024"
+# Let-chains (edition 2024)
+rust-version = "1.88"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

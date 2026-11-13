@@ -1,6 +1,8 @@
 //! Locks that keep working after a panic: a thread that panicked while
 //! holding one leaves the data as it was, and ckpro goes on with it rather
-//! than failing every later caller.
+//! than failing every later caller. That holds in debug builds and tests; a
+//! release build stops at its first panic (`panic = "abort"`), which the
+//! next start reports (`telemetry.rs`).
 
 use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
