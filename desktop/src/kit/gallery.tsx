@@ -795,7 +795,9 @@ function Gallery() {
 				>
 					<Row>
 						<Spinner size="inline" />
-						<Spinner size="small" />
+						<Spinner size="sm" />
+						<Spinner size="md" />
+						<Spinner size="lg" />
 						<Button
 							size="push"
 							variant="push"

@@ -24,13 +24,13 @@ const loaderVariants = cva(
 				// In a line of text or a button, in the text's colour; drawn a
 				// little inside its 16px box, as an icon is
 				inline: "m-px size-3.5 border-[1.5px] text-current",
-				small: "size-6 border-2",
-				medium: "size-8 border-[3px]",
-				large: "size-12 border-4",
+				sm: "size-6 border-2",
+				md: "size-8 border-[3px]",
+				lg: "size-12 border-4",
 			},
 		},
 		defaultVariants: {
-			size: "medium",
+			size: "md",
 		},
 	}
 );
@@ -38,16 +38,19 @@ const loaderVariants = cva(
 interface SpinnerContentProps
 	extends VariantProps<typeof spinnerVariants>,
 		VariantProps<typeof loaderVariants> {
+	/** The ring's: its size (`size-3`) and colour */
 	className?: string;
+	/** Inside something that says it is loading already (`Loading`): not
+	 * announced a second time */
+	decorative?: boolean;
 	children?: React.ReactNode;
 }
 
-export function Spinner({ size, show, children, className }: SpinnerContentProps) {
+export function Spinner({ size, show, decorative, children, className }: SpinnerContentProps) {
 	return (
 		<span className={spinnerVariants({ show })}>
 			<span
-				role="status"
-				aria-label="Loading"
+				{...(decorative ? { "aria-hidden": true } : { role: "status", "aria-label": "Loading" })}
 				className={cn(loaderVariants({ size }), className)}
 			/>
 			{children}

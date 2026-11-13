@@ -26,7 +26,7 @@ export function Loading({
 				className
 			)}
 		>
-			<Spinner size={fill ? "small" : "inline"} className="text-muted-foreground" />
+			<Spinner decorative size={fill ? "sm" : "inline"} className="text-muted-foreground" />
 			{label && <span>{label}</span>}
 		</div>
 	);
