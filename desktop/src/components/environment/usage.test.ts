@@ -40,7 +40,7 @@ describe("the memory map", () => {
 		expect(outside(usage, memory)).toBe(16384 - 7168 - 2560);
 		expect(parts(usage, ["k8s"], [], memory).at(-1)).toEqual({
 			key: "machine",
-			label: "Outside containers",
+			label: "Other programs",
 			mb: 6656,
 			kind: "machine",
 		});
@@ -49,6 +49,17 @@ describe("the memory map", () => {
 		expect(parts(usage, ["k8s"], [], { total_mb: 4096, available_mb: 3072 }).at(-1)?.key).toBe(
 			"others"
 		);
+	});
+
+	it("names each part for what it is", () => {
+		const memory = { total_mb: 16384, available_mb: 7168 };
+		expect(parts(usage, ["k8s"], [], memory).map(p => p.label)).toEqual([
+			"k8s",
+			"k8s-v641f",
+			"Exam tools",
+			"Other containers",
+			"Other programs",
+		]);
 	});
 
 	it("keeps a cluster of the app whose nodes are all stopped", () => {

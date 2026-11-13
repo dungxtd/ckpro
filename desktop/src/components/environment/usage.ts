@@ -54,11 +54,13 @@ export function parts(
 	const list: Part[] = [...clusters]
 		.map(([name, mb]) => ({ key: name, label: name, mb, kind: purpose(name, examClusters) }))
 		.sort((a, b) => b.mb - a.mb);
-	if (services > 0) list.push({ key: "services", label: "ckpro", mb: services, kind: "services" });
-	if (others > 0) list.push({ key: "others", label: "Other apps", mb: others, kind: "others" });
+	if (services > 0)
+		list.push({ key: "services", label: "Exam tools", mb: services, kind: "services" });
+	if (others > 0)
+		list.push({ key: "others", label: "Other containers", mb: others, kind: "others" });
 	const machine = memory ? outside(usage, memory) : 0;
 	if (machine > 0)
-		list.push({ key: "machine", label: "Outside containers", mb: machine, kind: "machine" });
+		list.push({ key: "machine", label: "Other programs", mb: machine, kind: "machine" });
 	return list;
 }
 
@@ -76,7 +78,7 @@ export function serviceName(container: string): string {
 	return container;
 }
 
-/** Other apps, a kind cluster as one: (name, what it is, MB), largest first */
+/** Other containers, a kind cluster as one: (name, what it is, MB), largest first */
 export function otherApps(usage: ContainerUse[]): { name: string; what: string; mb: number }[] {
 	const kind = new Map<string, number>();
 	const rows: { name: string; what: string; mb: number }[] = [];

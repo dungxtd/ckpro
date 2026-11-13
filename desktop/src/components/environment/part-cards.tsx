@@ -114,8 +114,8 @@ export function ServicesCard({
 	return (
 		<Card padding="sm">
 			<CardHeader>
-				<CardTitle>ckpro</CardTitle>
-				<CardDescription>What every exam uses</CardDescription>
+				<CardTitle>Exam tools</CardTitle>
+				<CardDescription>What every exam runs besides its clusters</CardDescription>
 			</CardHeader>
 			<Rows rows={rows} />
 			<div className="mt-3 mb-1 font-semibold text-caption text-muted-foreground">Images</div>
@@ -140,8 +140,10 @@ export function OtherAppsCard({ usage }: { usage: ContainerUse[] }) {
 	return (
 		<Card padding="sm">
 			<CardHeader>
-				<CardTitle>Other apps</CardTitle>
-				<CardDescription>ckpro leaves these alone; stop them to free their memory</CardDescription>
+				<CardTitle>Other containers</CardTitle>
+				<CardDescription>
+					Not started by ckpro, which leaves them alone. Stop them to free their memory
+				</CardDescription>
 			</CardHeader>
 			<Rows rows={rows} />
 		</Card>
@@ -154,7 +156,7 @@ export function MachineCard({ usage, memory }: { usage: ContainerUse[]; memory: 
 	return (
 		<Card padding="sm">
 			<CardHeader>
-				<CardTitle>Outside containers</CardTitle>
+				<CardTitle>Other programs</CardTitle>
 				<CardDescription>
 					With Docker Engine on Linux, this computer's own programs (a browser, an editor); with
 					OrbStack or Docker Desktop, the engine itself. ckpro counts them before an exam starts
@@ -191,7 +193,7 @@ export function ProofClusterCard({ cluster, usage }: { cluster: string; usage: C
 			<CardHeader>
 				<CardTitle>{cluster}</CardTitle>
 				<CardDescription>
-					A Create proof's: removed when the proof ends (stop it in Create)
+					Proving an exam in Create: removed when it ends (stop it there)
 				</CardDescription>
 			</CardHeader>
 			<Rows

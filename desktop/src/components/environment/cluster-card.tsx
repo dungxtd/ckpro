@@ -9,10 +9,10 @@ import { plural } from "@/words";
 import { Rows } from "./part-cards";
 import { nodeMb, type Purpose } from "./usage";
 
-const PURPOSE: Record<Purpose, string | null> = {
-	exam: "Your exam",
-	proof: "A Create proof: removed when it ends",
-	other: null,
+const PURPOSE: Record<Purpose, string> = {
+	exam: "Your exam's cluster",
+	proof: "Proving an exam in Create",
+	other: "Not in use now",
 };
 
 /** A cluster: what it is for, its nodes (health, memory), its version and
@@ -43,7 +43,7 @@ export function ClusterCard({
 			<header className="mb-2 flex items-center gap-2">
 				<strong className="min-w-0 select-text truncate text-sm">{cluster.name}</strong>
 				<span className="min-w-0 truncate text-caption text-muted-foreground">
-					{PURPOSE[purpose] && `${PURPOSE[purpose]} · `}1 control plane, {plural(workers, "worker")}
+					{PURPOSE[purpose]} · 1 control plane, {plural(workers, "worker")}
 				</span>
 				<div className="ml-auto flex shrink-0 gap-1.5">
 					{needsRepair && (

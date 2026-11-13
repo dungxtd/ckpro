@@ -136,7 +136,7 @@ export function EnvironmentRoute() {
 								{memory(Math.max(0, totalMb - parts.reduce((n, p) => n + p.mb, 0)))} free
 							</strong>{" "}
 							<span className="text-muted-foreground">
-								of the {memory(totalMb)} Docker has
+								of the {memory(totalMb)} Docker can use
 								{docker.engine && `, on ${docker.engine}`}.
 							</span>
 						</p>
