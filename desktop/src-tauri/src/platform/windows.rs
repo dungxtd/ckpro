@@ -55,6 +55,16 @@ impl Platform for Os {
     /// On WSL 2 the limit is WSL's own, not Docker Desktop's
     const DOCKER_MEMORY: &'static str =
         "Raise Docker Desktop's memory limit (on WSL 2: memory in .wslconfig), or delete a cluster";
+    const DOCKER_DISK: &'static str = "free space in Docker Desktop (Settings, Resources)";
+
+    /// kind ships no Windows arm64 build; Windows on Arm runs the x64 one (it
+    /// only talks to Docker, whose containers are arm64 there)
+    fn kind_asset(arch: &str) -> Option<&'static str> {
+        match arch {
+            "x86_64" | "aarch64" => Some("kind-windows-amd64"),
+            _ => None,
+        }
+    }
 
     fn quiet(command: &mut std::process::Command) {
         command.creation_flags(CREATE_NO_WINDOW);

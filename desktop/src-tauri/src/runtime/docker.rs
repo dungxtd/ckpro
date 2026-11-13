@@ -23,6 +23,9 @@ pub const INSTALL: &str = crate::platform::DOCKER_INSTALL;
 /// How to give Docker more memory here, for when an exam does not fit
 pub const MEMORY: &str = crate::platform::DOCKER_MEMORY;
 
+/// How to give Docker more disk here, for when it runs low
+pub const DISK: &str = crate::platform::DOCKER_DISK;
+
 /// Whether Docker answered that the thing asked for is not there
 pub fn is_gone(e: &bollard::errors::Error) -> bool {
     matches!(e, bollard::errors::Error::DockerResponseServerError { status_code: 404, .. })

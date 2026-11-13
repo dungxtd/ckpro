@@ -40,6 +40,15 @@ impl Platform for Os {
     /// (Docker Desktop's runs in a machine of its own, sized in its settings)
     const DOCKER_MEMORY: &'static str =
         "Close programs you do not need, or delete a cluster (with Docker Desktop, raise its memory limit)";
+    const DOCKER_DISK: &'static str = "free space on this computer's disk (docker system prune removes what Docker no longer uses)";
+
+    fn kind_asset(arch: &str) -> Option<&'static str> {
+        match arch {
+            "aarch64" => Some("kind-linux-arm64"),
+            "x86_64" => Some("kind-linux-amd64"),
+            _ => None,
+        }
+    }
 
     fn quiet(_: &mut std::process::Command) {}
 

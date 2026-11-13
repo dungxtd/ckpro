@@ -225,7 +225,7 @@ impl EnvState {
                     severity: Severity::Warning,
                     component: "docker".into(),
                     message: format!("Docker has {:.1} GB of disk left", f64::from(host.disk_free_mb) / 1024.0),
-                    hint: "Under 10 GB a new cluster may not start. Clear the image cache, or free space in OrbStack or Docker Desktop.".into(),
+                    hint: format!("Under 10 GB a new cluster may not start. Clear the image cache, or {}.", crate::runtime::docker::DISK),
                 });
             }
             if host.inotify_watches < INOTIFY_WATCHES || host.inotify_instances < INOTIFY_INSTANCES {

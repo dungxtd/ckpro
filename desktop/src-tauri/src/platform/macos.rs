@@ -40,6 +40,15 @@ impl Platform for Os {
     const DOCKER_START: &'static str = "Start OrbStack or Docker Desktop";
     const DOCKER_INSTALL: &'static str = "Install OrbStack or Docker Desktop";
     const DOCKER_MEMORY: &'static str = "Raise the memory limit in OrbStack or Docker Desktop, or delete a cluster";
+    const DOCKER_DISK: &'static str = "free space in OrbStack or Docker Desktop";
+
+    fn kind_asset(arch: &str) -> Option<&'static str> {
+        match arch {
+            "aarch64" => Some("kind-darwin-arm64"),
+            "x86_64" => Some("kind-darwin-amd64"),
+            _ => None,
+        }
+    }
 
     fn quiet(_: &mut std::process::Command) {}
 

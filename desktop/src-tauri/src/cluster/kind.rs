@@ -70,7 +70,9 @@ impl Kind {
         );
         tracing::info!(%url, "downloading kind");
         let bytes = download(&url).await.map_err(|e| AppError::io("downloading kind", e))?;
-        let tmp = bin.with_extension("part");
+        // A name of its own: verify runs in parallel may download it at once,
+        // and each renames a whole file over the other
+        let tmp = bin.with_extension(format!("part-{}-{:08x}", std::process::id(), rand::random::<u32>()));
         std::fs::write(&tmp, &bytes).map_err(|e| AppError::io("saving kind", e))?;
         crate::platform::make_executable(&tmp).map_err(|e| AppError::io("saving kind", e))?;
         std::fs::rename(&tmp, &bin).map_err(|e| AppError::io("saving kind", e))?;
@@ -255,16 +257,8 @@ fn passing(e: &reqwest::Error) -> bool {
 }
 
 fn release_asset() -> AppResult<&'static str> {
-    Ok(match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("macos", "aarch64") => "kind-darwin-arm64",
-        ("macos", "x86_64") => "kind-darwin-amd64",
-        ("linux", "aarch64") => "kind-linux-arm64",
-        ("linux", "x86_64") => "kind-linux-amd64",
-        ("windows", "x86_64") => "kind-windows-amd64",
-        // kind ships no Windows arm64 build; Windows on Arm runs the x64 one
-        // (it only talks to Docker, whose containers are arm64 there)
-        ("windows", "aarch64") => "kind-windows-amd64",
-        (os, arch) => return Err(AppError::cluster(format!("unsupported platform {os}/{arch}"))),
+    crate::platform::kind_asset().ok_or_else(|| {
+        AppError::cluster(format!("kind has no release for {}/{}", std::env::consts::OS, std::env::consts::ARCH))
     })
 }
 

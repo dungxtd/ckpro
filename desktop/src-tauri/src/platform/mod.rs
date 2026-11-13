@@ -47,6 +47,10 @@ pub trait Platform {
     const DOCKER_INSTALL: &'static str;
     /// How to give Docker more memory here, for when an exam does not fit
     const DOCKER_MEMORY: &'static str;
+    /// How to give Docker more disk here, for when it runs low
+    const DOCKER_DISK: &'static str;
+    /// kind's release file for this system and `arch` (`std::env::consts::ARCH`)
+    fn kind_asset(arch: &str) -> Option<&'static str>;
 
     /// `command` with no window of its own (a console program the app starts)
     fn quiet(command: &mut std::process::Command);
@@ -117,6 +121,12 @@ pub fn other_docker_engines() -> Vec<bollard::Docker> {
 pub const DOCKER_START: &str = Os::DOCKER_START;
 pub const DOCKER_INSTALL: &str = Os::DOCKER_INSTALL;
 pub const DOCKER_MEMORY: &str = Os::DOCKER_MEMORY;
+pub const DOCKER_DISK: &str = Os::DOCKER_DISK;
+
+/// kind's release file for this computer, if kind ships one
+pub fn kind_asset() -> Option<&'static str> {
+    Os::kind_asset(std::env::consts::ARCH)
+}
 
 /// `Command::new(program)` with no window of its own: every program the app
 /// starts goes through here
