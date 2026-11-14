@@ -1,7 +1,13 @@
-//! What the coach and the study plan may know about attempts.
+//! What the coach may know about attempts, the figures Home and the
+//! Calendar show, and the assistant's guard over the attempt.
 
+use super::history::HistoryEntry;
+use super::{ExamState, Exams, Mode, QuestionView};
+use crate::error::{AppError, AppResult};
+use crate::lab::load::LoadedPack;
+use crate::lab::model::Solution;
 use crate::sync::MutexExt;
-use super::*;
+use serde::{Deserialize, Serialize};
 
 /// How the candidate did in one curriculum domain, over all attempts
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
@@ -232,20 +238,7 @@ mod tests {
     /// it back
     #[test]
     fn an_exam_starting_shuts_the_assistant_out() {
-        use std::sync::Arc;
-        let dir = std::env::temp_dir().join(format!("ckpro-starting-{}", std::process::id()));
-        let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/core");
-        let exams = Exams::new(
-            crate::lab::load::load(&core).0.unwrap(),
-            Arc::new(crate::cluster::kind::Kind::new(dir.clone())),
-            Arc::new(crate::runtime::infra::Infra::new(dir.clone())),
-            Arc::new(crate::runtime::jumphost::Jumphost::for_test(&dir, "starting")),
-            "none",
-            Arc::new(crate::store::Store::in_memory().unwrap()),
-            |_: &ExamState| {},
-            crate::runtime::activity::Activities::silent(),
-            crate::runtime::guard::Guard::new(|_| {}),
-        );
+        let exams = Exams::for_test(std::sync::Arc::new(crate::store::Store::in_memory().unwrap()));
         assert!(exams.assistant_allowed().is_ok());
         let starting = exams.exam_starting();
         assert!(matches!(exams.assistant_allowed(), Err(AppError::ExamMode { .. })));

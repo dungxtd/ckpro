@@ -138,6 +138,11 @@ const MIGRATIONS: &[&str] = &["
 ", "
     -- The tools Claude used for an answer in Create, in order (JSON)
     ALTER TABLE studio_message ADD COLUMN tools TEXT NOT NULL DEFAULT '[]';
+", "
+    -- An exam is planned at most once a day: earlier duplicates go (the
+    -- first planned stays), then the database holds it
+    DELETE FROM plan WHERE id NOT IN (SELECT MIN(id) FROM plan GROUP BY day, exam_id);
+    CREATE UNIQUE INDEX plan_once_a_day ON plan (day, exam_id);
 "];
 
 /// Where the candidate is in an attempt
@@ -171,13 +176,15 @@ impl Store {
     }
 
     /// The app's database, encrypted with `key` (64 hex digits, `key::database_key`).
-    /// One kept in the clear by an earlier version is encrypted first, a copy
-    /// of it kept beside; one encrypted with another key is refused, never
-    /// written over
+    /// One kept in the clear by an earlier version is encrypted first, and no
+    /// copy of it in the clear is kept; one encrypted with another key is
+    /// refused, never written over
     pub fn open_encrypted(path: &Path, key: &str) -> AppResult<Self> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| AppError::io("creating the data directory", e))?;
         }
+        // A copy in the clear an earlier version kept beside it goes
+        let _ = std::fs::remove_file(path.with_extension("unencrypted"));
         let conn = keyed(path, key)?;
         if readable(&conn) {
             drop(conn);
@@ -187,10 +194,7 @@ impl Store {
         // Not with this key: in the clear (an earlier version's), or another key's
         let plain = Connection::open(path).map_err(db)?;
         if !readable(&plain) {
-            return Err(AppError::io(
-                "the app database",
-                std::io::Error::other("it is locked with another installation's key, so it cannot be read here"),
-            ));
+            return Err(AppError::database("it is locked with another installation's key, so it cannot be read here"));
         }
         encrypt(plain, path, key)?;
         Self::keyed_store(path, key)
@@ -308,29 +312,38 @@ impl Store {
         Ok(rows.flatten().filter_map(|json| serde_json::from_str(&json).ok()).collect())
     }
 
-    /// Move what earlier versions kept in files (`attempt.json`, `history/`)
-    /// into the database, once.
-    pub fn import_files(&self, data_dir: &Path) {
-        let attempt = data_dir.join("attempt.json");
-        if let Some(state) = std::fs::read(&attempt).ok().and_then(|j| serde_json::from_slice::<serde_json::Value>(&j).ok())
-            && self.save_attempt(Some(&state)).is_ok()
-        {
-            let _ = std::fs::remove_file(&attempt);
-        }
-        let history = data_dir.join("history");
-        for file in std::fs::read_dir(&history).into_iter().flatten().flatten() {
-            let Some(entry) = std::fs::read(file.path()).ok().and_then(|j| serde_json::from_slice::<serde_json::Value>(&j).ok())
-            else {
-                continue;
-            };
-            let id = entry["attempt_id"].as_str().unwrap_or_default().to_string();
-            let exam = entry["exam_id"].as_str().unwrap_or_default().to_string();
-            let finished = entry["result"]["finished_at"].as_f64().unwrap_or_default();
-            if !id.is_empty() && self.add_history(&id, &exam, finished, &entry).is_ok() {
-                let _ = std::fs::remove_file(file.path());
-            }
-        }
-        let _ = std::fs::remove_dir(&history);
+    /// One attempt of the history, by its id: none when it is not there (or
+    /// no longer parses)
+    pub fn history_entry<T: DeserializeOwned>(&self, attempt_id: &str) -> AppResult<Option<T>> {
+        let json: Option<String> = self
+            .conn()
+            .query_row("SELECT entry FROM history WHERE attempt_id = ?1", params![attempt_id], |r| r.get(0))
+            .optional()
+            .map_err(db)?;
+        Ok(json.and_then(|json| serde_json::from_str(&json).ok()))
+    }
+
+    /// Exams were deleted (their files gone), what pointed at them goes in one
+    /// transaction: their plans, their places in the sidebar, and each Create
+    /// draft is rewritten by `rewrite` (its JSON to the new one, or none to
+    /// leave it), which must not use the store
+    pub fn exams_deleted(&self, exam_ids: &[String], rewrite: impl FnMut(i32, &str) -> AppResult<Option<String>>) -> AppResult<()> {
+        let mut conn = self.conn();
+        let tx = conn.transaction().map_err(db)?;
+        plans::remove_plans_of(&tx, exam_ids)?;
+        settings::forget_in_sidebar(&tx, exam_ids)?;
+        studio::rewrite_drafts(&tx, rewrite)?;
+        tx.commit().map_err(db)
+    }
+
+    /// The entries kept before an entry kept its certification, as they are
+    pub fn history_without_certification<T: DeserializeOwned>(&self) -> AppResult<Vec<T>> {
+        let conn = self.conn();
+        let mut query = conn
+            .prepare("SELECT entry FROM history WHERE COALESCE(json_extract(entry, '$.certification'), '') = ''")
+            .map_err(db)?;
+        let rows = query.query_map([], |r| r.get::<_, String>(0)).map_err(db)?;
+        Ok(rows.flatten().filter_map(|json| serde_json::from_str(&json).ok()).collect())
     }
 }
 
@@ -348,8 +361,8 @@ fn readable(conn: &Connection) -> bool {
 }
 
 /// A database in the clear, encrypted in place with `key`: exported into an
-/// encrypted copy, the original kept beside as `<name>.unencrypted`, then the
-/// copy in its place
+/// encrypted copy, which is read back before it takes the original's place;
+/// nothing in the clear stays
 fn encrypt(plain: Connection, path: &Path, key: &str) -> AppResult<()> {
     let io = |e| AppError::io("encrypting the app database", e);
     // Everything in the main file before it is copied
@@ -366,23 +379,30 @@ fn encrypt(plain: Connection, path: &Path, key: &str) -> AppResult<()> {
     drop(plain);
     let copy = keyed(&encrypted, key)?;
     copy.pragma_update(None, "user_version", version).map_err(db)?;
-    drop(copy);
-    let kept = path.with_extension("unencrypted");
-    std::fs::rename(path, &kept).map_err(io)?;
+    // The copy reads with the key, and has what the original had
+    let tables = |conn: &Connection| conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get::<_, i64>(0)).map_err(db);
+    let plain = Connection::open(path).map_err(db)?;
+    if tables(&copy)? != tables(&plain)? {
+        drop(copy);
+        let _ = std::fs::remove_file(&encrypted);
+        return Err(AppError::database("the encrypted copy does not hold what the original does; it was left in the clear"));
+    }
+    drop((copy, plain));
     for suffix in ["-wal", "-shm"] {
         let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
     }
+    // The clear original is written over in one step
     std::fs::rename(&encrypted, path).map_err(io)?;
-    tracing::info!(kept = %kept.display(), "the app database is encrypted now");
+    tracing::info!("the app database is encrypted now");
     Ok(())
 }
 
 fn db(e: rusqlite::Error) -> AppError {
-    AppError::io("the app database", std::io::Error::other(e))
+    AppError::database(e)
 }
 
 fn to_json<T: Serialize + ?Sized>(value: &T) -> AppResult<String> {
-    serde_json::to_string(value).map_err(|e| AppError::io("the app database", std::io::Error::other(e)))
+    serde_json::to_string(value).map_err(|e| AppError::internal("writing to the app database", e))
 }
 
 #[cfg(test)]
@@ -391,8 +411,9 @@ mod tests {
     use super::*;
 
     /// The app's database is encrypted: one kept in the clear is encrypted
-    /// in place (a copy kept), SQLite alone cannot read it, and another
-    /// installation's key does not open it, nor writes over it
+    /// in place (no copy in the clear kept, an earlier version's removed),
+    /// SQLite alone cannot read it, and another installation's key does not
+    /// open it, nor writes over it
     #[test]
     fn the_database_is_encrypted_and_its_key_holds_it() {
         let dir = std::env::temp_dir().join(format!("ckpro-encrypted-{}", std::process::id()));
@@ -404,11 +425,13 @@ mod tests {
             let store = Store::open(&path).unwrap();
             store.save_setting("probe", &serde_json::json!({ "kept": true })).unwrap();
         }
+        // A copy in the clear an earlier version kept beside
+        std::fs::copy(&path, dir.join("ckpro.unencrypted")).unwrap();
         let store = Store::open_encrypted(&path, &key).unwrap();
         let kept: serde_json::Value = store.setting::<Option<serde_json::Value>>("probe").unwrap().unwrap();
         assert_eq!(kept["kept"], true);
         drop(store);
-        assert!(dir.join("ckpro.unencrypted").exists(), "the clear copy is kept");
+        assert!(!dir.join("ckpro.unencrypted").exists(), "no copy in the clear is kept");
         assert!(!readable(&Connection::open(&path).unwrap()), "SQLite alone reads nothing");
         // Another installation's key: refused, the file left as it was
         let before = std::fs::read(&path).unwrap();
@@ -438,6 +461,8 @@ mod tests {
         store.add_history("a1", "e", 1.0, &"first").unwrap();
         store.add_history("a2", "e", 2.0, &"second").unwrap();
         assert_eq!(store.history::<String>().unwrap(), ["second", "first"]);
+        assert_eq!(store.history_entry::<String>("a1").unwrap().as_deref(), Some("first"));
+        assert_eq!(store.history_entry::<String>("gone").unwrap(), None);
 
         assert_eq!(store.settings().unwrap(), Settings::default());
         let settings = Settings {
@@ -468,41 +493,20 @@ mod tests {
                 ExamTarget { certification: "cka".into(), date: "2026-12-15".into(), started: "2026-10-06".into(), rest_days: vec![4] },
                 ExamTarget { certification: "ckad".into(), date: "2027-03-20".into(), started: "2026-11-02".into(), rest_days: vec![] },
             ],
-            target: None,
             focus: Some("ckad".into()),
             home: HomeLayout { places: vec![ModulePlace { module: "today".into(), x: 2, y: 1 }], hidden: vec!["recent".into()], custom: true },
         };
         store.save_settings(&settings).unwrap();
-        // Saved with `target` as the first exam, for an older ckpro
-        assert_eq!(store.settings().unwrap(), Settings { target: Some(settings.targets[0].clone()), ..settings.clone() });
-        // Settings from before several exams: the one target becomes the list
+        assert_eq!(store.settings().unwrap(), settings);
+        // A field an earlier version wrote is left unread
         store.save_setting("exam_desk", &serde_json::json!({ "target": { "certification": "cks", "date": "2027-06-30", "started": "2027-01-01" } })).unwrap();
         let before = store.settings().unwrap();
-        assert_eq!(before.targets.len(), 1);
-        assert_eq!(before.targets[0].certification, "cks");
+        assert!(before.targets.is_empty());
         assert!(before.home.places.is_empty() && !before.home.custom && before.focus.is_none());
         // Settings saved by an earlier version: the new ones take their defaults
         store.save_setting("exam_desk", &serde_json::json!({ "desktop_zoom": 2.0, "question_size": 3 })).unwrap();
         let old = store.settings().unwrap();
         assert_eq!((old.desktop_zoom, old.question_size, old.task_width, old.assistant_width), (2.0, 3, 34.0, 380));
         assert!(old.assistant_enabled);
-    }
-
-    #[test]
-    fn imports_the_files_earlier_versions_wrote() {
-        let dir = std::env::temp_dir().join(format!("ckpro-store-import-{}", std::process::id()));
-        std::fs::create_dir_all(dir.join("history")).unwrap();
-        std::fs::write(dir.join("attempt.json"), r#"{"state":{"phase":"running"},"questions":[]}"#).unwrap();
-        std::fs::write(
-            dir.join("history/1.json"),
-            r#"{"attempt_id":"1","exam_id":"core/x","result":{"finished_at":5.0}}"#,
-        )
-        .unwrap();
-        let store = Store::in_memory().unwrap();
-        store.import_files(&dir);
-        assert!(store.attempt::<serde_json::Value>().unwrap().is_some());
-        assert_eq!(store.history::<serde_json::Value>().unwrap().len(), 1);
-        assert!(!dir.join("attempt.json").exists() && !dir.join("history").exists());
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

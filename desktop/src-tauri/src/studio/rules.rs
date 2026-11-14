@@ -26,6 +26,34 @@ pub fn sources() -> String {
     SOURCES.iter().map(|s| s.trim_end_matches('/')).collect::<Vec<_>>().join(", ")
 }
 
+/// What a question is and the rules it is proven against (enforced on a
+/// cluster), for whoever writes one: Create with Claude
+pub const RULES: &str = "A question is a task on a real kind cluster: `setup` (bash, run once \
+before the exam) prepares the starting state, `checks` (bash, each exits 0 when that part is solved) \
+grade it, and `solution.run` (bash) solves it.\n\n\
+Rules, all enforced by running it on a cluster:\n\
+- Every check must FAIL right after setup and PASS after `solution.run`. A check that passes before \
+the solution is a broken question.\n\
+- Scripts run on a jumphost with kubectl (and helm, yq, etcdctl) already pointed at the task's \
+cluster; nodes are reachable with `ssh <node>`. No interactive commands (no `kubectl edit`, no \
+`-it`). `solution.run` must wait for what it creates (`kubectl wait --for=condition=...`, \
+`kubectl rollout status --timeout=...`) so the checks see it ready. Each script has a 120 s limit.\n\
+- Use the task's own namespace (`namespace:`), created by setup if the task needs it to exist; \
+setup starts with a clean slate (`kubectl delete ... --ignore-not-found`).\n\
+- Images: small public ones with pinned tags (nginx:1.27, busybox:1.36, redis:7.4, httpd:2.4).\n\
+- The statement is what the candidate reads, like the real exam: precise names, namespaces and \
+values; Markdown with `code` for names. Add 1-3 `hints` and `solution.explain` (why, plus the docs \
+page). `references`: kubernetes.io/docs pages only.\n";
+
+/// The question format's JSON schema, as text
+pub fn question_schema() -> String {
+    crate::lab::schemas()
+        .into_iter()
+        .find(|(name, _)| *name == "question.schema.json")
+        .map(|(_, s)| serde_json::to_string(&s).unwrap_or_default())
+        .unwrap_or_default()
+}
+
 /// Every script of the question, named
 fn scripts(q: &Question) -> Vec<(String, &str)> {
     let mut all = Vec::new();

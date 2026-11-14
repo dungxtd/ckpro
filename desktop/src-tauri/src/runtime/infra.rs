@@ -309,6 +309,28 @@ impl Infra {
         })
     }
 
+    /// Empty the image mirror's cache as the candidate asks (Environment):
+    /// refused before anything shows if the cache is in use; shown as an
+    /// activity and in the environment (`env`) while it runs, the cache
+    /// empty there once done
+    pub async fn clear_cache_shown(&self, env: &super::model::Env, activities: &std::sync::Arc<super::activity::Activities>) -> AppResult<()> {
+        // Refused before anything shows: only the clear holding the cache says so
+        let held = self.hold_cache()?;
+        // Docker first: down, the activity would only say it was cancelled
+        let docker = super::docker::connect().await?;
+        let op = activities.begin("Clearing the image cache", vec!["Removing the cached images".into()]);
+        env.update(|s| s.cache_clearing = true);
+        let result = self.clear_cache(&held, &docker, &|line| op.log(line)).await;
+        env.update(|s| {
+            s.cache_clearing = false;
+            // A new, empty cache: shown so at once, not at the next reading
+            if let (Ok(()), Some(host)) = (&result, &mut s.host) {
+                host.cache_mb = 0;
+            }
+        });
+        op.end(result)
+    }
+
     /// Empty the image mirror's cache: its container and volume go, and a
     /// new one starts empty (clusters pull through it again)
     pub async fn clear_cache(&self, _held: &CacheHold<'_>, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {

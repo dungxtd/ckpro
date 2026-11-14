@@ -17,10 +17,9 @@ export const commands = {
 	/**
 	 *  Say something in a Create conversation; the answer streams as it is
 	 *  written (and Claude's tool uses), the draft's changes arrive as
-	 *  `StudioDraft`. `offset_minutes` east of UTC: the days Claude is told of
-	 *  are the candidate's own
+	 *  `StudioDraft`. The days Claude is told of are this computer's
 	 */
-	studioAsk: (session: number, text: string, model: ModelChoice, offsetMinutes: number, events: Channel<CoachEvent_Deserialize>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("studio_ask", { session, text, model, offsetMinutes, events })),
+	studioAsk: (session: number, text: string, model: ModelChoice, events: Channel<CoachEvent_Deserialize>) => typedError<CoachReply_Serialize, AppError>(__TAURI_INVOKE("studio_ask", { session, text, model, events })),
 	studioDelete: (session: number) => typedError<null, AppError>(__TAURI_INVOKE("studio_delete", { session })),
 	/**  Take a question out of the draft (by id, or a new one's key) */
 	studioRemove: (session: number, id: string) => typedError<ExamDraft_Serialize, AppError>(__TAURI_INVOKE("studio_remove", { session, id })),
@@ -65,6 +64,7 @@ export const commands = {
 	 *  clusters' Kubernetes node watches are kept open only meanwhile.
 	 */
 	envWatchNodes: (on: boolean) => __TAURI_INVOKE<void>("env_watch_nodes", { on }),
+	/**  Remove a cluster (Environment): not one an attempt runs on. */
 	deleteCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_cluster", { name })),
 	/**  Start a cluster's stopped nodes. */
 	repairCluster: (name: string) => typedError<null, AppError>(__TAURI_INVOKE("repair_cluster", { name })),
@@ -82,8 +82,6 @@ export const commands = {
 	plansBetween: (from: string, to: string, offsetMinutes: number) => typedError<PlanView_Serialize[], AppError>(__TAURI_INVOKE("plans_between", { from, to, offsetMinutes })),
 	/**  Plan an exam on a day; returns the plan's id. */
 	planAdd: (day: string, examId: string, mode: Mode) => typedError<number, AppError>(__TAURI_INVOKE("plan_add", { day, examId, mode })),
-	/**  Move a plan to another day, or take it the other way. */
-	planUpdate: (id: number, day: string | null, mode: Mode | null) => typedError<null, AppError>(__TAURI_INVOKE("plan_update", { id, day, mode })),
 	/**  Remove a plan. */
 	planRemove: (id: number) => typedError<null, AppError>(__TAURI_INVOKE("plan_remove", { id })),
 	/**
@@ -396,6 +394,10 @@ export type AppError =
 { code: "not_found"; message: string } | 
 /**  Local filesystem or network failure. */
 { code: "io"; message: string } | 
+/**  The app's database could not be read or written. */
+{ code: "database"; message: string } | 
+/**  The app itself failed: work in the background stopped unexpectedly. */
+{ code: "internal"; message: string } | 
 /**  The user cancelled the operation. */
 { code: "cancelled"; message: string } | 
 /**  The AI assistant (the `claude` CLI) is missing or failed. */
@@ -1075,17 +1077,17 @@ export type ExamTarget_Serialize = {
 /**  Something changed the running attempt's environment outside ckpro. */
 export type GuardNotice = string;
 
-/**  History entry, one JSON file per finished attempt. */
+/**  A finished attempt, as History keeps it */
 export type HistoryEntry = HistoryEntry_Serialize | HistoryEntry_Deserialize;
 
-/**  History entry, one JSON file per finished attempt. */
+/**  A finished attempt, as History keeps it */
 export type HistoryEntry_Deserialize = {
 	attempt_id: string,
 	exam_id: string,
 	title: string,
 	/**
 	 *  Its exam's certification: kept, the exam may be deleted since
-	 *  (entries from before it was kept get it from their exam or questions)
+	 *  (entries from before it was kept got it once, `certify_history`)
 	 */
 	certification?: string,
 	mode: Mode,
@@ -1093,14 +1095,14 @@ export type HistoryEntry_Deserialize = {
 	result: ExamResult_Deserialize,
 };
 
-/**  History entry, one JSON file per finished attempt. */
+/**  A finished attempt, as History keeps it */
 export type HistoryEntry_Serialize = {
 	attempt_id: string,
 	exam_id: string,
 	title: string,
 	/**
 	 *  Its exam's certification: kept, the exam may be deleted since
-	 *  (entries from before it was kept get it from their exam or questions)
+	 *  (entries from before it was kept got it once, `certify_history`)
 	 */
 	certification: string,
 	mode: Mode,
@@ -1590,11 +1592,6 @@ export type Settings_Deserialize = {
 	plan_mode?: Mode | null,
 	/**  The exams the candidate prepares for, and when (CKA, then CKAD…) */
 	targets?: ExamTarget_Deserialize[],
-	/**
-	 *  The first of `targets`, kept for an older ckpro reading these
-	 *  settings; read only when `targets` was never written
-	 */
-	target?: ExamTarget_Deserialize | null,
 	/**  The certification Home and the Calendar show, or none for all of them */
 	focus?: string | null,
 	/**  How Home's modules are arranged */
@@ -1634,11 +1631,6 @@ export type Settings_Serialize = {
 	plan_mode: Mode | null,
 	/**  The exams the candidate prepares for, and when (CKA, then CKAD…) */
 	targets: ExamTarget_Serialize[],
-	/**
-	 *  The first of `targets`, kept for an older ckpro reading these
-	 *  settings; read only when `targets` was never written
-	 */
-	target: ExamTarget_Serialize | null,
 	/**  The certification Home and the Calendar show, or none for all of them */
 	focus: string | null,
 	/**  How Home's modules are arranged */

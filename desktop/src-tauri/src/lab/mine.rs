@@ -58,13 +58,6 @@ pub fn new_question(data_dir: &Path, certification: &str, title: &str) -> (Strin
     (format!("{PACK_ID}/{certification}/{slug}"), dir.join(format!("{slug}.yaml")))
 }
 
-/// Keep a verified question, and list it in its certification's exam of
-/// the candidate's questions. Returns that exam's id.
-pub fn save(data_dir: &Path, certification: &str, certification_title: &str, path: &Path, yaml: &str) -> AppResult<String> {
-    write_question(data_dir, path, yaml)?;
-    relist(data_dir, certification, certification_title)
-}
-
 /// The candidate's pack, made the first time something goes in it
 fn ensure_pack(root: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(root)?;
@@ -133,13 +126,18 @@ fn changes_the_nodes(path: &Path) -> bool {
 /// (whatever reading it gives: one that does not parse is not gone).
 /// Another pack's id is not the candidate's to say: taken as there
 pub fn on_disk(data_dir: &Path, id: &str) -> bool {
-    let Some(rest) = id.strip_prefix(&format!("{PACK_ID}/")) else { return true };
+    file_of(data_dir, id).is_none_or(|file| file.exists())
+}
+
+/// The file of the candidate's question or exam `id`; none for another pack's
+pub fn file_of(data_dir: &Path, id: &str) -> Option<PathBuf> {
+    let rest = id.strip_prefix(&format!("{PACK_ID}/"))?;
     let root = root(data_dir);
-    match rest.split_once('/') {
-        Some((CUSTOM, slug)) => root.join("exams").join(CUSTOM).join(format!("{slug}.yaml")).exists(),
-        Some((certification, name)) => root.join("questions").join(certification).join(format!("{name}.yaml")).exists(),
-        None => root.join("exams").join(format!("{rest}.yaml")).exists(),
-    }
+    Some(match rest.split_once('/') {
+        Some((CUSTOM, slug)) => root.join("exams").join(CUSTOM).join(format!("{slug}.yaml")),
+        Some((certification, name)) => root.join("questions").join(certification).join(format!("{name}.yaml")),
+        None => root.join("exams").join(format!("{rest}.yaml")),
+    })
 }
 
 /// Where the exams built in Create with Claude go: `mine/custom/<slug>`
@@ -270,6 +268,13 @@ pub fn staging(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Write a question and list it in its certification's exam of the
+    /// candidate's questions; that exam's id
+    fn save(data_dir: &Path, certification: &str, certification_title: &str, path: &Path, yaml: &str) -> AppResult<String> {
+        write_question(data_dir, path, yaml)?;
+        relist(data_dir, certification, certification_title)
+    }
 
     /// Delete an exam as the app does: the exams gone
     fn delete_exam(data_dir: &Path, exam_id: &str) -> AppResult<Vec<String>> {

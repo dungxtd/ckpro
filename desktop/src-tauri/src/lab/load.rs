@@ -2,6 +2,7 @@
 //! others fail, so one run reports every problem with its file.
 
 use super::model::{Exam, Pack, Question};
+use crate::error::{AppError, AppResult};
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -37,15 +38,15 @@ pub struct Finding {
 
 pub fn load(root: &Path) -> (Option<LoadedPack>, Vec<Finding>) {
     let mut findings = Vec::new();
-    let error = |findings: &mut Vec<Finding>, path: &Path, message: String| {
-        findings.push(Finding { level: Level::Error, file: relative(root, path), message })
+    let error = |findings: &mut Vec<Finding>, path: &Path, e: AppError| {
+        findings.push(Finding { level: Level::Error, file: relative(root, path), message: e.to_string() })
     };
 
     let pack_file = root.join("pack.yaml");
     let pack: Pack = match parse(&pack_file) {
         Ok(pack) => pack,
-        Err(message) => {
-            error(&mut findings, &pack_file, message);
+        Err(e) => {
+            error(&mut findings, &pack_file, e);
             return (None, findings);
         }
     };
@@ -58,7 +59,7 @@ pub fn load(root: &Path) -> (Option<LoadedPack>, Vec<Finding>) {
                 value.disrupts = value.changes_the_nodes();
                 questions.insert(id(&pack.id, &root.join("questions"), &path), Loaded { path, value });
             }
-            Err(message) => error(&mut findings, &path, message),
+            Err(e) => error(&mut findings, &path, e),
         }
     }
     let mut exams = BTreeMap::new();
@@ -67,7 +68,7 @@ pub fn load(root: &Path) -> (Option<LoadedPack>, Vec<Finding>) {
             Ok(value) => {
                 exams.insert(id(&pack.id, &root.join("exams"), &path), Loaded { path, value });
             }
-            Err(message) => error(&mut findings, &path, message),
+            Err(e) => error(&mut findings, &path, e),
         }
     }
     (Some(LoadedPack { root: root.to_path_buf(), pack, questions, exams }), findings)
@@ -77,9 +78,9 @@ pub fn relative(root: &Path, path: &Path) -> String {
     path.strip_prefix(root).unwrap_or(path).display().to_string()
 }
 
-fn parse<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read: {e}"))?;
-    serde_saphyr::from_str(&text).map_err(|e| e.to_string())
+fn parse<T: serde::de::DeserializeOwned>(path: &Path) -> AppResult<T> {
+    let text = std::fs::read_to_string(path).map_err(|e| AppError::io("cannot read", e))?;
+    serde_saphyr::from_str(&text).map_err(|e| AppError::invalid(e.to_string()))
 }
 
 /// `questions/cka/rbac.yaml` → `<pack>/cka/rbac`

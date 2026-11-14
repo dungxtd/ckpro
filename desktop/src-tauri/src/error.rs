@@ -46,6 +46,12 @@ pub enum AppError {
     /// Local filesystem or network failure.
     #[error("{message}")]
     Io { message: String },
+    /// The app's database could not be read or written.
+    #[error("{message}")]
+    Database { message: String },
+    /// The app itself failed: work in the background stopped unexpectedly.
+    #[error("{message}")]
+    Internal { message: String },
     /// The user cancelled the operation.
     #[error("{message}")]
     Cancelled { message: String },
@@ -92,6 +98,12 @@ impl AppError {
     }
     pub fn io(context: &str, e: impl std::fmt::Display) -> Self {
         Self::Io { message: format!("{context}: {e}") }
+    }
+    pub fn database(e: impl std::fmt::Display) -> Self {
+        Self::Database { message: format!("the app database: {e}") }
+    }
+    pub fn internal(context: &str, e: impl std::fmt::Display) -> Self {
+        Self::Internal { message: format!("{context}: {e}") }
     }
 }
 

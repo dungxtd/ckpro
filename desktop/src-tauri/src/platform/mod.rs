@@ -313,13 +313,24 @@ mod tests {
         sh.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
         let tree = ProcessTree::spawn(sh).unwrap();
         let size = || std::fs::metadata(&file).map(|m| m.len()).unwrap_or(0);
-        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
-        assert!(size() > 0, "the grandchild runs");
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+        let tick = std::time::Duration::from_millis(50);
+        while size() == 0 {
+            assert!(tokio::time::Instant::now() < deadline, "the grandchild never ran");
+            tokio::time::sleep(tick).await;
+        }
         drop(tree);
-        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-        let stopped = size();
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        assert_eq!(size(), stopped, "the grandchild stopped with the tree");
+        // Stopped: the file holds still over several of the grandchild's
+        // beats (it writes every 100 ms)
+        let still = std::time::Duration::from_millis(400);
+        let (mut last, mut since) = (size(), tokio::time::Instant::now());
+        while since.elapsed() < still {
+            assert!(tokio::time::Instant::now() < deadline, "the grandchild kept running after the tree was dropped");
+            tokio::time::sleep(tick).await;
+            if size() != last {
+                (last, since) = (size(), tokio::time::Instant::now());
+            }
+        }
         let _ = std::fs::remove_file(&file);
     }
 

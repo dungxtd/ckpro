@@ -70,7 +70,7 @@ impl ProofPlan {
             total,
             minutes_all: minutes(total),
             minutes_changed: minutes(changed),
-            problem: draft.complete(bank).err().or_else(|| draft.disrupting().err()).or_else(|| fits(mb).err().map(|e| e.to_string())),
+            problem: draft.complete(bank).and_then(|()| draft.disrupting()).and_then(|()| fits(mb)).err().map(|e| e.to_string()),
             missing: draft.missing(bank).into_iter().map(|(id, _)| id).collect(),
         }
     }

@@ -8,6 +8,7 @@
 use crate::studio::draft::ExamDraft;
 use crate::error::{AppError, AppResult};
 use crate::lab::exam::Exams;
+use crate::lab::exam::plan::{local_day, local_offset_minutes};
 use crate::runtime::activity::now_ms;
 use crate::store::Store;
 use serde_json::{Value, json};
@@ -52,7 +53,7 @@ impl Tools {
 
     fn call(&self, session: i32, name: &str, args: &Value) -> AppResult<String> {
         self.exams.assistant_allowed()?;
-        if !self.store.settings().is_ok_and(|s| s.assistant_enabled) {
+        if !self.store.assistant_enabled() {
             return Err(AppError::assistant_off());
         }
         let text = |key: &str| args[key].as_str().unwrap_or_default().to_string();
@@ -94,8 +95,9 @@ impl Tools {
         }
     }
 
-    /// Change the draft with `f`, keep it and tell the screen
-    fn edit(&self, session: i32, f: impl FnOnce(&mut ExamDraft, &crate::lab::load::LoadedPack, &std::path::Path) -> AppResult<String>) -> AppResult<String> {
+    /// Change the draft with `f` (again, on the draft as another change left
+    /// it), keep it and tell the screen
+    fn edit(&self, session: i32, f: impl Fn(&mut ExamDraft, &crate::lab::load::LoadedPack, &std::path::Path) -> AppResult<String>) -> AppResult<String> {
         let bank = self.exams.bank();
         let (draft, result) = crate::studio::edit(&self.store, session, || (self.proving)(session), |draft| f(draft, &bank, &self.data_dir))?;
         (self.changed)(session, &draft);
@@ -108,9 +110,11 @@ impl Tools {
         certifications.sort();
         certifications.dedup();
         let now = now_ms();
+        // Read once: each certification's readiness works on it
+        let (bank, history) = (self.exams.bank(), self.exams.history());
         let readiness: Vec<Value> = certifications
             .iter()
-            .filter_map(|c| self.exams.readiness(c, now).ok())
+            .filter_map(|c| crate::lab::exam::plan::readiness(&bank, &history, c, now).ok())
             .filter(|r| r.coverage > 0)
             .map(|r| json!({
                 "certification": r.certification, "predicted_percent": r.predicted.map(|p| p.round()), "pass_percent": r.pass_score,
@@ -121,9 +125,8 @@ impl Tools {
                 })).collect::<Vec<_>>(),
             }))
             .collect();
-        let history = self.exams.history();
         Ok(pretty(&json!({
-            "today": day(now, self.exams.offset_minutes()),
+            "today": local_day(now),
             "targets": settings.targets.iter().map(|t| json!({ "certification": t.certification, "exam_day": t.date, "preparing_since": t.started })).collect::<Vec<_>>(),
             "readiness": readiness,
             "attempts": history.len(),
@@ -132,7 +135,6 @@ impl Tools {
     }
 
     fn attempts(&self, limit: Option<u64>, certification: Option<&str>) -> AppResult<String> {
-        let offset = self.exams.offset_minutes();
         let limit = limit.map_or(ATTEMPTS, |l| (l as usize).clamp(1, ATTEMPTS_MAX));
         let list: Vec<Value> = self
             .exams
@@ -142,7 +144,7 @@ impl Tools {
             .filter(|h| certification.is_none_or(|c| h.certification == c))
             .take(limit)
             .map(|h| json!({
-                "id": h.attempt_id, "exam_id": h.exam_id, "exam": h.title, "mode": h.mode, "day": day(h.result.started_at, offset),
+                "id": h.attempt_id, "exam_id": h.exam_id, "exam": h.title, "mode": h.mode, "day": local_day(h.result.started_at),
                 "score": h.result.score.round(), "passed": h.result.passed,
                 "ended_before_any_point": !h.result.worked(),
             }))
@@ -151,8 +153,8 @@ impl Tools {
     }
 
     fn attempt(&self, id: &str) -> AppResult<String> {
-        let h = self.exams.history().into_iter().find(|h| h.attempt_id == id).ok_or_else(|| AppError::not_found(format!("no attempt '{id}'")))?;
-        let mut text = format!("{} ({:?}), {}: {}% ({})\n", h.title, h.mode, day(h.result.started_at, self.exams.offset_minutes()), h.result.score.round(), if h.result.passed { "passed" } else { "failed" });
+        let h = self.exams.history_entry(id)?.ok_or_else(|| AppError::not_found(format!("no attempt '{id}'")))?;
+        let mut text = format!("{} ({:?}), {}: {}% ({})\n", h.title, h.mode, local_day(h.result.started_at), h.result.score.round(), if h.result.passed { "passed" } else { "failed" });
         for q in &h.result.questions {
             let _ = writeln!(text, "\n- {} [{}]: {}/{} points", q.title, q.id, q.points, q.max_points);
             for c in q.checks.iter().filter(|c| !c.passed) {
@@ -206,7 +208,7 @@ impl Tools {
     }
 
     fn plans(&self, from: &str, to: &str) -> AppResult<String> {
-        let plans = self.exams.plans_between(from, to, self.exams.offset_minutes())?;
+        let plans = self.exams.plans_between(from, to, local_offset_minutes(now_ms()))?;
         Ok(pretty(&plans.iter().map(|p| json!({ "day": p.day, "exam": p.title, "mode": p.mode, "done_score": p.done })).collect::<Vec<_>>()))
     }
 }
@@ -239,7 +241,27 @@ fn pretty(value: &impl serde::Serialize) -> String {
     serde_json::to_string_pretty(value).unwrap_or_default()
 }
 
-/// A moment (Unix ms) as YYYY-MM-DD, in the candidate's time
-fn day(ms: f64, offset_minutes: i32) -> String {
-    crate::lab::exam::plan::day_of(ms, offset_minutes)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every tool Create's conversation is offered is one `call` runs, each
+    /// offered once, and a name it is not offered is refused as no tool
+    #[test]
+    fn the_tools_offered_are_the_tools_run() {
+        let store = Arc::new(Store::in_memory().unwrap());
+        let exams = Arc::new(Exams::for_test(store.clone()));
+        let tools = Tools::new(exams, store, std::env::temp_dir(), |_, _| {}, |_| false);
+        let no_tool = |result: &AppResult<String>| matches!(result, Err(AppError::Invalid { message }) if message.starts_with("no tool named"));
+        let offered: Vec<String> = list().as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
+        let mut once = offered.clone();
+        once.sort();
+        once.dedup();
+        assert_eq!(once.len(), offered.len(), "{offered:?}");
+        for name in &offered {
+            let result = tools.call(0, name, &json!({}));
+            assert!(!no_tool(&result), "{name} is offered but not run");
+        }
+        assert!(no_tool(&tools.call(0, "run_command", &json!({}))));
+    }
 }

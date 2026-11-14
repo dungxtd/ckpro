@@ -6,7 +6,9 @@
 //! and puts back the exams aimed at before. Into the app's data directory
 //! (the one `CKPRO_DATA_DIR` names, else its own) or `--dir`.
 
+use crate::error::AppError;
 use crate::lab::checks::CheckResult;
+use crate::lab::exam::plan::local_day;
 use crate::lab::exam::{ExamResult, HistoryEntry, Mode, QuestionResult};
 use crate::lab::load::LoadedPack;
 use crate::store::Store;
@@ -22,11 +24,6 @@ impl Rng {
         self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         ((self.0 >> 33) as f64) / f64::from(1u32 << 31)
     }
-}
-
-/// YYYY-MM-DD of a moment, in UTC (the demo's days need not be exact to the hour)
-fn day(ms: f64) -> String {
-    crate::lab::exam::plan::day_of(ms, 0)
 }
 
 /// What the demo added, kept so `--remove` takes exactly that away
@@ -73,9 +70,9 @@ pub fn seed(dir: &Path, pack: &LoadedPack) -> Result<String, String> {
 
     // Three exams: CKA soonest, CKAD after it, CKS (which needs a passed CKA) last
     let targets = vec![
-        ExamTarget { certification: "cka".into(), date: day(now + 45.0 * DAY_MS), started: day(now - 49.0 * DAY_MS), rest_days: vec![6] },
-        ExamTarget { certification: "ckad".into(), date: day(now + 128.0 * DAY_MS), started: day(now - 21.0 * DAY_MS), rest_days: vec![6] },
-        ExamTarget { certification: "cks".into(), date: day(now + 230.0 * DAY_MS), started: day(now - 3.0 * DAY_MS), rest_days: vec![] },
+        ExamTarget { certification: "cka".into(), date: local_day(now + 45.0 * DAY_MS), started: local_day(now - 49.0 * DAY_MS), rest_days: vec![6] },
+        ExamTarget { certification: "ckad".into(), date: local_day(now + 128.0 * DAY_MS), started: local_day(now - 21.0 * DAY_MS), rest_days: vec![6] },
+        ExamTarget { certification: "cks".into(), date: local_day(now + 230.0 * DAY_MS), started: local_day(now - 3.0 * DAY_MS), rest_days: vec![] },
     ];
     let mut settings = store.settings().map_err(|e| e.to_string())?;
     settings.targets = targets;
@@ -183,9 +180,13 @@ pub fn seed(dir: &Path, pack: &LoadedPack) -> Result<String, String> {
             continue;
         }
         let (exam_id, ..) = &exams[(rng.next() * exams.len() as f64) as usize % exams.len()];
-        let mode = if ahead % 14 == 0 { "exam" } else { "practice" };
-        // Planned that day already (by the candidate): left as it is
-        let Ok(id) = store.add_plan(&day(when), exam_id, mode) else { continue };
+        let mode = if ahead % 14 == 0 { Mode::Exam } else { Mode::Practice };
+        let id = match store.add_plan(&local_day(when), exam_id, mode) {
+            Ok(id) => id,
+            // Planned that day already (by the candidate): left as it is
+            Err(AppError::Invalid { .. }) => continue,
+            Err(e) => return Err(e.to_string()),
+        };
         added.plans.push(id);
         plans += 1;
     }

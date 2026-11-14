@@ -1,7 +1,12 @@
 //! The exam catalog and drawing an attempt's questions and clusters.
 
-use super::*;
-use std::collections::HashMap;
+use super::history::HistoryEntry;
+use super::{ExamSummary, Exams};
+use crate::lab::load::LoadedPack;
+use crate::lab::model::{Exam, Question};
+use crate::lab::render;
+use rand::seq::SliceRandom;
+use std::collections::{BTreeMap, HashMap};
 
 impl Exams {
     pub fn catalog(&self) -> Vec<ExamSummary> {
@@ -164,6 +169,7 @@ pub(super) fn allocate(count: u32, weights: &BTreeMap<String, u32>) -> Vec<(Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lab::exam::{ExamResult, Mode, QuestionResult};
 
     fn entry(questions: &[(&str, u32, u32)]) -> HistoryEntry {
         HistoryEntry {

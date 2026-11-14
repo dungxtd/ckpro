@@ -3,17 +3,17 @@
 
 use crate::cluster::jobs::Jobs;
 use crate::cluster::{kind::Kind, lifecycle};
-use crate::runtime::infra::Infra;
-use crate::runtime::jumphost::{Jumphost, app_placement};
 use crate::error::{AppError, AppResult};
 use crate::runtime::activity::Activities;
-use crate::store::{Progress, Settings, Store};
+use crate::runtime::infra::Infra;
+use crate::runtime::jumphost::Jumphost;
 use crate::runtime::model::{Env, EnvState};
 use crate::runtime::preflight;
+use crate::store::{Progress, Settings, Store};
 use crate::studio::proof::{Proof, ProofPlan, Proofs, Scope};
 use std::sync::Arc;
-use tauri::{Manager, State};
 use tauri::ipc::Channel;
+use tauri::{AppHandle, Manager, State};
 
 /// Current environment; later changes arrive as `EnvChanged` events.
 #[tauri::command]
@@ -46,30 +46,16 @@ pub async fn env_clear_cache(
     env: State<'_, Arc<Env>>,
     infra: State<'_, Arc<Infra>>,
     exams: State<'_, Arc<Exams>>,
-    proofs: State<'_, crate::studio::proof::Proofs>,
+    proofs: State<'_, Proofs>,
     activities: State<'_, Arc<Activities>>,
 ) -> AppResult<()> {
-    if !matches!(exams.state(), crate::lab::exam::ExamState::Idle) {
+    if !matches!(exams.state(), ExamState::Idle) {
         return Err(AppError::busy("an attempt is open: close it first, its clusters pull through the cache"));
     }
     if proofs.list().iter().any(|(_, p)| p.ended_at.is_none()) {
         return Err(AppError::busy("an exam is being proven in Create: wait for it, or stop it"));
     }
-    // Refused before anything shows: only the clear holding the cache says so
-    let held = infra.hold_cache()?;
-    // Docker first: down, the activity would only say it was cancelled
-    let docker = crate::runtime::docker::connect().await?;
-    let op = activities.begin("Clearing the image cache", vec!["Removing the cached images".into()]);
-    env.update(|s| s.cache_clearing = true);
-    let result = infra.clear_cache(&held, &docker, &|line| op.log(line)).await;
-    env.update(|s| {
-        s.cache_clearing = false;
-        // A new, empty cache: shown so at once, not at the next reading
-        if let (Ok(()), Some(host)) = (&result, &mut s.host) {
-            host.cache_mb = 0;
-        }
-    });
-    op.end(result)
+    infra.clear_cache_shown(&env, &activities).await
 }
 
 /// Show node readiness (the Environment page opens) or stop (it closes): the
@@ -80,6 +66,7 @@ pub fn env_watch_nodes(env: State<'_, Arc<Env>>, on: bool) {
     env.set_watch_nodes(on);
 }
 
+/// Remove a cluster (Environment): not one an attempt runs on.
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_cluster(
@@ -93,19 +80,7 @@ pub async fn delete_cluster(
     if exams.uses_cluster(&name) {
         return Err(AppError::invalid(format!("an attempt runs on {name}: close it, and its clusters go with it")));
     }
-    let _job = jobs.begin(&name, crate::runtime::model::ClusterJob::Removing)?;
-    let op = activities.begin(
-        format!("Removing cluster {name}"),
-        vec![format!("Removing cluster {name}"), "Updating the task host".into()],
-    );
-    let send = |line: String| op.log(line);
-    let result = async {
-        lifecycle::delete(&kind, &name, &send).await?;
-        op.step(1, None);
-        jumphost.refresh_access(&crate::runtime::docker::connect().await?, &kind, &app_placement(&kind)).await.map(drop)
-    }
-    .await;
-    op.end(result)
+    lifecycle::remove(&kind, &jumphost, &jobs, &activities, &name).await
 }
 
 /// Start a cluster's stopped nodes.
@@ -137,58 +112,48 @@ use crate::lab::model::Solution;
 
 #[tauri::command]
 #[specta::specta]
-pub fn list_exams(exams: State<'_, Arc<Exams>>) -> Vec<ExamSummary> {
-    exams.catalog()
+pub async fn list_exams(app: AppHandle) -> Vec<ExamSummary> {
+    off_main_or_default(app, |app| Ok(app.state::<Arc<Exams>>().catalog())).await
 }
 
 /// The plans from `from` to `to` (YYYY-MM-DD, both included); `offset_minutes`
 /// east of UTC places attempts on the candidate's own days.
 #[tauri::command]
 #[specta::specta]
-pub fn plans_between(
-    exams: State<'_, Arc<Exams>>,
-    from: String,
-    to: String,
-    offset_minutes: i32,
-) -> AppResult<Vec<PlanView>> {
-    // The Create tools count days in it too
-    exams.set_offset_minutes(offset_minutes);
-    exams.plans_between(&from, &to, offset_minutes)
+pub async fn plans_between(app: AppHandle, from: String, to: String, offset_minutes: i32) -> AppResult<Vec<PlanView>> {
+    off_main(app, move |app| app.state::<Arc<Exams>>().plans_between(&from, &to, offset_minutes)).await
 }
 
 /// Plan an exam on a day; returns the plan's id.
 #[tauri::command]
 #[specta::specta]
-pub fn plan_add(app: tauri::AppHandle, exams: State<'_, Arc<Exams>>, day: String, exam_id: String, mode: Mode) -> AppResult<i32> {
-    let id = exams.plan_add(&day, &exam_id, mode)?;
-    crate::study_changed(&app, false);
-    Ok(id)
-}
-
-/// Move a plan to another day, or take it the other way.
-#[tauri::command]
-#[specta::specta]
-pub fn plan_update(app: tauri::AppHandle, exams: State<'_, Arc<Exams>>, id: i32, day: Option<String>, mode: Option<Mode>) -> AppResult<()> {
-    exams.plan_update(id, day, mode)?;
-    crate::study_changed(&app, false);
-    Ok(())
+pub async fn plan_add(app: AppHandle, day: String, exam_id: String, mode: Mode) -> AppResult<i32> {
+    off_main(app, move |app| {
+        let id = app.state::<Arc<Exams>>().plan_add(&day, &exam_id, mode)?;
+        crate::study_changed(app, false);
+        Ok(id)
+    })
+    .await
 }
 
 /// Remove a plan.
 #[tauri::command]
 #[specta::specta]
-pub fn plan_remove(app: tauri::AppHandle, exams: State<'_, Arc<Exams>>, id: i32) -> AppResult<()> {
-    exams.plan_remove(id)?;
-    crate::study_changed(&app, false);
-    Ok(())
+pub async fn plan_remove(app: AppHandle, id: i32) -> AppResult<()> {
+    off_main(app, move |app| {
+        app.state::<Arc<Exams>>().plan_remove(id)?;
+        crate::study_changed(app, false);
+        Ok(())
+    })
+    .await
 }
 
 /// How ready the candidate is for a certification: per domain, and the
 /// predicted score.
 #[tauri::command]
 #[specta::specta]
-pub fn readiness(exams: State<'_, Arc<Exams>>, certification: String) -> AppResult<ExamReadiness> {
-    exams.readiness(&certification, crate::runtime::activity::now_ms())
+pub async fn readiness(app: AppHandle, certification: String) -> AppResult<ExamReadiness> {
+    off_main(app, move |app| app.state::<Arc<Exams>>().readiness(&certification, crate::runtime::activity::now_ms())).await
 }
 
 /// Delete one of the candidate's own exams and its questions (and the
@@ -196,14 +161,10 @@ pub fn readiness(exams: State<'_, Arc<Exams>>, certification: String) -> AppResu
 /// saved them hold drafts again. The exams gone
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_exam(app: tauri::AppHandle, id: String) -> AppResult<Vec<String>> {
+pub async fn delete_exam(app: AppHandle, id: String) -> AppResult<Vec<String>> {
     off_main(app, move |app| {
-        let (exams, store, proofs) = (app.state::<Arc<Exams>>(), app.state::<Arc<Store>>(), app.state::<Proofs>());
-        let gone = exams.delete_exam(&id, &crate::data_dir())?;
-        store.remove_plans_of(&gone)?;
-        store.forget_in_sidebar(&gone)?;
-        let data_dir = crate::data_dir();
-        crate::studio::exams_deleted(&store, &gone, |id| crate::lab::mine::on_disk(&data_dir, id), |session| proofs.proving(session))?;
+        let (exams, proofs) = (app.state::<Arc<Exams>>(), app.state::<Proofs>());
+        let gone = exams.delete_exam(&id, &crate::data_dir(), |session| proofs.proving(session))?;
         crate::study_changed(app, true);
         Ok(gone)
     })
@@ -212,11 +173,25 @@ pub async fn delete_exam(app: tauri::AppHandle, id: String) -> AppResult<Vec<Str
 
 /// `work` off the main thread, where the interface runs: files written and
 /// the question bank read again take a while. The app's state from `app`
+/// (Tauri runs a command that is not async on the main thread.) A panic
+/// in the work is the app's own failure, not the candidate's
 async fn off_main<T: Send + 'static>(
-    app: tauri::AppHandle,
-    work: impl FnOnce(&tauri::AppHandle) -> AppResult<T> + Send + 'static,
+    app: AppHandle,
+    work: impl FnOnce(&AppHandle) -> AppResult<T> + Send + 'static,
 ) -> AppResult<T> {
-    tauri::async_runtime::spawn_blocking(move || work(&app)).await.map_err(|e| AppError::io("working in the background", e))?
+    tauri::async_runtime::spawn_blocking(move || work(&app)).await.map_err(|e| AppError::internal("working in the background", e))?
+}
+
+/// `off_main` for a command that answers with what it has: what fails is
+/// logged, and the default answered
+async fn off_main_or_default<T: Default + Send + 'static>(
+    app: AppHandle,
+    work: impl FnOnce(&AppHandle) -> AppResult<T> + Send + 'static,
+) -> T {
+    off_main(app, work).await.unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "answering from the background");
+        T::default()
+    })
 }
 
 /// Reset the exam desktop: a new one, every window closed; the client reconnects.
@@ -252,8 +227,8 @@ pub fn coach_status(coach: State<'_, Coach>) -> CoachStatus {
 /// How far the assistant's agent may go on its own.
 #[tauri::command]
 #[specta::specta]
-pub fn agent_settings(store: State<'_, Arc<Store>>) -> AppResult<AgentSettings> {
-    Ok(crate::ai::policy::AgentSettings::load(&store)?.normalized())
+pub async fn agent_settings(app: AppHandle) -> AppResult<AgentSettings> {
+    off_main(app, |app| Ok(crate::ai::policy::AgentSettings::load(&app.state::<Arc<Store>>())?.normalized())).await
 }
 
 #[tauri::command]
@@ -264,7 +239,7 @@ pub async fn save_agent_settings(
     store: State<'_, Arc<Store>>,
     settings: AgentSettings,
 ) -> AppResult<AgentSettings> {
-    no_exam(&exams)?;
+    exams.assistant_allowed()?;
     let settings = settings.normalized();
     settings.save(&store)?;
     coach.configure(&settings).await;
@@ -276,7 +251,7 @@ pub async fn save_agent_settings(
 #[tauri::command]
 #[specta::specta]
 pub async fn coach_runtime(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>) -> AppResult<RuntimeInfo> {
-    no_exam(&exams)?;
+    exams.assistant_allowed()?;
     Ok(coach.runtime().await)
 }
 
@@ -296,12 +271,8 @@ pub struct AppInfo {
 /// The question's coach session in the current attempt: its name and messages.
 #[tauri::command]
 #[specta::specta]
-pub fn coach_history(
-    exams: State<'_, Arc<Exams>>,
-    store: State<'_, Arc<Store>>,
-    question_id: String,
-) -> AppResult<CoachHistory> {
-    Coach::history(&exams, &store, &question_id)
+pub async fn coach_history(app: AppHandle, question_id: String) -> AppResult<CoachHistory> {
+    off_main(app, move |app| Coach::history(&app.state::<Arc<Exams>>(), &app.state::<Arc<Store>>(), &question_id)).await
 }
 
 /// Ask the coach about a question (practice mode, or after the result); the
@@ -366,38 +337,44 @@ pub async fn coach_open_session(
 /// Every coach session of a past attempt, to read back.
 #[tauri::command]
 #[specta::specta]
-pub fn coach_transcripts(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>, attempt_id: String) -> AppResult<Vec<CoachTranscript>> {
-    no_exam(&exams)?;
-    Coach::transcripts(&store, &attempt_id)
+pub async fn coach_transcripts(app: AppHandle, attempt_id: String) -> AppResult<Vec<CoachTranscript>> {
+    off_main(app, move |app| {
+        app.state::<Arc<Exams>>().assistant_allowed()?;
+        Coach::transcripts(&app.state::<Arc<Store>>(), &attempt_id)
+    })
+    .await
 }
 
 /// The past attempts that have coach sessions (History shows a way to them).
 #[tauri::command]
 #[specta::specta]
-pub fn coached_attempts(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>) -> AppResult<Vec<String>> {
-    no_exam(&exams)?;
-    Coach::coached_attempts(&store)
+pub async fn coached_attempts(app: AppHandle) -> AppResult<Vec<String>> {
+    off_main(app, |app| {
+        app.state::<Arc<Exams>>().assistant_allowed()?;
+        Coach::coached_attempts(&app.state::<Arc<Store>>())
+    })
+    .await
 }
 
 /// The attempt's coach sessions (History).
 #[tauri::command]
 #[specta::specta]
-pub fn coach_sessions(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>) -> AppResult<Vec<CoachSession>> {
-    Coach::sessions(&exams, &store)
+pub async fn coach_sessions(app: AppHandle) -> AppResult<Vec<CoachSession>> {
+    off_main(app, |app| Coach::sessions(&app.state::<Arc<Exams>>(), &app.state::<Arc<Store>>())).await
 }
 
 /// Name a question's coach session (empty: back to its first question).
 #[tauri::command]
 #[specta::specta]
-pub fn coach_rename(exams: State<'_, Arc<Exams>>, store: State<'_, Arc<Store>>, question_id: String, title: String) -> AppResult<()> {
-    Coach::rename(&exams, &store, &question_id, &title)
+pub async fn coach_rename(app: AppHandle, question_id: String, title: String) -> AppResult<()> {
+    off_main(app, move |app| Coach::rename(&app.state::<Arc<Exams>>(), &app.state::<Arc<Store>>(), &question_id, &title)).await
 }
 
 /// The effort levels a model takes (none when it has no effort setting).
 #[tauri::command]
 #[specta::specta]
 pub async fn coach_efforts(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>, model: String) -> AppResult<Vec<ModelOption>> {
-    no_exam(&exams)?;
+    exams.assistant_allowed()?;
     coach.efforts(&model).await
 }
 
@@ -405,21 +382,21 @@ pub async fn coach_efforts(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>
 #[tauri::command]
 #[specta::specta]
 pub async fn coach_models(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>) -> AppResult<CoachModels> {
-    no_exam(&exams)?;
+    exams.assistant_allowed()?;
     coach.models().await
 }
 
 /// How the candidate did per curriculum domain, per certification attempted.
 #[tauri::command]
 #[specta::specta]
-pub fn study_stats(exams: State<'_, Arc<Exams>>) -> Vec<StudyStats> {
-    exams.study_stats()
+pub async fn study_stats(app: AppHandle) -> Vec<StudyStats> {
+    off_main_or_default(app, |app| Ok(app.state::<Arc<Exams>>().study_stats())).await
 }
 
 /// Open a web page in the system browser (https only): links outside the exam desktop.
 #[tauri::command]
 #[specta::specta]
-pub fn open_in_browser(app: tauri::AppHandle, url: String) -> AppResult<()> {
+pub fn open_in_browser(app: AppHandle, url: String) -> AppResult<()> {
     use tauri_plugin_opener::OpenerExt as _;
     if !url.starts_with("https://") || url.chars().any(|c| c.is_whitespace() || c.is_control()) {
         return Err(AppError::invalid(format!("not a web page: {url}")));
@@ -433,7 +410,7 @@ pub fn open_in_browser(app: tauri::AppHandle, url: String) -> AppResult<()> {
 #[tauri::command]
 #[specta::specta]
 pub async fn coach_account(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>) -> AppResult<Account> {
-    no_exam(&exams)?;
+    exams.assistant_allowed()?;
     coach.account().await
 }
 
@@ -442,7 +419,7 @@ pub async fn coach_account(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>
 #[tauri::command]
 #[specta::specta]
 pub async fn coach_sign_in(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>, method: SignInMethod, events: Channel<SignInEvent>) -> AppResult<()> {
-    no_exam(&exams)?;
+    exams.assistant_allowed()?;
     coach
         .sign_in(method, |e| {
             let _ = events.send(e);
@@ -454,7 +431,7 @@ pub async fn coach_sign_in(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>
 #[tauri::command]
 #[specta::specta]
 pub async fn coach_sign_in_input(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>, line: String) -> AppResult<()> {
-    no_exam(&exams)?;
+    exams.assistant_allowed()?;
     coach.sign_in_input(&line).await
 }
 
@@ -470,7 +447,7 @@ pub async fn coach_sign_in_cancel(coach: State<'_, Coach>) -> AppResult<()> {
 #[tauri::command]
 #[specta::specta]
 pub fn coach_permit(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>, id: u32, option: Option<String>) -> AppResult<()> {
-    no_exam(&exams)?;
+    exams.assistant_allowed()?;
     coach.permit(id, option)
 }
 
@@ -484,34 +461,41 @@ pub fn coach_cancel(coach: State<'_, Coach>) {
 /// Where the candidate is in an attempt (question, flags, hints opened).
 #[tauri::command]
 #[specta::specta]
-pub fn exam_progress(store: State<'_, Arc<Store>>, attempt_id: String) -> AppResult<Progress> {
-    store.progress(&attempt_id)
+pub async fn exam_progress(app: AppHandle, attempt_id: String) -> AppResult<Progress> {
+    off_main(app, move |app| app.state::<Arc<Store>>().progress(&attempt_id)).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_exam_progress(store: State<'_, Arc<Store>>, attempt_id: String, progress: Progress) -> AppResult<()> {
-    store.save_progress(&attempt_id, &progress)
+pub async fn save_exam_progress(app: AppHandle, attempt_id: String, progress: Progress) -> AppResult<()> {
+    off_main(app, move |app| app.state::<Arc<Store>>().save_progress(&attempt_id, &progress)).await
 }
 
 /// The exam desk's display settings (desktop zoom and resolution, text size).
 #[tauri::command]
 #[specta::specta]
-pub fn settings(store: State<'_, Arc<Store>>) -> AppResult<Settings> {
-    store.settings()
+pub async fn settings(app: AppHandle) -> AppResult<Settings> {
+    off_main(app, |app| app.state::<Arc<Store>>().settings()).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_settings(app: tauri::AppHandle, store: State<'_, Arc<Store>>, coach: State<'_, Coach>, settings: Settings) -> AppResult<()> {
-    let targets = store.settings().ok().map(|s| s.targets);
-    store.save_settings(&settings)?;
-    coach.switch(settings.assistant_enabled);
-    // Other exams aimed at: other readiness to read
-    if targets.as_ref() != Some(&settings.targets) {
-        crate::study_changed(&app, false);
-    }
-    Ok(())
+pub async fn save_settings(app: AppHandle, settings: Settings) -> AppResult<()> {
+    off_main(app, move |app| {
+        let store = app.state::<Arc<Store>>();
+        let targets = store.settings().ok().map(|s| s.targets);
+        store.save_settings(&settings)?;
+        // Turned off: what it was writing stops
+        if !settings.assistant_enabled {
+            app.state::<Coach>().stop_answers();
+        }
+        // Other exams aimed at: other readiness to read
+        if targets.as_ref() != Some(&settings.targets) {
+            crate::study_changed(app, false);
+        }
+        Ok(())
+    })
+    .await
 }
 
 /// The last long operations, with their logs (later changes arrive as
@@ -605,14 +589,8 @@ pub fn question_solution(exams: State<'_, Arc<Exams>>, question_id: String) -> A
 
 #[tauri::command]
 #[specta::specta]
-pub fn exam_history(exams: State<'_, Arc<Exams>>) -> Vec<HistoryEntry> {
-    exams.history()
-}
-
-/// The assistant is off while an exam-mode attempt is under way: not even its
-/// login or models are read then
-fn no_exam(exams: &Exams) -> AppResult<()> {
-    exams.assistant_allowed()
+pub async fn exam_history(app: AppHandle) -> Vec<HistoryEntry> {
+    off_main_or_default(app, |app| Ok(app.state::<Arc<Exams>>().history())).await
 }
 
 /// Send the core's errors to PostHog as the interface's person and session,
@@ -634,22 +612,25 @@ pub struct StudioConversation {
 /// The Create conversations, latest first
 #[tauri::command]
 #[specta::specta]
-pub fn studio_sessions(store: State<'_, Arc<Store>>) -> AppResult<Vec<crate::store::StudioSessionRow>> {
-    store.studio_sessions()
+pub async fn studio_sessions(app: AppHandle) -> AppResult<Vec<crate::store::StudioSessionRow>> {
+    off_main(app, |app| app.state::<Arc<Store>>().studio_sessions()).await
 }
 
 /// A new Create conversation
 #[tauri::command]
 #[specta::specta]
-pub fn studio_new(store: State<'_, Arc<Store>>) -> AppResult<StudioConversation> {
-    let id = store.studio_new()?;
-    Ok(StudioConversation { id, messages: Vec::new(), draft: Default::default() })
+pub async fn studio_new(app: AppHandle) -> AppResult<StudioConversation> {
+    off_main(app, |app| {
+        let id = app.state::<Arc<Store>>().studio_new()?;
+        Ok(StudioConversation { id, messages: Vec::new(), draft: Default::default() })
+    })
+    .await
 }
 
 /// A Create conversation, with its messages and draft
 #[tauri::command]
 #[specta::specta]
-pub async fn studio_open(app: tauri::AppHandle, session: i32) -> AppResult<StudioConversation> {
+pub async fn studio_open(app: AppHandle, session: i32) -> AppResult<StudioConversation> {
     off_main(app, move |app| {
         let (store, exams, proofs) = (app.state::<Arc<Store>>(), app.state::<Arc<Exams>>(), app.state::<Proofs>());
         let draft = crate::studio::opened(&store, &exams, &crate::data_dir(), session, || proofs.proving(session))?;
@@ -660,11 +641,9 @@ pub async fn studio_open(app: tauri::AppHandle, session: i32) -> AppResult<Studi
 
 /// Say something in a Create conversation; the answer streams as it is
 /// written (and Claude's tool uses), the draft's changes arrive as
-/// `StudioDraft`. `offset_minutes` east of UTC: the days Claude is told of
-/// are the candidate's own
+/// `StudioDraft`. The days Claude is told of are this computer's
 #[tauri::command]
 #[specta::specta]
-#[allow(clippy::too_many_arguments)]
 pub async fn studio_ask(
     coach: State<'_, Coach>,
     exams: State<'_, Arc<Exams>>,
@@ -672,10 +651,8 @@ pub async fn studio_ask(
     session: i32,
     text: String,
     model: ModelChoice,
-    offset_minutes: i32,
     events: Channel<CoachEvent>,
 ) -> AppResult<CoachReply> {
-    exams.set_offset_minutes(offset_minutes);
     coach
         .studio_ask(&exams, &store, session, &text, &model.model, &model.effort, |e| {
             let _ = events.send(e);
@@ -696,33 +673,35 @@ pub async fn studio_delete(coach: State<'_, Coach>, proofs: State<'_, Proofs>, s
 /// Take a question out of the draft (by id, or a new one's key)
 #[tauri::command]
 #[specta::specta]
-pub fn studio_remove(
-    store: State<'_, Arc<Store>>,
-    proofs: State<'_, Proofs>,
-    session: i32,
-    id: String,
-) -> AppResult<crate::studio::draft::ExamDraft> {
-    crate::studio::edit(&store, session, || proofs.proving(session), |draft| Ok(draft.remove_by_candidate(&id)))
-        .map(|(draft, _)| draft)
+pub async fn studio_remove(app: AppHandle, session: i32, id: String) -> AppResult<crate::studio::draft::ExamDraft> {
+    off_main(app, move |app| {
+        let (store, proofs) = (app.state::<Arc<Store>>(), app.state::<Proofs>());
+        crate::studio::edit(&store, session, || proofs.proving(session), |draft| Ok(draft.remove_by_candidate(&id)))
+            .map(|(draft, _)| draft)
+    })
+    .await
 }
 
 /// The candidate's changes to the draft: its title, its length, or every
 /// question out
 #[tauri::command]
 #[specta::specta]
-pub fn studio_edit(
-    store: State<'_, Arc<Store>>,
-    proofs: State<'_, Proofs>,
+pub async fn studio_edit(
+    app: AppHandle,
     session: i32,
     title: Option<String>,
     duration_minutes: Option<u32>,
     clear: bool,
 ) -> AppResult<crate::studio::draft::ExamDraft> {
-    crate::studio::edit(&store, session, || proofs.proving(session), |draft| {
-        draft.edit(title.as_deref(), duration_minutes, clear);
-        Ok(())
+    off_main(app, move |app| {
+        let (store, proofs) = (app.state::<Arc<Store>>(), app.state::<Proofs>());
+        crate::studio::edit(&store, session, || proofs.proving(session), |draft| {
+            draft.edit(title.as_deref(), duration_minutes, clear);
+            Ok(())
+        })
+        .map(|(draft, ())| draft)
     })
-    .map(|(draft, ())| draft)
+    .await
 }
 
 /// What proving a conversation's exam takes (its cluster, the time), and
@@ -756,7 +735,7 @@ pub async fn studio_verify(
     session: i32,
     scope: Scope,
 ) -> AppResult<crate::studio::draft::ExamDraft> {
-    no_exam(&exams)?;
+    exams.assistant_allowed()?;
     let fits = proof_fits(preflight::measured(&env).await, &proofs);
     let app = crate::studio::Proving {
         store: &store,
@@ -800,7 +779,7 @@ pub fn studio_stop(coach: State<'_, Coach>, session: i32) {
 /// Save the draft as the candidate's exam; its id
 #[tauri::command]
 #[specta::specta]
-pub async fn studio_save(app: tauri::AppHandle, session: i32) -> AppResult<String> {
+pub async fn studio_save(app: AppHandle, session: i32) -> AppResult<String> {
     off_main(app, move |app| {
         let (store, exams, proofs) = (app.state::<Arc<Store>>(), app.state::<Arc<Exams>>(), app.state::<Proofs>());
         let id = crate::studio::save(&store, &exams, &crate::data_dir(), session, || proofs.proving(session))?;

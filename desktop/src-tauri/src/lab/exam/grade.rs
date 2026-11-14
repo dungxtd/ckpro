@@ -1,8 +1,15 @@
 //! Submitting and grading an attempt, and checking a question on demand.
 
-use crate::sync::MutexExt;
-use super::*;
+use super::history::HistoryEntry;
+use super::{Attempt, ExamResult, ExamState, Exams, Mode, Prediction, QuestionResult, QuestionScore, QuestionView};
+use crate::error::{AppError, AppResult};
+use crate::lab::checks::{self, CheckResult};
+use crate::lab::model::Solution;
+use crate::runtime::activity::now_ms;
+use crate::runtime::docker;
 use crate::runtime::preflight::Footprint;
+use crate::sync::MutexExt;
+use std::sync::{Arc, Mutex};
 
 impl Exams {
     /// Submit automatically when the time is up (if still that attempt).
@@ -61,10 +68,11 @@ impl Exams {
     }
 
     /// The certification's predicted score without `attempt` and with it
-    /// (it is in the history now)
+    /// (it is in the history now): the history read once, readiness worked
+    /// out on it both ways
     fn prediction(&self, attempt: &Attempt) -> Option<Prediction> {
         let (pack, history) = (self.pack(), self.history());
-        let now = crate::runtime::activity::now_ms();
+        let now = now_ms();
         let without: Vec<HistoryEntry> = history.iter().filter(|h| h.attempt_id != attempt.id).cloned().collect();
         let after = super::plan::readiness(&pack, &history, &attempt.certification, now).ok()?.predicted;
         let before = super::plan::readiness(&pack, &without, &attempt.certification, now).ok()?.predicted;
@@ -145,13 +153,7 @@ impl Exams {
                 checks: check_results,
             });
         }
-        // Each question counts by its share of the exam, like on the real exam
-        let score: f64 = results
-            .iter()
-            .zip(&attempt.questions)
-            .map(|(r, view)| if r.max_points == 0 { 0.0 } else { view.weight * f64::from(r.points) / f64::from(r.max_points) })
-            .sum();
-        let score = (score * 10.0).round() / 10.0;
+        let score = weighted_score(&results, &attempt.questions);
         op.log(format!("Score {score}% (pass {}%)", attempt.pass_score));
         Ok(ExamResult {
             score,
@@ -202,5 +204,56 @@ impl Exams {
             _ => return Err(AppError::invalid("solutions are shown after the exam")),
         }
         Ok(self.question(question_id)?.solution)
+    }
+}
+
+/// The attempt's score in percent, to a tenth: each question counts by its
+/// share of the exam (its `weight` in the attempt), like on the real exam.
+/// Results find their question by id; one the attempt does not list counts
+/// nothing
+pub(super) fn weighted_score(results: &[QuestionResult], questions: &[QuestionView]) -> f64 {
+    let score: f64 = results
+        .iter()
+        .filter(|r| r.max_points > 0)
+        .filter_map(|r| questions.iter().find(|q| q.id == r.id).map(|q| q.weight * f64::from(r.points) / f64::from(r.max_points)))
+        .sum();
+    (score * 10.0).round() / 10.0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn view(id: &str, weight: f64) -> QuestionView {
+        QuestionView {
+            id: id.into(),
+            title: String::new(),
+            cluster: String::new(),
+            host: String::new(),
+            namespace: None,
+            tags: Vec::new(),
+            weight,
+            statement: String::new(),
+            hints: Vec::new(),
+            references: Vec::new(),
+        }
+    }
+
+    fn result(id: &str, points: u32, max_points: u32) -> QuestionResult {
+        QuestionResult { id: id.into(), title: String::new(), points, max_points, checks: Vec::new() }
+    }
+
+    /// Each question weighs its share of the exam, whatever its points;
+    /// results are matched to questions by id, not by order
+    #[test]
+    fn the_score_weighs_each_question_by_its_share() {
+        let questions = [view("a", 25.0), view("b", 75.0)];
+        // Half of a (12.5) and all of b (75), listed the other way round
+        assert_eq!(weighted_score(&[result("b", 3, 3), result("a", 1, 2)], &questions), 87.5);
+        // A question without points, or one not in the attempt, adds nothing
+        assert_eq!(weighted_score(&[result("a", 0, 0), result("x", 5, 5), result("b", 1, 3)], &questions), 25.0);
+        // To a tenth
+        assert_eq!(weighted_score(&[result("a", 1, 3)], &[view("a", 100.0)]), 33.3);
+        assert_eq!(weighted_score(&[], &questions), 0.0);
     }
 }

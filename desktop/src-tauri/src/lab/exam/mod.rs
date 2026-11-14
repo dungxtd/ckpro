@@ -4,34 +4,38 @@
 //! Exam mode is the real thing: no hints, no checking, no solutions until the
 //! result. Practice mode adds hints, per-question checks and solutions, and
 //! has no time limit. Hidden material never leaves Rust in exam mode.
+//!
+//! Here: the attempt's types and its state; `attempt` moves it from start to
+//! end, `grade` grades it, `desktop` keeps its exam desktop, `bank` the
+//! question bank, `history` the finished attempts, `plan` the calendar and
+//! readiness, `insights` what the coach and the figures read.
 
-use crate::runtime::activity::now_ms;
-use crate::sync::{MutexExt, RwLockExt};
-use super::checks::{self, CheckResult};
+use super::checks::CheckResult;
 use super::load::LoadedPack;
-use super::model::{Exam, Question, Solution};
-use super::render;
-use crate::cluster::{kind::Kind, lifecycle};
+use super::model::Question;
+use crate::cluster::kind::Kind;
 use crate::error::{AppError, AppResult};
-use crate::runtime::jumphost::{self, Jumphost};
 use crate::runtime::activity::Activities;
 use crate::runtime::guard::{Guard, Watch};
-use crate::runtime::infra::MIRROR;
-use crate::runtime::{desktop, docker, infra::Infra};
+use crate::runtime::infra::{Infra, MIRROR};
+use crate::runtime::jumphost::Jumphost;
 use crate::store::Store;
-use rand::seq::SliceRandom;
+use crate::sync::MutexExt;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 
+mod attempt;
+mod bank;
+mod desktop;
 pub mod draw;
-pub mod plan;
 mod grade;
+pub mod history;
 pub mod insights;
+pub mod plan;
 
+pub use history::HistoryEntry;
 pub use insights::{CoachSubject, StudyStats};
-use draw::topology;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -208,21 +212,6 @@ pub fn saved_running(store: &Store) -> Option<(Attempt, Vec<(String, Question)>)
     }
 }
 
-/// History entry, one JSON file per finished attempt.
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-pub struct HistoryEntry {
-    pub attempt_id: String,
-    pub exam_id: String,
-    pub title: String,
-    /// Its exam's certification: kept, the exam may be deleted since
-    /// (entries from before it was kept get it from their exam or questions)
-    #[serde(default)]
-    pub certification: String,
-    pub mode: Mode,
-    pub pass_score: u32,
-    pub result: ExamResult,
-}
-
 pub struct Exams {
     /// The question bank: the core pack plus the candidate's own questions
     /// (replaced when a generated question is added)
@@ -257,8 +246,6 @@ pub struct Exams {
     activities: Arc<Activities>,
     /// Keeps the running attempt's environment as ckpro set it up
     guard: Arc<Guard>,
-    /// The candidate's time, minutes east of UTC, as the interface last said
-    offset_minutes: std::sync::atomic::AtomicI32,
     /// Exam-mode starts under way (`exam_starting`): the assistant refuses
     /// as if the exam ran already
     exam_starting: std::sync::atomic::AtomicUsize,
@@ -305,67 +292,7 @@ impl Exams {
             activities,
             guard,
             exam_starting: Default::default(),
-            offset_minutes: Default::default(),
         }
-    }
-
-    /// The candidate's time, minutes east of UTC: their days are counted in it
-    pub fn set_offset_minutes(&self, offset: i32) {
-        self.offset_minutes.store(offset, std::sync::atomic::Ordering::Relaxed);
-    }
-
-    pub fn offset_minutes(&self) -> i32 {
-        self.offset_minutes.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    fn pack(&self) -> Arc<LoadedPack> {
-        self.pack.read_ok().clone()
-    }
-
-    /// Swap in a new question bank (a question was added); a running attempt
-    /// keeps its rendered questions
-    pub fn replace_pack(&self, pack: LoadedPack) {
-        *self.pack.write_ok() = Arc::new(pack);
-    }
-
-    /// The YAML files under `roots`: how many, their size, the newest change
-    fn files_as(roots: &[std::path::PathBuf]) -> (usize, u64, Option<std::time::SystemTime>) {
-        let mut seen = (0, 0, None);
-        let mut dirs: Vec<std::path::PathBuf> = roots.to_vec();
-        while let Some(dir) = dirs.pop() {
-            for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
-                let path = entry.path();
-                let Ok(meta) = entry.metadata() else { continue };
-                if meta.is_dir() {
-                    dirs.push(path);
-                } else if path.extension().is_some_and(|e| e == "yaml") {
-                    seen.0 += 1;
-                    seen.1 += meta.len();
-                    seen.2 = seen.2.max(meta.modified().ok());
-                }
-            }
-        }
-        seen
-    }
-
-    /// Start the attempt's desktop, and tell who waits for it
-    async fn start_desktop(&self, docker: &bollard::Docker, allowed: &[String], clusters: &[String]) -> AppResult<()> {
-        let key = self.jumphost.ssh_key(docker).await?;
-        desktop::start(docker, &self.desktop, allowed, clusters, &self.jumphost.name, &key.private, self.offset_minutes()).await?;
-        self.desktop_up.notify_waiters();
-        Ok(())
-    }
-
-    /// The desktop's session (its VNC), waiting up to `wait` for it to come
-    /// up: the desk asks once, Rust says when, nothing polls
-    pub async fn desktop_session(&self, wait: std::time::Duration) -> AppResult<Option<desktop::DesktopSession>> {
-        let up = self.desktop_up.notified();
-        let docker = docker::connect().await?;
-        if let Some(session) = desktop::session(&docker, &self.desktop).await? {
-            return Ok(Some(session));
-        }
-        let _ = tokio::time::timeout(wait, up).await;
-        desktop::session(&docker, &self.desktop).await
     }
 
     /// Note what the candidate saw in `attempt`: a question's checks, or
@@ -399,57 +326,6 @@ impl Exams {
         seen.attempt == attempt && seen.solutions.contains(question_id)
     }
 
-    /// The question bank as it is now
-    pub fn bank(&self) -> Arc<LoadedPack> {
-        self.pack()
-    }
-
-    /// Read the candidate's questions again (one was added or deleted), over
-    /// the bundled pack read again from where it came from
-    pub fn reload_mine(&self, data_dir: &std::path::Path) {
-        let _one = self.reloading.locked();
-        self.reload(data_dir);
-    }
-
-    /// Read the packs again if their files changed since they were read (a
-    /// question edited on disk): a look at the files, not a parse, otherwise
-    pub fn reload_if_changed(&self, data_dir: &std::path::Path) {
-        let _one = self.reloading.locked();
-        let now = Self::files_as(&[self.bank().root.clone(), crate::lab::mine::root(data_dir)]);
-        let mut read_as = self.read_as.locked();
-        // The first look reads them too: they may have changed since the start
-        if *read_as != Some(now) {
-            *read_as = Some(now);
-            drop(read_as);
-            self.reload(data_dir);
-        }
-    }
-
-    fn reload(&self, data_dir: &std::path::Path) {
-        match crate::lab::load::load(&self.bank().root).0 {
-            Some(core) => self.replace_pack(crate::lab::mine::merged(core, data_dir)),
-            None => tracing::warn!("could not reload the bundled pack: the change shows after a restart"),
-        }
-    }
-
-    /// Delete one of the candidate's own exams (and its questions, and the
-    /// custom exams using them); not while an attempt of any of them, or of
-    /// their questions, is open. The exams gone
-    pub fn delete_exam(&self, exam_id: &str, data_dir: &std::path::Path) -> AppResult<Vec<String>> {
-        let deletion = crate::lab::mine::deletion(data_dir, exam_id)?;
-        let state = self.state();
-        let touches = |a: &Attempt| {
-            deletion.exams.contains(&a.exam_id)
-                || deletion.questions.as_ref().is_some_and(|prefix| a.questions.iter().any(|q| q.id.starts_with(prefix.as_str())))
-        };
-        if !matches!(state, ExamState::Idle | ExamState::Finished { .. }) && state.attempt().is_some_and(touches) {
-            return Err(AppError::invalid("an attempt using this exam or its questions is open; close it first"));
-        }
-        crate::lab::mine::delete(&deletion)?;
-        self.reload_mine(data_dir);
-        Ok(deletion.exams)
-    }
-
     pub fn state(&self) -> ExamState {
         self.state.locked().clone()
     }
@@ -466,24 +342,6 @@ impl Exams {
             }),
             _ => None,
         });
-    }
-
-    /// The exam's "Reset Desktop": a new desktop from the current image, every
-    /// window closed (a desktop that went black comes back); the attempt's
-    /// allowed docs and hosts stay, the app's client reconnects
-    pub async fn reset_desktop(&self) -> AppResult<()> {
-        // Not while resuming: that starts the desktop itself
-        let ExamState::Running { attempt, .. } = self.state() else {
-            return Err(AppError::invalid("no exam is running"));
-        };
-        let allowed = {
-            let session = self.session.locked().clone();
-            self.allowed_docs(&attempt.certification, &session)
-        };
-        // ckpro's own: the guard does not report the old one going away
-        self.guard.expect(&self.desktop);
-        let docker = docker::connect().await?;
-        self.start_desktop(&docker, &allowed, &attempt.clusters).await
     }
 
     /// Keep a running attempt; anything else has nothing to resume. While
@@ -503,303 +361,6 @@ impl Exams {
         }
     }
 
-    /// Resume the attempt that was running when the app quit: start its
-    /// clusters, task host and desktop again and wait for the clusters. An
-    /// exam whose time ran out meanwhile is graded then.
-    pub fn restore(self: &Arc<Self>) {
-        let Some(saved) = self.store.attempt::<SavedAttempt>().ok().flatten() else { return };
-        let ExamState::Running { attempt, started_at, ends_at } = saved.state else { return };
-        tracing::info!(attempt = %attempt.id, "resuming the running attempt");
-        *self.session.locked() = saved.questions;
-
-        let mut steps: Vec<String> = attempt.clusters.iter().map(|c| format!("Starting cluster {c}")).collect();
-        steps.extend(["Starting the task host", "Starting the exam desktop", "Waiting for the clusters"].map(String::from));
-        let op = self.activities.begin("Resuming your exam", steps);
-        self.set(ExamState::Resuming { attempt: attempt.clone(), activity: op.id() });
-        let this = self.clone();
-        tauri::async_runtime::spawn(async move {
-            let id = op.id();
-            match op.end(this.resume(&attempt, id).await) {
-                Ok(()) => match ends_at {
-                    Some(ends_at) if ends_at <= now_ms() => {
-                        this.grade_and_finish(attempt, started_at, Some("Time ran out while ckpro was closed".into())).await
-                    }
-                    _ => {
-                        let attempt_id = attempt.id.clone();
-                        this.set(ExamState::Running { attempt, started_at, ends_at });
-                        if let Some(ends_at) = ends_at {
-                            this.submit_at(attempt_id, ends_at);
-                        }
-                    }
-                },
-                Err(e) => this.set(ExamState::Failed {
-                    attempt: Some(attempt),
-                    message: e.to_string(),
-                    activity: Some(id),
-                    resumable: true,
-                }),
-            }
-        });
-    }
-
-    /// Try a failed resume or grade again: the kept attempt is resumed (and
-    /// graded, when its time is up), as when the app opens
-    pub fn retry(self: &Arc<Self>) -> AppResult<()> {
-        let Ok(_busy) = self.busy.try_lock() else {
-            return Err(AppError::invalid("wait for the exam to finish what it is doing"));
-        };
-        if !matches!(self.state(), ExamState::Failed { resumable: true, .. }) {
-            return Err(AppError::invalid("there is nothing to try again"));
-        }
-        self.restore();
-        Ok(())
-    }
-
-    async fn resume(&self, attempt: &Attempt, activity: u32) -> AppResult<()> {
-        let op = self.activities.handle(activity);
-        // The app may start before Docker does (both at login, or after a restart)
-        let docker = docker::wait(std::time::Duration::from_secs(120), || op.detail("Waiting for Docker to start…")).await?;
-        // Removed while the app was closed: nothing to wait for
-        let existing = self.kind.all_clusters().await?;
-        if let Some(gone) = attempt.clusters.iter().find(|c| !existing.contains(c)) {
-            return Err(AppError::cluster(format!(
-                "cluster {gone} no longer exists (removed while ckpro was closed): close this exam and start it again"
-            )));
-        }
-        let mut step = 0;
-        for cluster in &attempt.clusters {
-            op.step(step, None);
-            // Startup reconciliation may be starting them too
-            if let Err(e) = crate::runtime::reconcile::repair(&docker, cluster).await {
-                op.log(format!("  {e}"));
-            }
-            step += 1;
-        }
-        // Started again as they were (the candidate's files are on them); made
-        // again only if they were removed meanwhile. Never replaced: a newer
-        // image would wipe the work on the task host
-        op.step(step, None);
-        if !crate::runtime::infra::start_existing(&docker, &self.jumphost.name).await? {
-            op.log("the task host was removed: making a new one (files on it are lost)".to_string());
-            let log = |line: String| op.log(line);
-            self.jumphost.ensure(&docker, &log).await?;
-        }
-        self.jumphost.give_access(&docker, &self.kind, &jumphost::app_placement(&self.kind), &attempt.clusters).await?;
-        step += 1;
-        op.step(step, None);
-        if !crate::runtime::infra::start_existing(&docker, &self.desktop).await? {
-            op.log("the desktop was removed: making a new one".to_string());
-            let questions = self.session.locked().clone();
-            let allowed = self.allowed_docs(&attempt.certification, &questions);
-            self.start_desktop(&docker, &allowed, &attempt.clusters).await?;
-        }
-        step += 1;
-        op.step(step, None);
-        // One deadline for them all, as the error says
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(120);
-        for cluster in &attempt.clusters {
-            op.detail(format!("Waiting for the API server of {cluster}"));
-            let mut ready = false;
-            while tokio::time::Instant::now() < deadline {
-                let (exit, _) =
-                    checks::run_script(&docker, &self.jumphost.name, cluster, "kubectl get --raw=/readyz >/dev/null", 15).await?;
-                if exit == 0 {
-                    ready = true;
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            }
-            if !ready {
-                return Err(AppError::cluster(format!("cluster {cluster} did not come back within 2 minutes")));
-            }
-        }
-        Ok(())
-    }
-
-    /// Start an attempt. Clusters with the names the exam needs must not exist
-    /// unless `replace` (they are deleted).
-    pub async fn start(self: &Arc<Self>, exam_id: &str, mode: Mode, replace: bool) -> AppResult<()> {
-        // Until it is Preparing: a second start (a double click) is refused
-        let Ok(_busy) = self.busy.try_lock() else {
-            return Err(AppError::busy("an exam is already in progress"));
-        };
-        let pack = self.pack();
-        if matches!(
-            self.state(),
-            ExamState::Preparing { .. }
-                | ExamState::Resuming { .. }
-                | ExamState::Running { .. }
-                | ExamState::Grading { .. }
-                | ExamState::Ending { .. }
-        ) {
-            return Err(AppError::busy("an exam is already in progress"));
-        }
-        // Whatever a guard noted before belongs to an earlier attempt
-        self.guard.take_outside();
-        let exam = pack.exams.get(exam_id).ok_or_else(|| AppError::not_found(format!("no exam '{exam_id}'")))?;
-        let exam = exam.value.clone();
-        let cert = pack.pack.certifications.get(&exam.certification).cloned().ok_or_else(|| AppError::invalid("unknown certification"))?;
-
-        let questions = self.draw(&exam);
-        let clusters = topology(&questions);
-        let existing = self.kind.all_clusters().await?;
-        let taken: Vec<&String> = clusters.keys().filter(|c| existing.contains(*c)).collect();
-        if !taken.is_empty() && !replace {
-            return Err(AppError::ClustersExist {
-                message: format!(
-                    "cluster {} already exists; starting the exam replaces it",
-                    taken.iter().map(|c| c.as_str()).collect::<Vec<_>>().join(", ")
-                ),
-            });
-        }
-
-        let total_points: u32 = questions.iter().map(|(_, q)| q.checks.iter().map(|c| c.weight).sum::<u32>()).sum();
-        let attempt = Attempt {
-            id: format!("{}", now_ms() as u64),
-            exam_id: exam_id.into(),
-            title: exam.title.clone(),
-            certification: exam.certification.clone(),
-            mode,
-            pass_score: exam.pass_score.unwrap_or(cert.pass_score),
-            questions: questions
-                .iter()
-                .map(|(id, q)| QuestionView {
-                    id: id.clone(),
-                    title: q.title.clone(),
-                    cluster: q.cluster.clone(),
-                    host: q.cluster.clone(),
-                    namespace: q.namespace.clone(),
-                    tags: q.tags.clone(),
-                    weight: if total_points == 0 { 0.0 } else {
-                        f64::from(q.checks.iter().map(|c| c.weight).sum::<u32>()) * 100.0 / f64::from(total_points)
-                    },
-                    statement: q.statement.clone(),
-                    hints: if mode == Mode::Practice { q.hints.clone() } else { Vec::new() },
-                    references: q.references.clone(),
-                })
-                .collect(),
-            clusters: clusters.keys().cloned().collect(),
-        };
-        let allowed = self.allowed_docs(&exam.certification, &questions);
-        *self.session.locked() = questions;
-        let token = CancellationToken::new();
-        *self.cancel.locked() = token.clone();
-        let duration = exam.duration.as_ref().unwrap_or(&cert.duration).seconds().unwrap_or(7200);
-
-        // The whole plan up front, so the candidate sees what is coming
-        let setups = self.session.locked().iter().filter(|(_, q)| q.setup.is_some()).count();
-        let replacing: Vec<String> = clusters.keys().filter(|c| existing.contains(*c)).cloned().collect();
-        let mut steps = vec!["Preparing images and the registry cache".to_string()];
-        for (name, workers) in &clusters {
-            if replacing.contains(name) {
-                steps.push(format!("Removing the old cluster {name}"));
-            }
-            let plural = if *workers == 1 { "" } else { "s" };
-            steps.push(format!("Creating cluster {name}: 1 control plane, {workers} worker{plural}"));
-        }
-        steps.push("Preparing the task host".into());
-        steps.push("Starting the exam desktop".into());
-        if setups > 0 {
-            let plural = if setups == 1 { "" } else { "s" };
-            steps.push(format!("Setting up {setups} task{plural}"));
-        }
-        let op = self.activities.begin(format!("Setting up {}", attempt.title), steps);
-        self.set(ExamState::Preparing { attempt: attempt.clone(), activity: op.id() });
-
-        let this = self.clone();
-        tauri::async_runtime::spawn(async move {
-            let id = op.id();
-            let prepared = tokio::select! {
-                result = this.prepare(&attempt, &clusters, &replacing, &allowed, id) => result,
-                _ = token.cancelled() => Err(AppError::Cancelled { message: "preparation cancelled".into() }),
-            };
-            match op.end(prepared) {
-                Ok(()) => {
-                    let started_at = now_ms();
-                    let ends_at = (mode == Mode::Exam).then_some(started_at + duration as f64 * 1000.0);
-                    this.set(ExamState::Running { attempt: attempt.clone(), started_at, ends_at });
-                    if let Some(ends_at) = ends_at {
-                        this.submit_at(attempt.id.clone(), ends_at);
-                    }
-                }
-                Err(AppError::Cancelled { .. }) => {
-                    this.cleanup(&attempt).await;
-                    this.set(ExamState::Idle);
-                }
-                Err(e) => this.set(ExamState::Failed {
-                    attempt: Some(attempt),
-                    message: e.to_string(),
-                    activity: Some(id),
-                    resumable: false,
-                }),
-            }
-        });
-        Ok(())
-    }
-
-    /// Create the attempt's clusters, task host and desktop and set up its
-    /// tasks, reporting into the activity `activity` (planned in `start`).
-    async fn prepare(
-        &self,
-        attempt: &Attempt,
-        clusters: &BTreeMap<String, u8>,
-        replacing: &[String],
-        allowed: &[String],
-        activity: u32,
-    ) -> AppResult<()> {
-        let op = self.activities.handle(activity);
-        let log = |line: String| op.log(line);
-        let questions = self.session.locked().clone();
-        let setups: Vec<&(String, Question)> = questions.iter().filter(|(_, q)| q.setup.is_some()).collect();
-        let mut step = 0;
-        let mut next = |detail: Option<String>| {
-            op.step(step, detail);
-            step += 1;
-        };
-
-        let docker = docker::connect().await?;
-        // Built when the app started; waits here if that is still running
-        next(Some("Built when ckpro starts; waits for that build if it is still running".into()));
-        self.infra.ensure(&docker, &log).await?;
-        for (name, workers) in clusters {
-            if replacing.contains(name) {
-                next(None);
-                lifecycle::delete(&self.kind, name, &log).await?;
-            }
-            next(None);
-            lifecycle::create(&self.kind, &self.infra, name, *workers, &log, &Default::default()).await?;
-        }
-        next(None);
-        self.jumphost.reset(&docker, &log).await?;
-        self.jumphost.give_access(&docker, &self.kind, &jumphost::app_placement(&self.kind), &attempt.clusters).await?;
-        next(None);
-        self.start_desktop(&docker, allowed, &attempt.clusters).await?;
-        if !setups.is_empty() {
-            next(None);
-        }
-        for (i, (id, q)) in setups.iter().enumerate() {
-            op.detail(format!("Task {} of {}: {}", i + 1, setups.len(), q.title));
-            let (exit, output) = checks::run_script(
-                &docker,
-                &self.jumphost.name,
-                &q.cluster,
-                q.setup.as_deref().unwrap_or_default(),
-                checks::SCRIPT_TIMEOUT_SECS,
-            )
-            .await?;
-            if exit != 0 {
-                for line in output.lines().rev().take(15).collect::<Vec<_>>().into_iter().rev() {
-                    op.log(format!("  {line}"));
-                }
-                return Err(AppError::invalid(format!(
-                    "setup of {id} failed: {}",
-                    output.lines().last().unwrap_or_default()
-                )));
-            }
-        }
-        Ok(())
-    }
-
     fn question(&self, id: &str) -> AppResult<Question> {
         self.session
             .locked()
@@ -808,111 +369,176 @@ impl Exams {
             .map(|(_, q)| q.clone())
             .ok_or_else(|| AppError::not_found(format!("no question '{id}' in this exam")))
     }
+}
 
-    /// Stop preparing, or close the attempt and delete its clusters.
-    pub async fn end(&self) -> AppResult<()> {
-        let Ok(_busy) = self.busy.try_lock() else {
-            return Err(AppError::invalid("wait for the exam to finish what it is doing"));
-        };
-        let state = self.state();
-        match &state {
-            // Its task cleans up once cancelled
-            ExamState::Preparing { .. } => {
-                self.cancel.locked().cancel();
-                return Ok(());
-            }
-            ExamState::Grading { .. } | ExamState::Resuming { .. } | ExamState::Ending { .. } => {
-                return Err(AppError::invalid("wait for the exam to finish what it is doing"));
-            }
-            _ => {}
-        }
-        if let Some(attempt) = state.attempt() {
-            self.cleanup(attempt).await;
-        }
-        self.session.locked().clear();
-        self.set(ExamState::Idle);
-        Ok(())
+#[cfg(test)]
+impl Exams {
+    /// Exams on the bundled pack and `store`, with nothing behind them: for
+    /// tests of what reaches no Docker
+    pub fn for_test(store: Arc<Store>) -> Self {
+        let dir = std::env::temp_dir().join(format!("ckpro-exams-{}", std::process::id()));
+        let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/core");
+        Exams::new(
+            crate::lab::load::load(&core).0.expect("the core pack loads"),
+            Arc::new(Kind::new(dir.clone())),
+            Arc::new(Infra::new(dir.clone())),
+            Arc::new(Jumphost::for_test(&dir, "exams")),
+            "none",
+            store,
+            |_: &ExamState| {},
+            Activities::silent(),
+            Guard::new(|_| {}),
+        )
+    }
+}
+
+/// The attempt's state machine, as far as it goes without Docker: what each
+/// phase lets through, refuses, and keeps to resume
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn exams() -> Arc<Exams> {
+        Arc::new(Exams::for_test(Arc::new(Store::in_memory().unwrap())))
     }
 
-    /// Remove the attempt's clusters and desktop, shown as the Ending phase.
-    /// Best effort: what cannot be removed stays listed under Environment.
-    async fn cleanup(&self, attempt: &Attempt) {
-        let owned = self.kind.owned_clusters();
-        // Also those kind was still creating (a cancelled preparation): no
-        // kubeconfig yet, but their nodes run. The names were the attempt's
-        // own from its start (one there before was replaced or refused)
-        let existing = self.kind.all_clusters().await.unwrap_or_default();
-        let clusters: Vec<&String> =
-            attempt.clusters.iter().filter(|c| owned.contains(c) || existing.contains(c)).collect();
-        let mut steps: Vec<String> = clusters.iter().map(|c| format!("Removing cluster {c}")).collect();
-        steps.extend(["Removing the exam desktop", "Updating the task host"].map(String::from));
-        let op = self.activities.begin("Cleaning up", steps);
-        self.set(ExamState::Ending { attempt: attempt.clone(), activity: op.id() });
-        let log = |line: String| op.log(line);
-        let mut step = 0;
-        for name in clusters {
-            op.step(step, None);
-            if let Err(e) = lifecycle::delete(&self.kind, name, &log).await {
-                op.log(format!("could not remove {name}: {e}"));
-            }
-            step += 1;
-        }
-        op.step(step, None);
-        match docker::connect().await {
-            Ok(docker) => {
-                if let Err(e) = desktop::remove(&docker, &self.desktop).await {
-                    op.log(format!("could not remove the desktop: {e}"));
-                }
-                op.step(step + 1, None);
-                if let Err(e) = self.jumphost.refresh_access(&docker, &self.kind, &jumphost::app_placement(&self.kind)).await {
-                    op.log(format!("could not update the task host: {e}"));
-                }
-                op.done();
-            }
-            Err(e) => op.fail(e),
+    fn attempt(mode: Mode) -> Attempt {
+        Attempt {
+            id: "1".into(),
+            exam_id: "core/cka-001".into(),
+            title: "CKA".into(),
+            certification: "cka".into(),
+            mode,
+            pass_score: 66,
+            questions: Vec::new(),
+            clusters: vec!["cka".into()],
         }
     }
 
-    fn save_history(&self, attempt: &Attempt, result: &ExamResult) {
-        let entry = HistoryEntry {
-            attempt_id: attempt.id.clone(),
-            exam_id: attempt.exam_id.clone(),
-            title: attempt.title.clone(),
-            certification: attempt.certification.clone(),
-            mode: attempt.mode,
-            pass_score: attempt.pass_score,
-            result: result.clone(),
-        };
-        if let Err(e) = self.store.add_history(&attempt.id, &attempt.exam_id, result.finished_at, &entry) {
-            tracing::warn!(error = %e, "saving exam history");
+    /// The state as it is, without the guard following it (it would reach Docker)
+    fn put(exams: &Exams, state: ExamState) {
+        *exams.state.locked() = state;
+    }
+
+    fn running(mode: Mode) -> ExamState {
+        ExamState::Running { attempt: attempt(mode), started_at: 0.0, ends_at: None }
+    }
+
+    /// One of the bank's questions in the attempt, its id
+    fn with_question(exams: &Exams) -> String {
+        let (id, q) = exams.bank().questions.iter().next().map(|(id, q)| (id.clone(), q.value.clone())).unwrap();
+        *exams.session.locked() = vec![(id.clone(), q)];
+        id
+    }
+
+    #[tokio::test]
+    async fn with_no_attempt_nothing_moves() {
+        let exams = exams();
+        assert!(matches!(exams.submit(), Err(AppError::Invalid { .. })));
+        assert!(matches!(exams.retry(), Err(AppError::Invalid { .. })));
+        assert!(matches!(exams.solution("any"), Err(AppError::Invalid { .. })));
+        assert!(matches!(exams.check_question("any").await, Err(AppError::Invalid { .. })));
+        assert!(matches!(exams.reset_desktop().await, Err(AppError::Invalid { .. })));
+        // Closing nothing is fine, and leaves nothing
+        exams.end().await.unwrap();
+        assert!(matches!(exams.state(), ExamState::Idle));
+    }
+
+    /// An exam that is not in the bank is refused before anything is made,
+    /// and a second try is not taken for a double click
+    #[tokio::test]
+    async fn a_start_of_no_exam_leaves_it_idle() {
+        let exams = exams();
+        for _ in 0..2 {
+            assert!(matches!(exams.start("core/none", Mode::Practice, false).await, Err(AppError::NotFound { .. })));
+            assert!(matches!(exams.state(), ExamState::Idle));
         }
     }
 
-    pub fn history(&self) -> Vec<HistoryEntry> {
-        let mut history: Vec<HistoryEntry> = self.store.history().unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "reading exam history");
-            Vec::new()
+    /// One attempt at a time: another start is refused whatever phase it is
+    /// in; closing waits for a step under way, and cancels a preparation
+    #[tokio::test]
+    async fn one_attempt_at_a_time() {
+        let exams = exams();
+        let phases = [
+            ExamState::Preparing { attempt: attempt(Mode::Practice), activity: 0 },
+            ExamState::Resuming { attempt: attempt(Mode::Practice), activity: 0 },
+            running(Mode::Practice),
+            ExamState::Grading { attempt: attempt(Mode::Practice), activity: 0, scores: Vec::new(), note: None },
+            ExamState::Ending { attempt: attempt(Mode::Practice), activity: 0 },
+        ];
+        for phase in phases {
+            put(&exams, phase);
+            let id = exams.bank().exams.keys().next().unwrap().clone();
+            assert!(matches!(exams.start(&id, Mode::Practice, false).await, Err(AppError::Busy { .. })));
+        }
+        for phase in [
+            ExamState::Grading { attempt: attempt(Mode::Exam), activity: 0, scores: Vec::new(), note: None },
+            ExamState::Resuming { attempt: attempt(Mode::Exam), activity: 0 },
+            ExamState::Ending { attempt: attempt(Mode::Exam), activity: 0 },
+        ] {
+            put(&exams, phase);
+            assert!(matches!(exams.end().await, Err(AppError::Invalid { .. })));
+        }
+        put(&exams, ExamState::Preparing { attempt: attempt(Mode::Exam), activity: 0 });
+        let token = exams.cancel.locked().clone();
+        exams.end().await.unwrap();
+        assert!(token.is_cancelled(), "the preparation is cancelled; its task cleans up");
+        assert!(matches!(exams.state(), ExamState::Preparing { .. }));
+    }
+
+    /// Exam mode keeps its material: no solution nor check until the result;
+    /// practice shows them, and notes the solutions opened
+    #[tokio::test]
+    async fn exam_mode_shows_nothing_until_the_result() {
+        let exams = exams();
+        let id = with_question(&exams);
+        put(&exams, running(Mode::Exam));
+        assert!(matches!(exams.solution(&id), Err(AppError::Invalid { .. })));
+        assert!(matches!(exams.check_question(&id).await, Err(AppError::Invalid { .. })));
+        assert!(exams.state().exam_in_progress());
+        put(&exams, running(Mode::Practice));
+        assert!(!exams.solution_seen("1", &id));
+        exams.solution(&id).unwrap();
+        assert!(exams.solution_seen("1", &id));
+        assert!(!exams.state().exam_in_progress());
+        put(&exams, ExamState::Finished {
+            attempt: attempt(Mode::Exam),
+            result: ExamResult {
+                score: 0.0,
+                passed: false,
+                started_at: 0.0,
+                finished_at: 0.0,
+                questions: Vec::new(),
+                outside: Vec::new(),
+                assisted: Vec::new(),
+                prediction: None,
+            },
         });
-        let pack = self.bank();
-        for entry in history.iter_mut().filter(|e| e.certification.is_empty()) {
-            entry.certification = certification_of(&pack, entry).unwrap_or_default();
-        }
-        history
+        exams.solution(&id).unwrap();
+        assert!(!exams.state().exam_in_progress(), "the result is in: the review is open");
+        // A failed exam-mode attempt may be tried again: still under way
+        put(&exams, ExamState::Failed { attempt: Some(attempt(Mode::Exam)), message: String::new(), activity: None, resumable: true });
+        assert!(exams.state().exam_in_progress());
+    }
+
+    /// A running attempt is kept with its questions, to resume; one being
+    /// graded or resumed, or that failed to, stays as it was kept; anything
+    /// else has nothing to resume
+    #[test]
+    fn a_running_attempt_is_kept_to_resume() {
+        let exams = exams();
+        with_question(&exams);
+        exams.save_attempt(&running(Mode::Practice));
+        let (kept, questions) = saved_running(&exams.store).expect("kept");
+        assert_eq!((kept.id.as_str(), questions.len()), ("1", 1));
+        exams.save_attempt(&ExamState::Failed { attempt: Some(attempt(Mode::Practice)), message: String::new(), activity: None, resumable: true });
+        exams.save_attempt(&ExamState::Grading { attempt: attempt(Mode::Practice), activity: 0, scores: Vec::new(), note: None });
+        assert!(saved_running(&exams.store).is_some());
+        exams.save_attempt(&ExamState::Idle);
+        assert!(saved_running(&exams.store).is_none());
+        // Nothing kept: nothing to resume, and no retry of it
+        exams.restore();
+        assert!(matches!(exams.state(), ExamState::Idle));
     }
 }
-
-/// An entry's certification, for one kept before it was: its exam's, else
-/// the one most of its questions belong to (its exam deleted)
-fn certification_of(pack: &LoadedPack, entry: &HistoryEntry) -> Option<String> {
-    if let Some(exam) = pack.exams.get(&entry.exam_id) {
-        return Some(exam.value.certification.clone());
-    }
-    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
-    for q in &entry.result.questions {
-        for certification in pack.questions.get(&q.id).into_iter().flat_map(|l| l.value.certifications.keys()) {
-            *counts.entry(certification).or_default() += 1;
-        }
-    }
-    counts.into_iter().max_by_key(|(_, n)| *n).map(|(c, _)| c.to_string())
-}
-

@@ -14,6 +14,7 @@ use super::infra::Infra;
 use super::guard::Guard;
 use super::{docker, reconcile};
 use crate::cluster::jobs::Jobs;
+use crate::error::{AppError, AppResult};
 use crate::cluster::kind::{CLUSTER_LABEL, Kind, node_containers};
 use bollard::Docker;
 use bollard::query_parameters::EventsOptions;
@@ -343,12 +344,12 @@ async fn watch_nodes(cluster: String, kubeconfig: PathBuf, env: Arc<Env>) {
     }
 }
 
-async fn client(kubeconfig: &PathBuf) -> Result<kube::Client, String> {
-    let config = kube::config::Kubeconfig::read_from(kubeconfig).map_err(|e| e.to_string())?;
+async fn client(kubeconfig: &PathBuf) -> AppResult<kube::Client> {
+    let config = kube::config::Kubeconfig::read_from(kubeconfig).map_err(|e| AppError::cluster(format!("reading the kubeconfig: {e}")))?;
     let config = kube::Config::from_custom_kubeconfig(config, &Default::default())
         .await
-        .map_err(|e| e.to_string())?;
-    kube::Client::try_from(config).map_err(|e| e.to_string())
+        .map_err(|e| AppError::cluster(format!("the kubeconfig: {e}")))?;
+    kube::Client::try_from(config).map_err(|e| AppError::cluster(format!("a Kubernetes client: {e}")))
 }
 
 fn set_readiness(env: &Env, cluster: &str, node: &Node) {

@@ -36,13 +36,12 @@ impl Coach {
         if text.is_empty() {
             return Err(AppError::invalid("say what exam you want"));
         }
-        exams.assistant_allowed()?;
-        self.require_enabled()?;
+        self.require_enabled(store)?;
         let _busy = self.busy();
         // Its own: answers in other conversations go on
         let cancel = CancellationToken::new();
         {
-            // Judged again under the lock `stop_answers` takes (see `Coach::start`)
+            // Judged under the lock `stop_answers` takes (see `Coach::start`)
             let mut running = self.studio_running.locked();
             exams.assistant_allowed()?;
             if let Some(previous) = running.insert(session, cancel.clone()) {
@@ -261,7 +260,7 @@ default 1, at most {MAX_WORKERS}).\n\
 `disrupts: true`; it runs last. Questions of the packs that do are marked so already.\n\
 - Scripts fetch only from {} (or inside the cluster), and never run what they download (no \
 `curl … | bash`).\n\n",
-        super::generate::RULES,
+        crate::studio::rules::RULES,
         crate::studio::rules::sources(),
     );
     s.push_str("Certifications and their domains (weight in percent):\n");
@@ -269,6 +268,6 @@ default 1, at most {MAX_WORKERS}).\n\
         let domains: Vec<String> = cert.domains.iter().map(|(d, w)| format!("{d} {w}%")).collect();
         let _ = writeln!(s, "- {id} ({}): {}", cert.title, domains.join(", "));
     }
-    let _ = writeln!(s, "\nJSON schema of a question:\n```json\n{}\n```", super::generate::question_schema());
+    let _ = writeln!(s, "\nJSON schema of a question:\n```json\n{}\n```", crate::studio::rules::question_schema());
     s
 }
