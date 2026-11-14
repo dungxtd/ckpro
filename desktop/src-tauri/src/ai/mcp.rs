@@ -10,12 +10,12 @@
 /// Whether the tools may act now (`Exams::agent_tools_allowed`)
 pub type Allowed = std::sync::Arc<dyn Fn() -> AppResult<()> + Send + Sync>;
 
+use super::policy::COMMAND_MAX_SECS;
 use crate::error::{AppError, AppResult};
 use crate::lab::checks;
 use crate::lab::exam;
 use crate::lab::model::Question;
 use crate::store::Store;
-use super::policy::COMMAND_MAX_SECS;
 use serde_json::{Value, json};
 use std::fmt::Write as _;
 
@@ -57,27 +57,24 @@ impl Server {
         }
         let (_, questions) =
             exam::saved_running(&self.store).ok_or_else(|| AppError::not_found("no practice attempt is running in ckpro"))?;
-        questions
-            .into_iter()
-            .find(|(id, _)| *id == self.question)
-            .ok_or_else(|| AppError::not_found("the question is not in the attempt"))
+        questions.into_iter().find(|(id, _)| *id == self.question).ok_or_else(|| AppError::not_found("the question is not in the attempt"))
     }
 
     /// Run the question's checks on its cluster: what passes, why the rest fail
     async fn check_my_work(&self) -> AppResult<String> {
         let (id, question) = self.question()?;
         let (docker, host) = task_host().await?;
-        let results = checks::run_checks(
-            &docker,
-            host,
-            question.checks.iter().map(|c| (question.cluster.as_str(), c)),
-            |_, _| {},
-        )
-        .await?;
+        let results = checks::run_checks(&docker, host, question.checks.iter().map(|c| (question.cluster.as_str(), c)), |_, _| {}).await?;
         let passed = results.iter().filter(|r| r.passed).count();
         let mut text = format!("{} ({id}): {passed} of {} checks pass\n\n", question.title, results.len());
         for r in &results {
-            let _ = writeln!(text, "- [{}] {}{}", if r.passed { "x" } else { " " }, r.name, if r.passed || r.detail.is_empty() { String::new() } else { format!(": {}", r.detail) });
+            let _ = writeln!(
+                text,
+                "- [{}] {}{}",
+                if r.passed { "x" } else { " " },
+                r.name,
+                if r.passed || r.detail.is_empty() { String::new() } else { format!(": {}", r.detail) }
+            );
         }
         Ok(text)
     }
@@ -96,7 +93,9 @@ impl Server {
         }
         let settings = super::policy::AgentSettings::load_or_guarded(&self.store);
         if let Some(entry) = settings.never_runs(command) {
-            return Err(AppError::invalid(format!("Not run: the candidate never lets the assistant run commands with \"{entry}\". Ask them to run it.")));
+            return Err(AppError::invalid(format!(
+                "Not run: the candidate never lets the assistant run commands with \"{entry}\". Ask them to run it."
+            )));
         }
         let (docker, host) = task_host().await?;
         let secs = timeout.map_or(settings.command_timeout, |t| t.clamp(1, u64::from(COMMAND_MAX_SECS)) as u32);
@@ -189,7 +188,9 @@ fn refused(command: &str) -> Option<&'static str> {
     }
     let wipes = lower.split(['\n', ';', '&', '|']).any(|part| {
         let part: Vec<&str> = part.split_whitespace().collect();
-        part.first() == Some(&"rm") && part.iter().any(|a| a.starts_with('-') && a.contains('r')) && part.iter().any(|a| matches!(*a, "/" | "/*" | "~" | "~/"))
+        part.first() == Some(&"rm")
+            && part.iter().any(|a| a.starts_with('-') && a.contains('r'))
+            && part.iter().any(|a| matches!(*a, "/" | "/*" | "~" | "~/"))
     });
     if wipes {
         return Some("it would wipe the host");
@@ -215,9 +216,9 @@ fn tools() -> Value {
         {
             "name": "run_command",
             "description": "Run a bash command on the task's host (kubectl is set to the task's cluster; nodes are \
-reached with `ssh <node>`), as the candidate would. The candidate approves each command. Prefer reading \
-(get, describe, logs) and say why before changing anything. Non-interactive only (no `-it`, no editors); \
-wait for what you create (`kubectl wait`, `rollout status`).",
+    reached with `ssh <node>`), as the candidate would. The candidate approves each command. Prefer reading \
+    (get, describe, logs) and say why before changing anything. Non-interactive only (no `-it`, no editors); \
+    wait for what you create (`kubectl wait`, `rollout status`).",
             "inputSchema": { "type": "object", "properties": {
                 "command": { "type": "string" },
                 "timeout_seconds": { "type": "integer", "minimum": 1, "maximum": COMMAND_MAX_SECS } },
@@ -248,10 +249,23 @@ mod tests {
 
     #[test]
     fn commands_that_break_the_environment_are_refused() {
-        for bad in ["kind delete cluster --name k8s", "docker rm -f ckpro-jumphost", "sudo reboot", "rm -rf /", "cd /tmp && rm -fr ~", ":(){ :|:& };:"] {
+        for bad in [
+            "kind delete cluster --name k8s",
+            "docker rm -f ckpro-jumphost",
+            "sudo reboot",
+            "rm -rf /",
+            "cd /tmp && rm -fr ~",
+            ":(){ :|:& };:",
+        ] {
             assert!(refused(bad).is_some(), "{bad}");
         }
-        for ok in ["kubectl get pods -A", "rm -rf /tmp/work", "ssh node01 'systemctl restart kubelet'", "kubectl rollout restart deploy/web", "echo dockerfile"] {
+        for ok in [
+            "kubectl get pods -A",
+            "rm -rf /tmp/work",
+            "ssh node01 'systemctl restart kubelet'",
+            "kubectl rollout restart deploy/web",
+            "echo dockerfile",
+        ] {
             assert_eq!(refused(ok), None, "{ok}");
         }
     }
@@ -274,7 +288,10 @@ mod tests {
             Err(e) => Err(AppError::not_found(e.to_string())),
         });
         let server = Server::new(std::sync::Arc::new(Store::in_memory().unwrap()), "q1".into(), allowed);
-        let init = server.handle(&json!({ "jsonrpc": "2.0", "id": 0, "method": "initialize", "params": { "protocolVersion": "2025-03-26" } })).await.unwrap();
+        let init = server
+            .handle(&json!({ "jsonrpc": "2.0", "id": 0, "method": "initialize", "params": { "protocolVersion": "2025-03-26" } }))
+            .await
+            .unwrap();
         assert_eq!(init["result"]["protocolVersion"], "2025-03-26");
         assert!(server.handle(&json!({ "jsonrpc": "2.0", "method": "notifications/initialized" })).await.is_none());
         let list = server.handle(&json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" })).await.unwrap();
@@ -284,12 +301,14 @@ mod tests {
         let (none, failed) = call(&server, "check_my_work").await;
         assert!(failed && none.contains("no practice attempt"), "{none}");
         // An exam-mode attempt in the app: the tools refuse
-        let running = |mode: &str| json!({
-            "state": { "phase": "running", "started_at": 0.0, "ends_at": null, "attempt": {
-                "id": "1", "exam_id": "cka-001", "title": "CKA", "certification": "cka", "mode": mode,
-                "pass_score": 66, "questions": [], "clusters": ["k8s"] } },
-            "questions": [],
-        });
+        let running = |mode: &str| {
+            json!({
+                "state": { "phase": "running", "started_at": 0.0, "ends_at": null, "attempt": {
+                    "id": "1", "exam_id": "cka-001", "title": "CKA", "certification": "cka", "mode": mode,
+                    "pass_score": 66, "questions": [], "clusters": ["k8s"] } },
+                "questions": [],
+            })
+        };
         *says.lock().unwrap() = Err(AppError::exam_mode());
         server.store.save_attempt(Some(&running("exam"))).unwrap();
         let (refused, failed) = call(&server, "run_command").await;

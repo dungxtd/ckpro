@@ -7,16 +7,10 @@ use std::path::{Path, PathBuf};
 /// Where installers put programs in the home directory and system-wide:
 /// the Claude CLI's, Volta's, then nvm's Node.js versions, newest first
 pub fn program_dirs(home: &Path) -> Vec<PathBuf> {
-    let mut nvm: Vec<PathBuf> = std::fs::read_dir(home.join(".nvm/versions/node"))
-        .map(|d| d.flatten().map(|e| e.path().join("bin")).collect())
-        .unwrap_or_default();
+    let mut nvm: Vec<PathBuf> =
+        std::fs::read_dir(home.join(".nvm/versions/node")).map(|d| d.flatten().map(|e| e.path().join("bin")).collect()).unwrap_or_default();
     nvm.sort();
-    let mut dirs = vec![
-        home.join(".claude/local"),
-        home.join(".local/bin"),
-        home.join(".volta/bin"),
-        PathBuf::from("/usr/local/bin"),
-    ];
+    let mut dirs = vec![home.join(".claude/local"), home.join(".local/bin"), home.join(".volta/bin"), PathBuf::from("/usr/local/bin")];
     dirs.extend(nvm.into_iter().rev());
     dirs
 }
@@ -38,9 +32,7 @@ pub fn other_docker_engines(home: &Path) -> Vec<bollard::Docker> {
     ]
     .into_iter()
     .filter(|socket| socket.exists())
-    .filter_map(|socket| {
-        bollard::Docker::connect_with_unix(&socket.to_string_lossy(), 120, bollard::API_DEFAULT_VERSION).ok()
-    })
+    .filter_map(|socket| bollard::Docker::connect_with_unix(&socket.to_string_lossy(), 120, bollard::API_DEFAULT_VERSION).ok())
     .collect()
 }
 

@@ -46,12 +46,9 @@ impl Exams {
                         }
                     }
                 },
-                Err(e) => this.set(ExamState::Failed {
-                    attempt: Some(attempt),
-                    message: e.to_string(),
-                    activity: Some(id),
-                    resumable: true,
-                }),
+                Err(e) => {
+                    this.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string(), activity: Some(id), resumable: true })
+                }
             }
         });
     }
@@ -184,7 +181,9 @@ impl Exams {
                     host: q.cluster.clone(),
                     namespace: q.namespace.clone(),
                     tags: q.tags.clone(),
-                    weight: if total_points == 0 { 0.0 } else {
+                    weight: if total_points == 0 {
+                        0.0
+                    } else {
                         f64::from(q.checks.iter().map(|c| c.weight).sum::<u32>()) * 100.0 / f64::from(total_points)
                     },
                     statement: q.statement.clone(),
@@ -240,12 +239,9 @@ impl Exams {
                     this.cleanup(&attempt).await;
                     this.set(ExamState::Idle);
                 }
-                Err(e) => this.set(ExamState::Failed {
-                    attempt: Some(attempt),
-                    message: e.to_string(),
-                    activity: Some(id),
-                    resumable: false,
-                }),
+                Err(e) => {
+                    this.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string(), activity: Some(id), resumable: false })
+                }
             }
         });
         Ok(())
@@ -305,10 +301,7 @@ impl Exams {
                 for line in output.lines().rev().take(15).collect::<Vec<_>>().into_iter().rev() {
                     op.log(format!("  {line}"));
                 }
-                return Err(AppError::invalid(format!(
-                    "setup of {id} failed: {}",
-                    output.lines().last().unwrap_or_default()
-                )));
+                return Err(AppError::invalid(format!("setup of {id} failed: {}", output.lines().last().unwrap_or_default())));
             }
         }
         Ok(())
@@ -347,8 +340,7 @@ impl Exams {
         // kubeconfig yet, but their nodes run. The names were the attempt's
         // own from its start (one there before was replaced or refused)
         let existing = self.kind.all_clusters().await.unwrap_or_default();
-        let clusters: Vec<&String> =
-            attempt.clusters.iter().filter(|c| owned.contains(c) || existing.contains(c)).collect();
+        let clusters: Vec<&String> = attempt.clusters.iter().filter(|c| owned.contains(c) || existing.contains(c)).collect();
         let mut steps: Vec<String> = clusters.iter().map(|c| format!("Removing cluster {c}")).collect();
         steps.extend(["Removing the exam desktop", "Updating the task host"].map(String::from));
         let op = self.activities.begin("Cleaning up", steps);

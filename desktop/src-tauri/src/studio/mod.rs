@@ -8,9 +8,9 @@ pub mod rules;
 use crate::error::{AppError, AppResult};
 use crate::lab::exam::Exams;
 use crate::lab::load::Loaded;
+use crate::lab::load::LoadedPack;
 use crate::lab::mine;
 use crate::lab::model::Question;
-use crate::lab::load::LoadedPack;
 use crate::lab::verify::{Report, Run, Stage, Topology};
 use crate::runtime::activity::{Activities, now_ms};
 use crate::runtime::infra::Infra;
@@ -34,7 +34,12 @@ fn proving_id(certification: &str, key: &str) -> String {
 /// thrown away at its end otherwise): the candidate's changes and the
 /// assistant's alike. `f` may run again, on the draft as another change
 /// left it. The draft as kept, and what `f` returns
-pub fn edit<T>(store: &Store, session: i32, proving: impl Fn() -> bool, mut f: impl FnMut(&mut ExamDraft) -> AppResult<T>) -> AppResult<(ExamDraft, T)> {
+pub fn edit<T>(
+    store: &Store,
+    session: i32,
+    proving: impl Fn() -> bool,
+    mut f: impl FnMut(&mut ExamDraft) -> AppResult<T>,
+) -> AppResult<(ExamDraft, T)> {
     let not_proving = || {
         if proving() {
             Err(AppError::busy("the exam is being proven: wait for the proof to end, or stop it, before changing the exam"))
@@ -47,7 +52,14 @@ pub fn edit<T>(store: &Store, session: i32, proving: impl Fn() -> bool, mut f: i
         if draft.saved.is_some() {
             return Err(AppError::invalid("this exam is saved; start a new conversation for another"));
         }
-        let before: Vec<(String, String)> = draft.items.iter().map(|i| { let (a, b) = i.content(); (a.to_string(), b.to_string()) }).collect();
+        let before: Vec<(String, String)> = draft
+            .items
+            .iter()
+            .map(|i| {
+                let (a, b) = i.content();
+                (a.to_string(), b.to_string())
+            })
+            .collect();
         let result = f(draft)?;
         if !draft.items.iter().map(DraftItem::content).eq(before.iter().map(|(a, b)| (a.as_str(), b.as_str()))) {
             draft.together = false;
@@ -83,8 +95,7 @@ fn staged(bank: &LoadedPack, data_dir: &Path, draft: &ExamDraft) -> AppResult<St
         match item {
             DraftItem::Existing { id, .. } => ids.push((id.clone(), id.clone())),
             DraftItem::New(q) => {
-                let question: Question =
-                    serde_saphyr::from_str(&q.yaml).map_err(|e| AppError::invalid(format!("{}: {e}", q.key)))?;
+                let question: Question = serde_saphyr::from_str(&q.yaml).map_err(|e| AppError::invalid(format!("{}: {e}", q.key)))?;
                 let id = proving_id(&draft.certification, &q.key);
                 new.push((id.clone(), data_dir.join("runs").join(format!("{id}.yaml")), question));
                 ids.push((id, q.key.clone()));
@@ -138,10 +149,11 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
     fits(mb)?;
 
     // The plan: a cluster, the setups, then each question checked
-    let steps: Vec<String> = [format!("Make a cluster with {workers} worker{}", if workers == 1 { "" } else { "s" }), "Set up every question".into()]
-        .into_iter()
-        .chain(checking.iter().filter_map(|k| draft.title_of(k).map(str::to_string)))
-        .collect();
+    let steps: Vec<String> =
+        [format!("Make a cluster with {workers} worker{}", if workers == 1 { "" } else { "s" }), "Set up every question".into()]
+            .into_iter()
+            .chain(checking.iter().filter_map(|k| draft.title_of(k).map(str::to_string)))
+            .collect();
     let title = if draft.title.is_empty() { "Prove the exam".to_string() } else { format!("Prove {}", draft.title) };
     let started = now_ms();
     let proof = Proof {
@@ -224,7 +236,14 @@ pub async fn verify(app: Proving<'_>, session: i32, scope: Scope, fits: impl Fn(
 }
 
 /// Keep a proof's results in the draft: not if it changed meanwhile
-fn keep(store: &Store, session: i32, scope: Scope, draft: &ExamDraft, ids: &[(String, String)], reports: &[Report]) -> AppResult<ExamDraft> {
+fn keep(
+    store: &Store,
+    session: i32,
+    scope: Scope,
+    draft: &ExamDraft,
+    ids: &[(String, String)],
+    reports: &[Report],
+) -> AppResult<ExamDraft> {
     let (now, ()) = ExamDraft::update(store, session, |now| {
         if !now.items.iter().map(DraftItem::content).eq(draft.items.iter().map(DraftItem::content)) {
             return Err(AppError::invalid("the exam changed while it was proven: prove it again"));
@@ -469,10 +488,15 @@ mod tests {
         let session = store.studio_new().unwrap();
         ExamDraft { title: "Mock".into(), saved: Some("mine/custom/mock".into()), ..Default::default() }.save(&store, session).unwrap();
         assert!(
-            edit(&store, session, || false, |d| {
-                d.edit(Some("Other"), None, false);
-                Ok(())
-            })
+            edit(
+                &store,
+                session,
+                || false,
+                |d| {
+                    d.edit(Some("Other"), None, false);
+                    Ok(())
+                }
+            )
             .is_err()
         );
         assert_eq!(ExamDraft::load(&store, session).unwrap().title, "Mock");

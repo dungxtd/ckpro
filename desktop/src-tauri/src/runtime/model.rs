@@ -109,8 +109,15 @@ pub enum Owner {
 pub enum DockerState {
     #[default]
     Connecting,
-    Down { reason: String },
-    Up { engine: String, version: String, cpus: u32, memory_mb: u32 },
+    Down {
+        reason: String,
+    },
+    Up {
+        engine: String,
+        version: String,
+        cpus: u32,
+        memory_mb: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -157,7 +164,9 @@ pub enum ContainerStatus {
     Running,
     Stopped,
     /// created, restarting, paused, dead, ...
-    Other { status: String },
+    Other {
+        status: String,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -167,7 +176,9 @@ pub enum Readiness {
     #[default]
     Unknown,
     Ready,
-    NotReady { reason: String },
+    NotReady {
+        reason: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]

@@ -17,13 +17,7 @@ pub fn quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
-pub async fn run(
-    docker: &Docker,
-    container: &str,
-    cmd: &[&str],
-    env: &[&str],
-    stdin: Option<&[u8]>,
-) -> AppResult<Output> {
+pub async fn run(docker: &Docker, container: &str, cmd: &[&str], env: &[&str], stdin: Option<&[u8]>) -> AppResult<Output> {
     run_tail(docker, container, cmd, env, stdin, None).await
 }
 
@@ -56,8 +50,7 @@ pub async fn run_tail(
         })?;
     // ckpro's own: the guard does not report it as outside access
     super::guard::own_exec(&exec.id);
-    let StartExecResults::Attached { mut output, mut input } = docker.start_exec(&exec.id, None).await?
-    else {
+    let StartExecResults::Attached { mut output, mut input } = docker.start_exec(&exec.id, None).await? else {
         return Err(AppError::docker("exec started detached"));
     };
     if let Some(stdin) = stdin {

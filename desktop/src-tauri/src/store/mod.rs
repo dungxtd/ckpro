@@ -3,8 +3,8 @@
 //! progress through it, exam history and UI settings. Rust owns it; the UI
 //! reads and writes through commands.
 
-use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};
+use crate::sync::MutexExt;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,8 @@ pub use settings::{ExamTarget, Settings};
 pub use studio::{StudioMessage, StudioSessionRow, ToolUse};
 
 /// Schema versions, applied in order (`PRAGMA user_version` is how many ran)
-const MIGRATIONS: &[&str] = &["
+const MIGRATIONS: &[&str] = &[
+    "
     -- The attempt in progress, so it survives quitting the app (one at most)
     CREATE TABLE attempt (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -47,7 +48,8 @@ const MIGRATIONS: &[&str] = &["
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
-", "
+",
+    "
     -- The practice coach's conversation, per attempt and question
     CREATE TABLE coach_message (
         attempt_id TEXT NOT NULL,
@@ -57,7 +59,8 @@ const MIGRATIONS: &[&str] = &["
         text TEXT NOT NULL,
         PRIMARY KEY (attempt_id, question_id, seq)
     );
-", "
+",
+    "
     -- A coach session's own name, when the candidate renamed it
     CREATE TABLE coach_session (
         attempt_id TEXT NOT NULL,
@@ -65,14 +68,16 @@ const MIGRATIONS: &[&str] = &["
         title TEXT NOT NULL,
         PRIMARY KEY (attempt_id, question_id)
     );
-", "
+",
+    "
     -- Questions where the assistant ran commands (Agent): their score was helped
     CREATE TABLE assisted (
         attempt_id TEXT NOT NULL,
         question_id TEXT NOT NULL,
         PRIMARY KEY (attempt_id, question_id)
     );
-", "
+",
+    "
     -- Several coach sessions per question: a new one keeps the earlier ones.
     -- What was kept is the first session (0) of its question
     CREATE TABLE coach_message_v5 (
@@ -105,12 +110,14 @@ const MIGRATIONS: &[&str] = &["
         session INTEGER NOT NULL,
         PRIMARY KEY (attempt_id, question_id)
     );
-", "
+",
+    "
     -- Study plans written by the coach are no longer kept
     DELETE FROM coach_message WHERE attempt_id = 'study-plan';
     DELETE FROM coach_session WHERE attempt_id = 'study-plan';
     DELETE FROM coach_current WHERE attempt_id = 'study-plan';
-", "
+",
+    "
     -- Exams the candidate plans to take on a day (YYYY-MM-DD, their own time)
     CREATE TABLE plan (
         id INTEGER PRIMARY KEY,
@@ -120,7 +127,8 @@ const MIGRATIONS: &[&str] = &["
         created_at INTEGER NOT NULL
     );
     CREATE INDEX plan_day ON plan (day);
-", "
+",
+    "
     -- Create with Claude: a conversation building an exam, and its draft (JSON)
     CREATE TABLE studio_session (
         id INTEGER PRIMARY KEY,
@@ -135,15 +143,18 @@ const MIGRATIONS: &[&str] = &["
         text TEXT NOT NULL,
         PRIMARY KEY (session, seq)
     );
-", "
+",
+    "
     -- The tools Claude used for an answer in Create, in order (JSON)
     ALTER TABLE studio_message ADD COLUMN tools TEXT NOT NULL DEFAULT '[]';
-", "
+",
+    "
     -- An exam is planned at most once a day: earlier duplicates go (the
     -- first planned stays), then the database holds it
     DELETE FROM plan WHERE id NOT IN (SELECT MIN(id) FROM plan GROUP BY day, exam_id);
     CREATE UNIQUE INDEX plan_once_a_day ON plan (day, exam_id);
-"];
+",
+];
 
 /// Where the candidate is in an attempt
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -230,7 +241,6 @@ fn migrated(mut conn: Connection) -> AppResult<Connection> {
 }
 
 impl Store {
-
     fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.conn.locked()
     }
@@ -247,10 +257,9 @@ impl Store {
     /// Keep the running attempt, or forget it (`None`)
     pub fn save_attempt<T: Serialize>(&self, attempt: Option<&T>) -> AppResult<()> {
         match attempt {
-            Some(attempt) => self
-                .conn()
-                .execute("INSERT OR REPLACE INTO attempt (id, state) VALUES (1, ?1)", params![to_json(attempt)?])
-                .map_err(db)?,
+            Some(attempt) => {
+                self.conn().execute("INSERT OR REPLACE INTO attempt (id, state) VALUES (1, ?1)", params![to_json(attempt)?]).map_err(db)?
+            }
             None => self.conn().execute("DELETE FROM attempt", []).map_err(db)?,
         };
         Ok(())
@@ -259,11 +268,9 @@ impl Store {
     pub fn progress(&self, attempt_id: &str) -> AppResult<Progress> {
         let row = self
             .conn()
-            .query_row(
-                "SELECT current, flagged, hints_shown FROM progress WHERE attempt_id = ?1",
-                params![attempt_id],
-                |r| Ok((r.get::<_, u32>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)),
-            )
+            .query_row("SELECT current, flagged, hints_shown FROM progress WHERE attempt_id = ?1", params![attempt_id], |r| {
+                Ok((r.get::<_, u32>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
+            })
             .optional()
             .map_err(db)?;
         Ok(row
@@ -299,9 +306,7 @@ impl Store {
 
     /// The attempts whose ids start with `prefix` go (the demo's, `ckpro demo --remove`)
     pub fn remove_history_with_prefix(&self, prefix: &str) -> AppResult<usize> {
-        self.conn()
-            .execute("DELETE FROM history WHERE attempt_id LIKE ?1 || '%'", params![prefix])
-            .map_err(db)
+        self.conn().execute("DELETE FROM history WHERE attempt_id LIKE ?1 || '%'", params![prefix]).map_err(db)
     }
 
     /// Newest first; entries that no longer parse are skipped
@@ -339,9 +344,8 @@ impl Store {
     /// The entries kept before an entry kept its certification, as they are
     pub fn history_without_certification<T: DeserializeOwned>(&self) -> AppResult<Vec<T>> {
         let conn = self.conn();
-        let mut query = conn
-            .prepare("SELECT entry FROM history WHERE COALESCE(json_extract(entry, '$.certification'), '') = ''")
-            .map_err(db)?;
+        let mut query =
+            conn.prepare("SELECT entry FROM history WHERE COALESCE(json_extract(entry, '$.certification'), '') = ''").map_err(db)?;
         let rows = query.query_map([], |r| r.get::<_, String>(0)).map_err(db)?;
         Ok(rows.flatten().filter_map(|json| serde_json::from_str(&json).ok()).collect())
     }
@@ -494,12 +498,21 @@ mod tests {
                 ExamTarget { certification: "ckad".into(), date: "2027-03-20".into(), started: "2026-11-02".into(), rest_days: vec![] },
             ],
             focus: Some("ckad".into()),
-            home: HomeLayout { places: vec![ModulePlace { module: "today".into(), x: 2, y: 1 }], hidden: vec!["recent".into()], custom: true },
+            home: HomeLayout {
+                places: vec![ModulePlace { module: "today".into(), x: 2, y: 1 }],
+                hidden: vec!["recent".into()],
+                custom: true,
+            },
         };
         store.save_settings(&settings).unwrap();
         assert_eq!(store.settings().unwrap(), settings);
         // A field an earlier version wrote is left unread
-        store.save_setting("exam_desk", &serde_json::json!({ "target": { "certification": "cks", "date": "2027-06-30", "started": "2027-01-01" } })).unwrap();
+        store
+            .save_setting(
+                "exam_desk",
+                &serde_json::json!({ "target": { "certification": "cks", "date": "2027-06-30", "started": "2027-01-01" } }),
+            )
+            .unwrap();
         let before = store.settings().unwrap();
         assert!(before.targets.is_empty());
         assert!(before.home.places.is_empty() && !before.home.custom && before.focus.is_none());

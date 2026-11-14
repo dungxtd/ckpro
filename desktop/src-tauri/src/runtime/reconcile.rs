@@ -54,10 +54,7 @@ pub async fn on_startup(
         steps.push("Starting the registry cache, task host and desktop".into());
     }
     // Shown starting at once (no Repair offered meanwhile), each until done
-    let mut starting: Vec<_> = stopped_clusters
-        .iter()
-        .map(|c| jobs.begin(c, super::model::ClusterJob::Starting).ok())
-        .collect();
+    let mut starting: Vec<_> = stopped_clusters.iter().map(|c| jobs.begin(c, super::model::ClusterJob::Starting).ok()).collect();
     let op = activities.begin("Starting your environment", steps);
     let mut failed = Vec::new();
     for (i, name) in stopped_clusters.iter().enumerate() {
@@ -101,7 +98,6 @@ pub async fn repair(docker: &Docker, cluster: &str) -> AppResult<()> {
     }
     Ok(())
 }
-
 
 /// Stop the app's clusters, jumphost and cache when it quits; `on_startup`
 /// starts them again. Handed to a process of their own so quitting is

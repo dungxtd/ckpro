@@ -148,17 +148,38 @@ pub enum ExamState {
     #[default]
     Idle,
     /// Creating its clusters, desktop and tasks; progress in `activity`
-    Preparing { attempt: Attempt, activity: u32 },
+    Preparing {
+        attempt: Attempt,
+        activity: u32,
+    },
     /// Starting its clusters and desktop again after the app reopened
-    Resuming { attempt: Attempt, activity: u32 },
+    Resuming {
+        attempt: Attempt,
+        activity: u32,
+    },
     /// `ends_at` is unset in practice mode (no time limit)
-    Running { attempt: Attempt, started_at: f64, ends_at: Option<f64> },
+    Running {
+        attempt: Attempt,
+        started_at: f64,
+        ends_at: Option<f64>,
+    },
     /// `scores` fills in as each question is graded; `note` says why grading
     /// started when the candidate did not submit (time ran out while closed)
-    Grading { attempt: Attempt, activity: u32, scores: Vec<Option<QuestionScore>>, note: Option<String> },
+    Grading {
+        attempt: Attempt,
+        activity: u32,
+        scores: Vec<Option<QuestionScore>>,
+        note: Option<String>,
+    },
     /// Removing the attempt's clusters and desktop
-    Ending { attempt: Attempt, activity: u32 },
-    Finished { attempt: Attempt, result: ExamResult },
+    Ending {
+        attempt: Attempt,
+        activity: u32,
+    },
+    Finished {
+        attempt: Attempt,
+        result: ExamResult,
+    },
     /// `activity` has the log of what failed. `resumable`: the attempt is
     /// still kept (resuming or grading it failed) and can be tried again
     Failed {
@@ -348,10 +369,9 @@ impl Exams {
     /// grading it stays: quitting then resumes the attempt, to submit again.
     fn save_attempt(&self, state: &ExamState) {
         let result = match state {
-            ExamState::Running { .. } => self.store.save_attempt(Some(&SavedAttempt {
-                state: state.clone(),
-                questions: self.session.locked().clone(),
-            })),
+            ExamState::Running { .. } => {
+                self.store.save_attempt(Some(&SavedAttempt { state: state.clone(), questions: self.session.locked().clone() }))
+            }
             // Resumed (and graded) at the next start, or on Try Again
             ExamState::Grading { .. } | ExamState::Resuming { .. } | ExamState::Failed { resumable: true, .. } => Ok(()),
             _ => self.store.save_attempt::<SavedAttempt>(None),
@@ -502,19 +522,22 @@ mod tests {
         exams.solution(&id).unwrap();
         assert!(exams.solution_seen("1", &id));
         assert!(!exams.state().exam_in_progress());
-        put(&exams, ExamState::Finished {
-            attempt: attempt(Mode::Exam),
-            result: ExamResult {
-                score: 0.0,
-                passed: false,
-                started_at: 0.0,
-                finished_at: 0.0,
-                questions: Vec::new(),
-                outside: Vec::new(),
-                assisted: Vec::new(),
-                prediction: None,
+        put(
+            &exams,
+            ExamState::Finished {
+                attempt: attempt(Mode::Exam),
+                result: ExamResult {
+                    score: 0.0,
+                    passed: false,
+                    started_at: 0.0,
+                    finished_at: 0.0,
+                    questions: Vec::new(),
+                    outside: Vec::new(),
+                    assisted: Vec::new(),
+                    prediction: None,
+                },
             },
-        });
+        );
         exams.solution(&id).unwrap();
         assert!(!exams.state().exam_in_progress(), "the result is in: the review is open");
         // A failed exam-mode attempt may be tried again: still under way
@@ -532,7 +555,12 @@ mod tests {
         exams.save_attempt(&running(Mode::Practice));
         let (kept, questions) = saved_running(&exams.store).expect("kept");
         assert_eq!((kept.id.as_str(), questions.len()), ("1", 1));
-        exams.save_attempt(&ExamState::Failed { attempt: Some(attempt(Mode::Practice)), message: String::new(), activity: None, resumable: true });
+        exams.save_attempt(&ExamState::Failed {
+            attempt: Some(attempt(Mode::Practice)),
+            message: String::new(),
+            activity: None,
+            resumable: true,
+        });
         exams.save_attempt(&ExamState::Grading { attempt: attempt(Mode::Practice), activity: 0, scores: Vec::new(), note: None });
         assert!(saved_running(&exams.store).is_some());
         exams.save_attempt(&ExamState::Idle);

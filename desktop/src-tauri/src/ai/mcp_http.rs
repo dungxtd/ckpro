@@ -90,7 +90,6 @@ impl McpHttp {
 /// Connections served at once
 const MAX_CONNECTIONS: usize = 16;
 
-
 async fn handle(context: Context, request: Request<Incoming>) -> Result<Response<Full<Bytes>>, std::convert::Infallible> {
     let (store, allowed, studio, token) = &*context;
     let reply = |status: StatusCode, body: &str| {

@@ -9,9 +9,7 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 static GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 
 pub fn init(log_dir: &Path) {
-    let filter = || {
-        EnvFilter::try_from_env("CKPRO_LOG").unwrap_or_else(|_| EnvFilter::new("info"))
-    };
+    let filter = || EnvFilter::try_from_env("CKPRO_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
     let file = tracing_appender::rolling::Builder::new()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
         .filename_prefix("ckpro")

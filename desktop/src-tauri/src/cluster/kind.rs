@@ -64,10 +64,7 @@ impl Kind {
             return Ok(bin);
         }
         std::fs::create_dir_all(&self.bin_dir).map_err(|e| AppError::io("creating data dir", e))?;
-        let url = format!(
-            "https://github.com/kubernetes-sigs/kind/releases/download/{KIND_VERSION}/{}",
-            release_asset()?
-        );
+        let url = format!("https://github.com/kubernetes-sigs/kind/releases/download/{KIND_VERSION}/{}", release_asset()?);
         tracing::info!(%url, "downloading kind");
         let bytes = download(&url).await.map_err(|e| AppError::io("downloading kind", e))?;
         // A name of its own: verify runs in parallel may download it at once,
@@ -85,9 +82,8 @@ impl Kind {
     /// node containers; the stand-in adds the ckpro compose labels to `docker run`
     async fn kind(&self) -> AppResult<tokio::process::Command> {
         let kind = self.binary().await?;
-        let real = docker::cli().ok_or_else(|| AppError::DockerUnavailable {
-            message: format!("The docker CLI was not found. {}.", docker::INSTALL),
-        })?;
+        let real = docker::cli()
+            .ok_or_else(|| AppError::DockerUnavailable { message: format!("The docker CLI was not found. {}.", docker::INSTALL) })?;
         let shim_dir = self.bin_dir.join("shim");
         std::fs::create_dir_all(&shim_dir).map_err(|e| AppError::io("creating the docker stand-in", e))?;
         let app = super::docker_shim::program().map_err(|e| AppError::io("finding the app for the docker stand-in", e))?;
@@ -151,34 +147,32 @@ impl Kind {
         if status.success() {
             Ok(())
         } else {
-            Err(AppError::cluster(format!(
-                "kind {} failed: {}",
-                args.first().copied().unwrap_or_default(),
-                tail.join(" | ")
-            )))
+            Err(AppError::cluster(format!("kind {} failed: {}", args.first().copied().unwrap_or_default(), tail.join(" | "))))
         }
     }
 
     /// Create a cluster from the exam node image; `registry_config` is the
     /// containerd certs.d directory mounted into every node.
-    pub async fn create(
-        &self,
-        name: &str,
-        workers: u8,
-        registry_config: &Path,
-        log: &(dyn Fn(String) + Sync),
-    ) -> AppResult<()> {
+    pub async fn create(&self, name: &str, workers: u8, registry_config: &Path, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         validate_name(name)?;
         std::fs::create_dir_all(&self.dir).map_err(|e| AppError::io("creating data dir", e))?;
         let config = self.dir.join(format!("kind-{name}.yaml"));
-        std::fs::write(&config, cluster_config(workers, registry_config))
-            .map_err(|e| AppError::io("writing kind config", e))?;
+        std::fs::write(&config, cluster_config(workers, registry_config)).map_err(|e| AppError::io("writing kind config", e))?;
         let kubeconfig = self.kubeconfig(name);
         self.run(
             &[
-                "create", "cluster", "--name", name, "--image", &infra::NODE_IMAGE.tag(),
-                "--config", path_str(&config)?, "--kubeconfig", path_str(&kubeconfig)?,
-                "--wait", "120s",
+                "create",
+                "cluster",
+                "--name",
+                name,
+                "--image",
+                &infra::NODE_IMAGE.tag(),
+                "--config",
+                path_str(&config)?,
+                "--kubeconfig",
+                path_str(&kubeconfig)?,
+                "--wait",
+                "120s",
             ],
             log,
         )
@@ -203,11 +197,7 @@ impl Kind {
     pub async fn delete(&self, name: &str, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         validate_name(name)?;
         let kubeconfig = self.kubeconfig(name);
-        self.run(
-            &["delete", "cluster", "--name", name, "--kubeconfig", path_str(&kubeconfig)?],
-            log,
-        )
-        .await?;
+        self.run(&["delete", "cluster", "--name", name, "--kubeconfig", path_str(&kubeconfig)?], log).await?;
         let _ = std::fs::remove_file(kubeconfig);
         Ok(())
     }
@@ -257,9 +247,8 @@ fn passing(e: &reqwest::Error) -> bool {
 }
 
 fn release_asset() -> AppResult<&'static str> {
-    crate::platform::kind_asset().ok_or_else(|| {
-        AppError::cluster(format!("kind has no release for {}/{}", std::env::consts::OS, std::env::consts::ARCH))
-    })
+    crate::platform::kind_asset()
+        .ok_or_else(|| AppError::cluster(format!("kind has no release for {}/{}", std::env::consts::OS, std::env::consts::ARCH)))
 }
 
 /// kind config: one control plane plus `workers` workers, every node pulling

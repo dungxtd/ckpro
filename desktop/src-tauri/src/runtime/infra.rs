@@ -70,23 +70,15 @@ pub fn manifest() -> serde_json::Value {
 }
 
 /// kind node + sshd (`ssh <node>`)
-pub const NODE_IMAGE: Image = Image {
-    name: "node",
-    files: &[("Dockerfile", include_bytes!("../../resources/node/Dockerfile"))],
-    args: &[("BASE", KIND_NODE_BASE)],
-};
+pub const NODE_IMAGE: Image =
+    Image { name: "node", files: &[("Dockerfile", include_bytes!("../../resources/node/Dockerfile"))], args: &[("BASE", KIND_NODE_BASE)] };
 
 /// The task host: kubectl, helm, etcdctl, yq in step with the clusters
 /// (CKA runs v1.35); Helm 3, what helm.sh/docs and the tasks are written for
 pub const JUMPHOST_IMAGE: Image = Image {
     name: "jumphost",
     files: &[("Dockerfile", include_bytes!("../../resources/jumphost/Dockerfile"))],
-    args: &[
-        ("KUBECTL_VERSION", "v1.35.8"),
-        ("ETCD_VERSION", "v3.6.6"),
-        ("HELM_VERSION", "v3.22.1"),
-        ("YQ_VERSION", "v4.54.1"),
-    ],
+    args: &[("KUBECTL_VERSION", "v1.35.8"), ("ETCD_VERSION", "v3.6.6"), ("HELM_VERSION", "v3.22.1"), ("YQ_VERSION", "v4.54.1")],
 };
 
 /// The exam's remote desktop, the `base` machine (runtime/desktop.rs)
@@ -125,7 +117,6 @@ const UPSTREAMS: [(u16, &str, &str); 4] = [
     (5002, "https://ghcr.io", "ghcr.io"),
     (5003, "https://quay.io", "quay.io"),
 ];
-
 
 /// Who is told the images' state: the missing ones, whether they are being
 /// downloaded now, and why the last try could not get them
@@ -246,9 +237,7 @@ impl Infra {
     async fn ensure_locked(&self, docker: &Docker, log: &(dyn Fn(String) + Sync)) -> AppResult<()> {
         if docker.inspect_network(NETWORK, None::<bollard::query_parameters::InspectNetworkOptions>).await.is_err() {
             log(format!("Creating network {NETWORK}"));
-            docker
-                .create_network(NetworkCreateRequest { name: NETWORK.into(), ..Default::default() })
-                .await?;
+            docker.create_network(NetworkCreateRequest { name: NETWORK.into(), ..Default::default() }).await?;
         }
 
         self.write_certs_d()?;
@@ -313,7 +302,11 @@ impl Infra {
     /// refused before anything shows if the cache is in use; shown as an
     /// activity and in the environment (`env`) while it runs, the cache
     /// empty there once done
-    pub async fn clear_cache_shown(&self, env: &super::model::Env, activities: &std::sync::Arc<super::activity::Activities>) -> AppResult<()> {
+    pub async fn clear_cache_shown(
+        &self,
+        env: &super::model::Env,
+        activities: &std::sync::Arc<super::activity::Activities>,
+    ) -> AppResult<()> {
         // Refused before anything shows: only the clear holding the cache says so
         let held = self.hold_cache()?;
         // Docker first: down, the activity would only say it was cancelled
@@ -406,9 +399,7 @@ async fn remove_untagged(docker: &Docker, log: &(dyn Fn(String) + Sync)) {
         ("until".to_string(), vec!["30m".to_string()]),
         ("label".to_string(), vec![format!("{}={}", super::docker::PROJECT_LABEL, super::docker::COMPOSE_PROJECT)]),
     ]);
-    if let Ok(pruned) = docker
-        .prune_images(Some(bollard::query_parameters::PruneImagesOptions { filters: Some(filters) }))
-        .await
+    if let Ok(pruned) = docker.prune_images(Some(bollard::query_parameters::PruneImagesOptions { filters: Some(filters) })).await
         && let Some(bytes) = pruned.space_reclaimed.filter(|b| *b > 0)
     {
         log(format!("Removed old ckpro image layers ({} MB)", bytes / 1_000_000));
@@ -427,9 +418,7 @@ pub(crate) async fn start_existing(docker: &Docker, name: &str) -> AppResult<boo
 }
 
 pub(crate) async fn create_and_start(docker: &Docker, name: &str, config: ContainerCreateBody) -> AppResult<()> {
-    docker
-        .create_container(Some(CreateContainerOptions { name: Some(name.into()), ..Default::default() }), config)
-        .await?;
+    docker.create_container(Some(CreateContainerOptions { name: Some(name.into()), ..Default::default() }), config).await?;
     docker.start_container(name, None::<bollard::query_parameters::StartContainerOptions>).await?;
     Ok(())
 }
@@ -567,10 +556,7 @@ async fn build(docker: &Docker, tag: &str, image: &Image, log: &(dyn Fn(String) 
     while let Some(info) = output.next().await {
         let info = info.map_err(|e| AppError::docker(format!("building {tag}: {e}")))?;
         if let Some(detail) = info.error_detail {
-            return Err(AppError::docker(format!(
-                "building {tag}: {}",
-                detail.message.unwrap_or_default()
-            )));
+            return Err(AppError::docker(format!("building {tag}: {}", detail.message.unwrap_or_default())));
         }
         if let Some(line) = info.stream.map(|s| s.trim_end().to_string()).filter(|s| !s.is_empty()) {
             log(line);
@@ -614,8 +600,7 @@ mod tests {
     #[test]
     fn image_manifest_is_current() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/images.json");
-        let committed: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_default()).unwrap_or_default();
+        let committed: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_default()).unwrap_or_default();
         assert_eq!(committed, manifest(), "stale resources/images.json: run `ckpro images > desktop/src-tauri/resources/images.json`");
     }
 }

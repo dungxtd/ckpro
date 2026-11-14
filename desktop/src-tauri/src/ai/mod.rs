@@ -17,16 +17,16 @@ mod sessions;
 mod studio;
 pub mod studio_tools;
 
-use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};
 use crate::lab::exam::Exams;
 use crate::store::{CoachMessage, Role, Store};
+use crate::sync::MutexExt;
 use agent::{Agent, ContextUsage};
 pub use permissions::PermissionOption;
 use permissions::Waiting;
-pub use sessions::{CoachHistory, CoachSession, CoachTranscript};
-use prompt::{session_title, snapshot, TITLE_SYSTEM};
+use prompt::{TITLE_SYSTEM, session_title, snapshot};
 use serde::{Deserialize, Serialize};
+pub use sessions::{CoachHistory, CoachSession, CoachTranscript};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -41,7 +41,9 @@ const TITLE_MODEL: &str = "haiku";
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CoachEvent {
-    Text { text: String },
+    Text {
+        text: String,
+    },
     /// A command the agent runs (Agent profile), or a tool it uses (Create),
     /// as it goes: in Create, its arguments (JSON) and what it returned
     Tool {
@@ -56,7 +58,13 @@ pub enum CoachEvent {
     /// The agent asks to run a command, or to use one of the app's tools
     /// (`tool`: what it does, in words; `command` is then empty): the
     /// candidate picks an option (`coach_permit`)
-    Permission { id: u32, command: String, #[serde(default)] tool: Option<String>, options: Vec<PermissionOption> },
+    Permission {
+        id: u32,
+        command: String,
+        #[serde(default)]
+        tool: Option<String>,
+        options: Vec<PermissionOption>,
+    },
 }
 
 /// Ask: the coach reads and answers. Agent: it may also run commands on the
@@ -284,11 +292,7 @@ impl Coach {
         let checks = if context.checks && shared.share_checks { checks } else { &[] };
         // Ask is given a look at the cluster; Agent looks itself, from the
         // task and the checks, with read-only commands
-        let snapshot = if profile == Profile::Ask && context.cluster && shared.share_cluster {
-            snapshot(&subject).await
-        } else {
-            None
-        };
+        let snapshot = if profile == Profile::Ask && context.cluster && shared.share_cluster { snapshot(&subject).await } else { None };
         let key = (subject.attempt_id.clone(), question_id.to_string());
         let (session, prompt) =
             self.session_for(store, &subject, question_id, profile, model, effort, checks, snapshot.as_deref(), text).await?;
@@ -316,7 +320,13 @@ impl Coach {
             agent::AgentEvent::Text(t) => text_out(t),
             agent::AgentEvent::Tool(call) => {
                 let command = call.input["command"].as_str().unwrap_or(&call.title).to_string();
-                on_event(CoachEvent::Tool { id: call.id.clone(), command: command.clone(), status: call.status.clone(), input: None, output: None });
+                on_event(CoachEvent::Tool {
+                    id: call.id.clone(),
+                    command: command.clone(),
+                    status: call.status.clone(),
+                    input: None,
+                    output: None,
+                });
                 if matches!(call.status.as_str(), "completed" | "failed") {
                     ran.store(true, std::sync::atomic::Ordering::SeqCst);
                     let output = call.output.as_deref().unwrap_or("").trim_end();
@@ -355,10 +365,7 @@ impl Coach {
         store.add_coach_messages(
             &subject.attempt_id,
             question_id,
-            &[
-                CoachMessage { role: Role::User, text: text.to_string() },
-                CoachMessage { role: Role::Assistant, text: kept.clone() },
-            ],
+            &[CoachMessage { role: Role::User, text: text.to_string() }, CoachMessage { role: Role::Assistant, text: kept.clone() }],
         )?;
         // Unless the candidate named it meanwhile
         let title = match title {
@@ -428,8 +435,8 @@ impl Coach {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::prompt::*;
+    use super::*;
     use crate::lab::checks::CheckResult;
     use crate::lab::exam::CoachSubject;
 
@@ -499,7 +506,15 @@ mod tests {
             CoachMessage { role: Role::Assistant, text: "Look at the class.".into() },
         ];
         let p = prompt(&hidden, &checks, Some("pvc/data-pvc Pending"), &history, "why?");
-        for part in ["`ssh k8s`", "`storage-task`", "data-pvc", "FAIL PVC bound (Pending)", "pvc/data-pvc Pending", "**Coach:** Look at the class.", "why?"] {
+        for part in [
+            "`ssh k8s`",
+            "`storage-task`",
+            "data-pvc",
+            "FAIL PVC bound (Pending)",
+            "pvc/data-pvc Pending",
+            "**Coach:** Look at the class.",
+            "why?",
+        ] {
             assert!(p.contains(part), "missing {part}:\n{p}");
         }
         assert!(!p.contains("Reference answer"));
@@ -516,11 +531,7 @@ mod tests {
     fn the_coach_knows_the_candidates_standing_and_notes() {
         let plain = system(&subject(None), "  ");
         assert!(!plain.contains("results so far") && !plain.contains("notes for you"));
-        let known = CoachSubject {
-            weakest: vec![("services-networking".into(), 12)],
-            unmeasured: vec!["storage".into()],
-            ..subject(None)
-        };
+        let known = CoachSubject { weakest: vec![("services-networking".into(), 12)], unmeasured: vec!["storage".into()], ..subject(None) };
         let s = system(&known, "Answer in Vietnamese.");
         assert!(s.contains("Below the pass line: services networking 12%."), "{s}");
         assert!(s.contains("Not measured yet: storage."));

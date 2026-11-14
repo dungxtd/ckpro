@@ -3,12 +3,12 @@
 //! the same Docker. One sample per container (no streaming), only while the
 //! page is open.
 
+use super::docker::{PROJECT_LABEL, SERVICE_LABEL};
 use super::model::{ContainerUse, HostFacts, MachineMemory, Owner};
 use crate::cluster::kind::CLUSTER_LABEL;
 use bollard::Docker;
 use bollard::query_parameters::{ListContainersOptions, StatsOptions};
 use futures_util::StreamExt;
-use super::docker::{PROJECT_LABEL, SERVICE_LABEL};
 
 /// The running containers and their memory now, largest first. `owned`:
 /// ckpro's clusters (other kind clusters count as other apps)
@@ -57,9 +57,7 @@ fn owner(labels: &std::collections::HashMap<String, String>, owned: &[String]) -
         };
     }
     match (labels.get(PROJECT_LABEL), labels.get(SERVICE_LABEL)) {
-        (Some(project), Some(service)) if project == super::docker::COMPOSE_PROJECT => {
-            Owner::Service { service: service.clone() }
-        }
+        (Some(project), Some(service)) if project == super::docker::COMPOSE_PROJECT => Owner::Service { service: service.clone() },
         _ => Owner::Other { cluster: None },
     }
 }

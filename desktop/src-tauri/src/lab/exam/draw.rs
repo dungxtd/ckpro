@@ -38,9 +38,7 @@ impl Exams {
                     .questions
                     .iter()
                     .filter(|(id, q)| {
-                        q.value.certifications.get(&exam.certification) == Some(&domain)
-                            && q.value.runnable()
-                            && !ids.contains(id)
+                        q.value.certifications.get(&exam.certification) == Some(&domain) && q.value.runnable() && !ids.contains(id)
                     })
                     .map(|(id, _)| id)
                     .collect();
@@ -70,17 +68,11 @@ impl Exams {
 
 /// The exams of `pack`, sized with the nodes `measured` on this machine
 pub fn catalog(pack: &LoadedPack, measured: &crate::runtime::preflight::Footprint) -> Vec<ExamSummary> {
-    pack
-        .exams
+    pack.exams
         .iter()
         .filter_map(|(id, e)| {
             let cert = pack.pack.certifications.get(&e.value.certification)?;
-            let fixed = e
-                .value
-                .questions
-                .iter()
-                .filter(|id| pack.questions.get(*id).is_some_and(|q| q.value.runnable()))
-                .count() as u32;
+            let fixed = e.value.questions.iter().filter(|id| pack.questions.get(*id).is_some_and(|q| q.value.runnable())).count() as u32;
             let topology = worst_topology(pack, &e.value);
             Some(ExamSummary {
                 memory_mb: crate::runtime::preflight::exam_memory_mb(&topology),
@@ -124,9 +116,11 @@ fn coverage_rank(seen: &HashMap<String, bool>, id: &str) -> u8 {
 /// the largest each cluster gets among the questions it may draw
 pub(super) fn worst_topology(pack: &LoadedPack, exam: &Exam) -> BTreeMap<String, u8> {
     let fixed = exam.questions.iter().filter_map(|id| pack.questions.get(id));
-    let drawable = exam.random.as_ref().into_iter().flat_map(|_| {
-        pack.questions.values().filter(|q| q.value.certifications.contains_key(&exam.certification))
-    });
+    let drawable = exam
+        .random
+        .as_ref()
+        .into_iter()
+        .flat_map(|_| pack.questions.values().filter(|q| q.value.certifications.contains_key(&exam.certification)));
     let mut clusters = BTreeMap::new();
     for q in fixed.chain(drawable).filter(|q| q.value.runnable()) {
         let workers: &mut u8 = clusters.entry(q.value.cluster.clone()).or_default();
@@ -150,10 +144,7 @@ pub(super) fn allocate(count: u32, weights: &BTreeMap<String, u32>) -> Vec<(Stri
     if total == 0 {
         return Vec::new();
     }
-    let mut shares: Vec<(String, u32, u32)> = weights
-        .iter()
-        .map(|(d, w)| (d.clone(), count * w / total, (count * w) % total))
-        .collect();
+    let mut shares: Vec<(String, u32, u32)> = weights.iter().map(|(d, w)| (d.clone(), count * w / total, (count * w) % total)).collect();
     let mut left = count - shares.iter().map(|s| s.1).sum::<u32>();
     shares.sort_by_key(|s| std::cmp::Reverse(s.2));
     for share in shares.iter_mut() {

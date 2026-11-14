@@ -97,10 +97,11 @@ async fn exam_cluster_from_the_jumphost() {
     assert_eq!(out.text.split_whitespace().collect::<Vec<_>>(), [name, "2"], "{}", out.text);
     println!("ok: jumphost kubectl has context {name} with 2 nodes");
 
-    let out = f.on_jumphost(&format!(
-        "ssh {name}-worker hostname && ssh {name}-control-plane 'ls /etc/kubernetes/manifests; systemctl is-active kubelet'"
-    ))
-    .await;
+    let out = f
+        .on_jumphost(&format!(
+            "ssh {name}-worker hostname && ssh {name}-control-plane 'ls /etc/kubernetes/manifests; systemctl is-active kubelet'"
+        ))
+        .await;
     assert!(out.text.contains(&format!("{name}-worker")) && out.text.contains("etcd.yaml") && out.text.contains("active"), "{}", out.text);
     println!("ok: ssh to nodes, static pods and kubelet visible");
 
@@ -111,10 +112,7 @@ async fn exam_cluster_from_the_jumphost() {
     assert!(out.text.contains("is healthy"), "{}", out.text);
     println!("ok: etcdctl from the jumphost");
 
-    eventually("kubectl top nodes (metrics-server)", 60, async || {
-        f.on_jumphost("kubectl top nodes").await.exit_code == 0
-    })
-    .await;
+    eventually("kubectl top nodes (metrics-server)", 60, async || f.on_jumphost("kubectl top nodes").await.exit_code == 0).await;
 
     let out = f.on_jumphost("kubectl run web --image=nginx:alpine && kubectl wait --for=condition=Ready pod/web --timeout=180s").await;
     assert_eq!(out.exit_code, 0, "{}", out.text);
@@ -133,9 +131,8 @@ async fn exam_cluster_from_the_jumphost() {
     // jumphost, not this test's); starting it again brings them back,
     // workloads included
     let containers = [format!("{name}-control-plane"), format!("{name}-worker"), infra::MIRROR.to_string()];
-    let running = async |container: &str| {
-        docker.inspect_container(container, None).await.ok().and_then(|c| c.state?.running).unwrap_or(false)
-    };
+    let running =
+        async |container: &str| docker.inspect_container(container, None).await.ok().and_then(|c| c.state?.running).unwrap_or(false);
     runtime::reconcile::on_exit(&f.kind);
     eventually("quitting stops the nodes and cache", 30, async || {
         for c in &containers {
@@ -173,7 +170,15 @@ async fn monitor_tracks_node_failure_and_repair() {
     // Readiness is followed while it is shown (the Environment page)
     env.set_watch_nodes(true);
     f.create(name, 1).await;
-    runtime::monitor::start(env.clone(), f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), runtime::guard::Guard::new(|_| {}), Arc::new(crate::cluster::jobs::Jobs::new(env.clone())), vec![]);
+    runtime::monitor::start(
+        env.clone(),
+        f.kind.clone(),
+        f.infra.clone(),
+        runtime::activity::Activities::silent(),
+        runtime::guard::Guard::new(|_| {}),
+        Arc::new(crate::cluster::jobs::Jobs::new(env.clone())),
+        vec![],
+    );
     let worker = format!("{name}-worker");
 
     eventually("all nodes Ready", 120, async || {
@@ -241,7 +246,17 @@ async fn exam_engine_practice_and_exam_modes() {
     let env = Arc::new(Env::new(|_| {}));
     let jobs = Arc::new(crate::cluster::jobs::Jobs::new(env.clone()));
     runtime::monitor::start(env, f.kind.clone(), f.infra.clone(), runtime::activity::Activities::silent(), guard.clone(), jobs, vec![]);
-    let exams = Arc::new(Exams::new(pack, f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, store.clone(), |_: &ExamState| {}, runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}")), guard.clone()));
+    let exams = Arc::new(Exams::new(
+        pack,
+        f.kind.clone(),
+        f.infra.clone(),
+        f.jumphost.clone(),
+        desktop,
+        store.clone(),
+        |_: &ExamState| {},
+        runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}")),
+        guard.clone(),
+    ));
     let question = "core/cka/rbac-ci-token";
     let wait_running = async || {
         for _ in 0..300 {
@@ -282,7 +297,8 @@ async fn exam_engine_practice_and_exam_modes() {
     eventually("an outside exec is noted", 15, async || guard.outside().iter().any(|o| o.contains("command was run"))).await;
     outside_cmd(&["stop", "-t", "1", desktop]);
     eventually("a desktop stopped outside is started again", 30, async || {
-        guard.outside().iter().any(|o| o.contains("stopped outside")) && outside_cmd(&["inspect", "-f", "{{.State.Running}}", desktop]).stdout.starts_with(b"true")
+        guard.outside().iter().any(|o| o.contains("stopped outside"))
+            && outside_cmd(&["inspect", "-f", "{{.State.Running}}", desktop]).stdout.starts_with(b"true")
     })
     .await;
     println!("ok: an outside exec is noted; a desktop stopped outside is started again");
@@ -315,13 +331,14 @@ async fn exam_engine_practice_and_exam_modes() {
     let session = runtime::desktop::session(&docker, desktop).await.unwrap().expect("a desktop session");
     assert!(tokio::net::TcpStream::connect(("127.0.0.1", session.port)).await.is_ok() && session.password.len() == 8);
     println!("ok: desktop VNC on 127.0.0.1:{} behind a password", session.port);
-    let on_base = async |cmd: &str| {
-        exec::run(&docker, desktop, &["bash", "-lc", cmd], &[], None).await.unwrap()
-    };
+    let on_base = async |cmd: &str| exec::run(&docker, desktop, &["bash", "-lc", cmd], &[], None).await.unwrap();
     let out = on_base("hostname; whoami; command -v kubectl || echo no-kubectl").await;
     assert_eq!(out.text.split_whitespace().collect::<Vec<_>>(), ["base", "candidate", "no-kubectl"], "{}", out.text);
     println!("ok: the desktop is candidate@base, without kubectl");
-    let out = on_base(&format!("ssh -o BatchMode=yes {cluster} 'kubectl config current-context && kubectl get nodes --no-headers | wc -l && yq --version'")).await;
+    let out = on_base(&format!(
+        "ssh -o BatchMode=yes {cluster} 'kubectl config current-context && kubectl get nodes --no-headers | wc -l && yq --version'"
+    ))
+    .await;
     let lines: Vec<&str> = out.text.lines().collect();
     assert!(out.exit_code == 0 && lines.first() == Some(&cluster) && out.text.contains("mikefarah"), "{}", out.text);
     println!("ok: `ssh <cluster>` from base reaches the task host on its context, with yq");
@@ -393,20 +410,24 @@ async fn exam_engine_practice_and_exam_modes() {
     // kept Xvnc down while websockify kept the container up)
     eventually("Reset desktop brings back VNC, VSCodium and the same allowed docs", 30, async || {
         runtime::desktop::session(&docker, desktop).await.ok().flatten().is_some()
-            && on_base("exec 3<>/dev/tcp/127.0.0.1/5901 && grep -q kubernetes.io/docs /usr/share/firefox-esr/distribution/policies.json").await.exit_code == 0
+            && on_base("exec 3<>/dev/tcp/127.0.0.1/5901 && grep -q kubernetes.io/docs /usr/share/firefox-esr/distribution/policies.json")
+                .await
+                .exit_code
+                == 0
     })
     .await;
     let solution = exams.solution(question).unwrap();
     let docker = runtime::docker::connect().await.unwrap();
-    let (exit, out) =
-        lab::checks::run_script(&docker, &f.jumphost.name, cluster, &solution.run, 300).await.unwrap();
+    let (exit, out) = lab::checks::run_script(&docker, &f.jumphost.name, cluster, &solution.run, 300).await.unwrap();
     assert_eq!(exit, 0, "{out}");
     assert!(exams.check_question(question).await.unwrap().iter().all(|c| c.passed));
     println!("ok: practice check passes after solving");
     exams.submit().unwrap();
-    eventually("practice graded 100%", 60, async || {
-        matches!(exams.state(), ExamState::Finished { ref result, .. } if result.score == 100.0 && result.passed)
-    })
+    eventually(
+        "practice graded 100%",
+        60,
+        async || matches!(exams.state(), ExamState::Finished { ref result, .. } if result.score == 100.0 && result.passed),
+    )
     .await;
     let ExamState::Finished { result, .. } = exams.state() else { unreachable!() };
     // Exactly what was done above: not ckpro's own restarts or kind's execs
@@ -431,7 +452,9 @@ async fn exam_engine_practice_and_exam_modes() {
     // the cluster, everything stopped (as on quit), then a new engine on
     // the same data resumes it with that work intact
     let docker = runtime::docker::connect().await.unwrap();
-    let work = format!("mkdir -p /tmp/exam && echo in-progress > /tmp/exam/answer.txt && kubectl --context {cluster} create configmap work-in-progress");
+    let work = format!(
+        "mkdir -p /tmp/exam && echo in-progress > /tmp/exam/answer.txt && kubectl --context {cluster} create configmap work-in-progress"
+    );
     assert_eq!(lab::checks::run_script(&docker, &f.jumphost.name, cluster, &work, 60).await.unwrap().0, 0);
     let nodes = docker
         .list_containers(Some(bollard::query_parameters::ListContainersOptions {
@@ -442,14 +465,25 @@ async fn exam_engine_practice_and_exam_modes() {
         .unwrap();
     // Quitting the app: the guard stops reacting first, as on RunEvent::Exit
     guard.suspend();
-    let mut stopped: Vec<String> = nodes.into_iter().flat_map(|c| c.names.unwrap_or_default()).map(|n| n.trim_start_matches('/').to_string()).collect();
+    let mut stopped: Vec<String> =
+        nodes.into_iter().flat_map(|c| c.names.unwrap_or_default()).map(|n| n.trim_start_matches('/').to_string()).collect();
     stopped.extend([f.jumphost.name.clone(), desktop.to_string()]);
     for name in &stopped {
         docker.stop_container(name, None::<bollard::query_parameters::StopContainerOptions>).await.unwrap();
     }
     println!("ok: quit mid-exam, {} containers stopped", stopped.len());
     let reopen = || {
-        Arc::new(Exams::new(lab::load::load(&pack_dir).0.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), desktop, Arc::new(store::Store::open(&db).unwrap()), |_: &ExamState| {}, runtime::activity::Activities::silent(), guard.clone()))
+        Arc::new(Exams::new(
+            lab::load::load(&pack_dir).0.unwrap(),
+            f.kind.clone(),
+            f.infra.clone(),
+            f.jumphost.clone(),
+            desktop,
+            Arc::new(store::Store::open(&db).unwrap()),
+            |_: &ExamState| {},
+            runtime::activity::Activities::silent(),
+            guard.clone(),
+        ))
     };
     let resumed = reopen();
     resumed.restore();
@@ -476,9 +510,11 @@ async fn exam_engine_practice_and_exam_modes() {
     })
     .await;
     exams.submit().unwrap();
-    eventually("exam graded, unsolved fails", 60, async || {
-        matches!(exams.state(), ExamState::Finished { ref result, .. } if !result.passed)
-    })
+    eventually(
+        "exam graded, unsolved fails",
+        60,
+        async || matches!(exams.state(), ExamState::Finished { ref result, .. } if !result.passed),
+    )
     .await;
     // Quitting and resuming (kind reading kubeconfigs) is ckpro's own doing
     let ExamState::Finished { result, .. } = exams.state() else { unreachable!() };
@@ -504,11 +540,7 @@ fn bindings_export() {
     specta_builder().export(typescript(), &exported).unwrap();
     let committed = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/tauri/bindings.ts");
     let read = |path: &std::path::Path| std::fs::read_to_string(path).unwrap_or_default();
-    assert!(
-        read(&exported) == read(&committed),
-        "stale desktop/src/tauri/bindings.ts: copy {} over it",
-        exported.display()
-    );
+    assert!(read(&exported) == read(&committed), "stale desktop/src/tauri/bindings.ts: copy {} over it", exported.display());
 }
 
 /// Create's proof: an exam of the packs proven whole on a cluster made
@@ -529,13 +561,30 @@ async fn create_proves_an_exam_as_it_goes_and_stops() {
     let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/core");
     let guard = runtime::guard::Guard::new(|_| {});
     let activities = runtime::activity::Activities::new(|_| {}, |_, line: &str| println!("  | {line}"));
-    let exams = Arc::new(Exams::new(lab::load::load(&core).0.unwrap(), f.kind.clone(), f.infra.clone(), f.jumphost.clone(), "ckpro-desktop-test-create", store.clone(), |_: &ExamState| {}, activities.clone(), guard));
+    let exams = Arc::new(Exams::new(
+        lab::load::load(&core).0.unwrap(),
+        f.kind.clone(),
+        f.infra.clone(),
+        f.jumphost.clone(),
+        "ckpro-desktop-test-create",
+        store.clone(),
+        |_: &ExamState| {},
+        activities.clone(),
+        guard,
+    ));
     let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
     let proofs = Proofs::new({
         let seen = seen.clone();
         move |session, proof| seen.lock().unwrap().push((session, proof.map(|p| (p.stage.clone(), p.results.len()))))
     });
-    let app = || studio::Proving { store: &store, exams: &exams, proofs: &proofs, activities: &activities, infra: f.infra.clone(), data_dir: &dir };
+    let app = || studio::Proving {
+        store: &store,
+        exams: &exams,
+        proofs: &proofs,
+        activities: &activities,
+        infra: f.infra.clone(),
+        data_dir: &dir,
+    };
     let fits = |_| Ok(());
     let clusters = async || {
         let out = std::process::Command::new("docker").args(["ps", "-a", "--format", "{{.Names}}"]).output().unwrap();
@@ -547,7 +596,11 @@ async fn create_proves_an_exam_as_it_goes_and_stops() {
     let session = store.studio_new().unwrap();
     let mut draft = ExamDraft::default();
     draft.set_exam(&exams.bank(), "E2E proof", "cka", Some(30)).unwrap();
-    let ids = ["core/cka-003/q02-node-maintenance-cordon-drain".to_string(), "core/cka/rbac-ci-token".to_string(), "core/cka/fix-broken-image".to_string()];
+    let ids = [
+        "core/cka-003/q02-node-maintenance-cordon-drain".to_string(),
+        "core/cka/rbac-ci-token".to_string(),
+        "core/cka/fix-broken-image".to_string(),
+    ];
     assert!(draft.add_existing(&exams.bank(), &ids[..2]).is_empty());
     assert_eq!(draft.items.last().unwrap().content().0, ids[0], "the drain runs last");
     draft.save(&store, session).unwrap();
@@ -560,12 +613,18 @@ async fn create_proves_an_exam_as_it_goes_and_stops() {
             if proofs.list().iter().any(|(s, p)| *s == session && p.stage == ProofStage::SettingUp) {
                 let hosts = docker
                     .list_containers(Some(bollard::query_parameters::ListContainersOptions {
-                        filters: Some(std::collections::HashMap::from([("name".to_string(), vec![runtime::jumphost::RUN_PREFIX.to_string()])])),
+                        filters: Some(std::collections::HashMap::from([(
+                            "name".to_string(),
+                            vec![runtime::jumphost::RUN_PREFIX.to_string()],
+                        )])),
                         ..Default::default()
                     }))
                     .await
                     .unwrap();
-                return hosts.into_iter().flat_map(|c| c.network_settings.and_then(|n| n.networks).unwrap_or_default().into_keys()).collect::<Vec<_>>();
+                return hosts
+                    .into_iter()
+                    .flat_map(|c| c.network_settings.and_then(|n| n.networks).unwrap_or_default().into_keys())
+                    .collect::<Vec<_>>();
             }
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
@@ -579,7 +638,10 @@ async fn create_proves_an_exam_as_it_goes_and_stops() {
     println!("ok: stages {stages:?}");
     assert!(matches!(stages[0], (ProofStage::Cluster { workers: 2 }, 0)));
     assert!(stages.iter().any(|(s, _)| *s == ProofStage::SettingUp));
-    assert!(stages.iter().any(|(s, n)| matches!(s, ProofStage::Proving { key, .. } if *key == ids[0]) && *n == 1), "the first result came before the second ran");
+    assert!(
+        stages.iter().any(|(s, n)| matches!(s, ProofStage::Proving { key, .. } if *key == ids[0]) && *n == 1),
+        "the first result came before the second ran"
+    );
     assert_eq!(seen.lock().unwrap().last().unwrap(), &(session, None));
     assert_eq!(clusters().await, before, "its cluster went with it");
     println!("ok: proven whole on a cluster of its own, removed");
@@ -620,7 +682,10 @@ async fn create_proves_an_exam_as_it_goes_and_stops() {
     assert!(ExamDraft::load(&store, session).unwrap().statuses().all(|(_, s)| *s == DraftStatus::Linted));
     assert_eq!(clusters().await, before, "its cluster went with it");
     let left = std::process::Command::new("docker").args(["network", "ls", "--format", "{{.Name}}"]).output().unwrap();
-    assert!(!String::from_utf8_lossy(&left.stdout).lines().any(|n| n.starts_with(runtime::jumphost::RUN_NETWORK_PREFIX)), "no run network left");
+    assert!(
+        !String::from_utf8_lossy(&left.stdout).lines().any(|n| n.starts_with(runtime::jumphost::RUN_NETWORK_PREFIX)),
+        "no run network left"
+    );
     println!("ok: stopped, nothing proven, its cluster and network gone");
     f.teardown().await;
 }

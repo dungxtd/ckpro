@@ -14,14 +14,17 @@ use super::model::Question;
 use super::render;
 use crate::cluster::{kind::Kind, lifecycle};
 use crate::error::{AppError, AppResult};
-use crate::sync::MutexExt;
 use crate::runtime::jumphost::{self, Jumphost, Placement};
-use crate::runtime::{docker, infra::{self, Infra}};
+use crate::runtime::{
+    docker,
+    infra::{self, Infra},
+};
+use crate::sync::MutexExt;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use tokio_util::sync::CancellationToken;
 use std::time::{Duration, Instant};
+use tokio_util::sync::CancellationToken;
 
 #[derive(Serialize)]
 pub struct Report {
@@ -48,14 +51,7 @@ pub type OnStage<'a> = &'a (dyn Fn(Stage) + Sync);
 
 /// Verify `ids` in a run of their own. `keep` leaves the run's clusters and
 /// jumphost for inspection.
-pub async fn verify(
-    pack: &LoadedPack,
-    ids: &[String],
-    data_dir: &Path,
-    infra: &Infra,
-    keep: bool,
-    log: Log<'_>,
-) -> AppResult<Vec<Report>> {
+pub async fn verify(pack: &LoadedPack, ids: &[String], data_dir: &Path, infra: &Infra, keep: bool, log: Log<'_>) -> AppResult<Vec<Report>> {
     // One cluster per logical name, as large as its most demanding question
     let mut topology = Topology::new();
     for id in ids {
@@ -129,7 +125,9 @@ impl Run {
         let network = jumphost::run_network(&self.id);
         if docker.inspect_network(&network, None::<bollard::query_parameters::InspectNetworkOptions>).await.is_err() {
             let labels = docker::compose_labels(&network).into_iter().collect();
-            docker.create_network(bollard::models::NetworkCreateRequest { name: network.clone(), labels: Some(labels), ..Default::default() }).await?;
+            docker
+                .create_network(bollard::models::NetworkCreateRequest { name: network.clone(), labels: Some(labels), ..Default::default() })
+                .await?;
         }
         let mirror = bollard::models::NetworkConnectRequest { container: infra::MIRROR.into(), ..Default::default() };
         if let Err(e) = docker.connect_network(&network, mirror).await
@@ -234,9 +232,7 @@ pub async fn sweep_stale(data_dir: &Path, log: Log<'_>) {
             .map(|name| name.trim_start_matches('/').to_string())
             .collect();
     }
-    let ours = |run: &str| {
-        runs.join(run).is_dir() || jumphosts.iter().any(|name| name.strip_prefix(jumphost::RUN_PREFIX) == Some(run))
-    };
+    let ours = |run: &str| runs.join(run).is_dir() || jumphosts.iter().any(|name| name.strip_prefix(jumphost::RUN_PREFIX) == Some(run));
 
     let kind = Kind::new(data_dir.to_path_buf());
     let app_clusters = kind.owned_clusters();
@@ -292,7 +288,6 @@ fn run_of_cluster(cluster: &str) -> Option<&str> {
     (run.len() == 4 && run.bytes().all(|b| b.is_ascii_hexdigit())).then_some(run)
 }
 
-
 async fn run_questions(
     docker: &bollard::Docker,
     jumphost: &str,
@@ -331,8 +326,7 @@ async fn run_questions(
         for c in before.iter().filter(|c| c.passed) {
             problems.push(format!("check passes before the solution: {}", c.name));
         }
-        let (exit, output) =
-            checks::run_script(docker, jumphost, &q.cluster, &q.solution.run, checks::SCRIPT_TIMEOUT_SECS).await?;
+        let (exit, output) = checks::run_script(docker, jumphost, &q.cluster, &q.solution.run, checks::SCRIPT_TIMEOUT_SECS).await?;
         if exit != 0 {
             problems.push(format!("solution failed (exit {exit}): {}", tail(&output)));
         }

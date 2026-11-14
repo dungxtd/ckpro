@@ -55,8 +55,7 @@ pub struct SigningIn {
 pub async fn account(agent: &Agent) -> AppResult<Account> {
     let mut command = agent.adapter(&["--cli", "auth", "status", "--json"], false).await?;
     command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
-    let tree = crate::platform::ProcessTree::spawn(command)
-        .map_err(|e| AppError::assistant(format!("reading the Claude login: {e}")))?;
+    let tree = crate::platform::ProcessTree::spawn(command).map_err(|e| AppError::assistant(format!("reading the Claude login: {e}")))?;
     // Timed out: the tree goes with the dropped wait, the CLI under npx included
     let output = tokio::time::timeout(CLI_TIMEOUT, tree.output())
         .await
@@ -92,8 +91,8 @@ pub async fn sign_in(
     let mut command = agent.adapter(&["--cli", "auth", "login", flag], true).await?;
     command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     // Cancelled or done, the login's processes stop with `tree`
-    let mut tree = crate::platform::ProcessTree::spawn(command)
-        .map_err(|e| AppError::assistant(format!("starting the Claude login: {e}")))?;
+    let mut tree =
+        crate::platform::ProcessTree::spawn(command).map_err(|e| AppError::assistant(format!("starting the Claude login: {e}")))?;
     let mut stdout = tree.stdout().expect("piped");
     let cancel = CancellationToken::new();
     started(SigningIn { stdin: tree.stdin().expect("piped"), cancel: cancel.clone() });
@@ -205,7 +204,6 @@ fn strip_terminal_codes(text: &str) -> String {
     out
 }
 
-
 /// How long a login read stays good (a sign-out in a terminal shows after it)
 const ACCOUNT_FRESH: std::time::Duration = std::time::Duration::from_secs(60);
 
@@ -287,7 +285,10 @@ mod tests {
     fn reads_the_cli_login() {
         let account = parse_status(r#"{"loggedIn":true,"authMethod":"claude.ai","email":"a@b.c","subscriptionType":"max"}"#);
         assert!(account.signed_in);
-        assert_eq!((account.method.as_deref(), account.email.as_deref(), account.plan.as_deref()), (Some("claude.ai"), Some("a@b.c"), Some("max")));
+        assert_eq!(
+            (account.method.as_deref(), account.email.as_deref(), account.plan.as_deref()),
+            (Some("claude.ai"), Some("a@b.c"), Some("max"))
+        );
         assert!(!parse_status(r#"{"loggedIn":false}"#).signed_in);
         assert!(!parse_status("npm error").signed_in);
     }

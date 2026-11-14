@@ -8,14 +8,14 @@
 //! - Kubernetes: one node watch per running cluster for Ready/NotReady, only
 //!   while node readiness is shown (the Environment page).
 
-use super::model::{ClusterState, ContainerStatus, DockerState, Env, NodeRole, NodeState, Readiness};
 use super::activity::Activities;
-use super::infra::Infra;
 use super::guard::Guard;
+use super::infra::Infra;
+use super::model::{ClusterState, ContainerStatus, DockerState, Env, NodeRole, NodeState, Readiness};
 use super::{docker, reconcile};
 use crate::cluster::jobs::Jobs;
-use crate::error::{AppError, AppResult};
 use crate::cluster::kind::{CLUSTER_LABEL, Kind, node_containers};
+use crate::error::{AppError, AppResult};
 use bollard::Docker;
 use bollard::query_parameters::EventsOptions;
 use futures_util::{FutureExt, StreamExt};
@@ -93,8 +93,7 @@ async fn run(
                 engine: info.as_ref().and_then(|i| i.operating_system.clone()).unwrap_or_default(),
                 version: version.and_then(|v| v.version).unwrap_or_default(),
                 cpus: info.as_ref().and_then(|i| i.ncpu).unwrap_or_default() as u32,
-                memory_mb: (info.as_ref().and_then(|i| i.mem_total).unwrap_or_default() / 1_048_576)
-                    as u32,
+                memory_mb: (info.as_ref().and_then(|i| i.mem_total).unwrap_or_default() / 1_048_576) as u32,
             }
         });
         tracing::info!("connected to docker");
@@ -118,13 +117,10 @@ async fn run(
             ("type".to_string(), ["container", "network", "volume"].map(String::from).to_vec()),
             (
                 "event".to_string(),
-                ["create", "start", "die", "destroy", "pause", "unpause", "exec_create", "disconnect"]
-                    .map(String::from)
-                    .to_vec(),
+                ["create", "start", "die", "destroy", "pause", "unpause", "exec_create", "disconnect"].map(String::from).to_vec(),
             ),
         ]);
-        let mut events =
-            docker.events(Some(EventsOptions { filters: Some(filters), ..Default::default() })).boxed();
+        let mut events = docker.events(Some(EventsOptions { filters: Some(filters), ..Default::default() })).boxed();
         let mut alive = tokio::time::interval(PING_EVERY);
         alive.tick().await;
         let mut resync = tokio::time::interval(RESYNC_EVERY);
@@ -197,13 +193,7 @@ fn is_node_change(event: &bollard::models::EventMessage) -> bool {
 }
 
 /// Rebuild the cluster list from the kind containers this app owns
-async fn sync(
-    docker: &Docker,
-    env: &Arc<Env>,
-    kind: &Kind,
-    guard: &Guard,
-    watchers: &mut HashMap<String, JoinHandle<()>>,
-) {
+async fn sync(docker: &Docker, env: &Arc<Env>, kind: &Kind, guard: &Guard, watchers: &mut HashMap<String, JoinHandle<()>>) {
     let containers = match node_containers(docker, None).await {
         Ok(containers) => containers,
         Err(e) => {
@@ -230,27 +220,18 @@ async fn sync(
         // Readiness and version come from the node watch; readiness is
         // meaningless while stopped, the version stays
         let before = previous.clusters.iter().flat_map(|c| &c.nodes).find(|n| n.name == name);
-        let ready = if container == ContainerStatus::Running {
-            before.map(|n| n.ready.clone()).unwrap_or_default()
-        } else {
-            Readiness::Unknown
-        };
+        let ready =
+            if container == ContainerStatus::Running { before.map(|n| n.ready.clone()).unwrap_or_default() } else { Readiness::Unknown };
         let version = before.and_then(|n| n.version.clone());
         let role = if c.control_plane { NodeRole::ControlPlane } else { NodeRole::Worker };
         let node = NodeState { name, role, container, ready, version };
         match clusters.iter_mut().find(|c| &c.name == cluster) {
             Some(existing) => existing.nodes.push(node),
-            None => clusters.push(ClusterState {
-                name: cluster.clone(),
-                nodes: vec![node],
-                guarded: guard.guards(cluster),
-            }),
+            None => clusters.push(ClusterState { name: cluster.clone(), nodes: vec![node], guarded: guard.guards(cluster) }),
         }
     }
     for cluster in &mut clusters {
-        cluster.nodes.sort_by(|a, b| {
-            (a.role != NodeRole::ControlPlane, &a.name).cmp(&(b.role != NodeRole::ControlPlane, &b.name))
-        });
+        cluster.nodes.sort_by(|a, b| (a.role != NodeRole::ControlPlane, &a.name).cmp(&(b.role != NodeRole::ControlPlane, &b.name)));
     }
     clusters.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -260,9 +241,7 @@ async fn sync(
         clusters
             .iter()
             .filter(|c| !guard.guards(&c.name))
-            .filter(|c| {
-                c.nodes.iter().any(|n| n.role == NodeRole::ControlPlane && n.container == ContainerStatus::Running)
-            })
+            .filter(|c| c.nodes.iter().any(|n| n.role == NodeRole::ControlPlane && n.container == ContainerStatus::Running))
             .map(|c| c.name.clone())
             .collect()
     } else {
@@ -276,9 +255,7 @@ async fn sync(
         keep
     });
     for name in watched {
-        watchers.entry(name.clone()).or_insert_with(|| {
-            tokio::spawn(watch_nodes(name.clone(), kind.kubeconfig(&name), env.clone()))
-        });
+        watchers.entry(name.clone()).or_insert_with(|| tokio::spawn(watch_nodes(name.clone(), kind.kubeconfig(&name), env.clone())));
     }
 
     env.update(|s| s.clusters = clusters);
@@ -330,9 +307,7 @@ async fn watch_nodes(cluster: String, kubeconfig: PathBuf, env: Arc<Env>) {
                 let mut stream = watcher(nodes, watcher::Config::default()).default_backoff().boxed();
                 while let Some(event) = stream.next().await {
                     match event {
-                        Ok(watcher::Event::Apply(node) | watcher::Event::InitApply(node)) => {
-                            set_readiness(&env, &cluster, &node)
-                        }
+                        Ok(watcher::Event::Apply(node) | watcher::Event::InitApply(node)) => set_readiness(&env, &cluster, &node),
                         Ok(_) => {}
                         Err(e) => tracing::debug!(%cluster, error = %e, "node watch"),
                     }
@@ -354,20 +329,12 @@ async fn client(kubeconfig: &PathBuf) -> AppResult<kube::Client> {
 
 fn set_readiness(env: &Env, cluster: &str, node: &Node) {
     let Some(name) = node.metadata.name.clone() else { return };
-    let condition = node
-        .status
-        .as_ref()
-        .and_then(|s| s.conditions.as_ref())
-        .and_then(|c| c.iter().find(|c| c.type_ == "Ready"));
+    let condition = node.status.as_ref().and_then(|s| s.conditions.as_ref()).and_then(|c| c.iter().find(|c| c.type_ == "Ready"));
     let ready = match condition {
         Some(c) if c.status == "True" => Readiness::Ready,
-        Some(c) => Readiness::NotReady {
-            reason: [c.reason.as_deref(), c.message.as_deref()]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>()
-                .join(": "),
-        },
+        Some(c) => {
+            Readiness::NotReady { reason: [c.reason.as_deref(), c.message.as_deref()].into_iter().flatten().collect::<Vec<_>>().join(": ") }
+        }
         None => Readiness::Unknown,
     };
     let version = node.status.as_ref().and_then(|s| s.node_info.as_ref()).map(|i| i.kubelet_version.clone());

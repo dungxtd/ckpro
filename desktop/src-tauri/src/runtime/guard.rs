@@ -12,9 +12,9 @@
 //!
 //! It follows the events the monitor already receives: nothing polls.
 
-use crate::sync::MutexExt;
 use super::exec;
 use super::infra::NETWORK;
+use crate::sync::MutexExt;
 use bollard::Docker;
 use bollard::models::{EventMessage, EventMessageTypeEnum, NetworkConnectRequest};
 use std::collections::{HashMap, HashSet};
@@ -75,8 +75,7 @@ impl Drop for OwnOperation {
 }
 
 fn in_own_operation() -> bool {
-    OWN_OPERATIONS.load(std::sync::atomic::Ordering::SeqCst) > 0
-        || own_until().locked().is_some_and(|until| until > Instant::now())
+    OWN_OPERATIONS.load(std::sync::atomic::Ordering::SeqCst) > 0 || own_until().locked().is_some_and(|until| until > Instant::now())
 }
 
 /// What the attempt runs on
@@ -314,12 +313,7 @@ impl Guard {
                         tokio::spawn(async move {
                             // `unless-stopped` brings a crash back by itself; a stop is put back here
                             tokio::time::sleep(Duration::from_secs(2)).await;
-                            let running = docker
-                                .inspect_container(&name, None)
-                                .await
-                                .ok()
-                                .and_then(|c| c.state?.running)
-                                .unwrap_or(false);
+                            let running = docker.inspect_container(&name, None).await.ok().and_then(|c| c.state?.running).unwrap_or(false);
                             if !running {
                                 this.record(format!("{name} was stopped outside ckpro: started again"));
                                 let _ = docker.start_container(&name, None::<bollard::query_parameters::StartContainerOptions>).await;
@@ -419,7 +413,8 @@ mod tests {
     #[tokio::test]
     async fn an_end_without_docker_is_finished_later() {
         let guard = Guard::new(|_| {});
-        *guard.lock() = Some(Active { clusters: HashSet::from(["k8s".to_string()]), gateway: Some("172.18.0.1".into()), ..Default::default() });
+        *guard.lock() =
+            Some(Active { clusters: HashSet::from(["k8s".to_string()]), gateway: Some("172.18.0.1".into()), ..Default::default() });
         *guard.applied.locked() = Some(watch());
         guard.deactivate(None).await;
         assert!(guard.guards("k8s"), "still closed, so still said to be guarded");

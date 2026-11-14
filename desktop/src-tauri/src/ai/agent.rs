@@ -4,10 +4,10 @@
 //! Code's; sessions have no built-in tools, no settings from the machine and
 //! nothing kept on disk.
 
-use crate::sync::{MutexExt, RwLockExt};
 use super::acp::{Connection, Update};
 use crate::error::{AppError, AppResult};
 use crate::platform;
+use crate::sync::{MutexExt, RwLockExt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
@@ -190,13 +190,8 @@ impl ToolCall {
         if !update["rawInput"].is_null() {
             self.input = update["rawInput"].clone();
         }
-        let text: String = update["content"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|c| c["content"]["text"].as_str())
-            .collect::<Vec<_>>()
-            .join("\n");
+        let text: String =
+            update["content"].as_array().into_iter().flatten().filter_map(|c| c["content"]["text"].as_str()).collect::<Vec<_>>().join("\n");
         if !text.is_empty() {
             // The adapter fences tool output as Markdown: keep the text
             let trimmed = text.trim();
@@ -411,9 +406,8 @@ impl Agent {
         // settings start a session in: a session that cannot be set so is
         // not used
         if permission_mode(&result).is_some_and(|mode| mode != PERMISSION_MODE) {
-            let set = c
-                .request("session/set_config_option", json!({ "sessionId": session, "configId": "mode", "value": PERMISSION_MODE }))
-                .await;
+            let set =
+                c.request("session/set_config_option", json!({ "sessionId": session, "configId": "mode", "value": PERMISSION_MODE })).await;
             if set.as_ref().ok().and_then(permission_mode) != Some(PERMISSION_MODE) {
                 self.close(&session).await;
                 return Err(AppError::assistant("the agent would run tools without asking: its permission mode could not be set"));
@@ -453,9 +447,7 @@ impl Agent {
             return Err(AppError::invalid(format!("unknown model {model}")));
         }
         let c = self.connection().await?;
-        let result = c
-            .request("session/set_config_option", json!({ "sessionId": session, "configId": "model", "value": model }))
-            .await?;
+        let result = c.request("session/set_config_option", json!({ "sessionId": session, "configId": "model", "value": model })).await?;
         self.note_efforts(model, &result);
         Ok(())
     }
@@ -531,7 +523,11 @@ impl Agent {
         };
         let c = self.connection().await?;
         let mut subscription = c.subscribe(session);
-        let request = c.request_within(PROMPT_TIMEOUT, "session/prompt", json!({ "sessionId": session, "prompt": [{ "type": "text", "text": text }] }));
+        let request = c.request_within(
+            PROMPT_TIMEOUT,
+            "session/prompt",
+            json!({ "sessionId": session, "prompt": [{ "type": "text", "text": text }] }),
+        );
         tokio::pin!(request);
         let mut answer = String::new();
         let mut usage = None;
@@ -655,21 +651,29 @@ mod tests {
         let store = std::sync::Arc::new(crate::store::Store::in_memory().unwrap());
         let server = crate::ai::mcp_http::McpHttp::start(store, std::sync::Arc::new(|| Ok(())), None).await.unwrap();
         let tools = json!([server.server_for("core/none")]);
-        let session = agent.new_session_with("You run what the user asks with your tools, then say what happened in one sentence.", "haiku", tools).await.unwrap();
-        let asked = std::sync::Mutex::new(Vec::new());
-        let calls = std::sync::Mutex::new(Vec::new());
-        let answer = agent
-            .prompt_with(&session, "Use the run_command tool to run `kubectl get nodes`.", &CancellationToken::new(), &|event| match event {
-                AgentEvent::Permission(params, reply) => {
-                    let option = params["options"].as_array().unwrap().iter().find(|o| o["kind"] == "allow_once").unwrap()["optionId"].clone();
-                    asked.lock().unwrap().push(params["toolCall"]["rawInput"]["command"].as_str().unwrap_or_default().to_string());
-                    let _ = reply.send(json!({ "outcome": { "outcome": "selected", "optionId": option } }));
-                }
-                AgentEvent::Tool(call) => calls.lock().unwrap().push(call),
-                AgentEvent::Text(_) | AgentEvent::Compacted => {}
-            })
+        let session = agent
+            .new_session_with("You run what the user asks with your tools, then say what happened in one sentence.", "haiku", tools)
             .await
             .unwrap();
+        let asked = std::sync::Mutex::new(Vec::new());
+        let calls = std::sync::Mutex::new(Vec::new());
+        let answer =
+            agent
+                .prompt_with(&session, "Use the run_command tool to run `kubectl get nodes`.", &CancellationToken::new(), &|event| {
+                    match event {
+                        AgentEvent::Permission(params, reply) => {
+                            let option =
+                                params["options"].as_array().unwrap().iter().find(|o| o["kind"] == "allow_once").unwrap()["optionId"]
+                                    .clone();
+                            asked.lock().unwrap().push(params["toolCall"]["rawInput"]["command"].as_str().unwrap_or_default().to_string());
+                            let _ = reply.send(json!({ "outcome": { "outcome": "selected", "optionId": option } }));
+                        }
+                        AgentEvent::Tool(call) => calls.lock().unwrap().push(call),
+                        AgentEvent::Text(_) | AgentEvent::Compacted => {}
+                    }
+                })
+                .await
+                .unwrap();
         let asked = asked.into_inner().unwrap();
         let calls = calls.into_inner().unwrap();
         println!("asked: {asked:?}");
@@ -716,9 +720,14 @@ mod tests {
         agent.set_effort(&session, "haiku", "low").await.unwrap();
         let chunks = std::sync::atomic::AtomicUsize::new(0);
         let first = agent
-            .prompt(&session, "My favourite namespace is blue-team. What does a Pending PVC with WaitForFirstConsumer mean?", &CancellationToken::new(), &|_| {
-                chunks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            })
+            .prompt(
+                &session,
+                "My favourite namespace is blue-team. What does a Pending PVC with WaitForFirstConsumer mean?",
+                &CancellationToken::new(),
+                &|_| {
+                    chunks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                },
+            )
             .await
             .unwrap();
         println!("answer: {}", first.text);

@@ -56,10 +56,7 @@ pub struct Activities {
 }
 
 impl Activities {
-    pub fn new(
-        changed: impl Fn(&Activity) + Send + Sync + 'static,
-        line: impl Fn(u32, &str) + Send + Sync + 'static,
-    ) -> Arc<Self> {
+    pub fn new(changed: impl Fn(&Activity) + Send + Sync + 'static, line: impl Fn(u32, &str) + Send + Sync + 'static) -> Arc<Self> {
         Arc::new(Self { state: Mutex::new((0, VecDeque::new())), changed: Box::new(changed), line: Box::new(line) })
     }
 

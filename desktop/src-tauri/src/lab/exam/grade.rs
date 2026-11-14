@@ -58,12 +58,7 @@ impl Exams {
                 drop(busy);
                 self.measure_footprint(&clusters).await;
             }
-            Err(e) => self.set(ExamState::Failed {
-                attempt: Some(attempt),
-                message: e.to_string(),
-                activity: Some(id),
-                resumable: true,
-            }),
+            Err(e) => self.set(ExamState::Failed { attempt: Some(attempt), message: e.to_string(), activity: Some(id), resumable: true }),
         }
     }
 
@@ -95,12 +90,8 @@ impl Exams {
         let op = self.activities.handle(activity);
         let questions = self.session.locked().clone();
         let docker = docker::connect().await?;
-        let grading = |scores: Vec<Option<QuestionScore>>| ExamState::Grading {
-            attempt: attempt.clone(),
-            activity,
-            scores,
-            note: note.clone(),
-        };
+        let grading =
+            |scores: Vec<Option<QuestionScore>>| ExamState::Grading { attempt: attempt.clone(), activity, scores, note: note.clone() };
         self.set(grading(vec![None; questions.len()]));
         if let Some(note) = &note {
             op.log(note.clone());
@@ -127,10 +118,8 @@ impl Exams {
             let mut state = progress.locked();
             state.0[question][index - starts[question]] = Some((result.passed, result.weight));
             if state.0[question].iter().all(Option::is_some) {
-                let (points, max_points) = state.0[question]
-                    .iter()
-                    .flatten()
-                    .fold((0, 0), |(p, m), (passed, w)| (p + if *passed { *w } else { 0 }, m + w));
+                let (points, max_points) =
+                    state.0[question].iter().flatten().fold((0, 0), |(p, m), (passed, w)| (p + if *passed { *w } else { 0 }, m + w));
                 state.1[question] = Some(QuestionScore { points, max_points });
                 let mark = if points == max_points { "✓" } else { "✗" };
                 op.log(format!("{mark} {}: {points}/{max_points}", questions[question].1.title));

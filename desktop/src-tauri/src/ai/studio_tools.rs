@@ -5,12 +5,12 @@
 //!
 //! Like every assistant tool, off while an exam-mode attempt runs.
 
-use crate::studio::draft::ExamDraft;
 use crate::error::{AppError, AppResult};
 use crate::lab::exam::Exams;
 use crate::lab::exam::plan::{local_day, local_offset_minutes};
 use crate::runtime::activity::now_ms;
 use crate::store::Store;
+use crate::studio::draft::ExamDraft;
 use serde_json::{Value, json};
 use std::fmt::Write as _;
 use std::path::PathBuf;
@@ -61,10 +61,19 @@ impl Tools {
             "get_profile" => self.profile(),
             "list_attempts" => self.attempts(args["limit"].as_u64(), args["certification"].as_str()),
             "get_attempt" => self.attempt(&text("id")),
-            "list_exams" => Ok(pretty(&self.exams.catalog().iter().map(|e| json!({
-                "id": e.id, "title": e.title, "certification": e.certification, "questions": e.questions,
-                "duration_minutes": e.duration_minutes, "custom": e.custom,
-            })).collect::<Vec<_>>())),
+            "list_exams" => Ok(pretty(
+                &self
+                    .exams
+                    .catalog()
+                    .iter()
+                    .map(|e| {
+                        json!({
+                            "id": e.id, "title": e.title, "certification": e.certification, "questions": e.questions,
+                            "duration_minutes": e.duration_minutes, "custom": e.custom,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            )),
             "get_exam" => self.exam(&text("id")),
             "list_questions" => self.questions(&text("certification"), args["domain"].as_str()),
             "read_question" => self.read_question(&text("id")),
@@ -83,7 +92,9 @@ impl Tools {
             "propose_question" | "update_question" => self.edit(session, |draft, bank, data_dir| {
                 let replacing = (name == "update_question").then(|| text("key"));
                 match draft.propose(bank, data_dir, &text("yaml"), replacing.as_deref()) {
-                    Ok(key) => Ok(format!("In the draft as {key}: it lints. The candidate proves the exam on a cluster before it is saved.")),
+                    Ok(key) => {
+                        Ok(format!("In the draft as {key}: it lints. The candidate proves the exam on a cluster before it is saved."))
+                    }
                     Err(problems) => Err(AppError::invalid(format!("Not added; fix and propose it again:\n- {}", problems.join("\n- ")))),
                 }
             }),
@@ -97,9 +108,14 @@ impl Tools {
 
     /// Change the draft with `f` (again, on the draft as another change left
     /// it), keep it and tell the screen
-    fn edit(&self, session: i32, f: impl Fn(&mut ExamDraft, &crate::lab::load::LoadedPack, &std::path::Path) -> AppResult<String>) -> AppResult<String> {
+    fn edit(
+        &self,
+        session: i32,
+        f: impl Fn(&mut ExamDraft, &crate::lab::load::LoadedPack, &std::path::Path) -> AppResult<String>,
+    ) -> AppResult<String> {
         let bank = self.exams.bank();
-        let (draft, result) = crate::studio::edit(&self.store, session, || (self.proving)(session), |draft| f(draft, &bank, &self.data_dir))?;
+        let (draft, result) =
+            crate::studio::edit(&self.store, session, || (self.proving)(session), |draft| f(draft, &bank, &self.data_dir))?;
         (self.changed)(session, &draft);
         Ok(result)
     }
@@ -116,14 +132,16 @@ impl Tools {
             .iter()
             .filter_map(|c| crate::lab::exam::plan::readiness(&bank, &history, c, now).ok())
             .filter(|r| r.coverage > 0)
-            .map(|r| json!({
-                "certification": r.certification, "predicted_percent": r.predicted.map(|p| p.round()), "pass_percent": r.pass_score,
-                "measured_percent_of_exam": r.coverage, "from_last_days": r.window_days,
-                "domains": r.domains.iter().map(|d| json!({
-                    "domain": d.domain, "weight": d.weight,
-                    "percent": (d.max_points > 0).then(|| (f64::from(d.points) * 100.0 / f64::from(d.max_points)).round()),
-                })).collect::<Vec<_>>(),
-            }))
+            .map(|r| {
+                json!({
+                    "certification": r.certification, "predicted_percent": r.predicted.map(|p| p.round()), "pass_percent": r.pass_score,
+                    "measured_percent_of_exam": r.coverage, "from_last_days": r.window_days,
+                    "domains": r.domains.iter().map(|d| json!({
+                        "domain": d.domain, "weight": d.weight,
+                        "percent": (d.max_points > 0).then(|| (f64::from(d.points) * 100.0 / f64::from(d.max_points)).round()),
+                    })).collect::<Vec<_>>(),
+                })
+            })
             .collect();
         Ok(pretty(&json!({
             "today": local_day(now),
@@ -143,18 +161,27 @@ impl Tools {
             // Its own certification: the exam may be deleted since
             .filter(|h| certification.is_none_or(|c| h.certification == c))
             .take(limit)
-            .map(|h| json!({
-                "id": h.attempt_id, "exam_id": h.exam_id, "exam": h.title, "mode": h.mode, "day": local_day(h.result.started_at),
-                "score": h.result.score.round(), "passed": h.result.passed,
-                "ended_before_any_point": !h.result.worked(),
-            }))
+            .map(|h| {
+                json!({
+                    "id": h.attempt_id, "exam_id": h.exam_id, "exam": h.title, "mode": h.mode, "day": local_day(h.result.started_at),
+                    "score": h.result.score.round(), "passed": h.result.passed,
+                    "ended_before_any_point": !h.result.worked(),
+                })
+            })
             .collect();
         Ok(pretty(&list))
     }
 
     fn attempt(&self, id: &str) -> AppResult<String> {
         let h = self.exams.history_entry(id)?.ok_or_else(|| AppError::not_found(format!("no attempt '{id}'")))?;
-        let mut text = format!("{} ({:?}), {}: {}% ({})\n", h.title, h.mode, local_day(h.result.started_at), h.result.score.round(), if h.result.passed { "passed" } else { "failed" });
+        let mut text = format!(
+            "{} ({:?}), {}: {}% ({})\n",
+            h.title,
+            h.mode,
+            local_day(h.result.started_at),
+            h.result.score.round(),
+            if h.result.passed { "passed" } else { "failed" }
+        );
         for q in &h.result.questions {
             let _ = writeln!(text, "\n- {} [{}]: {}/{} points", q.title, q.id, q.points, q.max_points);
             for c in q.checks.iter().filter(|c| !c.passed) {
@@ -187,11 +214,12 @@ impl Tools {
             .iter()
             .filter_map(|(id, q)| {
                 let d = q.value.certifications.get(certification)?;
-                (domain.is_none_or(|x| x == d) && q.value.runnable())
-                    .then(|| json!({
+                (domain.is_none_or(|x| x == d) && q.value.runnable()).then(|| {
+                    json!({
                         "id": id, "title": q.value.title, "domain": d, "difficulty": q.value.difficulty,
                         "minutes": crate::studio::draft::minutes(&q.value),
-                    }))
+                    })
+                })
             })
             .collect();
         if list.is_empty() && !bank.pack.certifications.contains_key(certification) {
@@ -209,7 +237,9 @@ impl Tools {
 
     fn plans(&self, from: &str, to: &str) -> AppResult<String> {
         let plans = self.exams.plans_between(from, to, local_offset_minutes(now_ms()))?;
-        Ok(pretty(&plans.iter().map(|p| json!({ "day": p.day, "exam": p.title, "mode": p.mode, "done_score": p.done })).collect::<Vec<_>>()))
+        Ok(pretty(
+            &plans.iter().map(|p| json!({ "day": p.day, "exam": p.title, "mode": p.mode, "done_score": p.done })).collect::<Vec<_>>(),
+        ))
     }
 }
 
@@ -218,7 +248,8 @@ pub fn list() -> Value {
     let read = json!({ "readOnlyHint": true, "openWorldHint": false });
     let draft = json!({ "readOnlyHint": false, "destructiveHint": false, "openWorldHint": false });
     let none = json!({ "type": "object", "properties": {} });
-    let id = |what: &str| json!({ "type": "object", "properties": { "id": { "type": "string", "description": what } }, "required": ["id"] });
+    let id =
+        |what: &str| json!({ "type": "object", "properties": { "id": { "type": "string", "description": what } }, "required": ["id"] });
     json!([
         { "name": "get_profile", "description": "The candidate: today, the exams they prepare for (certification, exam day), how ready they are per certification and domain (from their attempts), how many attempts.", "inputSchema": none, "annotations": read },
         { "name": "list_attempts", "description": "Their attempts, latest first: exam, mode, day, score, passed.", "inputSchema": { "type": "object", "properties": { "limit": { "type": "integer" }, "certification": { "type": "string" } } }, "annotations": read },
@@ -252,7 +283,8 @@ mod tests {
         let store = Arc::new(Store::in_memory().unwrap());
         let exams = Arc::new(Exams::for_test(store.clone()));
         let tools = Tools::new(exams, store, std::env::temp_dir(), |_, _| {}, |_| false);
-        let no_tool = |result: &AppResult<String>| matches!(result, Err(AppError::Invalid { message }) if message.starts_with("no tool named"));
+        let no_tool =
+            |result: &AppResult<String>| matches!(result, Err(AppError::Invalid { message }) if message.starts_with("no tool named"));
         let offered: Vec<String> = list().as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
         let mut once = offered.clone();
         once.sort();

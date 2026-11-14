@@ -10,14 +10,7 @@ type Log<'a> = &'a (dyn Fn(String) + Sync);
 
 /// Create a cluster ready for an exam. Cancelling stops it at any step
 /// (images, kind, add-ons) and removes whatever kind had created.
-pub async fn create(
-    kind: &Kind,
-    infra: &Infra,
-    name: &str,
-    workers: u8,
-    log: Log<'_>,
-    cancel: &CancellationToken,
-) -> AppResult<()> {
+pub async fn create(kind: &Kind, infra: &Infra, name: &str, workers: u8, log: Log<'_>, cancel: &CancellationToken) -> AppResult<()> {
     let cancelled = || AppError::Cancelled { message: format!("creating '{name}' was cancelled") };
     let docker = docker::connect().await?;
     tokio::select! {
@@ -57,10 +50,8 @@ pub async fn remove(
     name: &str,
 ) -> AppResult<()> {
     let _job = jobs.begin(name, crate::runtime::model::ClusterJob::Removing)?;
-    let op = activities.begin(
-        format!("Removing cluster {name}"),
-        vec![format!("Removing cluster {name}"), "Updating the task host".into()],
-    );
+    let op =
+        activities.begin(format!("Removing cluster {name}"), vec![format!("Removing cluster {name}"), "Updating the task host".into()]);
     let send = |line: String| op.log(line);
     let result = async {
         delete(kind, name, &send).await?;

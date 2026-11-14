@@ -8,9 +8,8 @@ use std::collections::BTreeSet;
 
 pub fn lint(pack: &LoadedPack) -> Vec<Finding> {
     let mut findings = Vec::new();
-    let mut add = |level, path: &std::path::Path, message: String| {
-        findings.push(Finding { level, file: relative(&pack.root, path), message })
-    };
+    let mut add =
+        |level, path: &std::path::Path, message: String| findings.push(Finding { level, file: relative(&pack.root, path), message });
 
     for (id, cert) in &pack.pack.certifications {
         let total: u32 = cert.domains.values().sum();
@@ -52,11 +51,9 @@ pub fn lint(pack: &LoadedPack) -> Vec<Finding> {
         for qid in &exam.questions {
             match pack.questions.get(qid) {
                 None => add(Level::Error, file, format!("{id}: unknown question '{qid}'")),
-                Some(q) if !q.value.certifications.contains_key(&exam.certification) => add(
-                    Level::Warning,
-                    file,
-                    format!("{id}: question '{qid}' is not tagged for {}", exam.certification),
-                ),
+                Some(q) if !q.value.certifications.contains_key(&exam.certification) => {
+                    add(Level::Warning, file, format!("{id}: question '{qid}' is not tagged for {}", exam.certification))
+                }
                 Some(_) => {}
             }
         }
@@ -179,11 +176,13 @@ fn interactive(line: &str) -> Option<&'static str> {
         Some("asks for a terminal (drop -it)")
     } else if words.first().is_some_and(|w| matches!(*w, "vi" | "vim" | "nano" | "less" | "more")) {
         Some("opens an interactive program")
-    } else if line.contains('<') && line.split('<').skip(1).any(|rest| {
-        let name: String = rest.chars().take_while(|c| *c != '>').collect();
-        // <pod-name>, <node-name>; not HTML tags like <body> in a heredoc
-        rest.contains('>') && name.contains('-') && name.chars().all(|c| c.is_ascii_lowercase() || c == '-')
-    }) {
+    } else if line.contains('<')
+        && line.split('<').skip(1).any(|rest| {
+            let name: String = rest.chars().take_while(|c| *c != '>').collect();
+            // <pod-name>, <node-name>; not HTML tags like <body> in a heredoc
+            rest.contains('>') && name.contains('-') && name.chars().all(|c| c.is_ascii_lowercase() || c == '-')
+        })
+    {
         Some("contains a placeholder like <pod-name> (compute the value)")
     } else {
         None

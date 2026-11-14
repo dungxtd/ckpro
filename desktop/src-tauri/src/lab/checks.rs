@@ -2,10 +2,10 @@
 //! question's cluster, so grading never changes the candidate's current
 //! context. Declarative checks explain their failure ("expected X, got Y").
 
-use crate::runtime::exec::quote;
 use super::model::{CanICheck, Check, CheckKind, Expectation, JsonpathCheck, ResourceRef};
 use crate::error::AppResult;
 use crate::runtime::exec;
+use crate::runtime::exec::quote;
 use bollard::Docker;
 use serde::Serialize;
 
@@ -29,13 +29,7 @@ pub const CHECK_TIMEOUT_SECS: u32 = 120;
 ///   ...`) would otherwise swallow the rest of the script.
 /// - Killed after `timeout_secs` (exit 124) and no editor: a script must never
 ///   hang an exam or a verify run (`kubectl edit`, waits without a timeout).
-pub async fn run_script(
-    docker: &Docker,
-    jumphost: &str,
-    cluster: &str,
-    script: &str,
-    timeout_secs: u32,
-) -> AppResult<(i64, String)> {
+pub async fn run_script(docker: &Docker, jumphost: &str, cluster: &str, script: &str, timeout_secs: u32) -> AppResult<(i64, String)> {
     run_script_tail(docker, jumphost, cluster, script, timeout_secs, None).await
 }
 
@@ -59,11 +53,7 @@ pub async fn run_script_tail(
         max,
     )
     .await?;
-    let text = if out.exit_code == 124 {
-        format!("{}\ntimed out after {timeout_secs}s", out.text)
-    } else {
-        out.text
-    };
+    let text = if out.exit_code == 124 { format!("{}\ntimed out after {timeout_secs}s", out.text) } else { out.text };
     Ok((out.exit_code, text))
 }
 
@@ -101,11 +91,8 @@ pub async fn run_checks<'a>(
     // Futures built up front: a closure inside the stream would make it
     // non-Send for spawned tasks (rust-lang/rust#64552)
     let on_done = &on_done;
-    let runs: Vec<_> = checks
-        .into_iter()
-        .enumerate()
-        .map(|(index, (cluster, check))| checked(docker, jumphost, cluster, check, index, on_done))
-        .collect();
+    let runs: Vec<_> =
+        checks.into_iter().enumerate().map(|(index, (cluster, check))| checked(docker, jumphost, cluster, check, index, on_done)).collect();
     futures_util::stream::iter(runs).buffered(CHECK_CONCURRENCY).try_collect().await
 }
 
@@ -197,11 +184,9 @@ fn jsonpath(j: &JsonpathCheck) -> String {
         Expectation::Contains(v) => {
             format!("case \"$actual\" in *{}*) ;; *) {};; esac", quote(v), failed(format!("expected to contain '{v}'")))
         }
-        Expectation::Matches(v) => format!(
-            "printf '%s' \"$actual\" | grep -Eq {} || {{ {}; }}",
-            quote(v),
-            failed(format!("expected to match /{v}/"))
-        ),
+        Expectation::Matches(v) => {
+            format!("printf '%s' \"$actual\" | grep -Eq {} || {{ {}; }}", quote(v), failed(format!("expected to match /{v}/")))
+        }
     };
     format!("{get}\n{test}")
 }
@@ -224,7 +209,6 @@ fn can_i(c: &CanICheck) -> String {
         )),
     )
 }
-
 
 #[cfg(test)]
 mod tests {

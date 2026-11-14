@@ -56,7 +56,12 @@ pub struct ProofPlan {
 impl ProofPlan {
     /// The plan for `draft` (its questions in `bank`), its workers by
     /// question; `fits` says whether Docker has room for so many megabytes
-    pub fn of(draft: &ExamDraft, bank: &crate::lab::load::LoadedPack, workers: u8, fits: impl Fn(u32) -> crate::error::AppResult<()>) -> Self {
+    pub fn of(
+        draft: &ExamDraft,
+        bank: &crate::lab::load::LoadedPack,
+        workers: u8,
+        fits: impl Fn(u32) -> crate::error::AppResult<()>,
+    ) -> Self {
         let total = draft.items.len() as u32;
         let changed = draft.statuses().filter(|(_, s)| **s != DraftStatus::Proven).count() as u32;
         let mb = run_mb(workers);
@@ -137,7 +142,13 @@ impl Proofs {
 
     /// Start proving the conversation's exam; how to stop it, or none if it
     /// is being proven already
-    pub fn begin(&self, session: i32, proof: Proof, mb: u32, allowed: impl FnOnce() -> crate::error::AppResult<()>) -> crate::error::AppResult<Option<CancellationToken>> {
+    pub fn begin(
+        &self,
+        session: i32,
+        proof: Proof,
+        mb: u32,
+        allowed: impl FnOnce() -> crate::error::AppResult<()>,
+    ) -> crate::error::AppResult<Option<CancellationToken>> {
         let mut running = self.running.locked();
         // Judged under the lock `stop_all` takes: a proof begun as an exam
         // starts is stopped by it, or refused here

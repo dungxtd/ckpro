@@ -7,9 +7,7 @@ use std::os::windows::process::CommandExt as _;
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
 use windows_sys::Win32::Foundation::{CloseHandle, STILL_ACTIVE};
-use windows_sys::Win32::System::Threading::{
-    GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
-};
+use windows_sys::Win32::System::Threading::{GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
 
 /// CREATE_NO_WINDOW: a console program the app (which has no console) starts
 /// would otherwise open a window of its own
@@ -29,11 +27,7 @@ impl Platform for Os {
 
     /// The Claude CLI's native install, Node.js's installer, Volta's
     fn program_dirs(home: &Path) -> Vec<PathBuf> {
-        vec![
-            home.join(r".local\bin"),
-            known_dir("ProgramFiles", r"C:\Program Files").join("nodejs"),
-            home.join(r"AppData\Local\Volta\bin"),
-        ]
+        vec![home.join(r".local\bin"), known_dir("ProgramFiles", r"C:\Program Files").join("nodejs"), home.join(r"AppData\Local\Volta\bin")]
     }
 
     /// npm installs inside Node.js's directory
@@ -53,8 +47,7 @@ impl Platform for Os {
     const DOCKER_START: &'static str = "Start Docker Desktop";
     const DOCKER_INSTALL: &'static str = "Install Docker Desktop";
     /// On WSL 2 the limit is WSL's own, not Docker Desktop's
-    const DOCKER_MEMORY: &'static str =
-        "Raise Docker Desktop's memory limit (on WSL 2: memory in .wslconfig), or delete a cluster";
+    const DOCKER_MEMORY: &'static str = "Raise Docker Desktop's memory limit (on WSL 2: memory in .wslconfig), or delete a cluster";
     const DOCKER_DISK: &'static str = "free space in Docker Desktop (Settings, Resources)";
 
     /// kind ships no Windows arm64 build; Windows on Arm runs the x64 one (it
@@ -75,9 +68,7 @@ impl Platform for Os {
     /// outside it. `CreationFlags` must come first: the job sets the creation
     /// flags itself, and only keeps those it is given this way
     fn tree(command: &mut TokioCommandWrap) {
-        command
-            .wrap(CreationFlags(windows::Win32::System::Threading::PROCESS_CREATION_FLAGS(CREATE_NO_WINDOW)))
-            .wrap(JobObject);
+        command.wrap(CreationFlags(windows::Win32::System::Threading::PROCESS_CREATION_FLAGS(CREATE_NO_WINDOW))).wrap(JobObject);
     }
 
     fn process_alive(pid: u32) -> bool {
@@ -129,12 +120,8 @@ impl Platform for Os {
 
     /// The MachineGuid Windows sets at installation, as `reg` reads it
     fn machine_id() -> Option<String> {
-        let out = super::std_command("reg")
-            .args(["query", r"HKLM\SOFTWARE\Microsoft\Cryptography", "/v", "MachineGuid"])
-            .output()
-            .ok()?;
+        let out = super::std_command("reg").args(["query", r"HKLM\SOFTWARE\Microsoft\Cryptography", "/v", "MachineGuid"]).output().ok()?;
         let text = String::from_utf8_lossy(&out.stdout);
         text.lines().find(|l| l.contains("MachineGuid"))?.split_whitespace().last().map(str::to_string)
     }
 }
-

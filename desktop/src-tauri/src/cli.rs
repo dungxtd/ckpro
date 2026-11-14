@@ -106,7 +106,8 @@ pub fn main() -> ExitCode {
         Command::Quit { action, clusters, containers } => {
             let Ok(runtime) = tokio::runtime::Runtime::new() else { return ExitCode::FAILURE };
             let done = runtime.block_on(async {
-                tokio::time::timeout(std::time::Duration::from_secs(120), crate::runtime::docker::quit(action, &clusters, &containers)).await
+                tokio::time::timeout(std::time::Duration::from_secs(120), crate::runtime::docker::quit(action, &clusters, &containers))
+                    .await
             });
             if matches!(done, Ok(Ok(()))) { ExitCode::SUCCESS } else { ExitCode::FAILURE }
         }
@@ -165,7 +166,14 @@ fn lint_pack(root: &std::path::Path, json: bool) -> ExitCode {
 /// Memory a verify run needs (a cluster, its task host): about 2 GB
 const RUN_MB: u64 = 2048;
 
-fn verify_pack(root: &std::path::Path, exams: &[String], questions: &[String], keep: bool, parallel: Option<usize>, json: bool) -> ExitCode {
+fn verify_pack(
+    root: &std::path::Path,
+    exams: &[String],
+    questions: &[String],
+    keep: bool,
+    parallel: Option<usize>,
+    json: bool,
+) -> ExitCode {
     let (pack, mut findings) = load::load(root);
     let Some(pack) = pack else {
         return lint_pack(root, false);
@@ -232,9 +240,7 @@ fn verify_pack(root: &std::path::Path, exams: &[String], questions: &[String], k
             memory_mb = docker.info().await.ok().and_then(|i| i.mem_total).map(|b| b as u64 / 1_048_576);
         }
         // As many runs at once as Docker's memory takes (1 GB kept), up to 4
-        let parallel = parallel
-            .unwrap_or_else(|| memory_mb.map_or(1, |mb| (mb.saturating_sub(1024) / RUN_MB).clamp(1, 4) as usize))
-            .max(1);
+        let parallel = parallel.unwrap_or_else(|| memory_mb.map_or(1, |mb| (mb.saturating_sub(1024) / RUN_MB).clamp(1, 4) as usize)).max(1);
         if !json {
             eprintln!("  | {parallel} run(s) at once");
         }
@@ -273,10 +279,15 @@ fn verify_pack(root: &std::path::Path, exams: &[String], questions: &[String], k
     if json {
         let out: std::collections::BTreeMap<_, _> = results
             .iter()
-            .map(|(label, r)| (label.clone(), match r {
-                Ok(reports) => serde_json::to_value(reports).unwrap_or_default(),
-                Err(e) => serde_json::json!({ "error": e }),
-            }))
+            .map(|(label, r)| {
+                (
+                    label.clone(),
+                    match r {
+                        Ok(reports) => serde_json::to_value(reports).unwrap_or_default(),
+                        Err(e) => serde_json::json!({ "error": e }),
+                    },
+                )
+            })
             .collect();
         println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
     } else {

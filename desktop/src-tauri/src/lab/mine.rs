@@ -63,7 +63,10 @@ fn ensure_pack(root: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(root)?;
     let pack_file = root.join("pack.yaml");
     if !pack_file.exists() {
-        std::fs::write(&pack_file, "# The questions the coach generated and ckpro verified\nid: mine\ntitle: My questions\nversion: 0.1.0\n")?;
+        std::fs::write(
+            &pack_file,
+            "# The questions the coach generated and ckpro verified\nid: mine\ntitle: My questions\nversion: 0.1.0\n",
+        )?;
     }
     Ok(())
 }
@@ -89,19 +92,13 @@ pub fn relist(data_dir: &Path, certification: &str, certification_title: &str) -
     // last. Create's are in the exams they were made for; an older one from
     // `lab generate` is in none until the newer is deleted
     let dir = root.join("questions").join(certification);
-    let mut files: Vec<_> = std::fs::read_dir(&dir)
-        .map_err(io)?
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|e| e == "yaml"))
-        .collect();
+    let mut files: Vec<_> =
+        std::fs::read_dir(&dir).map_err(io)?.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|e| e == "yaml")).collect();
     files.sort_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
     let (disrupting, mut files): (Vec<_>, Vec<_>) = files.into_iter().partition(|p| changes_the_nodes(p));
     files.extend(disrupting.into_iter().last());
-    let ids: Vec<String> = files
-        .iter()
-        .filter_map(|p| p.file_stem().map(|s| format!("  - {PACK_ID}/{certification}/{}", s.to_string_lossy())))
-        .collect();
+    let ids: Vec<String> =
+        files.iter().filter_map(|p| p.file_stem().map(|s| format!("  - {PACK_ID}/{certification}/{}", s.to_string_lossy()))).collect();
     let exam = format!(
         "title: My questions · {}\ndescription: Questions the coach generated for {certification_title}, each proven on a cluster\ncertification: {certification}\nquestions:\n{}\n",
         certification.to_uppercase(),
@@ -145,7 +142,13 @@ const CUSTOM: &str = "custom";
 
 /// Keep an exam built in Create with Claude: its `questions` (ids of any
 /// pack, in order) and length. Returns its id
-pub fn save_exam(data_dir: &Path, title: &str, certification: &str, duration_minutes: Option<u32>, questions: &[String]) -> AppResult<String> {
+pub fn save_exam(
+    data_dir: &Path,
+    title: &str,
+    certification: &str,
+    duration_minutes: Option<u32>,
+    questions: &[String],
+) -> AppResult<String> {
     let dir = root(data_dir).join("exams").join(CUSTOM);
     let io = |e: std::io::Error| AppError::io("saving the exam", e);
     ensure_pack(&root(data_dir)).map_err(io)?;
@@ -174,12 +177,8 @@ pub fn save_exam(data_dir: &Path, title: &str, certification: &str, duration_min
 
 /// A file name from a title
 fn slug(title: &str) -> String {
-    let words: Vec<String> = title
-        .to_lowercase()
-        .split(|c: char| !c.is_ascii_alphanumeric())
-        .filter(|w| !w.is_empty())
-        .map(String::from)
-        .collect();
+    let words: Vec<String> =
+        title.to_lowercase().split(|c: char| !c.is_ascii_alphanumeric()).filter(|w| !w.is_empty()).map(String::from).collect();
     let slug: String = words.join("-").chars().take(48).collect();
     if slug.is_empty() { "exam".into() } else { slug.trim_end_matches('-').to_string() }
 }

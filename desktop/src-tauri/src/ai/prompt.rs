@@ -49,20 +49,12 @@ pub(super) fn followup(checks: &[CheckResult], snapshot: Option<&str>, text: &st
     if let Some(snapshot) = snapshot {
         let _ = writeln!(p, "# Cluster snapshot (read-only, just taken)\n```\n{snapshot}\n```\n");
     }
-    if p.is_empty() {
-        text.to_string()
-    } else {
-        format!("{p}# The candidate asks\n{text}")
-    }
+    if p.is_empty() { text.to_string() } else { format!("{p}# The candidate asks\n{text}") }
 }
 
 pub(super) fn system(subject: &CoachSubject, notes: &str) -> String {
     let mut s = String::from(if subject.review { REVIEW } else { PRACTICE });
-    let _ = write!(
-        s,
-        "\nExam: {} (Kubernetes {}).\nAllowed documentation:\n",
-        subject.certification, subject.kubernetes
-    );
+    let _ = write!(s, "\nExam: {} (Kubernetes {}).\nAllowed documentation:\n", subject.certification, subject.kubernetes);
     for url in &subject.docs {
         let _ = writeln!(s, "- {url}");
     }
@@ -70,8 +62,7 @@ pub(super) fn system(subject: &CoachSubject, notes: &str) -> String {
     if !subject.weakest.is_empty() || !subject.unmeasured.is_empty() {
         s.push_str("\nThe candidate's results so far (from ckpro, not a guess):\n");
         if !subject.weakest.is_empty() {
-            let weak: Vec<String> =
-                subject.weakest.iter().map(|(d, p)| format!("{} {p}%", d.replace('-', " "))).collect();
+            let weak: Vec<String> = subject.weakest.iter().map(|(d, p)| format!("{} {p}%", d.replace('-', " "))).collect();
             let _ = writeln!(s, "- Below the pass line: {}.", weak.join(", "));
         }
         if !subject.unmeasured.is_empty() {
@@ -85,8 +76,7 @@ pub(super) fn system(subject: &CoachSubject, notes: &str) -> String {
 
 /// Said in the answer where the conversation was compacted: what came
 /// before was summarized to make room, so details of it may be gone
-pub(super) const COMPACTED: &str =
-    "\n\n_Context compacted: the earlier part of this conversation was summarized to make room._\n\n";
+pub(super) const COMPACTED: &str = "\n\n_Context compacted: the earlier part of this conversation was summarized to make room._\n\n";
 
 /// The candidate's own notes for the assistant (Settings), as a system
 /// section: style and language are theirs to set, the rules above still hold

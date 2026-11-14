@@ -1,9 +1,9 @@
 //! Linux
 
 use super::{Platform, unix};
+use process_wrap::tokio::TokioCommandWrap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use process_wrap::tokio::TokioCommandWrap;
 use tokio::process::Command;
 
 pub struct Os;
@@ -22,12 +22,7 @@ impl Platform for Os {
     }
 
     fn docker_cli_dirs(home: &Path) -> Vec<PathBuf> {
-        vec![
-            PathBuf::from("/usr/bin"),
-            PathBuf::from("/usr/local/bin"),
-            PathBuf::from("/snap/bin"),
-            home.join(".rd/bin"),
-        ]
+        vec![PathBuf::from("/usr/bin"), PathBuf::from("/usr/local/bin"), PathBuf::from("/snap/bin"), home.join(".rd/bin")]
     }
 
     fn other_docker_engines(home: &Path) -> Vec<bollard::Docker> {
@@ -38,8 +33,7 @@ impl Platform for Os {
     const DOCKER_INSTALL: &'static str = "Install Docker Engine";
     /// Docker Engine shares this computer's memory with every program on it
     /// (Docker Desktop's runs in a machine of its own, sized in its settings)
-    const DOCKER_MEMORY: &'static str =
-        "Close programs you do not need, or delete a cluster (with Docker Desktop, raise its memory limit)";
+    const DOCKER_MEMORY: &'static str = "Close programs you do not need, or delete a cluster (with Docker Desktop, raise its memory limit)";
     const DOCKER_DISK: &'static str = "free space on this computer's disk (docker system prune removes what Docker no longer uses)";
 
     fn kind_asset(arch: &str) -> Option<&'static str> {
@@ -63,11 +57,7 @@ impl Platform for Os {
     /// util-linux `script`: the command as one line, which it hands to the
     /// user's shell (each argument quoted)
     fn in_terminal(argv: &[OsString]) -> Command {
-        let line = argv
-            .iter()
-            .map(|a| crate::runtime::exec::quote(&a.to_string_lossy()))
-            .collect::<Vec<_>>()
-            .join(" ");
+        let line = argv.iter().map(|a| crate::runtime::exec::quote(&a.to_string_lossy())).collect::<Vec<_>>().join(" ");
         let mut command = Command::new("script");
         command.args(["-q", "-e", "-c", &line, "/dev/null"]);
         command
