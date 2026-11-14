@@ -132,6 +132,11 @@ pub fn main() -> ExitCode {
             if matches!(done, Ok(Ok(()))) { ExitCode::SUCCESS } else { ExitCode::FAILURE }
         }
         Command::Demo { dir, remove } => {
+            // A development tool: a release puts nothing into the candidate's data
+            if !cfg!(debug_assertions) {
+                eprintln!("ckpro demo is in development builds only");
+                return ExitCode::FAILURE;
+            }
             let dir = dir.unwrap_or_else(crate::data_dir);
             let done = if remove { crate::demo::remove(&dir) } else { crate::demo::seed(&dir, &crate::load_pack(None)) };
             match done {

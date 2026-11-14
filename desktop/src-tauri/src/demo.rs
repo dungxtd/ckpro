@@ -41,7 +41,8 @@ const ID_PREFIX: &str = "demo-";
 
 fn open(dir: &Path) -> Result<Store, String> {
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    Store::open(&dir.join(crate::DATABASE)).map_err(|e| e.to_string())
+    let key = crate::store::key::database_key(dir).map_err(|e| e.to_string())?;
+    Store::open_encrypted(&dir.join(crate::DATABASE), &key).map_err(|e| e.to_string())
 }
 
 /// Takes away what the demo added, and puts back the exams aimed at before

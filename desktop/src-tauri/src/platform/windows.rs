@@ -126,5 +126,15 @@ impl Platform for Os {
     fn make_private(_: &Path) -> std::io::Result<()> {
         Ok(())
     }
+
+    /// The MachineGuid Windows sets at installation, as `reg` reads it
+    fn machine_id() -> Option<String> {
+        let out = super::std_command("reg")
+            .args(["query", r"HKLM\SOFTWARE\Microsoft\Cryptography", "/v", "MachineGuid"])
+            .output()
+            .ok()?;
+        let text = String::from_utf8_lossy(&out.stdout);
+        text.lines().find(|l| l.contains("MachineGuid"))?.split_whitespace().last().map(str::to_string)
+    }
 }
 

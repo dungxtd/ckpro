@@ -82,4 +82,12 @@ impl Platform for Os {
     fn make_private(dir: &Path) -> std::io::Result<()> {
         unix::make_private(dir)
     }
+
+    /// The hardware's IOPlatformUUID, as `ioreg` reads it
+    fn machine_id() -> Option<String> {
+        let out = super::std_command("/usr/sbin/ioreg").args(["-rd1", "-c", "IOPlatformExpertDevice"]).output().ok()?;
+        let text = String::from_utf8_lossy(&out.stdout);
+        let line = text.lines().find(|l| l.contains("\"IOPlatformUUID\""))?;
+        line.split('"').nth(3).map(str::to_string)
+    }
 }

@@ -162,8 +162,10 @@ pub const DATABASE: &str = "ckpro.db";
 /// Kubeconfigs, keys and the database are the user's only: the directory is
 /// made private before anything goes in, whichever runs first.
 pub fn data_dir() -> std::path::PathBuf {
-    // Another data directory, to look at the app with other data (`ckpro demo`)
-    let dir = match std::env::var_os("CKPRO_DATA_DIR").filter(|d| !d.is_empty()) {
+    // Another data directory, to look at the app with other data (`ckpro
+    // demo`): in development builds only, so a release reads no other database
+    let other = std::env::var_os("CKPRO_DATA_DIR").filter(|d| cfg!(debug_assertions) && !d.is_empty());
+    let dir = match other {
         Some(dir) => std::path::PathBuf::from(dir),
         None => dirs::data_dir().unwrap_or_else(std::env::temp_dir).join(APP_ID),
     };
@@ -293,7 +295,8 @@ let proving = app.handle().clone();
             let jumphost = app.state::<Arc<runtime::jumphost::Jumphost>>().inner().clone();
             // Everything kept between runs; what earlier versions wrote to
             // files moves in once
-            let store = Arc::new(store::Store::open(&data_dir.join(DATABASE))?);
+            let key = store::key::database_key(&data_dir)?;
+            let store = Arc::new(store::Store::open_encrypted(&data_dir.join(DATABASE), &key)?);
             store.import_files(&data_dir);
             // The assistant runs where its settings say
             app.state::<ai::Coach>().apply(&ai::policy::AgentSettings::load_or_guarded(&store));

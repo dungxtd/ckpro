@@ -13,6 +13,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 mod coach;
+pub mod key;
 mod plans;
 mod settings;
 mod studio;
@@ -161,6 +162,7 @@ pub struct Store {
 }
 
 impl Store {
+    /// A database left in the clear (the tests', the CLI's scratch ones)
     pub fn open(path: &Path) -> AppResult<Self> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| AppError::io("creating the data directory", e))?;
@@ -168,24 +170,62 @@ impl Store {
         Self::with(Connection::open(path).map_err(db)?)
     }
 
+    /// The app's database, encrypted with `key` (64 hex digits, `key::database_key`).
+    /// One kept in the clear by an earlier version is encrypted first, a copy
+    /// of it kept beside; one encrypted with another key is refused, never
+    /// written over
+    pub fn open_encrypted(path: &Path, key: &str) -> AppResult<Self> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| AppError::io("creating the data directory", e))?;
+        }
+        let conn = keyed(path, key)?;
+        if readable(&conn) {
+            drop(conn);
+            return Self::keyed_store(path, key);
+        }
+        drop(conn);
+        // Not with this key: in the clear (an earlier version's), or another key's
+        let plain = Connection::open(path).map_err(db)?;
+        if !readable(&plain) {
+            return Err(AppError::io(
+                "the app database",
+                std::io::Error::other("it is locked with another installation's key, so it cannot be read here"),
+            ));
+        }
+        encrypt(plain, path, key)?;
+        Self::keyed_store(path, key)
+    }
+
+    fn keyed_store(path: &Path, key: &str) -> AppResult<Self> {
+        Ok(Self { conn: Mutex::new(migrated(keyed(path, key)?)?) })
+    }
+
     #[cfg(test)]
     pub fn in_memory() -> AppResult<Self> {
         Self::with(Connection::open_in_memory().map_err(db)?)
     }
 
-    fn with(mut conn: Connection) -> AppResult<Self> {
-        conn.pragma_update(None, "journal_mode", "WAL").map_err(db)?;
-        let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0)).map_err(db)?;
-        // Each migration with its version, or neither: a crash between the two
-        // would run it again on a schema that already has it
-        for (i, migration) in MIGRATIONS.iter().enumerate().skip(version as usize) {
-            let tx = conn.transaction().map_err(db)?;
-            tx.execute_batch(migration).map_err(db)?;
-            tx.pragma_update(None, "user_version", i as i64 + 1).map_err(db)?;
-            tx.commit().map_err(db)?;
-        }
-        Ok(Self { conn: Mutex::new(conn) })
+    fn with(conn: Connection) -> AppResult<Self> {
+        Ok(Self { conn: Mutex::new(migrated(conn)?) })
     }
+}
+
+/// `conn` with every migration run
+fn migrated(mut conn: Connection) -> AppResult<Connection> {
+    conn.pragma_update(None, "journal_mode", "WAL").map_err(db)?;
+    let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0)).map_err(db)?;
+    // Each migration with its version, or neither: a crash between the two
+    // would run it again on a schema that already has it
+    for (i, migration) in MIGRATIONS.iter().enumerate().skip(version as usize) {
+        let tx = conn.transaction().map_err(db)?;
+        tx.execute_batch(migration).map_err(db)?;
+        tx.pragma_update(None, "user_version", i as i64 + 1).map_err(db)?;
+        tx.commit().map_err(db)?;
+    }
+    Ok(conn)
+}
+
+impl Store {
 
     fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.conn.locked()
@@ -294,6 +334,49 @@ impl Store {
     }
 }
 
+/// A connection to `path` with SQLCipher's `key` given as raw bytes (no key
+/// derivation: the key is random already)
+fn keyed(path: &Path, key: &str) -> AppResult<Connection> {
+    let conn = Connection::open(path).map_err(db)?;
+    conn.execute_batch(&format!("PRAGMA key = \"x'{key}'\";")).map_err(db)?;
+    Ok(conn)
+}
+
+/// Whether the connection reads its database (a wrong key reads nothing)
+fn readable(conn: &Connection) -> bool {
+    conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get::<_, i64>(0)).is_ok()
+}
+
+/// A database in the clear, encrypted in place with `key`: exported into an
+/// encrypted copy, the original kept beside as `<name>.unencrypted`, then the
+/// copy in its place
+fn encrypt(plain: Connection, path: &Path, key: &str) -> AppResult<()> {
+    let io = |e| AppError::io("encrypting the app database", e);
+    // Everything in the main file before it is copied
+    plain.pragma_update(None, "wal_checkpoint", "TRUNCATE").map_err(db)?;
+    let encrypted = path.with_extension("encrypting");
+    let _ = std::fs::remove_file(&encrypted);
+    plain
+        .execute_batch(&format!(
+            "ATTACH DATABASE '{}' AS encrypted KEY \"x'{key}'\"; SELECT sqlcipher_export('encrypted'); DETACH DATABASE encrypted;",
+            encrypted.display().to_string().replace('\'', "''")
+        ))
+        .map_err(db)?;
+    let version: i64 = plain.pragma_query_value(None, "user_version", |r| r.get(0)).map_err(db)?;
+    drop(plain);
+    let copy = keyed(&encrypted, key)?;
+    copy.pragma_update(None, "user_version", version).map_err(db)?;
+    drop(copy);
+    let kept = path.with_extension("unencrypted");
+    std::fs::rename(path, &kept).map_err(io)?;
+    for suffix in ["-wal", "-shm"] {
+        let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+    }
+    std::fs::rename(&encrypted, path).map_err(io)?;
+    tracing::info!(kept = %kept.display(), "the app database is encrypted now");
+    Ok(())
+}
+
 fn db(e: rusqlite::Error) -> AppError {
     AppError::io("the app database", std::io::Error::other(e))
 }
@@ -306,6 +389,36 @@ fn to_json<T: Serialize + ?Sized>(value: &T) -> AppResult<String> {
 mod tests {
     use super::settings::{ExamSort, ExamTarget, HomeLayout, ModulePlace, SidebarLayout, Theme};
     use super::*;
+
+    /// The app's database is encrypted: one kept in the clear is encrypted
+    /// in place (a copy kept), SQLite alone cannot read it, and another
+    /// installation's key does not open it, nor writes over it
+    #[test]
+    fn the_database_is_encrypted_and_its_key_holds_it() {
+        let dir = std::env::temp_dir().join(format!("ckpro-encrypted-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("ckpro.db");
+        let key = "ab".repeat(32);
+        // An earlier version's, in the clear
+        {
+            let store = Store::open(&path).unwrap();
+            store.save_setting("probe", &serde_json::json!({ "kept": true })).unwrap();
+        }
+        let store = Store::open_encrypted(&path, &key).unwrap();
+        let kept: serde_json::Value = store.setting::<Option<serde_json::Value>>("probe").unwrap().unwrap();
+        assert_eq!(kept["kept"], true);
+        drop(store);
+        assert!(dir.join("ckpro.unencrypted").exists(), "the clear copy is kept");
+        assert!(!readable(&Connection::open(&path).unwrap()), "SQLite alone reads nothing");
+        // Another installation's key: refused, the file left as it was
+        let before = std::fs::read(&path).unwrap();
+        assert!(Store::open_encrypted(&path, &"cd".repeat(32)).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        // Its own key again: as it was
+        let again = Store::open_encrypted(&path, &key).unwrap();
+        assert!(again.setting::<Option<serde_json::Value>>("probe").unwrap().is_some());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn keeps_attempt_progress_history_and_settings() {

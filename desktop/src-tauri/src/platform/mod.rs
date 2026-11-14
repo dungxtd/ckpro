@@ -69,6 +69,9 @@ pub trait Platform {
     fn make_executable(path: &Path) -> std::io::Result<()>;
     /// Keep `dir` to the user alone
     fn make_private(dir: &Path) -> std::io::Result<()>;
+    /// This computer's own id, the same across app and system updates and
+    /// another on another computer (none where the system keeps none)
+    fn machine_id() -> Option<String>;
 }
 
 /// The directories on the app's PATH
@@ -247,6 +250,10 @@ pub fn make_executable(path: &Path) -> std::io::Result<()> {
 
 pub fn make_private(dir: &Path) -> std::io::Result<()> {
     Os::make_private(dir)
+}
+
+pub fn machine_id() -> Option<String> {
+    Os::machine_id().map(|id| id.trim().to_string()).filter(|id| !id.is_empty())
 }
 
 #[cfg(test)]

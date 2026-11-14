@@ -88,4 +88,9 @@ impl Platform for Os {
     fn make_private(dir: &Path) -> std::io::Result<()> {
         unix::make_private(dir)
     }
+
+    /// systemd's machine id (D-Bus's where only it is kept)
+    fn machine_id() -> Option<String> {
+        ["/etc/machine-id", "/var/lib/dbus/machine-id"].iter().find_map(|f| std::fs::read_to_string(f).ok())
+    }
 }

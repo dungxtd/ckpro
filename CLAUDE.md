@@ -16,7 +16,8 @@ Architecture: `docs/ARCHITECTURE.md`.
   attempt the guard keeps the
   environment as set up.
 - **State lives in SQLite** (`store/`): settings, attempts, history, coach
-  sessions. New fields get `#[serde(default)]`; schema changes are new
+  sessions, encrypted (SQLCipher) with a key bound to this computer
+  (`store/key.rs`). New fields get `#[serde(default)]`; schema changes are new
   migrations, never edits to old ones.
 - **Rust owns the truth**; the interface renders events and never polls.
 - **Errors are typed** (`AppError`) where they happen; the interface branches

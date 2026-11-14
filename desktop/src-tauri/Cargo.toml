@@ -45,7 +45,11 @@ schemars = "1.2.3"
 clap = { version = "4.6.7", features = ["derive"] }
 rand = "0.10.3"
 dirs = "7.0.0"
-rusqlite = { version = "0.40", features = ["bundled"] }
+# SQLite with SQLCipher: the app database is encrypted, its key bound to this
+# computer (store/key.rs). The crypto comes from the system on macOS
+# (CommonCrypto), from an OpenSSL built in elsewhere
+rusqlite = { version = "0.40" }
+sha2 = "0.10"
 tauri-plugin-window-state = "2"
 hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
@@ -54,6 +58,12 @@ tauri-plugin-opener = "2"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+rusqlite = { version = "0.40", features = ["bundled-sqlcipher"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+rusqlite = { version = "0.40", features = ["bundled-sqlcipher-vendored-openssl"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
