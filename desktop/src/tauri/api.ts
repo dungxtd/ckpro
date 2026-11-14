@@ -34,7 +34,7 @@ type Result<T, E> = { status: "ok"; data: T } | { status: "error"; error: E };
 /** The exam desk's display settings */
 export type Settings = Settings_Serialize;
 /** The real exam the candidate aims at */
-export type ExamTarget = NonNullable<Settings["target"]>;
+export type ExamTarget = Settings["targets"][number];
 export type { HomeLayout, ModulePlace } from "./bindings";
 /** An exam planned for a day */
 export type PlanView = PlanView_Serialize;
@@ -235,15 +235,7 @@ export const studioApi = {
 	open: (session: number) => unwrap(commands.studioOpen(session)) as Promise<StudioConversation>,
 	/** Say something; `onEvent` gets the answer as it is written and the tools Claude uses */
 	ask: (session: number, text: string, model: ModelChoice, onEvent: (event: CoachEvent) => void) =>
-		unwrap(
-			commands.studioAsk(
-				session,
-				text,
-				model,
-				-new Date().getTimezoneOffset(),
-				channel<CoachEvent>(onEvent)
-			)
-		),
+		unwrap(commands.studioAsk(session, text, model, channel<CoachEvent>(onEvent))),
 	/** Claude changed a conversation's draft */
 	onDraft: (on: (session: number, draft: ExamDraft) => void) =>
 		events.studioDraft.listen(event => on(event.payload.session, event.payload.draft as ExamDraft)),
@@ -325,8 +317,6 @@ export const examApi = {
 	plans: (from: string, to: string) =>
 		unwrap(commands.plansBetween(from, to, -new Date().getTimezoneOffset())),
 	planAdd: (day: string, examId: string, mode: Mode) => unwrap(commands.planAdd(day, examId, mode)),
-	planUpdate: (id: number, change: { day?: string; mode?: Mode }) =>
-		unwrap(commands.planUpdate(id, change.day ?? null, change.mode ?? null)),
 	planRemove: (id: number) => unwrap(commands.planRemove(id)),
 	/** Per domain, and the predicted score, for a certification */
 	readiness: (certification: string) => unwrap(commands.readiness(certification)),

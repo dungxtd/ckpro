@@ -1,9 +1,11 @@
 //! The candidate's plans (an exam on a day) and how ready they are for the
 //! exam they aim at: both worked out from the history, without AI. Days are
-//! the candidate's own (`offset_minutes` east of UTC, from the interface).
+//! the candidate's own: this computer's time (`local_offset_minutes`), or
+//! the offset the interface gives (`offset_minutes` east of UTC).
 
 use super::insights::{DomainStat, study_stats};
 use super::{Exams, HistoryEntry, Mode};
+use crate::lab::load::LoadedPack;
 use crate::error::{AppError, AppResult};
 use crate::store::StoredPlan;
 use serde::{Deserialize, Serialize};
@@ -63,23 +65,29 @@ pub fn day_of(ms: f64, offset_minutes: i32) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
-const fn mode_name(mode: Mode) -> &'static str {
-    match mode {
-        Mode::Exam => "exam",
-        Mode::Practice => "practice",
-    }
+/// Minutes east of UTC this computer's clock reads at a moment (Unix ms):
+/// the candidate's own time, whichever screen was opened
+pub fn local_offset_minutes(ms: f64) -> i32 {
+    use chrono::{Local, Offset, TimeZone};
+    // A moment out of the calendar's range: UTC
+    Local.timestamp_millis_opt(ms as i64).single().map_or(0, |at| at.offset().fix().local_minus_utc() / 60)
 }
 
-/// A day as YYYY-MM-DD, or an error naming it
+/// The day (YYYY-MM-DD) a moment (Unix ms) falls on in this computer's time
+pub fn local_day(ms: f64) -> String {
+    day_of(ms, local_offset_minutes(ms))
+}
+
+/// A day as YYYY-MM-DD, a real one of the calendar, or an error naming it
 fn checked_day(day: &str) -> AppResult<&str> {
-    let ok = day.len() == 10
+    let shaped = day.len() == 10
         && day.char_indices().all(|(i, c)| if i == 4 || i == 7 { c == '-' } else { c.is_ascii_digit() });
-    ok.then_some(day).ok_or_else(|| AppError::invalid(format!("not a day: {day}")))
+    let real = shaped && chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d").is_ok();
+    real.then_some(day).ok_or_else(|| AppError::invalid(format!("not a day: {day}")))
 }
 
 /// Each plan with its exam and whether `history` has it taken on its day
-fn views(plans: Vec<StoredPlan>, exams: &Exams, history: &[HistoryEntry], offset_minutes: i32) -> Vec<PlanView> {
-    let pack = exams.pack();
+fn views(plans: Vec<StoredPlan>, pack: &LoadedPack, history: &[HistoryEntry], offset_minutes: i32) -> Vec<PlanView> {
     plans
         .into_iter()
         .map(|p| {
@@ -94,7 +102,7 @@ fn views(plans: Vec<StoredPlan>, exams: &Exams, history: &[HistoryEntry], offset
                 id: p.id,
                 title: exam.map(|e| e.title.clone()).unwrap_or_else(|| p.exam_id.clone()),
                 certification: exam.map(|e| e.certification.clone()).unwrap_or_default(),
-                mode: if p.mode == "exam" { Mode::Exam } else { Mode::Practice },
+                mode: p.mode,
                 day: p.day,
                 exam_id: p.exam_id,
                 done,
@@ -104,10 +112,11 @@ fn views(plans: Vec<StoredPlan>, exams: &Exams, history: &[HistoryEntry], offset
 }
 
 impl Exams {
-    /// The plans from `from` to `to` (both included)
+    /// The plans from `from` to `to` (both included), attempts placed on
+    /// days `offset_minutes` east of UTC
     pub fn plans_between(&self, from: &str, to: &str, offset_minutes: i32) -> AppResult<Vec<PlanView>> {
         let plans = self.store.plans(checked_day(from)?, checked_day(to)?)?;
-        Ok(views(plans, self, &self.history(), offset_minutes))
+        Ok(views(plans, &self.pack(), &self.history(), offset_minutes))
     }
 
     /// Plan an exam of the bank on a day
@@ -115,13 +124,7 @@ impl Exams {
         if !self.pack().exams.contains_key(exam_id) {
             return Err(AppError::not_found(format!("no exam '{exam_id}'")));
         }
-        self.store.add_plan(checked_day(day)?, exam_id, mode_name(mode))
-    }
-
-    /// Move a plan to another day, or take it the other way
-    pub fn plan_update(&self, id: i32, day: Option<String>, mode: Option<Mode>) -> AppResult<()> {
-        let day = day.as_deref().map(checked_day).transpose()?;
-        self.store.update_plan(id, day, mode.map(mode_name))
+        self.store.add_plan(checked_day(day)?, exam_id, mode)
     }
 
     pub fn plan_remove(&self, id: i32) -> AppResult<()> {
@@ -137,7 +140,7 @@ impl Exams {
 /// See [`ExamReadiness`]: the last month's attempts of the certification, or all
 /// of them when the month has none
 pub fn readiness(
-    pack: &super::LoadedPack,
+    pack: &LoadedPack,
     history: &[HistoryEntry],
     certification: &str,
     now: f64,
@@ -203,10 +206,22 @@ mod tests {
 
     #[test]
     fn days_are_checked() {
-        assert!(checked_day("2026-11-05").is_ok());
-        for wrong in ["2026-1-05", "20261105", "2026-11-0x", "' OR 1"] {
+        for day in ["2026-11-05", "2028-02-29", "2026-12-31"] {
+            assert!(checked_day(day).is_ok(), "{day}");
+        }
+        for wrong in ["2026-1-05", "20261105", "2026-11-0x", "' OR 1", "2026-13-99", "2026-02-29", "2026-04-31", "2026-00-10", "+2026-1-01"] {
             assert!(checked_day(wrong).is_err(), "{wrong}");
         }
+    }
+
+    /// The candidate's days are this computer's, whichever screen was
+    /// opened first: what the system clock says the date is
+    #[test]
+    fn the_local_day_is_this_computers() {
+        let now = crate::runtime::activity::now_ms();
+        assert_eq!(local_day(now), chrono::Local::now().format("%Y-%m-%d").to_string());
+        let offset = local_offset_minutes(now);
+        assert!((-14 * 60..=14 * 60).contains(&offset), "{offset}");
     }
 
     /// Two CKA attempts: the predicted score weighs each tested domain as the

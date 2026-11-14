@@ -2,12 +2,12 @@
 //! It reads the question as the candidate sees it, their last "Check my work",
 //! the documentation the exam allows and, when checks fail, a read-only look
 //! at the cluster; the reference answer only once the candidate opened it.
-//! Never during an exam-mode attempt (`Exams::assistant_allowed` refuses).
+//! Never during an exam-mode attempt (`Exams::assistant_allowed` refuses),
+//! nor with the assistant turned off (`Store::assistant_enabled`).
 
 pub mod account;
 mod acp;
 pub mod agent;
-pub mod generate;
 pub mod mcp;
 pub mod mcp_http;
 mod permissions;
@@ -125,9 +125,6 @@ pub struct Coach {
     open: tokio::sync::Mutex<OpenSessions>,
     /// Claude Code is turned on (Settings > Assistant): off, nothing asks it
     enabled: std::sync::atomic::AtomicBool,
-    /// The assistant is on at all (Settings > Assistant, "Use the
-    /// assistant"): off, the app has no AI anywhere
-    on: std::sync::atomic::AtomicBool,
     /// The tools agent sessions get, once their server listens
     tools: std::sync::OnceLock<mcp_http::McpHttp>,
     /// Permission requests waiting for the candidate, by id: the options
@@ -168,7 +165,6 @@ impl Coach {
             permissions: Default::default(),
             tools: Default::default(),
             enabled: std::sync::atomic::AtomicBool::new(true),
-            on: std::sync::atomic::AtomicBool::new(true),
             signing_in: Default::default(),
             sign_ins: Default::default(),
             account: Default::default(),
@@ -195,9 +191,10 @@ impl Coach {
         let _ = self.tools.set(server);
     }
 
-    /// Refuse when Claude Code is turned off in Settings
-    fn require_enabled(&self) -> AppResult<()> {
-        if !self.on.load(std::sync::atomic::Ordering::SeqCst) {
+    /// Refuse when the assistant is turned off in Settings (`store` says),
+    /// or Claude Code is
+    fn require_enabled(&self, store: &Store) -> AppResult<()> {
+        if !store.assistant_enabled() {
             return Err(AppError::assistant_off());
         }
         if self.enabled.load(std::sync::atomic::Ordering::SeqCst) {
@@ -207,18 +204,9 @@ impl Coach {
         }
     }
 
-    /// The assistant turned on or off as a whole (Settings' "Use the
-    /// assistant"). Off, the answers being written stop: it has no AI
-    /// anywhere, nothing goes on changing a draft
-    pub fn switch(&self, on: bool) {
-        self.on.store(on, std::sync::atomic::Ordering::SeqCst);
-        if !on {
-            self.stop_answers();
-        }
-    }
-
     /// Stop every answer being written: the coach's and Create's (the
-    /// assistant turned off, an exam-mode attempt starting)
+    /// assistant turned off, so it has no AI anywhere and nothing goes on
+    /// changing a draft; an exam-mode attempt starting)
     pub fn stop_answers(&self) {
         if let Some(cancel) = self.running.locked().take() {
             cancel.cancel();
@@ -281,7 +269,7 @@ impl Coach {
         if text.is_empty() {
             return Err(AppError::invalid("ask the coach something"));
         }
-        self.require_enabled()?;
+        self.require_enabled(store)?;
         let _busy = self.busy();
         let subject = exams.coach_subject(question_id)?;
         // The checks the candidate saw (the result's in review), as Rust ran them

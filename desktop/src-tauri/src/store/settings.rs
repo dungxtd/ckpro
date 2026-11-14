@@ -3,9 +3,12 @@
 use super::{Store, db, to_json};
 use crate::error::AppResult;
 use crate::runtime::preflight::Footprint;
-use rusqlite::{OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+
+/// Where the settings are kept
+const SETTINGS: &str = "exam_desk";
 
 /// The exam desk's display settings
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -40,9 +43,6 @@ pub struct Settings {
     pub plan_mode: Option<crate::lab::exam::Mode>,
     /// The exams the candidate prepares for, and when (CKA, then CKAD…)
     pub targets: Vec<ExamTarget>,
-    /// The first of `targets`, kept for an older ckpro reading these
-    /// settings; read only when `targets` was never written
-    pub target: Option<ExamTarget>,
     /// The certification Home and the Calendar show, or none for all of them
     pub focus: Option<String>,
     /// How Home's modules are arranged
@@ -149,7 +149,6 @@ impl Default for Settings {
             theme: Theme::Dark,
             plan_mode: None,
             targets: Vec::new(),
-            target: None,
             focus: None,
             home: HomeLayout::default(),
         }
@@ -158,20 +157,18 @@ impl Default for Settings {
 
 impl Store {
     pub fn settings(&self) -> AppResult<Settings> {
-        let mut settings: Settings = self.setting("exam_desk")?;
-        // Saved before there could be several exams: the one becomes the list
-        if settings.targets.is_empty()
-            && let Some(target) = settings.target.clone()
-        {
-            settings.targets.push(target);
-        }
-        Ok(settings)
+        self.setting(SETTINGS)
     }
 
     pub fn save_settings(&self, settings: &Settings) -> AppResult<()> {
-        // `target` follows the list, so an older ckpro reads the first exam
-        let settings = Settings { target: settings.targets.first().cloned(), ..settings.clone() };
-        self.save_setting("exam_desk", &settings)
+        self.save_setting(SETTINGS, settings)
+    }
+
+    /// Whether the assistant is on (Settings' "Use the assistant"): the one
+    /// reading of it. Settings never saved leave it on; settings that cannot
+    /// be read leave it off, the app has no AI then
+    pub fn assistant_enabled(&self) -> bool {
+        self.settings().is_ok_and(|s| s.assistant_enabled)
     }
 
     /// What the exam nodes were measured to take on this machine
@@ -192,34 +189,38 @@ impl Store {
     /// when it cannot be read (damaged, or written by a newer ckpro), which
     /// the log tells
     pub fn setting_or<T: DeserializeOwned + Default>(&self, key: &str, unreadable: impl FnOnce() -> T) -> AppResult<T> {
-        let json: Option<String> = self
-            .conn()
-            .query_row("SELECT value FROM settings WHERE key = ?1", params![key], |r| r.get(0))
-            .optional()
-            .map_err(db)?;
-        let Some(json) = json else { return Ok(T::default()) };
-        Ok(serde_json::from_str(&json).unwrap_or_else(|e| {
-            tracing::warn!(key, error = %e, "a setting could not be read");
-            unreadable()
-        }))
+        setting_in(&self.conn(), key, unreadable)
     }
 
     pub fn save_setting<T: Serialize>(&self, key: &str, value: &T) -> AppResult<()> {
-        self.conn()
-            .execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)", params![key, to_json(value)?])
-            .map_err(db)?;
-        Ok(())
+        save_setting_in(&self.conn(), key, value)
     }
+}
 
-    /// Exams gone: the sidebar no longer lists or pins them
-    pub fn forget_in_sidebar(&self, exam_ids: &[String]) -> AppResult<()> {
-        let mut settings = self.settings()?;
-        let before = settings.sidebar.clone();
-        settings.sidebar.pinned.retain(|id| !exam_ids.contains(id));
-        settings.sidebar.exams.retain(|id| !exam_ids.contains(id));
-        if settings.sidebar != before {
-            self.save_settings(&settings)?;
-        }
-        Ok(())
+/// `Store::setting_or` on a connection (in a transaction)
+fn setting_in<T: DeserializeOwned + Default>(conn: &Connection, key: &str, unreadable: impl FnOnce() -> T) -> AppResult<T> {
+    let json: Option<String> =
+        conn.query_row("SELECT value FROM settings WHERE key = ?1", params![key], |r| r.get(0)).optional().map_err(db)?;
+    let Some(json) = json else { return Ok(T::default()) };
+    Ok(serde_json::from_str(&json).unwrap_or_else(|e| {
+        tracing::warn!(key, error = %e, "a setting could not be read");
+        unreadable()
+    }))
+}
+
+fn save_setting_in<T: Serialize>(conn: &Connection, key: &str, value: &T) -> AppResult<()> {
+    conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)", params![key, to_json(value)?]).map_err(db)?;
+    Ok(())
+}
+
+/// Exams gone: the sidebar no longer lists or pins them (in the deletion's transaction)
+pub(super) fn forget_in_sidebar(conn: &Connection, exam_ids: &[String]) -> AppResult<()> {
+    let mut settings: Settings = setting_in(conn, SETTINGS, Settings::default)?;
+    let before = settings.sidebar.clone();
+    settings.sidebar.pinned.retain(|id| !exam_ids.contains(id));
+    settings.sidebar.exams.retain(|id| !exam_ids.contains(id));
+    if settings.sidebar != before {
+        save_setting_in(conn, SETTINGS, &settings)?;
     }
+    Ok(())
 }

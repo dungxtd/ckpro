@@ -99,7 +99,6 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::delete_exam,
         commands::plans_between,
         commands::plan_add,
-        commands::plan_update,
         commands::plan_remove,
         commands::readiness,
         commands::exam_state,
@@ -293,14 +292,11 @@ let proving = app.handle().clone();
             });
             app.manage(guard.clone());
             let jumphost = app.state::<Arc<runtime::jumphost::Jumphost>>().inner().clone();
-            // Everything kept between runs; what earlier versions wrote to
-            // files moves in once
+            // Everything kept between runs
             let key = store::key::database_key(&data_dir)?;
             let store = Arc::new(store::Store::open_encrypted(&data_dir.join(DATABASE), &key)?);
-            store.import_files(&data_dir);
             // The assistant runs where its settings say
             app.state::<ai::Coach>().apply(&ai::policy::AgentSettings::load_or_guarded(&store));
-            app.state::<ai::Coach>().switch(store.settings().map(|s| s.assistant_enabled).unwrap_or(true));
             // Docker, the clusters and the guard; the attempt being resumed
             // starts its own clusters, task host and desktop
             let resuming = lab::exam::saved_running(&store).map(|(attempt, _)| attempt.clusters).unwrap_or_default();
@@ -309,8 +305,11 @@ let proving = app.handle().clone();
             runtime::monitor::start(env.clone(), kind.clone(), infra.clone(), activities.clone(), guard.clone(), jobs, resuming);
             app.manage(store.clone());
             let exams_handle = app.handle().clone();
+            let pack = lab::mine::merged(load_pack(app.path().resource_dir().ok()), &data_dir);
+            // Attempts kept before they kept their certification get it, once
+            lab::exam::history::certify_history(&store, &pack);
             let exams = Arc::new(lab::exam::Exams::new(
-                lab::mine::merged(load_pack(app.path().resource_dir().ok()), &data_dir),
+                pack,
                 kind.clone(),
                 infra,
                 jumphost,

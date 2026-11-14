@@ -188,14 +188,25 @@ impl ExamDraft {
         serde_json::from_str(text).map_err(|e| AppError::invalid(format!("this conversation's exam could not be read: {e}")))
     }
 
-    /// Change a conversation's draft with `f`, read and kept in one go:
-    /// Claude's tools, the screen and a proof never write over each other.
-    /// The draft as kept, and what `f` returns
-    pub fn update<T>(store: &Store, session: i32, f: impl FnOnce(&mut ExamDraft) -> AppResult<T>) -> AppResult<(ExamDraft, T)> {
-        store.studio_update_draft(session, |text| {
+    /// Change a conversation's draft with `f`: Claude's tools, the screen
+    /// and a proof never write over each other (`f` runs again on the draft
+    /// as it is when another change came between). The draft as kept, and
+    /// what `f` returns
+    pub fn update<T>(store: &Store, session: i32, f: impl FnMut(&mut ExamDraft) -> AppResult<T>) -> AppResult<(ExamDraft, T)> {
+        Self::update_unless(store, session, || Ok(()), f)
+    }
+
+    /// `update`, refused by `writable` up to the moment it is written
+    pub fn update_unless<T>(
+        store: &Store,
+        session: i32,
+        writable: impl Fn() -> AppResult<()>,
+        mut f: impl FnMut(&mut ExamDraft) -> AppResult<T>,
+    ) -> AppResult<(ExamDraft, T)> {
+        store.studio_update_draft(session, writable, |text| {
             let mut draft = Self::parse(text)?;
             let out = f(&mut draft)?;
-            let text = serde_json::to_string(&draft).map_err(|e| AppError::invalid(e.to_string()))?;
+            let text = serde_json::to_string(&draft).map_err(|e| AppError::internal("keeping the draft", e))?;
             Ok((text, (draft, out)))
         })
     }
@@ -242,11 +253,11 @@ impl ExamDraft {
     }
 
     /// None of its questions is gone: else, which, to take out
-    pub fn complete(&self, bank: &LoadedPack) -> Result<(), String> {
+    pub fn complete(&self, bank: &LoadedPack) -> AppResult<()> {
         match self.missing(bank).as_slice() {
             [] => Ok(()),
-            [(_, title)] => Err(format!("{title} was deleted: remove it from the exam")),
-            gone => Err(format!("{} questions were deleted: remove them from the exam", gone.len())),
+            [(_, title)] => Err(AppError::invalid(format!("{title} was deleted: remove it from the exam"))),
+            gone => Err(AppError::invalid(format!("{} questions were deleted: remove them from the exam", gone.len()))),
         }
     }
 
@@ -262,10 +273,10 @@ impl ExamDraft {
     }
 
     /// One question at most changes the nodes: else, why it cannot be proven
-    pub fn disrupting(&self) -> Result<(), String> {
+    pub fn disrupting(&self) -> AppResult<()> {
         let titles: Vec<&str> = self.disruptive(None).collect();
         match titles.as_slice() {
-            [first, second, ..] => Err(format!("{first} and {second} both change the nodes for what follows: keep one")),
+            [first, second, ..] => Err(AppError::invalid(format!("{first} and {second} both change the nodes for what follows: keep one"))),
             _ => Ok(()),
         }
     }
@@ -714,7 +725,7 @@ hints:\n  - kubectl create deploy\n"
         draft.set_exam(&bank, "Mock", "cka", None).unwrap();
         draft.items.push(DraftItem::Existing { id: "mine/cka/gone".into(), title: "Gone".into(), domain: "storage".into(), minutes: None, status: DraftStatus::Proven, disrupts: false, version: String::new(), written: None });
         assert_eq!(draft.missing(&bank), [("mine/cka/gone".to_string(), "Gone".to_string())]);
-        assert!(draft.complete(&bank).unwrap_err().contains("Gone was deleted"));
+        assert!(draft.complete(&bank).unwrap_err().to_string().contains("Gone was deleted"));
         assert!(draft.remove("mine/cka/gone"));
         assert!(draft.complete(&bank).is_ok());
     }

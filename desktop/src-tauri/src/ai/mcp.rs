@@ -52,7 +52,7 @@ impl Server {
     /// The session's question in the running practice attempt
     fn question(&self) -> AppResult<(String, Question)> {
         (self.allowed)()?;
-        if !self.store.settings().is_ok_and(|s| s.assistant_enabled) {
+        if !self.store.assistant_enabled() {
             return Err(AppError::assistant_off());
         }
         let (_, questions) =
