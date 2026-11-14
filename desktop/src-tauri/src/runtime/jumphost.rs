@@ -48,24 +48,27 @@ pub struct Jumphost {
     /// One `refresh_access` at a time: each empties the etcd certs and
     /// rewrites the kubeconfig, which two at once would interleave
     refreshing: tokio::sync::Mutex<()>,
+    /// One look at the ssh key at a time: two first ones would both make it,
+    /// and the second `ssh-keygen` would fail on the file the first wrote
+    keying: tokio::sync::Mutex<()>,
 }
 
 impl Jumphost {
     /// The app's jumphost
     pub fn app(data_dir: &Path) -> Self {
-        Self { name: APP_NAME.into(), network: NETWORK.into(), dir: data_dir.join("jumphost"), refreshing: Default::default() }
+        Self { name: APP_NAME.into(), network: NETWORK.into(), dir: data_dir.join("jumphost"), refreshing: Default::default(), keying: Default::default() }
     }
 
     /// A jumphost of the tests' own, on the app's network beside the
     /// clusters they make there
     #[cfg(test)]
     pub fn for_test(data_dir: &Path, name: &str) -> Self {
-        Self { name: format!("{RUN_PREFIX}{name}"), network: NETWORK.into(), dir: data_dir.join("runs").join(name).join("jumphost"), refreshing: Default::default() }
+        Self { name: format!("{RUN_PREFIX}{name}"), network: NETWORK.into(), dir: data_dir.join("runs").join(name).join("jumphost"), refreshing: Default::default(), keying: Default::default() }
     }
 
     /// A jumphost of its own for one verify run
     pub fn for_run(data_dir: &Path, run: &str) -> Self {
-        Self { name: format!("{RUN_PREFIX}{run}"), network: run_network(run), dir: data_dir.join("runs").join(run).join("jumphost"), refreshing: Default::default() }
+        Self { name: format!("{RUN_PREFIX}{run}"), network: run_network(run), dir: data_dir.join("runs").join(run).join("jumphost"), refreshing: Default::default(), keying: Default::default() }
     }
 
     /// Where etcd client certs for a logical cluster are, on the jumphost
@@ -137,6 +140,7 @@ impl Jumphost {
     /// exam desktop. No password opens a node or the task host, whoever
     /// reaches their network (the host, a pod, another user)
     pub async fn ssh_key(&self, docker: &Docker) -> AppResult<SshKey> {
+        let _one_at_a_time = self.keying.lock().await;
         let public = format!("{SSH_KEY}.pub");
         let mut read = super::exec::run(docker, &self.name, &["cat", &public], &[], None).await?;
         if read.exit_code != 0 {
@@ -220,7 +224,7 @@ impl Jumphost {
                 Ok(key) => {
                     let mut given = true;
                     for node in nodes.iter().filter(|n| n.cluster == *physical && n.state == "running") {
-                        if let Err(e) = authorize(docker, &node.name, &key.public).await {
+                        if let Err(e) = authorize_node(docker, &node.name, &key.public).await {
                             tracing::warn!(node = %node.name, error = %e, "ssh key for a node");
                             given = false;
                         }
@@ -262,10 +266,37 @@ pub struct SshKey {
     pub private: String,
 }
 
+/// What sshd allows on a node: root with the key alone, as the node image
+/// sets it (resources/node/Dockerfile)
+const SSHD_CONFIG: &str = "PermitRootLogin prohibit-password\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nUsePAM no";
+
 /// Let `public` sign in as root to `container` (the task host, a node), and
 /// nothing else: the key replaces whatever was allowed before
 async fn authorize(docker: &Docker, container: &str, public: &str) -> AppResult<()> {
     let script = "umask 077 && mkdir -p /root/.ssh && cat > /root/.ssh/authorized_keys";
+    let line = format!("{public}\n");
+    let out = super::exec::run(docker, container, &["sh", "-c", script], &[], Some(line.as_bytes())).await?;
+    if out.exit_code != 0 {
+        return Err(AppError::cluster(format!("giving {container} the ssh key: {}", out.text.trim())));
+    }
+    Ok(())
+}
+
+/// `authorize`, on a node, which may come from an image older than the key
+/// (root with no password, password sign-in on, kept as long as its cluster):
+/// root's password locked and sshd's config rewritten and reloaded when it
+/// differs, so no node opens without the key. The task host needs none of
+/// it: an outdated one is replaced
+async fn authorize_node(docker: &Docker, container: &str, public: &str) -> AppResult<()> {
+    let script = format!(
+        "umask 077 && mkdir -p /root/.ssh && cat > /root/.ssh/authorized_keys \
+         && usermod -p '*' root \
+         && conf=/etc/ssh/sshd_config.d/ckpro.conf && want='{SSHD_CONFIG}' \
+         && if [ \"$(cat $conf 2>/dev/null)\" != \"$(printf '%b' \"$want\")\" ]; then \
+              mkdir -p /etc/ssh/sshd_config.d && printf '%b\\n' \"$want\" > $conf \
+              && {{ systemctl reload ssh 2>/dev/null || pkill -HUP -x sshd || true; }}; fi"
+    );
+    let script = script.as_str();
     let line = format!("{public}\n");
     let out = super::exec::run(docker, container, &["sh", "-c", script], &[], Some(line.as_bytes())).await?;
     if out.exit_code != 0 {
