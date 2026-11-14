@@ -168,7 +168,12 @@ test("Cmd+F finds in the conversation, and an answer copies or goes to its quest
 	await openCreate(page);
 	// The chat holds the pointer: the shortcut opens find there
 	await page.getByText("Here is Warm-up.").hover();
-	await page.keyboard.press("ControlOrMeta+f");
+	// The command key the app reads: ⌘ for a Mac web view, Ctrl otherwise (as
+	// the page says it is, not the machine the tests run on)
+	const command = await page.evaluate(() =>
+		/Mac/i.test(navigator.userAgent) ? "Meta" : "Control"
+	);
+	await page.keyboard.press(`${command}+f`);
 	const find = page.getByRole("searchbox", { name: "Find in this session" });
 	await expect(find).toBeFocused();
 	await find.fill("warm-up");
