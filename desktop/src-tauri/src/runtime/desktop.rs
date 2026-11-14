@@ -70,10 +70,7 @@ pub async fn start(
         ..Default::default()
     };
     docker
-        .create_container(
-            Some(bollard::query_parameters::CreateContainerOptions { name: Some(name.into()), ..Default::default() }),
-            config,
-        )
+        .create_container(Some(bollard::query_parameters::CreateContainerOptions { name: Some(name.into()), ..Default::default() }), config)
         .await?;
     // In place before the session starts, so Firefox reads them on first launch
     let files = [(POLICIES, firefox_policies(allowed)), (SSH_HOSTS, ssh_hosts(hosts, jumphost))];
@@ -133,12 +130,8 @@ pub async fn session(docker: &Docker, name: &str) -> AppResult<Option<DesktopSes
         .and_then(|n| n.ports)
         .and_then(|ports| ports.get(VNC_PORT).cloned().flatten())
         .and_then(|bindings| bindings.into_iter().find_map(|b| b.host_port?.parse().ok()));
-    let password = info
-        .config
-        .and_then(|c| c.env)
-        .unwrap_or_default()
-        .into_iter()
-        .find_map(|e| e.strip_prefix("VNC_PASSWORD=").map(str::to_string));
+    let password =
+        info.config.and_then(|c| c.env).unwrap_or_default().into_iter().find_map(|e| e.strip_prefix("VNC_PASSWORD=").map(str::to_string));
     Ok(port.zip(password).map(|(port, password)| DesktopSession { port, password }))
 }
 
@@ -151,14 +144,7 @@ pub async fn open_url(docker: &Docker, name: &str, url: &str, allowed: &[String]
     }
     // The URL goes in the environment, never into the shell command
     let env = format!("URL={url}");
-    exec::run(
-        docker,
-        name,
-        &["bash", "-c", "DISPLAY=:1 nohup firefox-esr --new-tab \"$URL\" >/dev/null 2>&1 &"],
-        &[&env],
-        None,
-    )
-    .await?;
+    exec::run(docker, name, &["bash", "-c", "DISPLAY=:1 nohup firefox-esr --new-tab \"$URL\" >/dev/null 2>&1 &"], &[&env], None).await?;
     Ok(())
 }
 

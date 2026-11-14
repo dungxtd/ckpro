@@ -120,7 +120,14 @@ impl Coach {
                     let at = match tools.iter().position(|(t, _)| t.id == call.id) {
                         Some(at) => at,
                         None => {
-                            let tool = ToolUse { id: call.id.clone(), name: String::new(), status: String::new(), input: String::new(), output: None, ms: None };
+                            let tool = ToolUse {
+                                id: call.id.clone(),
+                                name: String::new(),
+                                status: String::new(),
+                                input: String::new(),
+                                output: None,
+                                ms: None,
+                            };
                             tools.push((tool, std::time::Instant::now()));
                             tools.len() - 1
                         }
@@ -134,7 +141,13 @@ impl Coach {
                         tool.ms = Some(started.elapsed().as_millis() as u32);
                     }
                 }
-                on_event(CoachEvent::Tool { id: call.id.clone(), command: name, status: call.status.clone(), input: Some(input), output: call.output.clone() });
+                on_event(CoachEvent::Tool {
+                    id: call.id.clone(),
+                    command: name,
+                    status: call.status.clone(),
+                    input: Some(input),
+                    output: call.output.clone(),
+                });
             }
             // Its tools only read, or change the draft: nothing to ask
             agent::AgentEvent::Permission(params, reply) => {
@@ -208,7 +221,14 @@ impl Coach {
             return Ok((open, text.to_string()));
         }
         let tools = self.tools.get().ok_or_else(|| AppError::assistant("the tools are not ready yet; try again"))?;
-        let agent_session = self.agent.new_session_with(&format!("{}{}", system(bank), super::prompt::notes_section(notes)), model, serde_json::json!([tools.server_for_studio(session)])).await?;
+        let agent_session = self
+            .agent
+            .new_session_with(
+                &format!("{}{}", system(bank), super::prompt::notes_section(notes)),
+                model,
+                serde_json::json!([tools.server_for_studio(session)]),
+            )
+            .await?;
         self.agent.set_effort(&agent_session, model, effort).await?;
         self.open.lock().await.insert(key(session), (agent_session.clone(), model.to_string(), effort.to_string(), Profile::Agent));
         let mut prompt = String::new();

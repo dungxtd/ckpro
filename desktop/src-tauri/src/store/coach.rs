@@ -38,9 +38,7 @@ impl Store {
             )
             .map_err(db)?;
         let rows = stmt
-            .query_map(params![attempt_id, question_id, session], |r| {
-                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
-            })
+            .query_map(params![attempt_id, question_id, session], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
             .map_err(db)?;
         let mut messages = Vec::new();
         for row in rows {
@@ -147,9 +145,7 @@ impl Store {
                  GROUP BY question_id, session ORDER BY MAX(rowid) DESC",
             )
             .map_err(db)?;
-        let rows = stmt
-            .query_map(params![attempt_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
-            .map_err(db)?;
+        let rows = stmt.query_map(params![attempt_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))).map_err(db)?;
         rows.collect::<Result<_, _>>().map_err(db)
     }
 
@@ -231,8 +227,7 @@ impl Store {
             )
             .map_err(db)?;
         }
-        tx.execute("DELETE FROM coach_current WHERE attempt_id = ?1 AND question_id = ?2", params![attempt_id, question_id])
-            .map_err(db)?;
+        tx.execute("DELETE FROM coach_current WHERE attempt_id = ?1 AND question_id = ?2", params![attempt_id, question_id]).map_err(db)?;
         tx.commit().map_err(db)
     }
 }

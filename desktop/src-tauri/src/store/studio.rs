@@ -107,15 +107,12 @@ impl Store {
         tx.commit().map_err(db)
     }
 
-
     /// A conversation's draft, as JSON (`{}` before the first)
     pub fn studio_draft(&self, session: i32) -> AppResult<String> {
-        self.conn()
-            .query_row("SELECT draft FROM studio_session WHERE id = ?1", params![session], |r| r.get(0))
-            .map_err(|e| match e {
-                rusqlite::Error::QueryReturnedNoRows => AppError::not_found(format!("no conversation {session}")),
-                e => db(e),
-            })
+        self.conn().query_row("SELECT draft FROM studio_session WHERE id = ?1", params![session], |r| r.get(0)).map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => AppError::not_found(format!("no conversation {session}")),
+            e => db(e),
+        })
     }
 
     /// Change a conversation's draft (JSON) with `f`, the store let go while
@@ -167,7 +164,10 @@ impl Store {
 
 /// Every conversation's draft rewritten by `rewrite` (its JSON to the new
 /// one, or none to leave it), in the caller's transaction
-pub(super) fn rewrite_drafts(conn: &rusqlite::Connection, mut rewrite: impl FnMut(i32, &str) -> AppResult<Option<String>>) -> AppResult<()> {
+pub(super) fn rewrite_drafts(
+    conn: &rusqlite::Connection,
+    mut rewrite: impl FnMut(i32, &str) -> AppResult<Option<String>>,
+) -> AppResult<()> {
     let drafts: Vec<(i32, String)> = {
         let mut stmt = conn.prepare("SELECT id, draft FROM studio_session").map_err(db)?;
         let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).map_err(db)?;
@@ -202,7 +202,14 @@ mod tests {
                     StudioMessage {
                         role: Role::Assistant,
                         text: "Here".into(),
-                        tools: vec![ToolUse { id: "t1".into(), name: "get_profile".into(), status: "completed".into(), input: "{}".into(), output: Some("{}".into()), ms: Some(200) }],
+                        tools: vec![ToolUse {
+                            id: "t1".into(),
+                            name: "get_profile".into(),
+                            status: "completed".into(),
+                            input: "{}".into(),
+                            output: Some("{}".into()),
+                            ms: Some(200),
+                        }],
                     },
                 ],
             )
@@ -229,14 +236,18 @@ mod tests {
         let id = store.studio_new().unwrap();
         let mut runs = Vec::new();
         let out = store
-            .studio_update_draft(id, || Ok(()), |text| {
-                runs.push(text.to_string());
-                if runs.len() == 1 {
-                    // Another change, as this one works
-                    store.studio_update_draft(id, || Ok(()), |_| Ok((r#"{"title":"Theirs"}"#.to_string(), ())))?;
-                }
-                Ok((text.replace("Theirs", "Theirs, then mine"), runs.len()))
-            })
+            .studio_update_draft(
+                id,
+                || Ok(()),
+                |text| {
+                    runs.push(text.to_string());
+                    if runs.len() == 1 {
+                        // Another change, as this one works
+                        store.studio_update_draft(id, || Ok(()), |_| Ok((r#"{"title":"Theirs"}"#.to_string(), ())))?;
+                    }
+                    Ok((text.replace("Theirs", "Theirs, then mine"), runs.len()))
+                },
+            )
             .unwrap();
         assert_eq!(out, 2);
         assert_eq!(runs, ["{}", r#"{"title":"Theirs"}"#]);

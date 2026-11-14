@@ -32,8 +32,7 @@ impl Coach {
     /// or none to cancel
     pub fn permit(&self, id: u32, option: Option<String>) -> AppResult<()> {
         let mut waiting = self.permissions.locked();
-        let (offered, reply) =
-            waiting.remove(&id).ok_or_else(|| AppError::not_found("that request was already answered or stopped"))?;
+        let (offered, reply) = waiting.remove(&id).ok_or_else(|| AppError::not_found("that request was already answered or stopped"))?;
         if option.as_ref().is_some_and(|o| !offered.contains(o)) {
             waiting.insert(id, (offered, reply));
             return Err(AppError::invalid("that answer was not offered"));

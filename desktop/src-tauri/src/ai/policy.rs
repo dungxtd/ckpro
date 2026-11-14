@@ -155,8 +155,22 @@ pub fn read_only(command: &str) -> bool {
             // `cluster-info dump` writes files
             ["kubectl" | "k", "cluster-info", "dump", ..] => false,
             ["kubectl" | "k", verb, rest @ ..] => {
-                matches!(*verb, "get" | "describe" | "logs" | "top" | "explain" | "api-resources" | "api-versions" | "version" | "events" | "cluster-info")
-                    || matches!((*verb, rest.first().copied()), ("auth", Some("can-i")) | ("config", Some("view" | "get-contexts" | "current-context")))
+                matches!(
+                    *verb,
+                    "get"
+                        | "describe"
+                        | "logs"
+                        | "top"
+                        | "explain"
+                        | "api-resources"
+                        | "api-versions"
+                        | "version"
+                        | "events"
+                        | "cluster-info"
+                ) || matches!(
+                    (*verb, rest.first().copied()),
+                    ("auth", Some("can-i")) | ("config", Some("view" | "get-contexts" | "current-context"))
+                )
             }
             ["helm", verb, rest @ ..] => {
                 matches!(*verb, "list" | "ls" | "status" | "get" | "history" | "show" | "search" | "version")
@@ -174,10 +188,26 @@ pub fn read_only(command: &str) -> bool {
 /// short `-fx` forms
 fn changes_the_read(word: &str) -> bool {
     const LONG: [&str; 20] = [
-        "--kubeconfig", "--server", "--token", "--as", "--as-group", "--as-uid", "--username", "--password",
-        "--client-certificate", "--client-key", "--certificate-authority", "--insecure-skip-tls-verify",
-        "--tls-server-name", "--raw", "--filename", "--kustomize", "--output-directory", "--cache-dir",
-        "--rawfile", "--slurpfile",
+        "--kubeconfig",
+        "--server",
+        "--token",
+        "--as",
+        "--as-group",
+        "--as-uid",
+        "--username",
+        "--password",
+        "--client-certificate",
+        "--client-key",
+        "--certificate-authority",
+        "--insecure-skip-tls-verify",
+        "--tls-server-name",
+        "--raw",
+        "--filename",
+        "--kustomize",
+        "--output-directory",
+        "--cache-dir",
+        "--rawfile",
+        "--slurpfile",
     ];
     if let Some(long) = word.strip_prefix("--") {
         let name = long.split('=').next().unwrap_or_default();
@@ -239,10 +269,22 @@ mod tests {
 
     #[test]
     fn reading_commands_are_told_apart() {
-        for ok in ["kubectl get pods -A", "k describe pvc data -n s", "kubectl logs web | grep -i error | tail -5", "kubectl auth can-i list pods && helm list -A"] {
+        for ok in [
+            "kubectl get pods -A",
+            "k describe pvc data -n s",
+            "kubectl logs web | grep -i error | tail -5",
+            "kubectl auth can-i list pods && helm list -A",
+        ] {
             assert!(read_only(ok), "{ok}");
         }
-        for no in ["kubectl delete pod web", "kubectl get pod web -o yaml > web.yaml", "kubectl apply -f x.yaml", "ssh node01 'crictl ps'", "kubectl get pods; rm -rf /tmp/x", "echo $(kubectl get pods)"] {
+        for no in [
+            "kubectl delete pod web",
+            "kubectl get pod web -o yaml > web.yaml",
+            "kubectl apply -f x.yaml",
+            "ssh node01 'crictl ps'",
+            "kubectl get pods; rm -rf /tmp/x",
+            "echo $(kubectl get pods)",
+        ] {
             assert!(!read_only(no), "{no}");
         }
     }
@@ -282,7 +324,17 @@ mod tests {
             assert!(!read_only(no), "{no}");
         }
         // What a read looks like stays a read
-        for ok in ["kubectl get pods -A -o wide", "kubectl logs web -c app --since=1h | tail -5", "kubectl get svc -n kube-system -l k8s-app=kube-dns", "kubectl get nodes -o jsonpath='{.items[*].metadata.name}'", "kubectl get deploy -o json | jq -r .items[0].metadata.name", "helm list -A", "kubectl get pods -ojsonpath='{.items[0].metadata.name}'", "kubectl get pods -Aw", "kubectl logs web | grep -ci error"] {
+        for ok in [
+            "kubectl get pods -A -o wide",
+            "kubectl logs web -c app --since=1h | tail -5",
+            "kubectl get svc -n kube-system -l k8s-app=kube-dns",
+            "kubectl get nodes -o jsonpath='{.items[*].metadata.name}'",
+            "kubectl get deploy -o json | jq -r .items[0].metadata.name",
+            "helm list -A",
+            "kubectl get pods -ojsonpath='{.items[0].metadata.name}'",
+            "kubectl get pods -Aw",
+            "kubectl logs web | grep -ci error",
+        ] {
             assert!(read_only(ok), "{ok}");
         }
     }

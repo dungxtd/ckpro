@@ -30,10 +30,7 @@ pub fn run_memory_mb(workers: u8) -> u32 {
 /// Memory an exam runs comfortably in: its clusters (control plane and
 /// workers each), the desktop, the task host and mirror, and headroom
 pub fn exam_memory_mb(topology: &std::collections::BTreeMap<String, u8>) -> u32 {
-    topology.values().map(|workers| CONTROL_PLANE_MB + WORKER_MB * u32::from(*workers)).sum::<u32>()
-        + DESKTOP_MB
-        + SUPPORT_MB
-        + HEADROOM_MB
+    topology.values().map(|workers| CONTROL_PLANE_MB + WORKER_MB * u32::from(*workers)).sum::<u32>() + DESKTOP_MB + SUPPORT_MB + HEADROOM_MB
 }
 
 /// Memory an exam cannot run without: the same, idle and without headroom,
@@ -42,9 +39,7 @@ pub fn exam_memory_mb(topology: &std::collections::BTreeMap<String, u8>) -> u32 
 pub fn exam_minimum_mb(topology: &std::collections::BTreeMap<String, u8>, measured: &Footprint) -> u32 {
     let control_plane = CONTROL_PLANE_IDLE_MB.max(measured.control_plane_mb);
     let worker = WORKER_IDLE_MB.max(measured.worker_mb);
-    topology.values().map(|workers| control_plane + worker * u32::from(*workers)).sum::<u32>()
-        + DESKTOP_IDLE_MB
-        + SUPPORT_IDLE_MB
+    topology.values().map(|workers| control_plane + worker * u32::from(*workers)).sum::<u32>() + DESKTOP_IDLE_MB + SUPPORT_IDLE_MB
 }
 
 /// Memory a kind node took on this machine, per role (MB; 0: not measured)
@@ -205,7 +200,13 @@ mod tests {
     #[test]
     fn running_clusters_count_unless_the_exam_replaces_them() {
         let mut state = docker(4096, 4);
-        let node = |name: &str, role| NodeState { name: name.into(), role, container: ContainerStatus::Running, ready: Readiness::Unknown, version: None };
+        let node = |name: &str, role| NodeState {
+            name: name.into(),
+            role,
+            container: ContainerStatus::Running,
+            ready: Readiness::Unknown,
+            version: None,
+        };
         state.clusters = vec![ClusterState {
             name: "k8s".into(),
             nodes: vec![node("k8s-control-plane", NodeRole::ControlPlane), node("k8s-worker", NodeRole::Worker)],
@@ -230,7 +231,13 @@ mod tests {
         let short = exam_fits(&state, 3000, &[]).unwrap_err().to_string();
         assert!(short.contains("at least 2.9 GB") && short.contains("2.0 GB available now, of 16.0 GB"), "{short}");
         // A cluster it replaces gives its memory back
-        let node = |name: &str, role| NodeState { name: name.into(), role, container: ContainerStatus::Running, ready: Readiness::Unknown, version: None };
+        let node = |name: &str, role| NodeState {
+            name: name.into(),
+            role,
+            container: ContainerStatus::Running,
+            ready: Readiness::Unknown,
+            version: None,
+        };
         state.clusters = vec![ClusterState {
             name: "k8s".into(),
             nodes: vec![node("k8s-control-plane", NodeRole::ControlPlane), node("k8s-worker", NodeRole::Worker)],

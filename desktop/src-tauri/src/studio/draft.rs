@@ -140,7 +140,13 @@ impl DraftItem {
     /// Its title (a pack question's id if it had none)
     pub fn title(&self) -> &str {
         match self {
-            DraftItem::Existing { id, title, .. } => if title.is_empty() { id } else { title },
+            DraftItem::Existing { id, title, .. } => {
+                if title.is_empty() {
+                    id
+                } else {
+                    title
+                }
+            }
             DraftItem::New(q) => &q.title,
         }
     }
@@ -609,7 +615,11 @@ hints:\n  - kubectl create deploy\n"
         let bank = bank();
         let mut draft = ExamDraft::default();
         draft.set_exam(&bank, "Mock", "cka", None).unwrap();
-        let mut ids = bank.questions.iter().filter(|(_, q)| q.value.certifications.contains_key("cka") && q.value.runnable() && !q.value.disrupts).map(|(id, _)| id.clone());
+        let mut ids = bank
+            .questions
+            .iter()
+            .filter(|(_, q)| q.value.certifications.contains_key("cka") && q.value.runnable() && !q.value.disrupts)
+            .map(|(id, _)| id.clone());
         let (same, changed) = (ids.next().unwrap(), ids.next().unwrap());
         draft.add_existing(&bank, &[same.clone(), changed.clone()]);
         assert!(!draft.refresh(&bank), "as they were added");
@@ -624,10 +634,12 @@ hints:\n  - kubectl create deploy\n"
             }
         }
         assert!(draft.refresh(&bank));
-        let status = |id: &str| draft.items.iter().find(|i| i.key() == id).map(|i| match i {
-            DraftItem::Existing { status, title, .. } => (status.clone(), title.clone()),
-            DraftItem::New(_) => unreachable!(),
-        });
+        let status = |id: &str| {
+            draft.items.iter().find(|i| i.key() == id).map(|i| match i {
+                DraftItem::Existing { status, title, .. } => (status.clone(), title.clone()),
+                DraftItem::New(_) => unreachable!(),
+            })
+        };
         assert_eq!(status(&same).unwrap().0, DraftStatus::Proven);
         let (status, title) = status(&changed).unwrap();
         assert_eq!(status, DraftStatus::Linted);
@@ -693,7 +705,11 @@ hints:\n  - kubectl create deploy\n"
         let dir = std::env::temp_dir().join(format!("ckpro-draft-changed-{}", std::process::id()));
         let mut draft = ExamDraft::default();
         draft.set_exam(&bank, "Mock", "cka", None).unwrap();
-        let mut cka = bank.questions.iter().filter(|(_, q)| q.value.certifications.contains_key("cka") && q.value.runnable() && !q.value.disrupts).map(|(id, _)| id.clone());
+        let mut cka = bank
+            .questions
+            .iter()
+            .filter(|(_, q)| q.value.certifications.contains_key("cka") && q.value.runnable() && !q.value.disrupts)
+            .map(|(id, _)| id.clone());
         let (a, b) = (cka.next().unwrap(), cka.next().unwrap());
         draft.add_existing(&bank, std::slice::from_ref(&a));
         let prove = |draft: &mut ExamDraft| {
@@ -723,7 +739,16 @@ hints:\n  - kubectl create deploy\n"
         let bank = bank();
         let mut draft = ExamDraft::default();
         draft.set_exam(&bank, "Mock", "cka", None).unwrap();
-        draft.items.push(DraftItem::Existing { id: "mine/cka/gone".into(), title: "Gone".into(), domain: "storage".into(), minutes: None, status: DraftStatus::Proven, disrupts: false, version: String::new(), written: None });
+        draft.items.push(DraftItem::Existing {
+            id: "mine/cka/gone".into(),
+            title: "Gone".into(),
+            domain: "storage".into(),
+            minutes: None,
+            status: DraftStatus::Proven,
+            disrupts: false,
+            version: String::new(),
+            written: None,
+        });
         assert_eq!(draft.missing(&bank), [("mine/cka/gone".to_string(), "Gone".to_string())]);
         assert!(draft.complete(&bank).unwrap_err().to_string().contains("Gone was deleted"));
         assert!(draft.remove("mine/cka/gone"));
@@ -736,9 +761,20 @@ hints:\n  - kubectl create deploy\n"
         let bank = bank();
         let mut draft = ExamDraft::default();
         draft.set_exam(&bank, "Mock", "cka", None).unwrap();
-        let disrupting: Vec<String> = bank.questions.iter().filter(|(_, q)| q.value.disrupts && q.value.certifications.contains_key("cka") && q.value.runnable()).map(|(id, _)| id.clone()).collect();
+        let disrupting: Vec<String> = bank
+            .questions
+            .iter()
+            .filter(|(_, q)| q.value.disrupts && q.value.certifications.contains_key("cka") && q.value.runnable())
+            .map(|(id, _)| id.clone())
+            .collect();
         assert!(disrupting.len() >= 2, "the packs have them: {disrupting:?}");
-        let calm = bank.questions.iter().find(|(_, q)| q.value.certifications.contains_key("cka") && q.value.runnable() && !q.value.disrupts).unwrap().0.clone();
+        let calm = bank
+            .questions
+            .iter()
+            .find(|(_, q)| q.value.certifications.contains_key("cka") && q.value.runnable() && !q.value.disrupts)
+            .unwrap()
+            .0
+            .clone();
         assert!(draft.add_existing(&bank, &disrupting[..1]).is_empty());
         let refused = draft.add_existing(&bank, &disrupting[1..2]);
         assert!(refused[0].contains("one at most"), "{refused:?}");
@@ -757,7 +793,11 @@ hints:\n  - kubectl create deploy\n"
         draft.set_exam(&bank, "Mock", "cka", Some(60)).unwrap();
         assert!(!draft.domains.is_empty());
         assert!(draft.domains.windows(2).all(|w| w[0].weight >= w[1].weight));
-        let (id, q) = bank.questions.iter().find(|(_, q)| q.value.certifications.contains_key("cka") && q.value.estimate.is_some() && q.value.runnable()).unwrap();
+        let (id, q) = bank
+            .questions
+            .iter()
+            .find(|(_, q)| q.value.certifications.contains_key("cka") && q.value.estimate.is_some() && q.value.runnable())
+            .unwrap();
         draft.add_existing(&bank, std::slice::from_ref(id));
         assert!(matches!(&draft.items[0], DraftItem::Existing { minutes: Some(m), .. } if Some(*m) == minutes(&q.value)));
 
@@ -767,5 +807,4 @@ hints:\n  - kubectl create deploy\n"
         assert_eq!(draft.title, "Warm-up");
         assert!(draft.items.is_empty());
     }
-
 }

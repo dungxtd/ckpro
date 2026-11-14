@@ -5,17 +5,17 @@
 //! found". Session updates and permission requests go to whoever follows that
 //! session; a permission nobody is asked about is cancelled.
 
-use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};
+use crate::sync::MutexExt;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{ChildStdin, Command};
 use tokio::sync::{mpsc, oneshot};
-use std::time::Duration;
 
 pub const PROTOCOL_VERSION: u64 = 1;
 /// How long the adapter may take to answer `initialize`: npx may fetch it first
@@ -97,8 +97,7 @@ impl Connection {
     /// capabilities).
     pub async fn spawn(mut command: Command) -> AppResult<Arc<Self>> {
         command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-        let mut tree = crate::platform::ProcessTree::spawn(command)
-            .map_err(|e| AppError::assistant(format!("starting the agent: {e}")))?;
+        let mut tree = crate::platform::ProcessTree::spawn(command).map_err(|e| AppError::assistant(format!("starting the agent: {e}")))?;
         let stdin = tree.stdin().expect("piped");
         let stdout = tree.stdout().expect("piped");
         let stderr = tree.stderr().expect("piped");
@@ -134,10 +133,8 @@ impl Connection {
                                 let params = message.get("params").cloned().unwrap_or(Value::Null);
                                 let session = params.get("sessionId").and_then(Value::as_str).unwrap_or_default().to_string();
                                 let (tx, rx) = oneshot::channel();
-                                let asked = subscribers
-                                    .locked()
-                                    .get(&session)
-                                    .is_some_and(|(_, s)| s.send(Update::Permission(params, tx)).is_ok());
+                                let asked =
+                                    subscribers.locked().get(&session).is_some_and(|(_, s)| s.send(Update::Permission(params, tx)).is_ok());
                                 let (id, replies_tx) = (id.clone(), replies_tx.clone());
                                 // Answered by the candidate, or cancelled with the turn
                                 // or by the agent (`$/cancel_request`)

@@ -29,9 +29,7 @@ pub fn program() -> std::io::Result<PathBuf> {
 pub fn run_if_started_as_docker() -> Option<ExitCode> {
     let mut args = std::env::args_os();
     let name = args.next()?;
-    let started_as_docker = Path::new(&name)
-        .file_stem()
-        .is_some_and(|stem| stem.eq_ignore_ascii_case("docker"));
+    let started_as_docker = Path::new(&name).file_stem().is_some_and(|stem| stem.eq_ignore_ascii_case("docker"));
     started_as_docker.then(|| run(args.collect()))
 }
 

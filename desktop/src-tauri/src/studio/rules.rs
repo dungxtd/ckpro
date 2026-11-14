@@ -151,7 +151,10 @@ pub fn problems(q: &Question) -> Vec<String> {
                 piped.split('|').skip(1).any(|p| {
                     // The program piped into, past `sudo`/`env` and its path
                     let program = p.split_whitespace().find(|w| !matches!(*w, "sudo" | "env" | "-E") && !w.contains('='));
-                    matches!(program.map(|w| w.rsplit('/').next().unwrap_or(w)), Some("sh" | "bash" | "zsh" | "dash" | "python" | "python3" | "perl" | "ruby"))
+                    matches!(
+                        program.map(|w| w.rsplit('/').next().unwrap_or(w)),
+                        Some("sh" | "bash" | "zsh" | "dash" | "python" | "python3" | "perl" | "ruby")
+                    )
                 })
             })
         });
@@ -161,7 +164,8 @@ pub fn problems(q: &Question) -> Vec<String> {
             ["sh ", "bash ", "zsh ", "dash ", "python ", "python3 ", "perl ", "source ", ". ", "exec ", "chmod +x "]
                 .iter()
                 .any(|run| flat.contains(&format!("{run}{file}")) || flat.contains(&format!("{run}./{base}")))
-                || flat.contains(&format!("./{base} ")) || flat.ends_with(&format!("./{base}"))
+                || flat.contains(&format!("./{base} "))
+                || flat.ends_with(&format!("./{base}"))
         };
         let saved_run = ["curl", "wget"].iter().any(|f| flat.contains(f)) && downloads(&flat).iter().any(|d| runs(d));
         if fetch_run || saved_run || flat.contains("<(curl") || flat.contains("<(wget") {
@@ -212,7 +216,11 @@ mod tests {
         ] {
             assert!(!problems(&question(setup, "kubectl get ns")).is_empty(), "{setup}");
         }
-        for setup in ["curl -s http://web-svc/", "curl -s http://[::1]:8080/", "IP=$(kubectl get svc k -o jsonpath='{.spec.clusterIP}'); curl -sk https://$IP:443/"] {
+        for setup in [
+            "curl -s http://web-svc/",
+            "curl -s http://[::1]:8080/",
+            "IP=$(kubectl get svc k -o jsonpath='{.spec.clusterIP}'); curl -sk https://$IP:443/",
+        ] {
             assert!(problems(&question(setup, "kubectl get ns")).is_empty(), "{setup}");
         }
     }

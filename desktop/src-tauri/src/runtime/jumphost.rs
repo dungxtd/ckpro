@@ -56,19 +56,37 @@ pub struct Jumphost {
 impl Jumphost {
     /// The app's jumphost
     pub fn app(data_dir: &Path) -> Self {
-        Self { name: APP_NAME.into(), network: NETWORK.into(), dir: data_dir.join("jumphost"), refreshing: Default::default(), keying: Default::default() }
+        Self {
+            name: APP_NAME.into(),
+            network: NETWORK.into(),
+            dir: data_dir.join("jumphost"),
+            refreshing: Default::default(),
+            keying: Default::default(),
+        }
     }
 
     /// A jumphost of the tests' own, on the app's network beside the
     /// clusters they make there
     #[cfg(test)]
     pub fn for_test(data_dir: &Path, name: &str) -> Self {
-        Self { name: format!("{RUN_PREFIX}{name}"), network: NETWORK.into(), dir: data_dir.join("runs").join(name).join("jumphost"), refreshing: Default::default(), keying: Default::default() }
+        Self {
+            name: format!("{RUN_PREFIX}{name}"),
+            network: NETWORK.into(),
+            dir: data_dir.join("runs").join(name).join("jumphost"),
+            refreshing: Default::default(),
+            keying: Default::default(),
+        }
     }
 
     /// A jumphost of its own for one verify run
     pub fn for_run(data_dir: &Path, run: &str) -> Self {
-        Self { name: format!("{RUN_PREFIX}{run}"), network: run_network(run), dir: data_dir.join("runs").join(run).join("jumphost"), refreshing: Default::default(), keying: Default::default() }
+        Self {
+            name: format!("{RUN_PREFIX}{run}"),
+            network: run_network(run),
+            dir: data_dir.join("runs").join(run).join("jumphost"),
+            refreshing: Default::default(),
+            keying: Default::default(),
+        }
     }
 
     /// Where etcd client certs for a logical cluster are, on the jumphost
@@ -84,11 +102,8 @@ impl Jumphost {
         let image = JUMPHOST_IMAGE.tag();
         if let Ok(info) = docker.inspect_container(&self.name, None).await {
             let current = info.config.and_then(|c| c.image).as_deref() == Some(image.as_str());
-            let mounted = info
-                .mounts
-                .unwrap_or_default()
-                .iter()
-                .any(|m| m.source.as_deref() == Some(source.as_str()) && m.rw == Some(true));
+            let mounted =
+                info.mounts.unwrap_or_default().iter().any(|m| m.source.as_deref() == Some(source.as_str()) && m.rw == Some(true));
             if !current || !mounted {
                 log(format!("Replacing {} (outdated)", self.name));
                 self.remove_container(docker).await?;
@@ -105,10 +120,7 @@ impl Jumphost {
             host_config: Some(HostConfig {
                 binds: Some(vec![format!("{source}:/root/.ckpro")]),
                 network_mode: Some(self.network.clone()),
-                restart_policy: Some(RestartPolicy {
-                    name: Some(RestartPolicyNameEnum::UNLESS_STOPPED),
-                    ..Default::default()
-                }),
+                restart_policy: Some(RestartPolicy { name: Some(RestartPolicyNameEnum::UNLESS_STOPPED), ..Default::default() }),
                 ..Default::default()
             }),
             ..Default::default()
@@ -144,7 +156,14 @@ impl Jumphost {
         let public = format!("{SSH_KEY}.pub");
         let mut read = super::exec::run(docker, &self.name, &["cat", &public], &[], None).await?;
         if read.exit_code != 0 {
-            let made = super::exec::run(docker, &self.name, &["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "ckpro", "-f", SSH_KEY], &[], None).await?;
+            let made = super::exec::run(
+                docker,
+                &self.name,
+                &["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "ckpro", "-f", SSH_KEY],
+                &[],
+                None,
+            )
+            .await?;
             if made.exit_code != 0 {
                 return Err(AppError::cluster(format!("making the task host's ssh key: {}", made.text.trim())));
             }

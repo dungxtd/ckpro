@@ -3,8 +3,8 @@
 use super::{Store, db};
 use crate::error::{AppError, AppResult};
 use crate::lab::exam::Mode;
-use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
 use rusqlite::params;
+use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
 use serde::{Deserialize, Serialize};
 
 /// An exam planned for a day, as kept
@@ -46,13 +46,10 @@ impl Store {
     /// Plans from `from` to `to` (YYYY-MM-DD, both included), by day then as added
     pub fn plans(&self, from: &str, to: &str) -> AppResult<Vec<StoredPlan>> {
         let conn = self.conn();
-        let mut query = conn
-            .prepare("SELECT id, day, exam_id, mode FROM plan WHERE day >= ?1 AND day <= ?2 ORDER BY day, id")
-            .map_err(db)?;
+        let mut query =
+            conn.prepare("SELECT id, day, exam_id, mode FROM plan WHERE day >= ?1 AND day <= ?2 ORDER BY day, id").map_err(db)?;
         let rows = query
-            .query_map(params![from, to], |r| {
-                Ok(StoredPlan { id: r.get(0)?, day: r.get(1)?, exam_id: r.get(2)?, mode: r.get(3)? })
-            })
+            .query_map(params![from, to], |r| Ok(StoredPlan { id: r.get(0)?, day: r.get(1)?, exam_id: r.get(2)?, mode: r.get(3)? }))
             .map_err(db)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(db)
     }
@@ -135,7 +132,9 @@ mod tests {
             conn.execute_batch(migration).unwrap();
         }
         conn.pragma_update(None, "user_version", before as i64).unwrap();
-        for (day, exam, mode) in [("2026-11-05", "a", "exam"), ("2026-11-05", "a", "practice"), ("2026-11-05", "b", "exam"), ("2026-11-06", "a", "practice")] {
+        for (day, exam, mode) in
+            [("2026-11-05", "a", "exam"), ("2026-11-05", "a", "practice"), ("2026-11-05", "b", "exam"), ("2026-11-06", "a", "practice")]
+        {
             conn.execute("INSERT INTO plan (day, exam_id, mode, created_at) VALUES (?1, ?2, ?3, 0)", params![day, exam, mode]).unwrap();
         }
         let store = Store::with(conn).unwrap();

@@ -73,76 +73,85 @@ pub struct EnvChanged(EnvState);
 /// Typed IPC: debug builds regenerate `desktop/src/tauri/bindings.ts`.
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
-        .events(tauri_specta::collect_events![EnvChanged, ExamChanged, ActivityChanged, ActivityLog, GuardNotice, StudioDraft, StudioProof, StudyChanged])
+        .events(tauri_specta::collect_events![
+            EnvChanged,
+            ExamChanged,
+            ActivityChanged,
+            ActivityLog,
+            GuardNotice,
+            StudioDraft,
+            StudioProof,
+            StudyChanged
+        ])
         .commands(tauri_specta::collect_commands![
-        commands::env_state,
-        commands::studio_sessions,
-        commands::studio_new,
-        commands::studio_open,
-        commands::studio_ask,
-        commands::studio_delete,
-        commands::studio_remove,
-        commands::studio_edit,
-        commands::studio_plan,
-        commands::studio_verify,
-        commands::studio_proofs,
-        commands::studio_stop_proof,
-        commands::studio_stop,
-        commands::studio_save,
-        commands::env_retry,
-        commands::env_build_images,
-        commands::env_clear_cache,
-        commands::env_watch_nodes,
-        commands::delete_cluster,
-        commands::repair_cluster,
-        commands::list_exams,
-        commands::delete_exam,
-        commands::plans_between,
-        commands::plan_add,
-        commands::plan_remove,
-        commands::readiness,
-        commands::exam_state,
-        commands::desktop_session,
-        commands::desktop_reset,
-        commands::desktop_open_url,
-        commands::coach_status,
-        commands::app_info,
-        commands::telemetry_configure,
-        commands::agent_settings,
-        commands::save_agent_settings,
-        commands::coach_runtime,
-        commands::coach_history,
-        commands::coach_ask,
-        commands::coach_cancel,
-        commands::coach_permit,
-        commands::coach_account,
-        commands::coach_sign_in,
-        commands::coach_sign_in_input,
-        commands::coach_sign_in_cancel,
-        commands::coach_clear,
-        commands::coach_new_session,
-        commands::coach_open_session,
-        commands::coach_transcripts,
-        commands::coached_attempts,
-        commands::coach_sessions,
-        commands::coach_rename,
-        commands::coach_models,
-        commands::coach_efforts,
-        commands::study_stats,
-        commands::open_in_browser,
-        commands::activities,
-        commands::exam_progress,
-        commands::save_exam_progress,
-        commands::settings,
-        commands::save_settings,
-        commands::start_exam,
-        commands::submit_exam,
-        commands::retry_exam,
-        commands::end_exam,
-        commands::check_question,
-        commands::question_solution,
-        commands::exam_history,
-    ])
+            commands::env_state,
+            commands::studio_sessions,
+            commands::studio_new,
+            commands::studio_open,
+            commands::studio_ask,
+            commands::studio_delete,
+            commands::studio_remove,
+            commands::studio_edit,
+            commands::studio_plan,
+            commands::studio_verify,
+            commands::studio_proofs,
+            commands::studio_stop_proof,
+            commands::studio_stop,
+            commands::studio_save,
+            commands::env_retry,
+            commands::env_build_images,
+            commands::env_clear_cache,
+            commands::env_watch_nodes,
+            commands::delete_cluster,
+            commands::repair_cluster,
+            commands::list_exams,
+            commands::delete_exam,
+            commands::plans_between,
+            commands::plan_add,
+            commands::plan_remove,
+            commands::readiness,
+            commands::exam_state,
+            commands::desktop_session,
+            commands::desktop_reset,
+            commands::desktop_open_url,
+            commands::coach_status,
+            commands::app_info,
+            commands::telemetry_configure,
+            commands::agent_settings,
+            commands::save_agent_settings,
+            commands::coach_runtime,
+            commands::coach_history,
+            commands::coach_ask,
+            commands::coach_cancel,
+            commands::coach_permit,
+            commands::coach_account,
+            commands::coach_sign_in,
+            commands::coach_sign_in_input,
+            commands::coach_sign_in_cancel,
+            commands::coach_clear,
+            commands::coach_new_session,
+            commands::coach_open_session,
+            commands::coach_transcripts,
+            commands::coached_attempts,
+            commands::coach_sessions,
+            commands::coach_rename,
+            commands::coach_models,
+            commands::coach_efforts,
+            commands::study_stats,
+            commands::open_in_browser,
+            commands::activities,
+            commands::exam_progress,
+            commands::save_exam_progress,
+            commands::settings,
+            commands::save_settings,
+            commands::start_exam,
+            commands::submit_exam,
+            commands::retry_exam,
+            commands::end_exam,
+            commands::check_question,
+            commands::question_solution,
+            commands::exam_history,
+        ])
 }
 
 /// Bindings are exported by debug builds (and checked by a test)
@@ -192,12 +201,7 @@ pub(crate) fn load_pack(resource_dir: Option<std::path::PathBuf>) -> lab::load::
     }
     pack.unwrap_or_else(|| lab::load::LoadedPack {
         root,
-        pack: lab::model::Pack {
-            id: "none".into(),
-            title: "No pack".into(),
-            version: "0".into(),
-            certifications: Default::default(),
-        },
+        pack: lab::model::Pack { id: "none".into(), title: "No pack".into(), version: "0".into(), certifications: Default::default() },
         questions: Default::default(),
         exams: Default::default(),
     })
@@ -221,9 +225,7 @@ pub fn main() -> std::process::ExitCode {
 pub fn run() {
     let builder = specta_builder();
     #[cfg(debug_assertions)]
-    builder
-        .export(typescript(), concat!(env!("CARGO_MANIFEST_DIR"), "/../src/tauri/bindings.ts"))
-        .expect("exporting typescript bindings");
+    builder.export(typescript(), concat!(env!("CARGO_MANIFEST_DIR"), "/../src/tauri/bindings.ts")).expect("exporting typescript bindings");
 
     tauri::Builder::default()
         // The window opens where and as large as it was left
@@ -251,7 +253,7 @@ pub fn run() {
             // Building an exam image takes minutes: the candidate decides
             infra.ask_before_building();
             app.manage(infra.clone());
-let proving = app.handle().clone();
+            let proving = app.handle().clone();
             app.manage(studio::proof::Proofs::new(move |session, proof| {
                 let _ = StudioProof { session, proof: proof.cloned() }.emit(&proving);
             }));

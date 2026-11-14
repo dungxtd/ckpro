@@ -83,9 +83,7 @@ impl AppError {
     }
     /// The one way an exam-mode attempt refuses the assistant
     pub fn exam_mode() -> Self {
-        Self::ExamMode {
-            message: "An exam-mode attempt is running: the assistant is off until it ends, as in the real exam.".into(),
-        }
+        Self::ExamMode { message: "An exam-mode attempt is running: the assistant is off until it ends, as in the real exam.".into() }
     }
     pub fn assistant_off() -> Self {
         Self::AssistantOff { message: "The assistant is turned off in Settings.".into() }

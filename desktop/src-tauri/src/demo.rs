@@ -11,8 +11,8 @@ use crate::lab::checks::CheckResult;
 use crate::lab::exam::plan::local_day;
 use crate::lab::exam::{ExamResult, HistoryEntry, Mode, QuestionResult};
 use crate::lab::load::LoadedPack;
-use crate::store::Store;
 use crate::store::ExamTarget;
+use crate::store::Store;
 use std::path::Path;
 
 const DAY_MS: f64 = 86_400_000.0;
@@ -70,9 +70,24 @@ pub fn seed(dir: &Path, pack: &LoadedPack) -> Result<String, String> {
 
     // Three exams: CKA soonest, CKAD after it, CKS (which needs a passed CKA) last
     let targets = vec![
-        ExamTarget { certification: "cka".into(), date: local_day(now + 45.0 * DAY_MS), started: local_day(now - 49.0 * DAY_MS), rest_days: vec![6] },
-        ExamTarget { certification: "ckad".into(), date: local_day(now + 128.0 * DAY_MS), started: local_day(now - 21.0 * DAY_MS), rest_days: vec![6] },
-        ExamTarget { certification: "cks".into(), date: local_day(now + 230.0 * DAY_MS), started: local_day(now - 3.0 * DAY_MS), rest_days: vec![] },
+        ExamTarget {
+            certification: "cka".into(),
+            date: local_day(now + 45.0 * DAY_MS),
+            started: local_day(now - 49.0 * DAY_MS),
+            rest_days: vec![6],
+        },
+        ExamTarget {
+            certification: "ckad".into(),
+            date: local_day(now + 128.0 * DAY_MS),
+            started: local_day(now - 21.0 * DAY_MS),
+            rest_days: vec![6],
+        },
+        ExamTarget {
+            certification: "cks".into(),
+            date: local_day(now + 230.0 * DAY_MS),
+            started: local_day(now - 3.0 * DAY_MS),
+            rest_days: vec![],
+        },
     ];
     let mut settings = store.settings().map_err(|e| e.to_string())?;
     settings.targets = targets;

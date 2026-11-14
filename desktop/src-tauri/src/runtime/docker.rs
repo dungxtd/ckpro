@@ -1,7 +1,7 @@
 //! Connection to the host Docker engine.
 
-use crate::sync::MutexExt;
 use crate::error::{AppError, AppResult};
+use crate::sync::MutexExt;
 use bollard::Docker;
 
 /// The engine found last, and when it last answered; `Docker` is a cheap
@@ -60,8 +60,7 @@ pub async fn connect() -> AppResult<Docker> {
         }
     }
     let docker = find().await;
-    *CLIENT.locked() =
-        docker.as_ref().ok().map(|d| (d.clone(), std::time::Instant::now()));
+    *CLIENT.locked() = docker.as_ref().ok().map(|d| (d.clone(), std::time::Instant::now()));
     docker
 }
 
@@ -78,9 +77,7 @@ async fn find() -> AppResult<Docker> {
             return Ok(docker);
         }
     }
-    Err(AppError::DockerUnavailable {
-        message: format!("Docker is not running. {START} and try again."),
-    })
+    Err(AppError::DockerUnavailable { message: format!("Docker is not running. {START} and try again.") })
 }
 
 /// Docker, waiting up to `timeout` for it to come up (OrbStack or Docker
@@ -191,9 +188,11 @@ pub async fn quit(action: OnQuit, clusters: &[String], named: &[String]) -> AppR
         filters: Some(std::collections::HashMap::from([("label".to_string(), vec![CLUSTER.to_string()])])),
         ..Default::default()
     };
-    let nodes = docker.list_containers(Some(options)).await?.into_iter().filter(|c| {
-        c.labels.as_ref().and_then(|l| l.get(CLUSTER)).is_some_and(|name| clusters.contains(name))
-    });
+    let nodes = docker
+        .list_containers(Some(options))
+        .await?
+        .into_iter()
+        .filter(|c| c.labels.as_ref().and_then(|l| l.get(CLUSTER)).is_some_and(|name| clusters.contains(name)));
     let targets: Vec<String> = nodes.filter_map(|c| c.id).chain(named.iter().cloned()).collect();
     let jobs = targets.iter().map(|id| {
         let docker = docker.clone();

@@ -1,9 +1,9 @@
 //! macOS
 
 use super::{Platform, unix};
+use process_wrap::tokio::TokioCommandWrap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use process_wrap::tokio::TokioCommandWrap;
 use tokio::process::Command;
 
 pub struct Os;

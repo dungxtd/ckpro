@@ -175,10 +175,7 @@ pub async fn delete_exam(app: AppHandle, id: String) -> AppResult<Vec<String>> {
 /// the question bank read again take a while. The app's state from `app`
 /// (Tauri runs a command that is not async on the main thread.) A panic
 /// in the work is the app's own failure, not the candidate's
-async fn off_main<T: Send + 'static>(
-    app: AppHandle,
-    work: impl FnOnce(&AppHandle) -> AppResult<T> + Send + 'static,
-) -> AppResult<T> {
+async fn off_main<T: Send + 'static>(app: AppHandle, work: impl FnOnce(&AppHandle) -> AppResult<T> + Send + 'static) -> AppResult<T> {
     tauri::async_runtime::spawn_blocking(move || work(&app)).await.map_err(|e| AppError::internal("working in the background", e))?
 }
 
@@ -214,7 +211,9 @@ pub async fn desktop_open_url(exams: State<'_, Arc<Exams>>, url: String) -> AppR
 use crate::ai::account::{Account, SignInEvent, SignInMethod};
 use crate::ai::agent::{ModelOption, RuntimeInfo};
 use crate::ai::policy::AgentSettings;
-use crate::ai::{Coach, CoachContext, CoachModels, ModelChoice, CoachEvent, CoachReply, CoachHistory, CoachSession, CoachStatus, CoachTranscript};
+use crate::ai::{
+    Coach, CoachContext, CoachEvent, CoachHistory, CoachModels, CoachReply, CoachSession, CoachStatus, CoachTranscript, ModelChoice,
+};
 use crate::lab::exam::StudyStats;
 
 /// Whether the coach can run (Node.js for the adapter found).
@@ -401,9 +400,7 @@ pub fn open_in_browser(app: AppHandle, url: String) -> AppResult<()> {
     if !url.starts_with("https://") || url.chars().any(|c| c.is_whitespace() || c.is_control()) {
         return Err(AppError::invalid(format!("not a web page: {url}")));
     }
-    app.opener()
-        .open_url(url, None::<&str>)
-        .map_err(|e| AppError::io("opening the browser", std::io::Error::other(e)))
+    app.opener().open_url(url, None::<&str>).map_err(|e| AppError::io("opening the browser", std::io::Error::other(e)))
 }
 
 /// The Claude login the assistant answers as.
@@ -418,7 +415,12 @@ pub async fn coach_account(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>
 /// `events` (the sign-in link, a prompt for the browser's code).
 #[tauri::command]
 #[specta::specta]
-pub async fn coach_sign_in(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>, method: SignInMethod, events: Channel<SignInEvent>) -> AppResult<()> {
+pub async fn coach_sign_in(
+    exams: State<'_, Arc<Exams>>,
+    coach: State<'_, Coach>,
+    method: SignInMethod,
+    events: Channel<SignInEvent>,
+) -> AppResult<()> {
     exams.assistant_allowed()?;
     coach
         .sign_in(method, |e| {
@@ -662,7 +664,12 @@ pub async fn studio_ask(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn studio_delete(coach: State<'_, Coach>, proofs: State<'_, Proofs>, store: State<'_, Arc<Store>>, session: i32) -> AppResult<()> {
+pub async fn studio_delete(
+    coach: State<'_, Coach>,
+    proofs: State<'_, Proofs>,
+    store: State<'_, Arc<Store>>,
+    session: i32,
+) -> AppResult<()> {
     // What goes on for it stops: its answer, its proof (and the proof's cluster)
     coach.studio_stop(session);
     proofs.stop(session);
@@ -676,8 +683,7 @@ pub async fn studio_delete(coach: State<'_, Coach>, proofs: State<'_, Proofs>, s
 pub async fn studio_remove(app: AppHandle, session: i32, id: String) -> AppResult<crate::studio::draft::ExamDraft> {
     off_main(app, move |app| {
         let (store, proofs) = (app.state::<Arc<Store>>(), app.state::<Proofs>());
-        crate::studio::edit(&store, session, || proofs.proving(session), |draft| Ok(draft.remove_by_candidate(&id)))
-            .map(|(draft, _)| draft)
+        crate::studio::edit(&store, session, || proofs.proving(session), |draft| Ok(draft.remove_by_candidate(&id))).map(|(draft, _)| draft)
     })
     .await
 }
@@ -695,10 +701,15 @@ pub async fn studio_edit(
 ) -> AppResult<crate::studio::draft::ExamDraft> {
     off_main(app, move |app| {
         let (store, proofs) = (app.state::<Arc<Store>>(), app.state::<Proofs>());
-        crate::studio::edit(&store, session, || proofs.proving(session), |draft| {
-            draft.edit(title.as_deref(), duration_minutes, clear);
-            Ok(())
-        })
+        crate::studio::edit(
+            &store,
+            session,
+            || proofs.proving(session),
+            |draft| {
+                draft.edit(title.as_deref(), duration_minutes, clear);
+                Ok(())
+            },
+        )
         .map(|(draft, ())| draft)
     })
     .await

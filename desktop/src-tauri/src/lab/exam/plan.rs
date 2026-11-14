@@ -5,8 +5,8 @@
 
 use super::insights::{DomainStat, study_stats};
 use super::{Exams, HistoryEntry, Mode};
-use crate::lab::load::LoadedPack;
 use crate::error::{AppError, AppResult};
+use crate::lab::load::LoadedPack;
 use crate::store::StoredPlan;
 use serde::{Deserialize, Serialize};
 
@@ -80,8 +80,7 @@ pub fn local_day(ms: f64) -> String {
 
 /// A day as YYYY-MM-DD, a real one of the calendar, or an error naming it
 fn checked_day(day: &str) -> AppResult<&str> {
-    let shaped = day.len() == 10
-        && day.char_indices().all(|(i, c)| if i == 4 || i == 7 { c == '-' } else { c.is_ascii_digit() });
+    let shaped = day.len() == 10 && day.char_indices().all(|(i, c)| if i == 4 || i == 7 { c == '-' } else { c.is_ascii_digit() });
     let real = shaped && chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d").is_ok();
     real.then_some(day).ok_or_else(|| AppError::invalid(format!("not a day: {day}")))
 }
@@ -139,21 +138,12 @@ impl Exams {
 
 /// See [`ExamReadiness`]: the last month's attempts of the certification, or all
 /// of them when the month has none
-pub fn readiness(
-    pack: &LoadedPack,
-    history: &[HistoryEntry],
-    certification: &str,
-    now: f64,
-) -> AppResult<ExamReadiness> {
-    let cert = pack
-        .pack
-        .certifications
-        .get(certification)
-        .ok_or_else(|| AppError::not_found(format!("no certification '{certification}'")))?;
+pub fn readiness(pack: &LoadedPack, history: &[HistoryEntry], certification: &str, now: f64) -> AppResult<ExamReadiness> {
+    let cert =
+        pack.pack.certifications.get(certification).ok_or_else(|| AppError::not_found(format!("no certification '{certification}'")))?;
     let since = now - f64::from(WINDOW_DAYS) * 86_400_000.0;
     let history: Vec<HistoryEntry> = history.iter().filter(|h| h.result.worked()).cloned().collect();
-    let recent: Vec<HistoryEntry> =
-        history.iter().filter(|h| h.result.started_at >= since).cloned().collect();
+    let recent: Vec<HistoryEntry> = history.iter().filter(|h| h.result.started_at >= since).cloned().collect();
     let pick = |entries: &[HistoryEntry]| study_stats(pack, entries).into_iter().find(|s| s.certification == certification);
     let (stats, window_days) = match pick(&recent) {
         Some(s) => (Some(s), WINDOW_DAYS),
@@ -171,9 +161,7 @@ pub fn readiness(
     let tested: Vec<&DomainStat> = domains.iter().filter(|d| d.max_points > 0).collect();
     let covered: u32 = tested.iter().map(|d| d.weight).sum();
     let predicted = (covered > 0).then(|| {
-        tested.iter().map(|d| f64::from(d.weight) * f64::from(d.points) / f64::from(d.max_points)).sum::<f64>()
-            / f64::from(covered)
-            * 100.0
+        tested.iter().map(|d| f64::from(d.weight) * f64::from(d.points) / f64::from(d.max_points)).sum::<f64>() / f64::from(covered) * 100.0
     });
     let total: u32 = domains.iter().map(|d| d.weight).sum::<u32>().max(1);
     let coverage = covered * 100 / total;
@@ -209,7 +197,8 @@ mod tests {
         for day in ["2026-11-05", "2028-02-29", "2026-12-31"] {
             assert!(checked_day(day).is_ok(), "{day}");
         }
-        for wrong in ["2026-1-05", "20261105", "2026-11-0x", "' OR 1", "2026-13-99", "2026-02-29", "2026-04-31", "2026-00-10", "+2026-1-01"] {
+        for wrong in ["2026-1-05", "20261105", "2026-11-0x", "' OR 1", "2026-13-99", "2026-02-29", "2026-04-31", "2026-00-10", "+2026-1-01"]
+        {
             assert!(checked_day(wrong).is_err(), "{wrong}");
         }
     }
@@ -234,7 +223,11 @@ mod tests {
         let pack = crate::lab::load::load(&root).0.expect("the core pack loads");
         // One question of two domains of the CKA
         let of = |domain: &str| {
-            pack.questions.iter().find(|(_, q)| q.value.certifications.get("cka").is_some_and(|d| d == domain)).map(|(id, _)| id.clone()).unwrap()
+            pack.questions
+                .iter()
+                .find(|(_, q)| q.value.certifications.get("cka").is_some_and(|d| d == domain))
+                .map(|(id, _)| id.clone())
+                .unwrap()
         };
         let (trouble, storage) = (of("troubleshooting"), of("storage"));
         let exam = pack.exams.iter().find(|(_, e)| e.value.certification == "cka").map(|(id, _)| id.clone()).unwrap();
@@ -252,7 +245,13 @@ mod tests {
                 finished_at: at,
                 questions: results
                     .iter()
-                    .map(|(id, points)| QuestionResult { id: id.to_string(), title: String::new(), points: *points, max_points: 10, checks: Vec::new() })
+                    .map(|(id, points)| QuestionResult {
+                        id: id.to_string(),
+                        title: String::new(),
+                        points: *points,
+                        max_points: 10,
+                        checks: Vec::new(),
+                    })
                     .collect(),
                 outside: Vec::new(),
                 assisted: Vec::new(),

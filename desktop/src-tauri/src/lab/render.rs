@@ -25,8 +25,18 @@ pub fn pick(question: &Question, deterministic: bool) -> Values {
 
 /// Built-in placeholders, always available to questions
 pub const BUILTINS: [&str; 12] = [
-    "cluster", "control_plane", "etcd_certs", "worker1", "worker2", "worker3", "worker4", "worker5",
-    "worker6", "worker7", "worker8", "worker9",
+    "cluster",
+    "control_plane",
+    "etcd_certs",
+    "worker1",
+    "worker2",
+    "worker3",
+    "worker4",
+    "worker5",
+    "worker6",
+    "worker7",
+    "worker8",
+    "worker9",
 ];
 
 /// Values of the built-ins for a question on `physical` (its logical cluster
