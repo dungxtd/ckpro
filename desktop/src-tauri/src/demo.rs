@@ -184,7 +184,9 @@ pub fn seed(dir: &Path, pack: &LoadedPack) -> Result<String, String> {
         }
         let (exam_id, ..) = &exams[(rng.next() * exams.len() as f64) as usize % exams.len()];
         let mode = if ahead % 14 == 0 { "exam" } else { "practice" };
-        added.plans.push(store.add_plan(&day(when), exam_id, mode).map_err(|e| e.to_string())?);
+        // Planned that day already (by the candidate): left as it is
+        let Ok(id) = store.add_plan(&day(when), exam_id, mode) else { continue };
+        added.plans.push(id);
         plans += 1;
     }
     store.save_setting(KEY, &Some(added)).map_err(|e| e.to_string())?;

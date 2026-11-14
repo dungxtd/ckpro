@@ -165,3 +165,16 @@ test("today's next exam starts at once; a plan pressed starts once confirmed", a
 		replace: false,
 	});
 });
+
+test("Home's Plan today plans in place, with the Calendar's picker", async ({ page }) => {
+	await launch(page, "/", { plan_add: 8 });
+	await page.getByRole("button", { name: "Plan today" }).click();
+	const field = page.getByRole("searchbox", { name: "Plan an exam, 2026-11-02" });
+	await field.fill("helm");
+	await field.press("Enter");
+	expect((await calls(page, "plan_add")).at(-1)).toMatchObject({
+		day: "2026-11-02",
+		examId: "helm-001",
+	});
+	await expect(page).toHaveURL(/\/$/);
+});

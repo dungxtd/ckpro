@@ -5,9 +5,9 @@ import { RowCover } from "@ckpro/ui/components/row-cover";
 import { Separator } from "@ckpro/ui/components/separator";
 import { cn } from "@ckpro/ui/lib/utils";
 import { Check, Play } from "lucide-react";
-import { useNavigate } from "react-router";
 import { ModuleCard, ModuleScroll } from "@/components/home/modules";
 import type { suggestion } from "@/components/study/data";
+import { PlanPicker } from "@/components/study/plan-picker";
 import { useExam, useExamBusy } from "@/stores/exam";
 import type { PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
@@ -39,7 +39,6 @@ export function Today({
 	const start = useExam(s => s.start);
 	const askStart = useExam(s => s.askStart);
 	const busy = useExamBusy();
-	const navigate = useNavigate();
 	const plans = read ?? [];
 	// Nothing planned is said only of plans read
 	const known = read !== null && !failed;
@@ -91,14 +90,11 @@ export function Today({
 				) : (
 					known &&
 					!plans.length && (
-						<Button
-							size="push"
-							variant="push"
-							className="shrink-0"
-							onClick={() => navigate(`/calendar?day=${today}`)}
-						>
-							Plan today
-						</Button>
+						<PlanPicker day={today}>
+							<Button size="push" variant="push" className="shrink-0">
+								Plan today
+							</Button>
+						</PlanPicker>
 					)
 				)}
 			</div>

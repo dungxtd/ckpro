@@ -1,23 +1,17 @@
-import { Button } from "@ckpro/ui/components/button";
 import { Card } from "@ckpro/ui/components/card";
-import { IconButton } from "@ckpro/ui/components/icon-button";
 import { Loading } from "@ckpro/ui/components/loading";
-import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { Agenda } from "@/components/calendar/agenda";
-import { ExamPicker } from "@/components/calendar/exam-picker";
-import { ExamTargets } from "@/components/calendar/exam-targets";
+import { ExamMenu } from "@/components/calendar/exam-menu";
+import { Week } from "@/components/calendar/week";
 import { Screen } from "@/components/shell/screen";
 import { bestByDay, minutesByDay, startedAt } from "@/components/study/data";
 import { PracticeMap } from "@/components/study/practice-map";
 import { addDays, dayKey, monday, parseDay, streak } from "@/days";
-import { useExam } from "@/stores/exam";
-import { useFocus, useShownTargets, useTargets } from "@/stores/settings";
+import { useFocus, useShownTargets } from "@/stores/settings";
 import { useStudy } from "@/stores/study";
-import { errorText, examApi, type Mode, type PlanView } from "@/tauri/api";
+import { errorText, examApi, type PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 import { plural } from "@/words";
 
@@ -25,16 +19,16 @@ const short = (d: Date) =>
 	d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 
 /**
- * When the candidate studies and plans to: the preparation as a map by best
- * score (a lane per exam), the week of the day picked with its figures, and
- * that day: its plans (added, taken the other way, removed, each undoable)
- * and attempts. The day is in the URL
+ * When the candidate studies and plans to, for the exams shown (all, or the
+ * one picked beside the title): the preparation as a map by best score (a
+ * lane per exam), then the week of the day picked, a column a day with its
+ * attempts and plans (added, removed, each undoable; started). The day is in
+ * the URL
  */
 export function CalendarRoute() {
 	const [params, setParams] = useSearchParams();
 	const targets = useShownTargets();
-	const aimed = useTargets();
-	const [focus, setFocus] = useFocus();
+	const [focus] = useFocus();
 	const history = useStudy(s => s.history);
 	const version = useStudy(s => s.version);
 	const [plans, setPlans] = useState<PlanView[]>([]);
@@ -55,7 +49,6 @@ export function CalendarRoute() {
 		.sort()
 		.at(-1);
 	// The map's whole span, and the week picked (it may lie outside it)
-	const thisWeek = monday(parseDay(today));
 	const from = [prepStart, dayKey(weekStart)].sort()[0];
 	const to = [dayKey(addDays(weekStart, 6)), lastExam ?? today].sort().at(-1) as string;
 	const go = (day: string) => setParams({ day });
@@ -96,25 +89,6 @@ export function CalendarRoute() {
 		}
 	};
 	const actions = {
-		onAdd: (day: string, examId: string, mode: Mode) => {
-			let id = 0;
-			const title = useExam.getState().catalog.find(e => e.id === examId)?.title ?? examId;
-			return change(
-				async () => {
-					id = await examApi.planAdd(day, examId, mode);
-				},
-				`Planned ${shortTitle(title)} as ${mode === "exam" ? "an exam" : "practice"}, ${short(parseDay(day))}`,
-				() => examApi.planRemove(id)
-			);
-		},
-		onMode: (p: PlanView) => {
-			const mode: Mode = p.mode === "exam" ? "practice" : "exam";
-			return change(
-				() => examApi.planUpdate(p.id, { mode }),
-				`${shortTitle(p.title)}: as ${mode === "exam" ? "an exam" : "practice"}`,
-				() => examApi.planUpdate(p.id, { mode: p.mode })
-			);
-		},
 		onRemove: (p: PlanView) =>
 			change(
 				() => examApi.planRemove(p.id),
@@ -125,6 +99,8 @@ export function CalendarRoute() {
 
 	if (history === null) return <Loading fill label="Loading your attempts…" />;
 
+	// The attempts of the exams shown
+	const shown = focus ? history.filter(h => h.certification === focus) : history;
 	const run = streak(new Set(history.map(h => dayKey(new Date(startedAt(h))))), now);
 	const plannedDays = new Map<string, string[]>();
 	for (const p of plans.filter(p => p.done === null && p.day > today))
@@ -134,17 +110,15 @@ export function CalendarRoute() {
 		<Screen
 			title="Calendar"
 			width="wide"
-			className="@container gap-4"
+			className="@container min-h-full gap-4"
+			// The exams aimed at, which the whole screen shows; changed or added there
+			accessory={<ExamMenu />}
 			actions={
-				<div className="flex flex-wrap items-center gap-2">
-					{/* The exams aimed at: each one's day and the days left; changed or added here */}
-					<ExamTargets />
-					{run > 0 && (
-						<span className="mr-1 whitespace-nowrap text-caption text-muted-foreground tabular-nums">
-							{plural(run, "day")} in a row
-						</span>
-					)}
-				</div>
+				run > 0 && (
+					<span className="whitespace-nowrap text-callout text-muted-foreground tabular-nums">
+						{plural(run, "day")} in a row
+					</span>
+				)
 			}
 		>
 			<Card variant="tinted" padding="md" className="rounded-2xl">
@@ -152,8 +126,8 @@ export function CalendarRoute() {
 					mode="score"
 					start={parseDay(prepStart)}
 					exams={targets}
-					minutes={minutesByDay(history)}
-					best={bestByDay(history)}
+					minutes={minutesByDay(shown)}
+					best={bestByDay(shown)}
 					pass={66}
 					planned={plannedDays}
 					lanes
@@ -162,83 +136,15 @@ export function CalendarRoute() {
 					onPick={go}
 				/>
 			</Card>
-			<div className="flex items-center gap-2">
-				<IconButton
-					variant="toolbar"
-					size="sm"
-					aria-label="Week before"
-					onClick={() => go(dayKey(addDays(date, -7)))}
-				>
-					<ChevronLeft />
-				</IconButton>
-				<Button size="push" variant="push" disabled={anchor === today} onClick={() => go(today)}>
-					Today
-				</Button>
-				<IconButton
-					variant="toolbar"
-					size="sm"
-					aria-label="Week after"
-					onClick={() => go(dayKey(addDays(date, 7)))}
-				>
-					<ChevronRight />
-				</IconButton>
-				<h2 className="ml-1 flex-1 truncate font-semibold text-lead">
-					{+weekStart === +thisWeek
-						? "This week"
-						: +weekStart === +addDays(thisWeek, 7)
-							? "Next week"
-							: +weekStart === +addDays(thisWeek, -7)
-								? "Last week"
-								: `Week of ${weekStart.toLocaleDateString(undefined, { day: "numeric", month: "long" })}`}
-					<span className="ml-2 font-normal text-callout text-muted-foreground">
-						{weekStart.getDate()} –{" "}
-						{addDays(weekStart, 6).toLocaleDateString(undefined, {
-							day: "numeric",
-							month: "short",
-						})}
-					</span>
-				</h2>
-				{aimed.length > 1 && (
-					<SegmentedControl
-						label="Exams shown"
-						value={focus ?? "all"}
-						onChange={v => setFocus(v === "all" ? null : v)}
-						options={[
-							{ value: "all", label: "All exams" },
-							...aimed.map(t => ({ value: t.certification, label: t.certification.toUpperCase() })),
-						]}
-					/>
-				)}
-				{/* The day picked on the map, planned from here */}
-				{anchor >= today && (
-					<ExamPicker
-						label={`Plan an exam, ${anchor}`}
-						onPick={(id, mode) => actions.onAdd(anchor, id, mode)}
-					>
-						<Button size="push" variant="push">
-							<Plus /> Plan on{" "}
-							{anchor === today
-								? "today"
-								: parseDay(anchor).toLocaleDateString(undefined, {
-										weekday: "short",
-										day: "numeric",
-										month: "short",
-									})}
-						</Button>
-					</ExamPicker>
-				)}
-			</div>
-			<Agenda
+			<Week
 				week={weekStart}
-				history={history}
-				plans={plans}
+				history={shown}
+				plans={plans.filter(p => !focus || p.certification === focus)}
 				today={today}
 				exams={targets}
 				picked={anchor}
-				several={aimed.length > 1}
+				several={targets.length > 1}
 				onPick={go}
-				onAdd={actions.onAdd}
-				onMode={actions.onMode}
 				onRemove={actions.onRemove}
 			/>
 		</Screen>

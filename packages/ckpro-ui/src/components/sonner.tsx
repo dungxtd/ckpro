@@ -3,7 +3,8 @@ import { cn } from "@ckpro/ui/lib/utils";
 import type React from "react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
-// A macOS notice pill at the bottom right, on the popover surface of the
+// A notice pill at the top right, under the title bar (as editors like Zed
+// put theirs: clear of what is being done below), on the popover surface of the
 // theme (solid, its floating shadow and hairline), its icon and text
 // semibold, its action, and a round close button always at the end. Its text
 // is one line, cut short when long (lead with what happened: "Deleted
@@ -12,8 +13,9 @@ import { Toaster as Sonner, type ToasterProps } from "sonner";
 // own unlayered CSS, so the overrides are !important.
 const Toaster = ({ toastOptions, ...props }: ToasterProps) => (
 	<Sonner
-		position="bottom-right"
-		offset={{ bottom: 20, right: 20 }}
+		position="top-right"
+		// The title bar is 48px; the window's own buttons stay clear
+		offset={{ top: 56, right: 16 }}
 		closeButton
 		className="toaster group cursor-default select-none"
 		style={
