@@ -48,6 +48,7 @@ export const useSettings = create<SettingsStore>()(
 				sort: {},
 			},
 			theme: "dark",
+			plan_mode: null,
 			targets: [],
 			target: null,
 			focus: null,

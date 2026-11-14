@@ -463,6 +463,7 @@ mod tests {
                 sort: [("ckad".to_string(), ExamSort::Score)].into(),
             },
             theme: Theme::System,
+            plan_mode: Some(crate::lab::exam::Mode::Exam),
             targets: vec![
                 ExamTarget { certification: "cka".into(), date: "2026-12-15".into(), started: "2026-10-06".into(), rest_days: vec![4] },
                 ExamTarget { certification: "ckad".into(), date: "2027-03-20".into(), started: "2026-11-02".into(), rest_days: vec![] },

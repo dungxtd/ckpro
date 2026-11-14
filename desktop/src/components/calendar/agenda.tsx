@@ -9,7 +9,7 @@ import { useEffect, useRef } from "react";
 import { scoreOf, startedAt } from "@/components/study/data";
 import { addDays, dayKey, parseDay } from "@/days";
 import { useExam, useExamBusy } from "@/stores/exam";
-import type { ExamTarget, HistoryEntry, PlanView } from "@/tauri/api";
+import type { ExamTarget, HistoryEntry, Mode, PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
 import { ExamPicker } from "./exam-picker";
 import { ModeToggle } from "./mode-toggle";
@@ -63,7 +63,7 @@ export function Agenda({
 	/** Several exams aimed at: each line says which */
 	several: boolean;
 	onPick: (day: string) => void;
-	onAdd: (day: string, examId: string) => void;
+	onAdd: (day: string, examId: string, mode: Mode) => void;
 	onMode: (plan: PlanView) => void;
 	onRemove: (plan: PlanView) => void;
 }) {
@@ -166,7 +166,10 @@ export function Agenda({
 										</span>
 										{day >= today && (
 											<span className={cn(quiet(day))}>
-												<ExamPicker label={`Plan an exam, ${day}`} onPick={id => onAdd(day, id)}>
+												<ExamPicker
+													label={`Plan an exam, ${day}`}
+													onPick={(id, mode) => onAdd(day, id, mode)}
+												>
 													<Button size="push" variant="push">
 														<Plus /> Plan
 													</Button>

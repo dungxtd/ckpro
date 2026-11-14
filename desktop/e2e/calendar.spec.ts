@@ -141,3 +141,20 @@ test("a plan of the day pressed starts once confirmed", async ({ page }) => {
 		.poll(() => calls(page, "start_exam"))
 		.toEqual([{ id: plan.exam_id, mode: "practice", replace: false }]);
 });
+
+test("an exam is planned as an exam or as practice, the way the last one was", async ({ page }) => {
+	await launch(page, "/calendar?day=2026-11-05", { plan_add: 9 });
+	await page.getByRole("button", { name: /^Plan on/ }).click();
+	// Most attempts in the fixture are practice: the switch starts there
+	await expect(page.getByRole("radio", { name: "Practice" })).toBeChecked();
+	const field = page.getByRole("searchbox", { name: "Plan an exam, 2026-11-05" });
+	await field.fill("helm");
+	await field.press("Tab");
+	await expect(page.getByRole("radio", { name: "Exam" })).toBeChecked();
+	await field.press("Enter");
+	expect(await calls(page, "plan_add")).toEqual([
+		{ day: "2026-11-05", examId: "helm-001", mode: "exam" },
+	]);
+	const saved = await calls(page, "save_settings");
+	expect((saved.at(-1) as { settings: { plan_mode: string } }).settings.plan_mode).toBe("exam");
+});

@@ -96,14 +96,14 @@ export function CalendarRoute() {
 		}
 	};
 	const actions = {
-		onAdd: (day: string, examId: string) => {
+		onAdd: (day: string, examId: string, mode: Mode) => {
 			let id = 0;
 			const title = useExam.getState().catalog.find(e => e.id === examId)?.title ?? examId;
 			return change(
 				async () => {
-					id = await examApi.planAdd(day, examId, "practice");
+					id = await examApi.planAdd(day, examId, mode);
 				},
-				`Planned ${shortTitle(title)}, ${short(parseDay(day))}`,
+				`Planned ${shortTitle(title)} as ${mode === "exam" ? "an exam" : "practice"}, ${short(parseDay(day))}`,
 				() => examApi.planRemove(id)
 			);
 		},
@@ -211,7 +211,10 @@ export function CalendarRoute() {
 				)}
 				{/* The day picked on the map, planned from here */}
 				{anchor >= today && (
-					<ExamPicker label={`Plan an exam, ${anchor}`} onPick={id => actions.onAdd(anchor, id)}>
+					<ExamPicker
+						label={`Plan an exam, ${anchor}`}
+						onPick={(id, mode) => actions.onAdd(anchor, id, mode)}
+					>
 						<Button size="push" variant="push">
 							<Plus /> Plan on{" "}
 							{anchor === today

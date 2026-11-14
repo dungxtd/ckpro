@@ -1583,6 +1583,11 @@ export type Settings_Deserialize = {
 	sidebar?: SidebarLayout_Deserialize,
 	/**  Light or dark, or as macOS is */
 	theme?: Theme,
+	/**
+	 *  How an exam was last planned (an exam or practice): the next plan
+	 *  starts that way; none until one is planned
+	 */
+	plan_mode?: Mode | null,
 	/**  The exams the candidate prepares for, and when (CKA, then CKAD…) */
 	targets?: ExamTarget_Deserialize[],
 	/**
@@ -1622,6 +1627,11 @@ export type Settings_Serialize = {
 	sidebar: SidebarLayout_Serialize,
 	/**  Light or dark, or as macOS is */
 	theme: Theme,
+	/**
+	 *  How an exam was last planned (an exam or practice): the next plan
+	 *  starts that way; none until one is planned
+	 */
+	plan_mode: Mode | null,
 	/**  The exams the candidate prepares for, and when (CKA, then CKAD…) */
 	targets: ExamTarget_Serialize[],
 	/**

@@ -35,6 +35,9 @@ pub struct Settings {
     pub sidebar: SidebarLayout,
     /// Light or dark, or as macOS is
     pub theme: Theme,
+    /// How an exam was last planned (an exam or practice): the next plan
+    /// starts that way; none until one is planned
+    pub plan_mode: Option<crate::lab::exam::Mode>,
     /// The exams the candidate prepares for, and when (CKA, then CKAD…)
     pub targets: Vec<ExamTarget>,
     /// The first of `targets`, kept for an older ckpro reading these
@@ -144,6 +147,7 @@ impl Default for Settings {
             sidebar_folded: false,
             sidebar: SidebarLayout::default(),
             theme: Theme::Dark,
+            plan_mode: None,
             targets: Vec::new(),
             target: None,
             focus: None,
