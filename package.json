@@ -8,6 +8,9 @@
     "dev": "pnpm --filter ckpro-desktop dev",
     "build": "pnpm --filter ckpro-desktop build",
     "typecheck": "pnpm --filter ckpro-desktop typecheck",
+    "test": "pnpm --filter ckpro-desktop test",
+    "e2e": "pnpm --filter ckpro-desktop e2e",
+    "lint": "biome check .",
     "format": "biome check . --write",
     "format-check": "biome check ."
   },

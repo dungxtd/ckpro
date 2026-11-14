@@ -48,8 +48,8 @@ Architecture: `docs/ARCHITECTURE.md`.
   `SegmentedControl`, `Stepper`, `Select`, `Switch`, `Popover` with the
   `menu` classes, `DropdownMenu` (submenus), `Dialog`/`AlertDialog`,
   `ConfirmDialog`, `Tooltip`, `Truncated`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`), `Alert`, `CodeBlock`,
-  `Badge` (`BadgeButton`), `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal` (`Terminal.Prompt`), `Placeholder`, `Progress` (`marker`), `ProgressRing`, `ResizeHandle`, `Splitter` (`usePanelSize`), `Spinner`, `Loading`,
-  `MenuItem`, `DisclosureButton`, `InlineCode`, `DayMarker`, `RowCover` (a list row pressed as a whole). A hand-rolled control or a class
+  `Badge`, `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal` (`Terminal.Prompt`), `Placeholder`, `Progress` (`marker`), `ProgressRing`, `ResizeHandle`, `Splitter` (`usePanelSize`), `Spinner`, `Loading`,
+  `MenuItem`, `DisclosureButton`, `InlineCode`, `Swatch`, `FadeScroll`, `RowCover` (a list row pressed as a whole). A hand-rolled control or a class
   string used twice becomes a kit component or variant.
 - **Kit helpers**: `useElementSize` (an element's size as it changes),
   `useDragOrder`.
@@ -80,9 +80,10 @@ being tried or reviewed stays uncommitted until it is settled.
 ## Checks
 
 ```bash
-cd desktop && pnpm typecheck && pnpm test   # unit tests (vitest) beside the code
-pnpm exec biome check <files you touched> --write
-cd src-tauri && cargo clippy --all-targets -- -D warnings
+cd desktop && pnpm typecheck && pnpm test   # the kit too; unit tests (vitest) beside the code
+pnpm e2e                              # Playwright, a stand-in Rust side (e2e/backend.ts)
+(cd .. && pnpm exec biome check . --write)   # from the repo root, as CI runs it
+cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings
 cargo test                            # unit tests; e2e: cargo test -- --ignored
 cargo run -- lab lint ../../packs/core
 ```

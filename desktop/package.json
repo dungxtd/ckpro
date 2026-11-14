@@ -10,7 +10,7 @@
     "vite:build": "tsc --noEmit && vite build && pnpm sourcemaps",
     "sourcemaps": "node scripts/sourcemaps.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e && tsc --noEmit -p ../packages/ckpro-ui",
     "tauri": "tauri",
     "e2e": "playwright test"
   },
