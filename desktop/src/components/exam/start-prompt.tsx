@@ -1,6 +1,7 @@
 import { ConfirmDialog } from "@ckpro/ui/components/confirm-dialog";
 import { useExam } from "@/stores/exam";
 import { shortTitle } from "@/titles";
+import { startLabel } from "@/words";
 
 /**
  * Starting an exam picked in a list (a plan, a retry) asks first, and one
@@ -20,7 +21,7 @@ export function StartPrompt() {
 				open={picked !== null}
 				onOpenChange={open => !open && cancelStart()}
 				tone="default"
-				title={`${picked?.mode === "exam" ? "Start exam" : "Start practice"}: ${picked ? shortTitle(picked.title) : ""}?`}
+				title={`${startLabel(picked?.mode === "exam" ? "exam" : "practice")}: ${picked ? shortTitle(picked.title) : ""}?`}
 				description={
 					picked?.mode === "exam"
 						? "Timed as the real exam: no hints, no checks, no assistant."

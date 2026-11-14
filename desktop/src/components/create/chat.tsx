@@ -89,7 +89,7 @@ export function Chat() {
 							<History />
 						</IconButton>
 					</PopoverTrigger>
-					<PopoverContent align="end" className={cn(menu.surface, "w-80")}>
+					<PopoverContent align="end" variant="menu" className="w-80">
 						<div className={menu.header}>Conversations</div>
 						{sessions.length === 0 && (
 							<div className={cn(menu.content, "py-1 text-muted-foreground text-caption")}>

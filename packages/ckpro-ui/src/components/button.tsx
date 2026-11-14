@@ -2,7 +2,7 @@ import { pressMotion } from "@ckpro/ui/lib/motion";
 import { cn, focusRing } from "@ckpro/ui/lib/utils";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import * as React from "react";
+import type * as React from "react";
 
 // The main action of an area takes the one accent, as macOS's default button
 // (the action Return triggers) does: `default` and `pushDefault` are both
@@ -37,12 +37,6 @@ const buttonVariants = cva(
 				// Ask the assistant (Review with the assistant, Why?): its own hue,
 				// tinted, so it sits beside the main action without competing
 				assistant: "bg-assistant/15 text-assistant hover:bg-assistant/25 active:bg-assistant/30",
-				// Over a picture: solid white primary, glass secondary. Only these
-				// grow and glow on hover, where a tint would not show
-				solid:
-					"hover-glow bg-white text-black shadow-sm [text-shadow:none] hover:bg-white motion-safe:[@media(hover:hover)]:hover:scale-[1.04] [&_svg]:fill-current",
-				glass:
-					"hover-glow glass-surface glass-blur text-foreground hover:bg-foreground/15 motion-safe:[@media(hover:hover)]:hover:scale-[1.04]",
 				// A small action that stays out of the way (Copy, Regenerate, a
 				// picker's value): muted text, the foreground on hover
 				quiet: "font-normal text-muted-foreground hover:text-foreground",
@@ -50,7 +44,6 @@ const buttonVariants = cva(
 			size: {
 				default: "h-9 px-4 py-2",
 				sm: "h-8 px-3 text-caption",
-				pill: "h-11 rounded-full px-7 font-semibold text-lead [&_svg]:size-4.5",
 				push: "h-7 px-3 text-callout font-normal",
 				/** Text-sized, no box: an action inside a line of small text */
 				inline: "h-auto gap-1 p-0 text-2xs [&_svg]:size-3",
@@ -65,20 +58,14 @@ const buttonVariants = cva(
 	}
 );
 
-export interface ButtonProps
-	extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-		VariantProps<typeof buttonVariants> {
-	asChild?: boolean;
-}
+export type ButtonProps = React.ComponentProps<"button"> &
+	VariantProps<typeof buttonVariants> & {
+		asChild?: boolean;
+	};
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-	({ className, variant, size, asChild = false, ...props }, ref) => {
-		const Comp = asChild ? Slot : "button";
-		return (
-			<Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
-		);
-	}
-);
-Button.displayName = "Button";
+function Button({ className, variant, size, asChild = false, ...props }: ButtonProps) {
+	const Comp = asChild ? Slot : "button";
+	return <Comp className={cn(buttonVariants({ variant, size, className }))} {...props} />;
+}
 
 export { Button, buttonVariants };

@@ -132,7 +132,7 @@ export function AssistantComposer({
 							<AtSign />
 						</IconButton>
 					</PopoverTrigger>
-					<PopoverContent side="top" className={cn(menu.surface, "w-64")}>
+					<PopoverContent side="top" variant="menu" className="w-64">
 						<div className={menu.header}>Add context</div>
 						<ContextRow
 							on={coach.context.checks && coach.shared.checks}

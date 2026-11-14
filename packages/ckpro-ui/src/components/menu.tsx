@@ -53,16 +53,19 @@ export function MenuCheck() {
 
 /**
  * A row of a popover menu, as a button: its text, an `icon` before it, a
- * `hint` at the end (a shortcut, a value), a `detail` line under it, and a
- * checkmark at the left when `checked`. `checked` says it is on (or the one
- * chosen) to assistive technology too; leave it out on rows that are not
- * choices. Disabled rows fade and take no pointer.
+ * `hint` at the end (a shortcut, a value; `hintClassName` tints it), a
+ * `detail` line under it, and a checkmark at the left when `checked` (the
+ * one chosen of a set) or `pressed` (a toggle that is on: a day's planned
+ * exam). Either says so to assistive technology too; leave both out on
+ * rows that are not choices. Disabled rows fade and take no pointer.
  */
 export function MenuItem({
 	icon,
 	hint,
+	hintClassName,
 	detail,
 	checked,
+	pressed,
 	className,
 	children,
 	type = "button",
@@ -70,17 +73,20 @@ export function MenuItem({
 }: React.ComponentProps<"button"> & {
 	icon?: React.ReactNode;
 	hint?: React.ReactNode;
+	hintClassName?: string;
 	detail?: React.ReactNode;
 	checked?: boolean;
+	pressed?: boolean;
 }) {
+	const on = pressed ?? checked;
 	return (
 		<button
 			type={type}
-			aria-pressed={checked}
+			aria-pressed={on}
 			className={menuRow(cn(detail !== undefined && menu.twoLine, className))}
 			{...props}
 		>
-			{checked && <MenuCheck />}
+			{on && <MenuCheck />}
 			{icon && (
 				<span aria-hidden className="flex shrink-0 items-center [&_svg]:size-4">
 					{icon}
@@ -94,7 +100,7 @@ export function MenuItem({
 			) : (
 				<span className={menu.label}>{children}</span>
 			)}
-			{hint !== undefined && <span className={menu.hint}>{hint}</span>}
+			{hint !== undefined && <span className={cn(menu.hint, hintClassName)}>{hint}</span>}
 		</button>
 	);
 }

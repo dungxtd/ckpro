@@ -12,10 +12,6 @@ type ChipProps = React.ComponentProps<"button"> & {
 	onRemove?: () => void;
 	/** xs 22px (context in a composer) · sm 28px (filters, scopes) · md 32px (source sort/quality). */
 	size?: "xs" | "sm" | "md";
-	/** default: a quiet tint (dark fill when `selected`). planned: outlined in
-	 * the accent, something set for later. exam: the accent's solid fill, the
-	 * day or thing that counts. */
-	variant?: "default" | "planned" | "exam";
 };
 
 /**
@@ -29,7 +25,6 @@ export function Chip({
 	onRemove,
 	onClick,
 	size = "sm",
-	variant = "default",
 	className,
 	children,
 	type = "button",
@@ -46,13 +41,9 @@ export function Chip({
 		onRemove ? (size === "xs" ? "pr-0.5 pl-2" : "pr-1 pl-3") : size === "xs" ? "px-2" : "px-3",
 		// Filled tint (not a surface + edge), so a chip reads the same on the page,
 		// in sheets and in menus; selected gets the solid segmented-thumb fill.
-		variant === "planned"
-			? "text-highlight ring-1 ring-highlight ring-inset hover:bg-highlight/10"
-			: variant === "exam"
-				? "bg-highlight text-highlight-foreground"
-				: selected
-					? "glass-selected text-glass-selected-foreground"
-					: "bg-fill-quiet text-foreground/80 hover:bg-foreground/[0.12] hover:text-foreground",
+		selected
+			? "glass-selected text-glass-selected-foreground"
+			: "bg-fill-quiet text-foreground/80 hover:bg-foreground/[0.12] hover:text-foreground",
 		// What acts gives a little under a press
 		onClick && !onRemove && pressMotion,
 		className
@@ -61,9 +52,7 @@ export function Chip({
 		<span
 			className={cn(
 				"min-w-5 rounded-full px-1.5 text-center text-2xs tabular-nums",
-				selected || variant === "exam"
-					? "bg-glass-selected-foreground/25"
-					: "bg-foreground/8 text-muted-foreground"
+				selected ? "bg-glass-selected-foreground/25" : "bg-foreground/8 text-muted-foreground"
 			)}
 		>
 			{count}

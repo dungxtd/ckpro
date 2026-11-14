@@ -1,16 +1,17 @@
 import { Input } from "@ckpro/ui/components/input";
-import { MenuCheck, menu, menuRow } from "@ckpro/ui/components/menu";
+import { MenuItem, menu } from "@ckpro/ui/components/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@ckpro/ui/components/popover";
 import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
 import { cn } from "@ckpro/ui/lib/utils";
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
 import { parseDay } from "@/days";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
-import { useStudy } from "@/stores/study";
+import { usePlans, useStudy } from "@/stores/study";
 import { errorText, examApi, type Mode, type PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
+import { certName, shortDay } from "@/words";
 
 const MODES = [
 	{ value: "exam" as const, label: "Exam" },
@@ -50,32 +51,22 @@ export function PlanPicker({
 	const last = useSettings(s => s.settings.plan_mode);
 	const update = useSettings(s => s.update);
 	const history = useStudy(s => s.history);
-	const version = useStudy(s => s.version);
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [mode, setMode] = useState<Mode>("exam");
-	const [planned, setPlanned] = useState<Planned[]>([]);
+	// The day's plans, read while it is open and again as the study changes
+	const { plans } = usePlans(day, day, { enabled: open });
+	// Changed here, ahead of the study's next read: kept until that read
+	// comes (a new list), so a tick shows at once
+	const [changed, setChanged] = useState<{ of: PlanView[] | null; to: Planned[] } | null>(null);
+	const planned: Planned[] = changed && changed.of === plans ? changed.to : (plans ?? []);
 	const busy = useRef(false);
 	const field = useRef<HTMLInputElement>(null);
 	const box = useRef<HTMLDivElement>(null);
 	const q = query.trim().toLowerCase();
 	const matches = catalog.filter(e => e.title.toLowerCase().includes(q));
 	const certs = [...new Set(matches.map(e => e.certification))];
-	const date = parseDay(day).toLocaleDateString(undefined, {
-		weekday: "short",
-		day: "numeric",
-		month: "short",
-	});
-
-	// The day's plans, read as it opens and as the study changes
-	const read = useCallback(
-		() => examApi.plans(day, day).then(setPlanned, () => setPlanned([])),
-		[day]
-	);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: a new version is the cue
-	useEffect(() => {
-		if (open) read();
-	}, [open, read, version]);
+	const date = shortDay(parseDay(day));
 
 	// How the switch starts: as last planned, else as most attempts were taken
 	const usual = (): Mode => {
@@ -92,10 +83,10 @@ export function PlanPicker({
 		try {
 			if (plan) {
 				await examApi.planRemove(plan.id);
-				setPlanned(ps => ps.filter(p => p.id !== plan.id));
+				setChanged({ of: plans, to: planned.filter(p => p.id !== plan.id) });
 			} else {
 				const id = await examApi.planAdd(day, examId, mode);
-				setPlanned(ps => [...ps, { id, exam_id: examId, mode }]);
+				setChanged({ of: plans, to: [...planned, { id, exam_id: examId, mode }] });
 				if (mode !== last) update({ plan_mode: mode });
 			}
 		} catch (e) {
@@ -121,7 +112,8 @@ export function PlanPicker({
 				ref={box}
 				side={side}
 				align="start"
-				className={cn(menu.surface, "flex w-72 flex-col p-1.5")}
+				variant="menu"
+				className="flex w-72 flex-col p-1.5"
 				// Opened to be typed in: the field has the focus. It keeps the
 				// height it opened with: shorter as it narrows, it would move
 				onOpenAutoFocus={e => {
@@ -159,39 +151,30 @@ export function PlanPicker({
 				/>
 				{certs.map(cert => (
 					<div key={cert} className="mt-1 border-border border-t pt-1 first-of-type:mt-1.5">
-						<div className={menu.header}>{cert.toUpperCase()}</div>
+						<div className={menu.header}>{certName(cert)}</div>
 						{matches
 							.filter(e => e.certification === cert)
 							.map(e => {
 								const plan = planned.find(p => p.exam_id === e.id);
 								return (
-									<button
+									<MenuItem
 										key={e.id}
-										type="button"
-										aria-pressed={!!plan}
+										pressed={!!plan}
 										title={plan ? "Planned: press to unplan it" : undefined}
 										onClick={() => toggle(e.id)}
-										className={menuRow(
-											cn(
-												// What Enter would change is marked while typing
-												e === matches[0] && q && "bg-highlight/20",
-												// Pressed, a ticked one goes: said in the warning colour
-												plan && "hover:bg-warning/85"
-											)
+										hint={plan ? plan.mode : `${e.duration_minutes} min`}
+										hintClassName={cn(
+											plan?.mode === "exam" && "text-highlight opacity-100 [:hover>&]:text-current"
+										)}
+										className={cn(
+											// What Enter would change is marked while typing
+											e === matches[0] && q && "bg-highlight/20",
+											// Pressed, a ticked one goes: said in the warning colour
+											plan && "hover:bg-warning/85"
 										)}
 									>
-										{plan && <MenuCheck />}
-										<span className={menu.label}>{shortTitle(e.title)}</span>
-										<span
-											className={cn(
-												menu.hint,
-												plan?.mode === "exam" &&
-													"text-highlight opacity-100 [:hover>&]:text-current"
-											)}
-										>
-											{plan ? plan.mode : `${e.duration_minutes} min`}
-										</span>
-									</button>
+										{shortTitle(e.title)}
+									</MenuItem>
 								);
 							})}
 					</div>

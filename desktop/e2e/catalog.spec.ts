@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
 import { calls, launch } from "./backend";
+import { expect, test } from "./fixture";
 
 const exam = "/exams?exam=cka-001";
 

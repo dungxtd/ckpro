@@ -1,5 +1,13 @@
 import { addDays, dayKey, monday } from "@/days";
-import type { ExamReadiness, ExamSummary, HistoryEntry } from "@/tauri/api";
+import type { ExamReadiness, ExamSummary, ExamTarget, HistoryEntry, PlanView } from "@/tauri/api";
+
+/** The pass line when none is known yet (no readiness read): 66%, the
+ * CKA's, CKAD's and CKS's */
+export const PASS_DEFAULT = 66;
+
+/** How far back the preparation reaches when nothing says where it began
+ * (no exam aimed at, no attempt) */
+export const PREP_DAYS = 70;
 
 /** When an attempt started (Unix ms), and its score */
 export const startedAt = (h: HistoryEntry): number => h.result.started_at ?? 0;
@@ -7,6 +15,12 @@ export const scoreOf = (h: HistoryEntry): number => h.result.score ?? 0;
 /** An attempt ended before earning a point says nothing about the candidate:
  * it stays in History, and the study figures leave it out (as Rust does) */
 export const worked = (h: HistoryEntry): boolean => scoreOf(h) > 0;
+/** An attempt's certification: its own, else its exam's in the catalog
+ * (older attempts kept none) */
+export const certOf = (h: HistoryEntry, catalog: ExamSummary[]): string =>
+	h.certification || catalog.find(e => e.id === h.exam_id)?.certification || "";
+/** The day an attempt started, as YYYY-MM-DD */
+export const attemptDay = (h: HistoryEntry): string => dayKey(new Date(startedAt(h)));
 
 /** The predicted score: Rust gives one once enough of the exam is measured
  * (`predict_at`) */
@@ -17,7 +31,7 @@ export const predicted = (readiness: ExamReadiness | null): number | null =>
 export function bestByDay(history: HistoryEntry[]): Map<string, number> {
 	const best = new Map<string, number>();
 	for (const h of history.filter(worked)) {
-		const day = dayKey(new Date(startedAt(h)));
+		const day = attemptDay(h);
 		best.set(day, Math.max(best.get(day) ?? -1, scoreOf(h)));
 	}
 	return best;
@@ -47,6 +61,16 @@ export const scoreTone = (percent: number, pass: number) =>
  */
 export const scoreColor = (percent: number, pass: number): string =>
 	`var(--color-${scoreTone(percent, pass)})`;
+
+/** A tone's text colour, as a class */
+export const TONE_TEXT = {
+	success: "text-success",
+	warning: "text-warning",
+	destructive: "text-destructive",
+} as const;
+
+/** A score's text colour against the pass line (`scoreTone`), as a class */
+export const scoreText = (percent: number, pass: number) => TONE_TEXT[scoreTone(percent, pass)];
 
 /** How a day's best score is drawn on the map: none, below the pass line, then by score */
 export function level(score: number | undefined, pass: number): 0 | 1 | 2 | 3 | 4 {
@@ -89,19 +113,34 @@ export function suggestion(
 	);
 }
 
-/** Whole days from `today` to a YYYY-MM-DD day (0 on the day) */
-export const daysUntil = (day: string, today: Date) =>
-	Math.round(
-		(new Date(`${day}T00:00`).getTime() -
-			new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) /
-			86_400_000
-	);
+/** The days after `today` with plans still to do, by YYYY-MM-DD: each
+ * plan's certification (the map marks them) */
+export function plannedByDay(plans: PlanView[], today: string): Map<string, string[]> {
+	const days = new Map<string, string[]>();
+	for (const p of plans.filter(p => p.done === null && p.day > today))
+		days.set(p.day, [...(days.get(p.day) ?? []), p.certification]);
+	return days;
+}
+
+/** Where the preparation began, as YYYY-MM-DD: the earliest start of the
+ * exams aimed at, else the first worked attempt, else `PREP_DAYS` before
+ * `today` */
+export function prepStart(targets: ExamTarget[], history: HistoryEntry[], today: Date): string {
+	if (targets.length) return targets.map(t => t.started).sort()[0];
+	const first = history
+		.filter(worked)
+		.reduce<HistoryEntry | null>((f, h) => (!f || startedAt(h) < startedAt(f) ? h : f), null);
+	return first ? attemptDay(first) : dayKey(addDays(today, -PREP_DAYS));
+}
+
+/** How far ahead `freeDay` looks for a day, in days */
+export const FREE_DAY_WITHIN = 14;
 
 /** The first day from `from` the candidate keeps for study: not a rest day
  * (`rest`, 0 Monday to 6 Sunday) and nothing planned on it yet (`planned`,
- * YYYY-MM-DD); within two weeks, else none */
+ * YYYY-MM-DD); within `FREE_DAY_WITHIN` days, else none */
 export function freeDay(from: Date, rest: number[], planned: Set<string>): Date | null {
-	for (let i = 0; i < 14; i++) {
+	for (let i = 0; i < FREE_DAY_WITHIN; i++) {
 		const day = addDays(from, i);
 		if (!rest.includes((day.getDay() + 6) % 7) && !planned.has(dayKey(day))) return day;
 	}

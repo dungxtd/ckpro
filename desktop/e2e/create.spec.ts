@@ -1,5 +1,5 @@
-import { expect, type Page, test } from "@playwright/test";
 import { calls, emit, emptyDraft, launch, reply } from "./backend";
+import { expect, type Page, test } from "./fixture";
 
 const item = (id: string, title: string, state = "linted") => ({
 	kind: "existing",

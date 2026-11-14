@@ -104,6 +104,7 @@
 			"attempt_id": "a12",
 			"exam_id": "cka-001",
 			"title": "CKA Practice Lab - Core Concepts",
+			"certification": "cka",
 			"mode": "practice",
 			"pass_score": 66,
 			"result": {
@@ -113,13 +114,15 @@
 				"finished_at": 1793539301833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		},
 		{
 			"attempt_id": "a11",
 			"exam_id": "cks-001",
 			"title": "CKS Practice Lab - Kubernetes Security Essentials",
+			"certification": "cks",
 			"mode": "practice",
 			"pass_score": 66,
 			"result": {
@@ -129,13 +132,15 @@
 				"finished_at": 1793532101833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		},
 		{
 			"attempt_id": "a10",
 			"exam_id": "cka-002",
 			"title": "CKA Practice Lab - Advanced Administration",
+			"certification": "cka",
 			"mode": "practice",
 			"pass_score": 66,
 			"result": {
@@ -145,13 +150,15 @@
 				"finished_at": 1793514101833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		},
 		{
 			"attempt_id": "a9",
 			"exam_id": "helm-001",
 			"title": "Helm Fundamentals Lab",
+			"certification": "cka",
 			"mode": "exam",
 			"pass_score": 66,
 			"result": {
@@ -161,13 +168,15 @@
 				"finished_at": 1793402501833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		},
 		{
 			"attempt_id": "a8",
 			"exam_id": "cka-002",
 			"title": "CKA Practice Lab - Advanced Administration",
+			"certification": "cka",
 			"mode": "practice",
 			"pass_score": 66,
 			"result": {
@@ -177,13 +186,15 @@
 				"finished_at": 1793355701833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		},
 		{
 			"attempt_id": "a7",
 			"exam_id": "helm-001",
 			"title": "Helm Fundamentals Lab",
+			"certification": "cka",
 			"mode": "practice",
 			"pass_score": 66,
 			"result": {
@@ -193,13 +204,15 @@
 				"finished_at": 1793233301833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		},
 		{
 			"attempt_id": "a6",
 			"exam_id": "cka-003",
 			"title": "CKA Practice Lab - Exam Scenario Pack",
+			"certification": "cka",
 			"mode": "exam",
 			"pass_score": 66,
 			"result": {
@@ -209,13 +222,15 @@
 				"finished_at": 1792632101833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		},
 		{
 			"attempt_id": "a5",
 			"exam_id": "cka-002",
 			"title": "CKA Practice Lab - Advanced Administration",
+			"certification": "cka",
 			"mode": "practice",
 			"pass_score": 66,
 			"result": {
@@ -225,13 +240,15 @@
 				"finished_at": 1792066901833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		},
 		{
 			"attempt_id": "a4",
 			"exam_id": "helm-001",
 			"title": "Helm Fundamentals Lab",
+			"certification": "cka",
 			"mode": "exam",
 			"pass_score": 66,
 			"result": {
@@ -241,13 +258,15 @@
 				"finished_at": 1791969701833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		},
 		{
 			"attempt_id": "a3",
 			"exam_id": "cka-001",
 			"title": "CKA Practice Lab - Core Concepts",
+			"certification": "cka",
 			"mode": "practice",
 			"pass_score": 66,
 			"result": {
@@ -257,13 +276,15 @@
 				"finished_at": 1791955301833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		},
 		{
 			"attempt_id": "a2",
 			"exam_id": "cka-002",
 			"title": "CKA Practice Lab - Advanced Administration",
+			"certification": "cka",
 			"mode": "exam",
 			"pass_score": 66,
 			"result": {
@@ -273,13 +294,15 @@
 				"finished_at": 1791678101833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		},
 		{
 			"attempt_id": "a1",
 			"exam_id": "cks-001",
 			"title": "CKS Practice Lab - Kubernetes Security Essentials",
+			"certification": "cks",
 			"mode": "practice",
 			"pass_score": 66,
 			"result": {
@@ -289,13 +312,15 @@
 				"finished_at": 1791285701833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		},
 		{
 			"attempt_id": "a0",
 			"exam_id": "cka-002",
 			"title": "CKA Practice Lab - Advanced Administration",
+			"certification": "cka",
 			"mode": "exam",
 			"pass_score": 66,
 			"result": {
@@ -305,7 +330,8 @@
 				"finished_at": 1791163301833.738,
 				"questions": [],
 				"outside": [],
-				"assisted": []
+				"assisted": [],
+				"prediction": null
 			}
 		}
 	],
@@ -416,6 +442,7 @@
 			"sort": {}
 		},
 		"theme": "dark",
+		"plan_mode": null,
 		"targets": [
 			{
 				"certification": "cka",

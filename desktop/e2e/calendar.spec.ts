@@ -1,5 +1,5 @@
-import { expect, type Page, test } from "@playwright/test";
-import { calls, launch, reply, sample } from "./backend";
+import { calls, launch, reply, sample, withSettings } from "./backend";
+import { expect, type Page, test } from "./fixture";
 
 /** The day's own Plan, at the foot of its column */
 const planOn = (page: Page, day: string) =>
@@ -29,14 +29,14 @@ test("several exams are planned on a day in one go, with no toast in the way", a
 		.click();
 	expect((await calls(page, "plan_add")).map(c => (c as { examId: string }).examId)).toEqual([
 		"helm-001",
-		expect.any(String),
+		"cka-001",
 	]);
 	await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
 });
 
 test("a plan of the week is removed", async ({ page }) => {
 	await launch(page, "/calendar?day=2026-10-27", { plan_remove: null });
-	await page.getByRole("button", { name: "Remove Helm Fundamentals Lab" }).click();
+	await page.getByRole("button", { name: /^Remove Helm Fundamentals Lab/ }).click();
 	await expect.poll(() => calls(page, "plan_remove")).toHaveLength(1);
 });
 
@@ -123,13 +123,12 @@ test("the chip to an exam out of view takes the map there and goes, with no tip 
 }) => {
 	await page.setViewportSize({ width: 1000, height: 800 });
 	await launch(page, "/calendar", {
-		settings: {
-			...sample.settings,
+		settings: withSettings({
 			targets: [
 				...sample.settings.targets,
 				{ certification: "cks", date: "2027-06-30", started: "2026-11-01", rest_days: [] },
 			],
-		},
+		}),
 	});
 	await page.getByRole("button", { name: /^CKS .* ›$/ }).click();
 	await expect(page.getByRole("button", { name: /^CKS .* ›$/ })).toHaveCount(0);
@@ -180,13 +179,12 @@ test("an exam is planned as an exam or as practice, the way the last one was", a
 
 test("one exam picked in the menu is what the screen shows", async ({ page }) => {
 	await launch(page, "/calendar", {
-		settings: {
-			...sample.settings,
+		settings: withSettings({
 			targets: [
 				...sample.settings.targets,
 				{ certification: "ckad", date: "2027-03-20", started: "2026-11-01", rest_days: [] },
 			],
-		},
+		}),
 	});
 	await examMenu(page);
 	await page

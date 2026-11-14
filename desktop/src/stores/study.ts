@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import { create } from "zustand";
-import { examApi, type HistoryEntry, type StudyStats } from "@/tauri/api";
+import { certOf } from "@/components/study/data";
+import { examApi, type HistoryEntry, type PlanView, type StudyStats } from "@/tauri/api";
 import { useExam } from "./exam";
+import { useFocus, useShownTargets, useTargets } from "./settings";
 
 export type ExamStats = Map<string, { last: number; score: number | null }>;
 
@@ -55,3 +58,59 @@ export const useStudy = create<Study>()(set => {
 		},
 	};
 });
+
+/**
+ * The study of the exams Home and the Calendar show: with one exam aimed
+ * at and none in focus, everything; else only the attempts (by `certOf`)
+ * and the plans of the exams shown. `history` is null while it is read
+ */
+export function useShownStudy() {
+	const history = useStudy(s => s.history);
+	const catalog = useExam(s => s.catalog);
+	const aimed = useTargets();
+	const shown = useShownTargets();
+	const [focus] = useFocus();
+	const narrowed = focus !== null || aimed.length > 1;
+	const certs = shown.map(t => t.certification);
+	const shows = (certification: string) => !narrowed || certs.includes(certification);
+	return {
+		history: history && (narrowed ? history.filter(h => shows(certOf(h, catalog))) : history),
+		/** The plans of the exams shown */
+		ofShown: (plans: PlanView[]) => (narrowed ? plans.filter(p => shows(p.certification)) : plans),
+	};
+}
+
+/**
+ * The plans from `from` to `to` (YYYY-MM-DD), read as the range changes
+ * and again whenever the study changes (`version`), while `enabled`.
+ * `plans` is null until the range's are read (or when the read failed:
+ * `failed`); a later range's answer is never overwritten by an earlier
+ * one that came after it. `reload` reads them again
+ */
+export function usePlans(from: string, to: string, { enabled = true } = {}) {
+	const version = useStudy(s => s.version);
+	const [retry, setRetry] = useState(0);
+	const range = `${from}:${to}`;
+	const [read, setRead] = useState<{ range: string; plans: PlanView[] | null }>({
+		range: "",
+		plans: null,
+	});
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new version or retry is the cue
+	useEffect(() => {
+		if (!enabled) return;
+		let current = true;
+		examApi.plans(from, to).then(
+			plans => current && setRead({ range, plans }),
+			() => current && setRead({ range, plans: null })
+		);
+		return () => {
+			current = false;
+		};
+	}, [from, to, range, enabled, version, retry]);
+	const answered = enabled && read.range === range;
+	return {
+		plans: answered ? read.plans : null,
+		failed: answered && read.plans === null,
+		reload: () => setRetry(n => n + 1),
+	};
+}

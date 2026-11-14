@@ -347,7 +347,7 @@ export function ModuleGrid({ modules, defaults }: { modules: ModuleSpec[]; defau
 							<SlidersHorizontal /> Manage modules
 						</Button>
 					</PopoverTrigger>
-					<PopoverContent side="top" className={`${menu.surface} w-60`}>
+					<PopoverContent side="top" variant="menu" className="w-60">
 						<div className={menu.header}>Shown on Home</div>
 						{modules.map(m => {
 							const shown = !hidden.includes(m.id);

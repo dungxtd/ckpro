@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { calls, emit, launch } from "./backend";
+import { calls, dockerUp, emit, launch } from "./backend";
+import { expect, test } from "./fixture";
 
 const node = (name: string, role: string, running = true) => ({
 	name,
@@ -7,14 +7,13 @@ const node = (name: string, role: string, running = true) => ({
 	container: running ? { state: "running" } : { state: "stopped" },
 	ready: running ? { state: "ready" } : { state: "unknown" },
 });
-const up = { state: "up", engine: "OrbStack", version: "28", cpus: 8, memory_mb: 5939 };
 
 test("the clusters show live; one is deleted only once confirmed", async ({ page }) => {
-	await launch(page, "/environment", { delete_cluster: null, env_watch_nodes: null });
+	await launch(page, "/environment", { delete_cluster: null });
 	await expect(page.getByText("No clusters: an exam makes the ones it needs")).toBeVisible();
 	expect(await calls(page, "env_watch_nodes")).toContainEqual({ on: true });
 	await emit(page, "env-changed", {
-		docker: up,
+		docker: dockerUp,
 		clusters: [
 			{
 				name: "k8s",
@@ -37,7 +36,7 @@ test("a cluster with a stopped node offers Repair", async ({ page }) => {
 	await launch(page, "/environment", {
 		repair_cluster: null,
 		env_state: {
-			docker: up,
+			docker: dockerUp,
 			clusters: [
 				{
 					name: "k8s",
@@ -59,7 +58,7 @@ test("Docker down says so, and Try again asks again", async ({ page }) => {
 	await expect(page.getByText("Docker down")).toBeVisible();
 	await page.getByRole("button", { name: "Try again" }).click();
 	expect(await calls(page, "env_retry")).toHaveLength(1);
-	await emit(page, "env-changed", { docker: up, clusters: [], issues: [] });
+	await emit(page, "env-changed", { docker: dockerUp, clusters: [], issues: [] });
 	await expect(page.getByText("Docker 28, 8 CPUs, 5.8 GB")).toBeVisible();
 });
 
@@ -68,7 +67,7 @@ test("the services say which exam images are downloaded, the task host's among t
 }) => {
 	await launch(page, "/environment");
 	await emit(page, "env-changed", {
-		docker: up,
+		docker: dockerUp,
 		clusters: [],
 		usage: [{ name: "ckpro-mirror", owner: { kind: "service" }, mb: 120 }],
 		images_missing: ["ckpro-desktop"],

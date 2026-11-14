@@ -1,11 +1,13 @@
-import { useScrollEdges } from "@ckpro/ui/hooks/use-scroll-edges";
+import { FadeScroll } from "@ckpro/ui/components/fade-scroll";
+import { Swatch } from "@ckpro/ui/components/swatch";
 import { reducedMotion } from "@ckpro/ui/lib/motion";
 import { cn } from "@ckpro/ui/lib/utils";
 import type * as React from "react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { activityLevel, level, MAP_WEEKS, mapWeeks } from "@/components/study/data";
-import { addDays, dayKey, parseDay } from "@/days";
+import { addDays, DAY_MS, dayKey, parseDay } from "@/days";
 import type { ExamTarget } from "@/tauri/api";
+import { certName, shortDay } from "@/words";
 
 /** Where an element starts along the scroller's content (its scroll offset
  * included), whatever is positioned between them */
@@ -19,8 +21,7 @@ const WEEKDAYS = ["Mon", "", "Wed", "", "Fri", "", ""];
 /** Plans this far ahead are drawn quietly: the next two weeks stand out */
 const NEAR_DAYS = 14;
 
-const label = (d: Date) =>
-	d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+const label = shortDay;
 const short = (d: Date) => d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 
 /**
@@ -70,7 +71,7 @@ export function PracticeMap({
 	const weeks = mapWeeks(start, end, MAP_WEEKS);
 	const first = dayKey(start);
 	const examOn = new Map(exams.map(e => [e.date, e]));
-	const [scroller, scrollEl] = useScrollEdges<HTMLDivElement>("x");
+	const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
 	const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
 	const area = useRef<HTMLDivElement>(null);
 	// The next exam past the right edge, reached from a chip
@@ -81,7 +82,7 @@ export function PracticeMap({
 	const describe = (d: Date): string => {
 		const k = dayKey(d);
 		const exam = examOn.get(k);
-		if (exam) return `${exam.certification.toUpperCase()} exam · ${label(d)}`;
+		if (exam) return `${certName(exam.certification)} exam · ${label(d)}`;
 		if (k <= today) {
 			if (mode === "activity") {
 				const m = minutes.get(k);
@@ -92,7 +93,7 @@ export function PracticeMap({
 		}
 		const plans = planned.get(k);
 		return plans?.length
-			? `Planned${exams.length > 1 ? ` for ${plans.map(c => c.toUpperCase()).join(", ")}` : ""} · ${label(d)}`
+			? `Planned${exams.length > 1 ? ` for ${plans.map(certName).join(", ")}` : ""} · ${label(d)}`
 			: label(d);
 	};
 
@@ -173,10 +174,7 @@ export function PracticeMap({
 						<span key={i}>{d}</span>
 					))}
 				</div>
-				<div
-					ref={scroller}
-					className="no-scrollbar fade-x min-w-0 flex-1 overflow-x-auto overscroll-x-contain"
-				>
+				<FadeScroll axis="x" ref={setScrollEl} className="min-w-0 flex-1 overscroll-x-contain">
 					<div className="w-max">
 						{shownLanes.length > 0 && (
 							<div
@@ -195,7 +193,7 @@ export function PracticeMap({
 											gridColumn: `${Math.max(0, week(e.started)) + 1} / ${Math.max(0, week(e.date)) + 2}`,
 										}}
 									>
-										{e.certification.toUpperCase()} · {short(parseDay(e.date))}
+										{certName(e.certification)} · {short(parseDay(e.date))}
 									</span>
 								))}
 							</div>
@@ -246,14 +244,14 @@ export function PracticeMap({
 											: plans?.length
 												? cn(
 														"ring-[1.5px] ring-inset",
-														parseDay(k).getTime() - now.getTime() > NEAR_DAYS * 86_400_000
+														parseDay(k).getTime() - now.getTime() > NEAR_DAYS * DAY_MS
 															? "ring-highlight/35"
 															: "ring-highlight"
 													)
 												: "bg-fill-quiet/50";
 									const text = describe(d);
 									const square = cn(
-										"block rounded-[3px] outline-none",
+										"block rounded-xs outline-none",
 										tint,
 										out && "opacity-40",
 										k === today && "ring-[1.5px] ring-foreground ring-inset",
@@ -287,7 +285,7 @@ export function PracticeMap({
 							])}
 						</div>
 					</div>
-				</div>
+				</FadeScroll>
 				{ahead && (
 					<button
 						type="button"
@@ -320,7 +318,7 @@ export function PracticeMap({
 							setTimeout(flash, still ? 0 : 450);
 						}}
 					>
-						{ahead.certification.toUpperCase()} {short(parseDay(ahead.date))} ›
+						{certName(ahead.certification)} {short(parseDay(ahead.date))} ›
 					</button>
 				)}
 			</div>
@@ -329,19 +327,21 @@ export function PracticeMap({
 					<span className="flex items-center gap-1">
 						Less
 						{ACTIVITY.map(t => (
-							<i key={t} className={cn("size-2.5 rounded-[2px]", t)} />
+							<Swatch key={t} className={t} />
 						))}
 						More
 					</span>
 				) : (
 					<>
-						<Key tint="bg-success">passed</Key>
-						<Key tint="bg-warning/60">below the pass line</Key>
+						<Key tone="success">passed</Key>
+						<Key tone="warning">below the pass line</Key>
 					</>
 				)}
 				<span className="flex-1" />
-				<Key tint="ring-[1.5px] ring-highlight ring-inset">planned</Key>
-				<Key tint="bg-highlight">exam</Key>
+				<Key tone="highlight" variant="ring">
+					planned
+				</Key>
+				<Key tone="highlight">exam</Key>
 			</div>
 			{tip && (
 				<div
@@ -356,10 +356,14 @@ export function PracticeMap({
 	);
 }
 
-function Key({ tint, children }: { tint: string; children: React.ReactNode }) {
+function Key({
+	tone,
+	variant,
+	children,
+}: Pick<React.ComponentProps<typeof Swatch>, "tone" | "variant"> & { children: React.ReactNode }) {
 	return (
 		<span className="flex items-center gap-1">
-			<i className={cn("size-2.5 rounded-[2px]", tint)} />
+			<Swatch tone={tone} variant={variant} />
 			{children}
 		</span>
 	);

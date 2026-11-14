@@ -2,14 +2,14 @@
 // in both themes. Development only (`pnpm vite` → /kit.html); the app build
 // does not include it. When a component or variant is added, add it here.
 import { Alert } from "@ckpro/ui/components/alert";
-import { Badge, BadgeButton } from "@ckpro/ui/components/badge";
+import { Badge } from "@ckpro/ui/components/badge";
 import { Button } from "@ckpro/ui/components/button";
 import { Capsule, CapsuleItem } from "@ckpro/ui/components/capsule";
 import { Card, CardDescription, CardHeader, CardTitle } from "@ckpro/ui/components/card";
 import { Chip } from "@ckpro/ui/components/chip";
 import { CodeBlock } from "@ckpro/ui/components/code-block";
 import { ConfirmDialog } from "@ckpro/ui/components/confirm-dialog";
-import { DayMarker } from "@ckpro/ui/components/day-marker";
+import { dayMarkerVariants } from "@ckpro/ui/components/day-marker";
 import { Disclosure, DisclosureButton } from "@ckpro/ui/components/disclosure";
 import {
 	DropdownMenu,
@@ -22,6 +22,7 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@ckpro/ui/components/dropdown-menu";
+import { FadeScroll } from "@ckpro/ui/components/fade-scroll";
 import { IconButton } from "@ckpro/ui/components/icon-button";
 import { InlineCode } from "@ckpro/ui/components/inline-code";
 import { Input } from "@ckpro/ui/components/input";
@@ -65,6 +66,7 @@ import { Splitter, usePanelSize } from "@ckpro/ui/components/splitter";
 import { Stat, StatGroup } from "@ckpro/ui/components/stat";
 import { StatusDot } from "@ckpro/ui/components/status-dot";
 import { Stepper } from "@ckpro/ui/components/stepper";
+import { Swatch } from "@ckpro/ui/components/swatch";
 import { Switch } from "@ckpro/ui/components/switch";
 import {
 	Table,
@@ -78,7 +80,6 @@ import { Terminal } from "@ckpro/ui/components/terminal";
 import { Textarea } from "@ckpro/ui/components/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckpro/ui/components/tooltip";
 import { Truncated } from "@ckpro/ui/components/truncated";
-import { useScrollEdges } from "@ckpro/ui/hooks/use-scroll-edges";
 import {
 	Check,
 	ChevronDown,
@@ -234,6 +235,9 @@ function Gallery() {
 						</span>
 						<span className="font-bold text-title">text-title · a screen's title</span>
 						<SectionTitle>SectionTitle · a section</SectionTitle>
+						<SectionTitle size="lead">
+							SectionTitle lead · inline beside controls (a week's name)
+						</SectionTitle>
 						<SectionTitle size="group">SectionTitle group · over a group of rows</SectionTitle>
 						<span className="text-base">text-base · body</span>
 						<span className="text-sm">text-sm · default UI text</span>
@@ -252,7 +256,7 @@ function Gallery() {
 
 				<Section
 					title="Button"
-					note="Text actions: an area's main action in the accent (default, or pushDefault push-sized; one), push for the others, assistant to ask the assistant, quiet for small ones. Only solid and glass, over a picture, grow and glow on hover; every button gives a little under a press. Icon-only actions use IconButton."
+					note="Text actions: an area's main action in the accent (default, or pushDefault push-sized; one), push for the others, assistant to ask the assistant, quiet for small ones. Every button gives a little under a press. Icon-only actions use IconButton."
 				>
 					<Row>
 						{(
@@ -277,9 +281,6 @@ function Gallery() {
 						<Button size="push">push · 28px</Button>
 						<Button size="sm">sm · 32px</Button>
 						<Button>default · 36px</Button>
-						<Button size="pill" variant="solid">
-							pill
-						</Button>
 						<Button size="sm" disabled>
 							disabled
 						</Button>
@@ -433,7 +434,7 @@ function Gallery() {
 
 				<Section
 					title="Chip · Badge"
-					note="Chip: a pill you can pick or remove; planned (outlined) and exam (solid) mark what is set for a day. Badge: a small status label; BadgeButton one that acts (narrow in a calendar cell)."
+					note="Chip: a pill you can pick or remove. Badge: a small status label; tag and warningTag the notes beside a choice."
 				>
 					<Row>
 						<Chip selected={chip} onClick={() => setChip(c => !c)}>
@@ -442,21 +443,15 @@ function Gallery() {
 						<Chip count={3}>With count</Chip>
 						<Chip onRemove={() => toast("Removed")}>Removable</Chip>
 						<Chip>Static</Chip>
-						<Chip variant="planned">Planned</Chip>
-						<Chip variant="exam">Exam</Chip>
 					</Row>
 					<Row>
 						{(
 							[
 								"subtle",
 								"accent",
-								"solid",
 								"success",
 								"warning",
 								"destructive",
-								"planned",
-								"exam",
-								"overlay",
 								"tag",
 								"warningTag",
 							] as const
@@ -465,14 +460,6 @@ function Gallery() {
 								{v}
 							</Badge>
 						))}
-					</Row>
-					<Row>
-						<BadgeButton variant="accent" onClick={() => toast("Switched")}>
-							Exam
-						</BadgeButton>
-						<BadgeButton variant="accent" size="narrow" onClick={() => toast("Switched")}>
-							P
-						</BadgeButton>
 					</Row>
 				</Section>
 
@@ -555,9 +542,9 @@ function Gallery() {
 							>
 								<RowCover aria-label={`Start practice: ${title}`} onClick={() => {}} />
 								<span className="min-w-0 flex-1 truncate text-callout">{title}</span>
-								<BadgeButton variant="accent" className="relative">
-									Practice
-								</BadgeButton>
+								<Button size="push" variant="push" className="relative">
+									Plan
+								</Button>
 							</div>
 						))}
 					</div>
@@ -649,31 +636,32 @@ function Gallery() {
 				</Section>
 
 				<Section
-					title="DayMarker"
-					note="A day's number in a calendar-like grid: today ringed, the exam's day tinted, the picked day solid; the strongest shows."
+					title="Day marker · Swatch"
+					note="dayMarkerVariants: a day's number in a week's header, the exam's day tinted, today solid. Swatch: a small square keying a colour, filled in a tone or ringed (planned); sm 8px, md 10px."
 				>
 					<Row>
-						<DayMarker>3</DayMarker>
-						<DayMarker today>4</DayMarker>
-						<DayMarker exam>5</DayMarker>
-						<DayMarker picked>6</DayMarker>
-						<DayMarker today picked>
-							7
-						</DayMarker>
-						<DayMarker outside>31</DayMarker>
-						<DayMarker size="sm">Mon 3</DayMarker>
-						<DayMarker size="sm" today>
-							Tue 4
-						</DayMarker>
-						<DayMarker size="sm" picked>
-							Wed 5
-						</DayMarker>
+						<span className={dayMarkerVariants({})}>3</span>
+						<span className={dayMarkerVariants({ exam: true })}>4</span>
+						<span className={dayMarkerVariants({ picked: true })}>5</span>
+					</Row>
+					<Row>
+						{(["success", "warning", "destructive", "highlight", "muted"] as const).map(t => (
+							<span key={t} className="flex items-center gap-1 text-caption">
+								<Swatch tone={t} /> {t}
+							</span>
+						))}
+						<span className="flex items-center gap-1 text-caption">
+							<Swatch variant="ring" tone="muted" /> ring
+						</span>
+						<span className="flex items-center gap-1 text-caption">
+							<Swatch size="sm" tone="highlight" /> sm
+						</span>
 					</Row>
 				</Section>
 
 				<Section
 					title="Scroll edges"
-					note="useScrollEdges + fade-x / fade-y: a scroller fades at the edge that has more; a wheel scrolls it sideways."
+					note="FadeScroll (useScrollEdges + fade-x / fade-y, no scroll bar): a scroller fades at the edge that has more; sideways, a wheel scrolls it too."
 				>
 					<FadeDemo />
 				</Section>
@@ -781,13 +769,18 @@ function Gallery() {
 
 				<Section
 					title="Stat"
-					note="Figures side by side on one card, an icon above each when it helps."
+					note="Figures side by side on one card, an icon above each when it helps; inline, smaller ones in a row beside a heading (a week's figures), valueClassName tinting one."
 				>
 					<StatGroup>
 						<Stat icon={<Monitor />} value={10} label="questions" />
 						<Stat icon={<Info />} value="60 min" label="time" />
 						<Stat value="66%" label="to pass" />
 					</StatGroup>
+					<Row>
+						<Stat size="inline" value="3" label="days practised" />
+						<Stat size="inline" value="72%" valueClassName="text-success" label="average score" />
+						<Stat size="inline" value="–" valueClassName="text-muted-foreground" label="planned" />
+					</Row>
 				</Section>
 
 				<Section
@@ -889,9 +882,15 @@ function Gallery() {
 									Menu
 								</Button>
 							</PopoverTrigger>
-							<PopoverContent className={`${menu.surface} w-56`}>
+							<PopoverContent variant="menu" className="w-56">
 								<div className={menu.header}>Section</div>
 								<MenuItem checked>Checked row</MenuItem>
+								<MenuItem pressed hint="exam" hintClassName="text-highlight opacity-100">
+									Pressed toggle
+								</MenuItem>
+								<MenuItem pressed={false} hint="60 min">
+									Toggle, off
+								</MenuItem>
 								<MenuItem hint="⌘K">Row with a hint</MenuItem>
 								<MenuItem icon={<Copy />}>Row with an icon</MenuItem>
 								<MenuItem detail="Its description">Two-line row</MenuItem>
@@ -1136,29 +1135,24 @@ function SplitterSample() {
 }
 
 function FadeDemo() {
-	const [row] = useScrollEdges<HTMLDivElement>("x");
-	const [list] = useScrollEdges<HTMLDivElement>("y");
 	return (
 		<div className="grid max-w-xl gap-3">
-			<div ref={row} className="no-scrollbar fade-x flex gap-2 overflow-x-auto">
+			<FadeScroll axis="x" className="flex gap-2">
 				{Array.from({ length: 14 }, (_, i) => (
 					// biome-ignore lint/suspicious/noArrayIndexKey: a fixed sample
 					<Card key={i} padding="sm" className="w-32 shrink-0">
 						Item {i + 1}
 					</Card>
 				))}
-			</div>
-			<div
-				ref={list}
-				className="no-scrollbar fade-y h-32 overflow-y-auto rounded-xl border border-border"
-			>
+			</FadeScroll>
+			<FadeScroll axis="y" className="h-32 rounded-xl border border-border">
 				{Array.from({ length: 12 }, (_, i) => (
 					// biome-ignore lint/suspicious/noArrayIndexKey: a fixed sample
 					<div key={i} className="border-border border-b px-3 py-1.5 text-sm">
 						Row {i + 1}
 					</div>
 				))}
-			</div>
+			</FadeScroll>
 		</div>
 	);
 }

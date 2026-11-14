@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { calls, launch, sample } from "./backend";
+import { calls, launch, withSettings } from "./backend";
+import { expect, test } from "./fixture";
 
 test("turning the assistant off is kept", async ({ page }) => {
 	await launch(page, "/settings/assistant", { agent_settings: null });
@@ -19,7 +19,7 @@ test("turning the assistant off is kept", async ({ page }) => {
 });
 
 test("analytics can be turned off", async ({ page }) => {
-	await launch(page, "/settings", { settings: { ...sample.settings, analytics: true } });
+	await launch(page, "/settings", { settings: withSettings({ analytics: true }) });
 	const analytics = page.getByRole("switch", { name: "Share usage analytics" });
 	await expect(analytics).toBeChecked();
 	await analytics.click();
