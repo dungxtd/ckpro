@@ -103,6 +103,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-linux
+      - name: Format
+        working-directory: desktop/src-tauri
+        run: cargo fmt --check
       - name: Lint
         working-directory: desktop/src-tauri
         run: cargo clippy --locked --all-targets -- -D warnings
@@ -113,9 +116,35 @@ jobs:
         working-directory: desktop/src-tauri
         run: cargo run --locked --quiet -- lab lint ../../packs/core
 
+  # The macOS and Windows code (platform/, the keyed store's crypto) is
+  # otherwise only compiled by a release: linted here on each system
+  rust-other:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+      # The build embeds the interface (frontendDist); lint does not need it built
+      - name: Interface placeholder
+        shell: bash
+        run: mkdir -p desktop/dist && [ -f desktop/dist/index.html ] || echo '<!doctype html>' > desktop/dist/index.html
+      - name: Lint
+        working-directory: desktop/src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings
+
   ci:
     if: always()
-    needs: [changes, interface, journeys, rust]
+    needs: [changes, interface, journeys, rust, rust-other]
     runs-on: ubuntu-latest
     steps:
       - name: Every suite that ran passed
