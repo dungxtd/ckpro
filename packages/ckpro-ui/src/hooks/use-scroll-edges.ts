@@ -27,14 +27,25 @@ export function useScrollEdges<T extends HTMLElement>(axis: "x" | "y") {
 		edges();
 		element.addEventListener("scroll", edges, { passive: true });
 		if (axis === "x") element.addEventListener("wheel", wheel, { passive: false });
-		// Its size or its content changing moves the edges too
+		// Its size or its content changing moves the edges too: children
+		// added or removed later (a plan added to a day) are watched as well
 		const watch = new ResizeObserver(edges);
-		watch.observe(element);
-		for (const child of element.children) watch.observe(child);
+		const observe = () => {
+			watch.disconnect();
+			watch.observe(element);
+			for (const child of element.children) watch.observe(child);
+		};
+		observe();
+		const added = new MutationObserver(() => {
+			observe();
+			edges();
+		});
+		added.observe(element, { childList: true });
 		return () => {
 			element.removeEventListener("scroll", edges);
 			element.removeEventListener("wheel", wheel);
 			watch.disconnect();
+			added.disconnect();
 		};
 	}, [element, axis]);
 	return [ref, element] as const;

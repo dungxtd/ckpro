@@ -86,7 +86,9 @@ fn checked_day(day: &str) -> AppResult<&str> {
 }
 
 /// Each plan with its exam and whether `history` has it taken on its day
-fn views(plans: Vec<StoredPlan>, pack: &LoadedPack, history: &[HistoryEntry], offset_minutes: i32) -> Vec<PlanView> {
+/// (each attempt on the day of this computer's clock when it began, summer
+/// time or not, as the interface places it)
+fn views(plans: Vec<StoredPlan>, pack: &LoadedPack, history: &[HistoryEntry]) -> Vec<PlanView> {
     plans
         .into_iter()
         .map(|p| {
@@ -94,7 +96,7 @@ fn views(plans: Vec<StoredPlan>, pack: &LoadedPack, history: &[HistoryEntry], of
             let done = history
                 .iter()
                 .filter(|h| h.exam_id == p.exam_id && h.result.worked())
-                .filter(|h| day_of(h.result.started_at, offset_minutes) == p.day)
+                .filter(|h| local_day(h.result.started_at) == p.day)
                 .map(|h| h.result.score)
                 .fold(None, |best: Option<f64>, s| Some(best.map_or(s, |b| b.max(s))));
             PlanView {
@@ -111,11 +113,10 @@ fn views(plans: Vec<StoredPlan>, pack: &LoadedPack, history: &[HistoryEntry], of
 }
 
 impl Exams {
-    /// The plans from `from` to `to` (both included), attempts placed on
-    /// days `offset_minutes` east of UTC
-    pub fn plans_between(&self, from: &str, to: &str, offset_minutes: i32) -> AppResult<Vec<PlanView>> {
+    /// The plans from `from` to `to` (both included)
+    pub fn plans_between(&self, from: &str, to: &str) -> AppResult<Vec<PlanView>> {
         let plans = self.store.plans(checked_day(from)?, checked_day(to)?)?;
-        Ok(views(plans, &self.pack(), &self.history(), offset_minutes))
+        Ok(views(plans, &self.pack(), &self.history()))
     }
 
     /// Plan an exam of the bank on a day

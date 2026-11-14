@@ -165,8 +165,9 @@ impl Store {
     }
 
     /// Whether the assistant is on (Settings' "Use the assistant"): the one
-    /// reading of it. Settings never saved leave it on; settings that cannot
-    /// be read leave it off, the app has no AI then
+    /// reading of it. Settings never saved, or saved in a shape this version
+    /// cannot read, are the defaults (on); a database that cannot be read
+    /// leaves it off, the app has no AI then
     pub fn assistant_enabled(&self) -> bool {
         self.settings().is_ok_and(|s| s.assistant_enabled)
     }

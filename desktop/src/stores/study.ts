@@ -83,34 +83,39 @@ export function useShownStudy() {
 /**
  * The plans from `from` to `to` (YYYY-MM-DD), read as the range changes
  * and again whenever the study changes (`version`), while `enabled`.
- * `plans` is null until the range's are read (or when the read failed:
- * `failed`); a later range's answer is never overwritten by an earlier
- * one that came after it. `reload` reads them again
+ * `plans` is null until the first are read; moving to another range, the
+ * last ones stay until its own come (no blank between). `failed`: the
+ * range's read failed. A later range's answer is never overwritten by an
+ * earlier one that came after it. `reload` reads them again (not failed
+ * meanwhile: read again)
  */
 export function usePlans(from: string, to: string, { enabled = true } = {}) {
 	const version = useStudy(s => s.version);
 	const [retry, setRetry] = useState(0);
 	const range = `${from}:${to}`;
-	const [read, setRead] = useState<{ range: string; plans: PlanView[] | null }>({
+	const [read, setRead] = useState<{ range: string; plans: PlanView[] | null; failed: boolean }>({
 		range: "",
 		plans: null,
+		failed: false,
 	});
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a new version or retry is the cue
 	useEffect(() => {
 		if (!enabled) return;
 		let current = true;
 		examApi.plans(from, to).then(
-			plans => current && setRead({ range, plans }),
-			() => current && setRead({ range, plans: null })
+			plans => current && setRead({ range, plans, failed: false }),
+			() => current && setRead({ range, plans: null, failed: true })
 		);
 		return () => {
 			current = false;
 		};
 	}, [from, to, range, enabled, version, retry]);
-	const answered = enabled && read.range === range;
 	return {
-		plans: answered ? read.plans : null,
-		failed: answered && read.plans === null,
-		reload: () => setRetry(n => n + 1),
+		plans: enabled ? read.plans : null,
+		failed: enabled && read.range === range && read.failed,
+		reload: () => {
+			setRead(r => ({ ...r, failed: false }));
+			setRetry(n => n + 1);
+		},
 	};
 }

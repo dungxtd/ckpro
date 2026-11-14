@@ -116,12 +116,12 @@ pub async fn list_exams(app: AppHandle) -> Vec<ExamSummary> {
     off_main_or_default(app, |app| Ok(app.state::<Arc<Exams>>().catalog())).await
 }
 
-/// The plans from `from` to `to` (YYYY-MM-DD, both included); `offset_minutes`
-/// east of UTC places attempts on the candidate's own days.
+/// The plans from `from` to `to` (YYYY-MM-DD, both included), each attempt
+/// placed on this computer's day.
 #[tauri::command]
 #[specta::specta]
-pub async fn plans_between(app: AppHandle, from: String, to: String, offset_minutes: i32) -> AppResult<Vec<PlanView>> {
-    off_main(app, move |app| app.state::<Arc<Exams>>().plans_between(&from, &to, offset_minutes)).await
+pub async fn plans_between(app: AppHandle, from: String, to: String) -> AppResult<Vec<PlanView>> {
+    off_main(app, move |app| app.state::<Arc<Exams>>().plans_between(&from, &to)).await
 }
 
 /// Plan an exam on a day; returns the plan's id.
@@ -469,8 +469,10 @@ pub async fn exam_progress(app: AppHandle, attempt_id: String) -> AppResult<Prog
 
 #[tauri::command]
 #[specta::specta]
-pub async fn save_exam_progress(app: AppHandle, attempt_id: String, progress: Progress) -> AppResult<()> {
-    off_main(app, move |app| app.state::<Arc<Store>>().save_progress(&attempt_id, &progress)).await
+// Saves stay on the main thread: commands there run one at a time in the
+// order they come, so a later save is never overwritten by an earlier one
+pub fn save_exam_progress(store: State<'_, Arc<Store>>, attempt_id: String, progress: Progress) -> AppResult<()> {
+    store.save_progress(&attempt_id, &progress)
 }
 
 /// The exam desk's display settings (desktop zoom and resolution, text size).
@@ -482,22 +484,20 @@ pub async fn settings(app: AppHandle) -> AppResult<Settings> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn save_settings(app: AppHandle, settings: Settings) -> AppResult<()> {
-    off_main(app, move |app| {
-        let store = app.state::<Arc<Store>>();
-        let targets = store.settings().ok().map(|s| s.targets);
-        store.save_settings(&settings)?;
-        // Turned off: what it was writing stops
-        if !settings.assistant_enabled {
-            app.state::<Coach>().stop_answers();
-        }
-        // Other exams aimed at: other readiness to read
-        if targets.as_ref() != Some(&settings.targets) {
-            crate::study_changed(app, false);
-        }
-        Ok(())
-    })
-    .await
+// On the main thread, as save_exam_progress: saves land in the order made
+pub fn save_settings(app: AppHandle, settings: Settings) -> AppResult<()> {
+    let store = app.state::<Arc<Store>>();
+    let targets = store.settings().ok().map(|s| s.targets);
+    store.save_settings(&settings)?;
+    // Turned off: what it was writing stops
+    if !settings.assistant_enabled {
+        app.state::<Coach>().stop_answers();
+    }
+    // Other exams aimed at: other readiness to read
+    if targets.as_ref() != Some(&settings.targets) {
+        crate::study_changed(&app, false);
+    }
+    Ok(())
 }
 
 /// The last long operations, with their logs (later changes arrive as

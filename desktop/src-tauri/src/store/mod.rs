@@ -194,8 +194,6 @@ impl Store {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| AppError::io("creating the data directory", e))?;
         }
-        // A copy in the clear an earlier version kept beside it goes
-        let _ = std::fs::remove_file(path.with_extension("unencrypted"));
         let conn = keyed(path, key)?;
         if readable(&conn) {
             drop(conn);
@@ -212,7 +210,11 @@ impl Store {
     }
 
     fn keyed_store(path: &Path, key: &str) -> AppResult<Self> {
-        Ok(Self { conn: Mutex::new(migrated(keyed(path, key)?)?) })
+        let store = Self { conn: Mutex::new(migrated(keyed(path, key)?)?) };
+        // Opened with this key: a copy in the clear an earlier version kept
+        // beside it goes (not before: it may be the only readable one)
+        let _ = std::fs::remove_file(path.with_extension("unencrypted"));
+        Ok(store)
     }
 
     #[cfg(test)]

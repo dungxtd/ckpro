@@ -54,10 +54,10 @@ export function weekName(week: Date, today: string): string {
  * across two months */
 export function weekRange(week: Date): string {
 	const end = addDays(week, 6);
-	const short = (d: Date) => d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-	return week.getMonth() === end.getMonth()
-		? `${week.getDate()} – ${end.toLocaleDateString(undefined, { day: "numeric", month: "long" })}`
-		: `${short(week)} – ${short(end)}`;
+	// The locale's own range ("9 – 15 November", "November 9 – 15"); the
+	// month in full when one month holds the week
+	const month = week.getMonth() === end.getMonth() ? "long" : "short";
+	return new Intl.DateTimeFormat(undefined, { day: "numeric", month }).formatRange(week, end);
 }
 
 /** Days in a row with an attempt, up to today (or yesterday, when today

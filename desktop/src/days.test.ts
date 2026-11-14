@@ -54,7 +54,15 @@ describe("days apart", () => {
 	});
 
 	it("spans a week's days, one month or two", () => {
-		expect(weekRange(new Date(2026, 10, 9))).toMatch(/^9 – .*15/);
-		expect(weekRange(new Date(2026, 10, 30))).toMatch(/30.* – .*6/);
+		// As the locale writes a range: the first day's number with its month,
+		// never glued onto the last day's date
+		const range = (a: Date, b: Date, month: "long" | "short") =>
+			new Intl.DateTimeFormat(undefined, { day: "numeric", month }).formatRange(a, b);
+		expect(weekRange(new Date(2026, 10, 9))).toBe(
+			range(new Date(2026, 10, 9), new Date(2026, 10, 15), "long")
+		);
+		expect(weekRange(new Date(2026, 10, 30))).toBe(
+			range(new Date(2026, 10, 30), new Date(2026, 11, 6), "short")
+		);
 	});
 });

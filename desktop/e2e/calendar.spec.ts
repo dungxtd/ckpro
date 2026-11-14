@@ -49,13 +49,6 @@ test("a plan that cannot be kept says why", async ({ page }) => {
 	await expect(page.getByText("no exam 'gone'")).toBeVisible();
 });
 
-test("the calendar asks for plans in the candidate's own time", async ({ page }) => {
-	await launch(page, "/calendar");
-	await expect.poll(async () => (await calls(page, "plans_between")).length).toBeGreaterThan(0);
-	const [first] = (await calls(page, "plans_between")) as { offsetMinutes: number }[];
-	expect(first.offsetMinutes).toBe(await page.evaluate(() => -new Date().getTimezoneOffset()));
-});
-
 test("a segmented control is one Tab stop: the arrows choose, Home and End go to the ends", async ({
 	page,
 }) => {

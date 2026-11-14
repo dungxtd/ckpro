@@ -413,13 +413,21 @@ pub fn opened(store: &Store, exams: &Exams, data_dir: &Path, session: i32, provi
     if check == draft {
         return Ok(draft);
     }
-    ExamDraft::update(store, session, |draft| {
-        if !proving() {
-            current(draft);
-        }
+    // A proof running keeps the draft as it is proving it: answered as it is.
+    // Checked again under the store's lock, just before the write, for a
+    // proof begun meanwhile
+    if proving() {
+        return Ok(draft);
+    }
+    let refuse = || if proving() { Err(AppError::busy("a proof is running")) } else { Ok(()) };
+    match ExamDraft::update_unless(store, session, refuse, |draft| {
+        current(draft);
         Ok(())
-    })
-    .map(|(draft, ())| draft)
+    }) {
+        Ok((draft, ())) => Ok(draft),
+        Err(_) if proving() => Ok(draft),
+        Err(e) => Err(e),
+    }
 }
 
 #[cfg(test)]
