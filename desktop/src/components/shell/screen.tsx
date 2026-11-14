@@ -25,6 +25,7 @@ export function ScreenTitle({ className, ...props }: React.ComponentProps<"h1">)
 export function Screen({
 	title,
 	onBack,
+	accessory,
 	actions,
 	width = "reading",
 	className,
@@ -33,6 +34,8 @@ export function Screen({
 	title: ReactNode;
 	/** A page under another (Settings' own): a chevron back to it */
 	onBack?: () => void;
+	/** Right after the title (a control the whole screen follows) */
+	accessory?: ReactNode;
 	/** Beside the title, at the end */
 	actions?: ReactNode;
 	width?: keyof typeof WIDTHS;
@@ -54,7 +57,10 @@ export function Screen({
 						<ChevronLeft />
 					</IconButton>
 				)}
-				<ScreenTitle className="flex-1">{title}</ScreenTitle>
+				<ScreenTitle className={cn(!accessory && "flex-1")}>{title}</ScreenTitle>
+				{accessory && (
+					<div className="ml-2 flex min-w-0 flex-1 items-center gap-2.5">{accessory}</div>
+				)}
 				{actions}
 			</header>
 			{children}

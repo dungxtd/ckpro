@@ -116,6 +116,11 @@ export async function launch(page: Page, path = "/", replies: Record<string, Rep
 						return reply.value;
 					}
 					if (reply && typeof reply === "object" && "$error" in reply) throw reply.$error;
+					// Plans are read by days, as the Rust side does
+					if (cmd === "plans_between" && Array.isArray(reply))
+						return reply.filter(
+							(p: { day: string }) => p.day >= (args.from as string) && p.day <= (args.to as string)
+						);
 					return reply;
 				},
 				metadata: {
