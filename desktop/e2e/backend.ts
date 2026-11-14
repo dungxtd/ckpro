@@ -274,6 +274,11 @@ export async function launch(page: Page, path = "/", replies: Record<string, Rep
 								certification: string;
 							}[];
 							const exam = exams.find(e => e.id === args.examId);
+							// Refused as Rust refuses them: an exam not in the bank, or one
+							// planned on that day already
+							if (!exam) throw { code: "not_found", message: `no exam '${args.examId}'` };
+							if (plans.some(p => p.day === args.day && p.exam_id === args.examId))
+								throw { code: "invalid", message: "That exam is planned on that day already" };
 							plans.push({
 								id,
 								day: args.day as string,

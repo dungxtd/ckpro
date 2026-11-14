@@ -314,8 +314,7 @@ export const examApi = {
 	solution: (questionId: string) => unwrap(commands.questionSolution(questionId)),
 	history: () => commands.examHistory(),
 	/** Plans from `from` to `to` (YYYY-MM-DD), attempts placed on the candidate's own days */
-	plans: (from: string, to: string) =>
-		unwrap(commands.plansBetween(from, to, -new Date().getTimezoneOffset())),
+	plans: (from: string, to: string) => unwrap(commands.plansBetween(from, to)),
 	planAdd: (day: string, examId: string, mode: Mode) => unwrap(commands.planAdd(day, examId, mode)),
 	planRemove: (id: number) => unwrap(commands.planRemove(id)),
 	/** Per domain, and the predicted score, for a certification */

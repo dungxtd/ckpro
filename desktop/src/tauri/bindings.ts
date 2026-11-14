@@ -76,10 +76,10 @@ export const commands = {
 	 */
 	deleteExam: (id: string) => typedError<string[], AppError>(__TAURI_INVOKE("delete_exam", { id })),
 	/**
-	 *  The plans from `from` to `to` (YYYY-MM-DD, both included); `offset_minutes`
-	 *  east of UTC places attempts on the candidate's own days.
+	 *  The plans from `from` to `to` (YYYY-MM-DD, both included), each attempt
+	 *  placed on this computer's day.
 	 */
-	plansBetween: (from: string, to: string, offsetMinutes: number) => typedError<PlanView_Serialize[], AppError>(__TAURI_INVOKE("plans_between", { from, to, offsetMinutes })),
+	plansBetween: (from: string, to: string) => typedError<PlanView_Serialize[], AppError>(__TAURI_INVOKE("plans_between", { from, to })),
 	/**  Plan an exam on a day; returns the plan's id. */
 	planAdd: (day: string, examId: string, mode: Mode) => typedError<number, AppError>(__TAURI_INVOKE("plan_add", { day, examId, mode })),
 	/**  Remove a plan. */

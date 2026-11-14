@@ -7,7 +7,7 @@
 
 use crate::error::{AppError, AppResult};
 use crate::lab::exam::Exams;
-use crate::lab::exam::plan::{local_day, local_offset_minutes};
+use crate::lab::exam::plan::local_day;
 use crate::runtime::activity::now_ms;
 use crate::store::Store;
 use crate::studio::draft::ExamDraft;
@@ -236,7 +236,7 @@ impl Tools {
     }
 
     fn plans(&self, from: &str, to: &str) -> AppResult<String> {
-        let plans = self.exams.plans_between(from, to, local_offset_minutes(now_ms()))?;
+        let plans = self.exams.plans_between(from, to)?;
         Ok(pretty(
             &plans.iter().map(|p| json!({ "day": p.day, "exam": p.title, "mode": p.mode, "done_score": p.done })).collect::<Vec<_>>(),
         ))
