@@ -99,8 +99,8 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 - `exam/plan.rs` is the study plan, worked out from the history without AI:
   plans (an exam on a day, as an exam or as practice) and readiness for the
   target exam. A score is predicted only once enough of the exam is measured
-  (`predict_at`). Days are the candidate's own (the interface sends its
-  offset).
+  (`predict_at`). Days are the candidate's own: this computer's UTC offset,
+  read where it is used (the Calendar sends its own too).
 - `mine.rs` is the candidate's own pack (`packs/mine` in the data
   directory), merged with the bundled one: questions written in Create, an
   exam per certification of them all, and exams built in Create
@@ -109,13 +109,19 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 
 ## Study (Home, Calendar)
 
-- Home: the target exam set from a terminal line (`kubectl set exam …`), the
-  day's plan, the week, readiness, and the prep map (each day of the
-  preparation tinted by its best score).
-- Calendar: month, week and day views of plans and attempts; an exam is
-  planned on a day from a picker, switched between exam and practice, moved
-  or removed.
-- Both read the same figures (`stores/study.ts`, `components/study/`), read
+- Home: a grid of modules the candidate arranges (`components/home/`, one
+  file per module under `modules/`, the figures from `useHomeData`): today's
+  plans, the exam days, readiness, the practice map, the retry list, the
+  week, the domains, the latest attempts and, with the assistant on, Claude.
+- Calendar: the preparation as a map by best score (a lane per exam), then
+  the week of the day picked as 7 columns, each day's exam, attempts and
+  plans; a plan is started from its line or removed (with Undo).
+- `ExamMenu` (beside both titles) picks the exam shown (one, or all) and
+  changes or adds the exams aimed at (`TargetEditor`: the day, the days kept
+  free). `PlanPicker` plans a day: a menu of the exams, that day's planned
+  ones ticked (pressed again, unplanned), as an exam or as practice.
+- Both read the same figures (`stores/study.ts`: `useShownStudy` for the
+  exams shown, `usePlans` for a range of plans; `components/study/`), read
   again when Rust says the study changed (`StudyChanged`): an attempt ends, a
   plan or the target changes, an exam is deleted or saved.
 
@@ -162,16 +168,17 @@ packs/core/               the question bank (YAML) and its JSON Schemas
   runs. Privacy settings decide whether the last check and a cluster
   snapshot go with a question. A question the agent touched shows "Claude
   helped" on the result.
-- `generate.rs` writes one question for `ckpro lab generate` (the CLI); its
-  rules and schema are also what Create's conversation is told.
+- What a question is and the rules it is proven against, with the question
+  schema, are what Create's conversation is told (`studio/rules.rs`).
 
 ## Rules the core keeps
 
 - **One guard for the assistant**: `Exams::assistant_allowed()` refuses
   every assistant command and MCP tool while an exam-mode attempt starts or
   runs (`AppError::ExamMode`), judged again where each answer and proof
-  begins, under the lock its stop takes; `Coach::require_enabled` refuses
-  while it is off (`AssistantOff`). Every agent session runs in the
+  begins, under the lock its stop takes; `Store::assistant_enabled` is the
+  one reading of the assistant switch (off when the settings cannot be
+  read), and every assistant entry refuses while it is off (`AssistantOff`). Every agent session runs in the
   permission mode that asks, whatever the candidate's own Claude settings
   say.
 - **Errors are typed** where they happen (`AppError`: `DockerUnavailable`,

@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { dayKey } from "@/days";
-import type { ExamReadiness, ExamSummary, HistoryEntry } from "@/tauri/api";
+import type { ExamReadiness, ExamSummary, ExamTarget, HistoryEntry, PlanView } from "@/tauri/api";
 import {
 	activityLevel,
 	bestByDay,
-	daysUntil,
 	freeDay,
 	level,
 	longestStreak,
@@ -12,7 +11,9 @@ import {
 	mapWeeks,
 	minutesByDay,
 	passed,
+	plannedByDay,
 	predicted,
+	prepStart,
 	retryList,
 	scoreColor,
 	suggestion,
@@ -120,10 +121,6 @@ describe("home figures", () => {
 		expect(suggestion([...exams, exam("new")], history, "cka")?.reason).toBe("not tried yet");
 		expect(suggestion([], history, null)).toBeNull();
 	});
-
-	it("counts the days to the exam", () => {
-		expect(daysUntil("2026-12-15", new Date(2026, 10, 1, 18))).toBe(44);
-	});
 });
 
 describe("the result's colour and next day", () => {
@@ -216,5 +213,34 @@ describe("the figures Home's modules show", () => {
 	it("counts the attempts passed and the best one", () => {
 		const figures = passed(history);
 		expect([figures.passed, figures.of, figures.best?.attempt_id]).toEqual([3, 5, "4"]);
+	});
+});
+
+describe("the plans and the preparation", () => {
+	const plan = (id: number, day: string, certification: string, done: number | null = null) =>
+		({ id, day, certification, done, exam_id: "e", title: "E", mode: "practice" }) as PlanView;
+
+	it("marks the days ahead with plans still to do", () => {
+		const days = plannedByDay(
+			[
+				plan(1, "2026-11-14", "cka"),
+				plan(2, "2026-11-15", "cka"),
+				plan(3, "2026-11-15", "ckad"),
+				plan(4, "2026-11-16", "cka", 80),
+			],
+			"2026-11-14"
+		);
+		expect([...days]).toEqual([["2026-11-15", ["cka", "ckad"]]]);
+	});
+
+	it("starts the preparation at the earliest exam's start, else the first attempt", () => {
+		const today = new Date(2026, 10, 14);
+		const target = (started: string) =>
+			({ certification: "cka", date: "2027-01-01", started, rest_days: [] }) as ExamTarget;
+		expect(prepStart([target("2026-10-01"), target("2026-09-20")], history, today)).toBe(
+			"2026-09-20"
+		);
+		expect(prepStart([], history, today)).toBe("2026-10-12");
+		expect(prepStart([], [], today)).toBe("2026-09-05");
 	});
 });

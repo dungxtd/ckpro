@@ -1,43 +1,27 @@
 import { Loading } from "@ckpro/ui/components/loading";
-import { SegmentedControl } from "@ckpro/ui/components/segmented-control";
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { DockerBanner } from "@/components/environment/docker-banner";
 import type { Places } from "@/components/home/layout";
 import { ModuleGrid, type ModuleSpec } from "@/components/home/module-grid";
-import {
-	AskClaude,
-	Domains,
-	ExamDay,
-	InProgress,
-	type Measured,
-	ModuleCard,
-	Passed,
-	Readiness,
-	Recent,
-	RetryList,
-	ThisWeek,
-} from "@/components/home/modules";
-import { Today } from "@/components/home/today";
+import { AskClaude } from "@/components/home/modules/ask-claude";
+import { Domains } from "@/components/home/modules/domains";
+import { ExamDay } from "@/components/home/modules/exam-day";
+import { InProgress } from "@/components/home/modules/in-progress";
+import { ModuleCard } from "@/components/home/modules/module-card";
+import { Passed } from "@/components/home/modules/passed";
+import { Readiness } from "@/components/home/modules/readiness";
+import { Recent } from "@/components/home/modules/recent";
+import { RetryList } from "@/components/home/modules/retry-list";
+import { ThisWeek } from "@/components/home/modules/this-week";
+import { Today } from "@/components/home/modules/today";
+import { useHomeData } from "@/components/home/use-home-data";
 import { Screen } from "@/components/shell/screen";
-import {
-	bestByDay,
-	longestStreak,
-	minutesByDay,
-	retryList,
-	scoreOf,
-	startedAt,
-	suggestion,
-	weakest,
-	worked,
-} from "@/components/study/data";
+import { longestStreak, PASS_DEFAULT } from "@/components/study/data";
+import { ExamMenu } from "@/components/study/exam-menu";
 import { PracticeMap } from "@/components/study/practice-map";
-import { addDays, dayKey, monday, parseDay, streak } from "@/days";
-import { useExam } from "@/stores/exam";
-import { useAssistantEnabled, useFocus, useShownTargets, useTargets } from "@/stores/settings";
-import { useStudy } from "@/stores/study";
-import { examApi, type PlanView } from "@/tauri/api";
-import { domainName, plural } from "@/words";
+import { streak } from "@/days";
+import { useAssistantEnabled } from "@/stores/settings";
+import { plural } from "@/words";
 
 /** Where each module starts, before the candidate arranges Home: with and
  * without the Claude module, for someone with attempts or someone new */
@@ -80,139 +64,16 @@ const DEFAULTS: Record<string, Places> = {
  * Home: the candidate's modules, each where they put it: today's session,
  * the exam days, readiness, the practice map, the questions to retry, the
  * week, the domains, the latest attempts and, with the assistant on, Claude.
- * With several exams, one in focus or all. All of it from the attempts and
- * the plans; read again whenever Rust says the study changed
+ * With several exams, one in focus or all (the exam menu beside the title,
+ * as on the Calendar). The figures come from `useHomeData`
  */
 export function HomeRoute() {
-	const targets = useShownTargets();
-	const aimed = useTargets();
-	const [focus, setFocus] = useFocus();
+	const data = useHomeData();
 	const assistant = useAssistantEnabled();
-	const catalog = useExam(s => s.catalog);
-	const history = useStudy(s => s.history);
-	// Bumped when Rust says the study changed: the plans and the readiness
-	// are read again then
-	const version = useStudy(s => s.version);
-	const [retry, setRetry] = useState(0);
 	const navigate = useNavigate();
 
-	const now = new Date();
-	const today = dayKey(now);
-	const weekStart = monday(now);
-	// What is measured: the exams shown, else the latest attempt's certification
-	const latest = history?.find(h => h.certification)?.certification || null;
-	const certs = targets.length ? targets.map(t => t.certification) : latest ? [latest] : [];
-	const certKey = certs.join(",");
-	// The plans from this week to the last exam: the week, today and the map
-	const from = dayKey(weekStart);
-	const lastExam = [dayKey(addDays(weekStart, 6)), ...targets.map(t => t.date)]
-		.sort()
-		.at(-1) as string;
-	const range = `${from}:${lastExam}`;
-	const [planned, setPlanned] = useState<{ range: string; plans: PlanView[] | null }>({
-		range: "",
-		plans: [],
-	});
-	// biome-ignore lint/correctness/useExhaustiveDependencies: a new version is the cue
-	useEffect(() => {
-		let current = true;
-		examApi.plans(from, lastExam).then(
-			plans => current && setPlanned({ range, plans }),
-			() => current && setPlanned({ range, plans: null })
-		);
-		return () => {
-			current = false;
-		};
-	}, [range, version, retry]);
-	const [measuredBy, setMeasuredBy] = useState<{ key: string; list: Measured[] }>({
-		key: "",
-		list: [],
-	});
-	// biome-ignore lint/correctness/useExhaustiveDependencies: a new version is the cue
-	useEffect(() => {
-		let current = true;
-		const wanted = certKey ? certKey.split(",") : [];
-		Promise.allSettled(wanted.map(c => examApi.readiness(c))).then(
-			answers =>
-				current &&
-				setMeasuredBy({
-					key: certKey,
-					list: answers.map((a, i) => ({
-						certification: wanted[i],
-						readiness: a.status === "fulfilled" ? a.value : null,
-						state: a.status === "fulfilled" ? "read" : "failed",
-					})),
-				})
-		);
-		return () => {
-			current = false;
-		};
-	}, [certKey, version, retry]);
-	const again = () => {
-		setPlanned({ range: "", plans: [] });
-		setMeasuredBy({ key: "", list: [] });
-		setRetry(n => n + 1);
-	};
-
-	if (history === null) return <Loading fill label="Loading your attempts…" />;
-	const plansRead = planned.range === range;
-	const plansFailed = plansRead && planned.plans === null;
-	const allPlans = plansRead ? (planned.plans ?? []) : [];
-	const shownPlans =
-		targets.length > 1 || aimed.length > 1
-			? allPlans.filter(p => certs.includes(p.certification))
-			: allPlans;
-	const measured: Measured[] =
-		measuredBy.key === certKey
-			? measuredBy.list
-			: certs.map(c => ({ certification: c, readiness: null, state: "reading" as const }));
-	const several = aimed.length > 1;
-	// An attempt's certification: its own, else its exam's (older attempts kept none)
-	const certOf = (h: (typeof history)[number]) =>
-		h.certification || catalog.find(e => e.id === h.exam_id)?.certification || "";
-	const ofShown = several || focus ? history.filter(h => certs.includes(certOf(h))) : history;
-	const fresh = history.length === 0;
-	const minutes = minutesByDay(ofShown);
-	const days = new Set(ofShown.filter(worked).map(h => dayKey(new Date(startedAt(h)))));
-	const first = ofShown.filter(worked).at(-1);
-	const start = targets.length
-		? parseDay(targets.map(t => t.started).sort()[0])
-		: first
-			? new Date(startedAt(first))
-			: addDays(now, -70);
-	const planDays = new Map<string, string[]>();
-	for (const p of shownPlans.filter(p => p.done === null && p.day > today))
-		planDays.set(p.day, [...(planDays.get(p.day) ?? []), p.certification]);
-	const retries = retryList(ofShown);
-	// The exams tried and not passed yet, the latest first
-	const unpassed = [...new Set(ofShown.filter(worked).map(h => h.exam_id))]
-		.map(id => {
-			const tries = ofShown.filter(h => h.exam_id === id && worked(h));
-			return {
-				examId: id,
-				title: tries[0].title,
-				best: Math.max(...tries.map(h => scoreOf(h))),
-				pass: tries[0].pass_score,
-			};
-		})
-		.filter(e => e.best < e.pass);
-	const weekKeys = Array.from({ length: 7 }, (_, i) => dayKey(addDays(weekStart, i)));
-	const weekAttempts = ofShown.filter(h =>
-		weekKeys.includes(dayKey(new Date(startedAt(h))))
-	).length;
-	const weak = weakest(measured[0]?.readiness ?? null);
-	const mock = catalog
-		.filter(e => certs.includes(e.certification))
-		.reduce<(typeof catalog)[number] | null>(
-			(m, e) => (!m || e.questions > m.questions ? e : m),
-			null
-		);
-	const suggestions = [
-		weak && `${domainName(weak.domain).replace(/^./, c => c.toUpperCase())} drill`,
-		retries.length > 0 && `Retry ${plural(retries.length, "failed question")}`,
-		targets[0] &&
-			`Mock ${targets[0].certification.toUpperCase()} for ${parseDay(targets[0].date).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`,
-	].filter((s): s is string => !!s);
+	if (data === null) return <Loading fill label="Loading your attempts…" />;
+	const { now, history, measured, days, minutes, planDays, several, fresh, again } = data;
 
 	const modules: ModuleSpec[] = [
 		{
@@ -221,11 +82,11 @@ export function HomeRoute() {
 			size: "l",
 			node: (
 				<Today
-					plans={plansRead ? shownPlans.filter(p => p.day === today) : null}
-					failed={plansFailed}
+					plans={data.todayPlans}
+					failed={data.plansFailed}
 					onRetry={again}
-					today={today}
-					suggested={suggestion(catalog, ofShown, certs[0] ?? null)}
+					today={data.today}
+					suggested={data.suggested}
 					several={several}
 				/>
 			),
@@ -236,11 +97,11 @@ export function HomeRoute() {
 						id: "claude",
 						name: "Make an exam with Claude",
 						size: "l" as const,
-						node: <AskClaude suggestions={suggestions} />,
+						node: <AskClaude suggestions={data.suggestions} />,
 					},
 				]
 			: []),
-		{ id: "exam-day", name: "Exam day", size: "w", node: <ExamDay targets={targets} /> },
+		{ id: "exam-day", name: "Exam day", size: "w", node: <ExamDay targets={data.targets} /> },
 		{
 			id: "map",
 			name: "Practice map",
@@ -279,11 +140,11 @@ export function HomeRoute() {
 					</p>
 					<PracticeMap
 						mode="activity"
-						start={start}
-						exams={targets}
+						start={data.mapStart}
+						exams={data.targets}
 						minutes={minutes}
-						best={bestByDay(ofShown)}
-						pass={measured[0]?.readiness?.pass_score ?? 66}
+						best={data.best}
+						pass={measured[0]?.readiness?.pass_score ?? PASS_DEFAULT}
 						planned={planDays}
 						onPick={day => navigate(`/calendar?day=${day}`)}
 					/>
@@ -299,18 +160,18 @@ export function HomeRoute() {
 						size: "s" as const,
 						node: <Readiness measured={measured} onRetry={again} />,
 					},
-					{ id: "passed", name: "Passed", size: "s" as const, node: <Passed history={ofShown} /> },
+					{ id: "passed", name: "Passed", size: "s" as const, node: <Passed history={history} /> },
 					{
 						id: "in-progress",
 						name: "In progress",
 						size: "s" as const,
-						node: <InProgress exams={unpassed} />,
+						node: <InProgress exams={data.unpassed} />,
 					},
 					{
 						id: "retry",
 						name: "Retry list",
 						size: "l" as const,
-						node: <RetryList retries={retries} several={several} />,
+						node: <RetryList retries={data.retries} several={several} />,
 					},
 					{
 						id: "week",
@@ -319,9 +180,9 @@ export function HomeRoute() {
 						node: (
 							<ThisWeek
 								minutes={minutes}
-								attempts={weekAttempts}
-								plans={plansRead ? shownPlans.filter(p => weekKeys.includes(p.day)) : null}
-								weekStart={weekStart}
+								attempts={data.weekAttempts}
+								plans={data.weekPlans}
+								weekStart={data.weekStart}
 							/>
 						),
 					},
@@ -333,7 +194,7 @@ export function HomeRoute() {
 							<Domains
 								measured={measured}
 								onRetry={again}
-								onMeasure={mock ? () => navigate(`/exams?exam=${mock.id}`) : null}
+								onMeasure={data.mock ? () => navigate(`/exams?exam=${data.mock?.id}`) : null}
 							/>
 						),
 					},
@@ -341,8 +202,8 @@ export function HomeRoute() {
 						id: "recent",
 						name: "Recent",
 						// Grows with the history: one row for a couple, two for more
-						size: ofShown.length > 2 ? ("y" as const) : ("x" as const),
-						node: <Recent history={ofShown} several={several} />,
+						size: history.length > 2 ? ("y" as const) : ("x" as const),
+						node: <Recent history={history} several={several} />,
 					},
 				]),
 	];
@@ -350,32 +211,13 @@ export function HomeRoute() {
 	return (
 		<Screen
 			title="Home"
-			actions={
-				<div className="flex items-center gap-2">
-					{aimed.length > 1 && (
-						<SegmentedControl
-							label="Exams shown"
-							value={focus ?? "all"}
-							onChange={v => setFocus(v === "all" ? null : v)}
-							options={[
-								{ value: "all", label: "All exams" },
-								...aimed.map(t => ({
-									value: t.certification,
-									label: t.certification.toUpperCase(),
-								})),
-							]}
-						/>
-					)}
-				</div>
-			}
+			// The exams aimed at, which the whole screen shows; changed or added there
+			accessory={<ExamMenu />}
 			width="wide"
 			className="gap-4"
 		>
 			<p className="-mt-2 text-callout text-muted-foreground">
 				{now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
-				{targets[0] &&
-					` · ${targets[0].certification.toUpperCase()} in ${plural(Math.max(0, Math.round((parseDay(targets[0].date).getTime() - parseDay(today).getTime()) / 86_400_000)), "day")}`}
-				{targets.length > 1 && `, ${targets.length - 1} more after it`}
 			</p>
 			<DockerBanner />
 			<ModuleGrid

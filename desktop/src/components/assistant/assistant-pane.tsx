@@ -170,7 +170,7 @@ export function AssistantPane({
 							<Plus />
 						</IconButton>
 					</PopoverTrigger>
-					<PopoverContent align="end" className={cn(menu.surface, "w-56")}>
+					<PopoverContent align="end" variant="menu" className="w-56">
 						<div className={menu.header}>New conversation with</div>
 						{agents.map(a => (
 							<MenuItem
@@ -198,7 +198,7 @@ export function AssistantPane({
 							<History />
 						</IconButton>
 					</PopoverTrigger>
-					<PopoverContent align="end" className={cn(menu.surface, "w-72")}>
+					<PopoverContent align="end" variant="menu" className="w-72">
 						<div className={menu.header}>This attempt</div>
 						{history.length === 0 && (
 							<div className={cn(menu.content, "py-1 text-muted-foreground text-caption")}>
@@ -235,7 +235,7 @@ export function AssistantPane({
 							<Ellipsis />
 						</IconButton>
 					</PopoverTrigger>
-					<PopoverContent align="end" className={cn(menu.surface, "w-60")}>
+					<PopoverContent align="end" variant="menu" className="w-60">
 						<div className={menu.header}>Claude account</div>
 						{coach.account?.signed_in ? (
 							<div className={cn(menu.content, "flex flex-col py-1 text-caption")}>

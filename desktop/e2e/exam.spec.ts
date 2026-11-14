@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { calls, emit, launch, sample } from "./backend";
+import { calls, emit, launch, withSettings } from "./backend";
+import { expect, test } from "./fixture";
 
 /** An attempt of the sample's first exam: two questions on one cluster */
 const attempt = (mode: "exam" | "practice") => ({
@@ -37,7 +37,7 @@ const attempt = (mode: "exam" | "practice") => ({
 		},
 	],
 });
-const startedAt = Date.parse("2026-11-02T09:50:00");
+const startedAt = Date.parse("2026-11-02T09:50:00Z");
 const running = (mode: "exam" | "practice") => ({
 	phase: "running",
 	attempt: attempt(mode),
@@ -165,7 +165,7 @@ test("preparing shows its steps as Rust reports them, and Cancel stops it", asyn
 		detail: null,
 		status: "running",
 		error: null,
-		started_at: Date.parse("2026-11-02T09:58:00"),
+		started_at: Date.parse("2026-11-02T09:58:00Z"),
 		ended_at: null,
 		log: [],
 	};
@@ -237,7 +237,7 @@ test("the result with no exam aimed at asks for the plans once, not on every ren
 	page,
 }) => {
 	await launch(page, "/exam", {
-		settings: { ...sample.settings, targets: [] },
+		settings: withSettings({ targets: [] }),
 		exam_state: { phase: "finished", attempt: attempt("exam"), result },
 	});
 	await expect(page.getByText("60%")).toBeVisible();

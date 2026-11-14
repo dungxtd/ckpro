@@ -15,6 +15,9 @@ export default defineConfig({
 		baseURL: "http://localhost:4174",
 		viewport: { width: 1300, height: 800 },
 		colorScheme: "dark",
+		// Dates as the tests write them: the same day and words on any machine
+		locale: "en-US",
+		timezoneId: "UTC",
 		trace: "retain-on-failure",
 	},
 	projects: [

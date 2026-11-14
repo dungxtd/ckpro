@@ -23,7 +23,7 @@ import { useEnvironment } from "@/stores/environment";
 import { useCatalog, useExam } from "@/stores/exam";
 import { useTargets } from "@/stores/settings";
 import { type EnvState, envApi } from "@/tauri/api";
-import { memory, plural } from "@/words";
+import { certName, memory, plural } from "@/words";
 
 function DockerStatus({ docker }: { docker: EnvState["docker"] }) {
 	switch (docker.state) {
@@ -117,7 +117,7 @@ export function EnvironmentRoute() {
 		null
 	);
 	const estimate = largest && {
-		what: `A ${largest.certification.toUpperCase()} exam`,
+		what: `A ${certName(largest.certification)} exam`,
 		mb: largest.memory_mb,
 	};
 	const cluster = env.clusters.find(c => c.name === open);

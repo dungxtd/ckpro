@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { calls, launch, sample } from "./backend";
+import { calls, launch, sample, withSettings } from "./backend";
+import { expect, test } from "./fixture";
 
 test("Home shows its modules: today, the exam day, the practice map", async ({ page }) => {
 	await launch(page, "/");
@@ -51,7 +51,7 @@ test("Home with nothing yet invites a first step", async ({ page }) => {
 	await launch(page, "/", {
 		exam_history: [],
 		plans_between: [],
-		settings: { ...sample.settings, targets: [], target: null },
+		settings: withSettings({ targets: [] }),
 	});
 	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
 	// Someone new: what to do first, where to set the exam day, the map to fill
@@ -117,8 +117,8 @@ const activity = (id: number, status: string, title: string) => ({
 	detail: null,
 	status,
 	error: status === "failed" ? "kind failed" : "Cancelled",
-	started_at: Date.parse("2026-11-02T09:58:00"),
-	finished_at: Date.parse("2026-11-02T09:59:00"),
+	started_at: Date.parse("2026-11-02T09:58:00Z"),
+	finished_at: Date.parse("2026-11-02T09:59:00Z"),
 	log: [],
 });
 

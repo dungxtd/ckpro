@@ -422,6 +422,7 @@
 }
 
 /* Corner radii: one scale, Tailwind's own steps, each with one job.
+ *   xs  3px   tiny keys: a swatch, a map's day square, a week's bar
  *   sm  4px   small marks inside text (inline code, a language tag)
  *   md  6px   something compact or inside another rounded thing: a segment
  *             in its track, a stepper's buttons, a toolbar icon button, a
@@ -437,6 +438,7 @@
  * Inside a surface a corner is the surface's less its padding, so the
  * curves run parallel. */
 @theme {
+	--radius-xs: 3px;
 	--radius-sm: 4px;
 	--radius-md: 6px;
 	--radius-lg: 8px;

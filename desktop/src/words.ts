@@ -9,6 +9,17 @@ export const plural = (n: number, word: string) => `${n} ${noun(n, word)}`;
 /** The noun alone, for a count shown apart (a figure above its label) */
 export const noun = (n: number, word: string) => `${word}${n === 1 ? "" : "s"}`;
 
+/** A certification as it is written, in capitals: `cka` → `CKA` */
+export const certName = (certification: string) => certification.toUpperCase();
+
+/** What starts an exam in a mode: `Start exam`, `Start practice` */
+export const startLabel = (mode: "exam" | "practice") =>
+	mode === "exam" ? "Start exam" : "Start practice";
+
+/** A day short, with its weekday: `Sat 14 Nov` (in the candidate's locale) */
+export const shortDay = (d: Date) =>
+	d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+
 /** Megabytes as gigabytes, one decimal: `2.1 GB` */
 export const gb = (mb: number) => `${(mb / 1024).toFixed(1)} GB`;
 

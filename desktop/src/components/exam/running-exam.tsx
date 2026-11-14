@@ -96,10 +96,11 @@ export function RunningExam({
 	const desk = useRef<HTMLDivElement>(null);
 	const question = attempt.questions[current];
 	const count = attempt.questions.length;
-	// The task or its solution (practice); another question opens on its task
-	const [view, setView] = useState<PanelView>("task");
-	// biome-ignore lint/correctness/useExhaustiveDependencies: reset when the question changes
-	useEffect(() => setView("task"), [question?.id]);
+	// The task or its solution (practice), kept with the question it was
+	// chosen on: another question opens on its task
+	const [chosen, setChosen] = useState<{ question?: string; view: PanelView }>({ view: "task" });
+	const view = chosen.question === question?.id ? chosen.view : "task";
+	const setView = (v: PanelView) => setChosen({ question: question?.id, view: v });
 
 	// The task panel's right border: its share of the desk, in percent
 	const task = usePanelSize({

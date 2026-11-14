@@ -9,7 +9,7 @@ import { useNow } from "@ckpro/ui/hooks/use-now";
 import { clock } from "@ckpro/ui/lib/time";
 import { cn } from "@ckpro/ui/lib/utils";
 import { Check, ChevronDown, ChevronRight, Circle, Copy, X } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { useActivities } from "@/stores/activity";
 import { plural } from "@/words";
@@ -40,13 +40,14 @@ export function ActivityProgress({
 	compact?: boolean;
 }) {
 	const activity = useActivities(s => s.byId[id]);
-	const [stepSince, setStepSince] = useState(Date.now());
+	// When the current step began: the slow-step clock restarts on each step
+	const [step, setStep] = useState({ current: activity?.current, since: Date.now() });
+	if (step.current !== activity?.current)
+		setStep({ current: activity?.current, since: Date.now() });
+	const stepSince = step.since;
 	const [userOpen, setUserOpen] = useState<boolean | null>(null);
 	const running = activity?.status === "running";
 	const now = useNow(running);
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: restart the slow-step clock on each step
-	useEffect(() => setStepSince(Date.now()), [activity?.current]);
 
 	// Opened at its newest lines, following them unless the reader scrolled up
 	const showLog = useFollow<HTMLPreElement>(activity?.log.length);

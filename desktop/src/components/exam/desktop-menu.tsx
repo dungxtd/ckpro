@@ -94,11 +94,7 @@ export function DesktopMenu({
 				</PopoverTrigger>
 				{/* A panel of controls (a stepper among them), not a menu: Tab moves
 			    through it */}
-				<PopoverContent
-					align="end"
-					aria-label="Desktop settings"
-					className={cn(menu.surface, "w-60")}
-				>
+				<PopoverContent align="end" aria-label="Desktop settings" variant="menu" className="w-60">
 					<div className={menu.header}>Remote desktop</div>
 					<div className={cn(menu.content, "flex items-center justify-between py-1 text-callout")}>
 						Size

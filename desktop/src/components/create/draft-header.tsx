@@ -25,7 +25,7 @@ import { type ReactNode, useState } from "react";
 import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { useProving, useStudio } from "@/stores/studio";
 import type { ExamDraft } from "@/tauri/api";
-import { domainName, plural } from "@/words";
+import { certName, domainName, plural } from "@/words";
 
 /** A domain's colour, by its rank in the exam's weights (tokens: index.css) */
 const DOMAIN = ["bg-domain-1", "bg-domain-2", "bg-domain-3", "bg-domain-4", "bg-domain-5"];
@@ -188,7 +188,7 @@ export function DraftSummary({
 						</h2>
 						{draft.certification && (
 							<Badge variant="subtle" className="shrink-0">
-								{draft.certification.toUpperCase()}
+								{certName(draft.certification)}
 							</Badge>
 						)}
 						{draft.certification && !draft.saved && (

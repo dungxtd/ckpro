@@ -11,7 +11,7 @@ import { ScreenTitle } from "@/components/shell/screen";
 import { useExam, useExamBusy } from "@/stores/exam";
 import { useAssistantEnabled } from "@/stores/settings";
 import type { ExamSummary } from "@/tauri/api";
-import { memory, noun } from "@/words";
+import { certName, memory, noun } from "@/words";
 import { memoryFit } from "./exams";
 
 /**
@@ -29,7 +29,7 @@ export function ExamDetail({ exam, dockerMb }: { exam: ExamSummary; dockerMb: nu
 	return (
 		<div className="flex flex-col gap-7">
 			<header className="flex flex-col gap-2">
-				<Badge className="self-start">{exam.certification.toUpperCase()}</Badge>
+				<Badge className="self-start">{certName(exam.certification)}</Badge>
 				<ScreenTitle className="min-w-0 break-words">{exam.title}</ScreenTitle>
 				<Description text={exam.description} />
 			</header>

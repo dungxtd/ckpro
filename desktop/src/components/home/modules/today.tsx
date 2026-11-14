@@ -3,14 +3,15 @@ import { Card } from "@ckpro/ui/components/card";
 import { ProgressRing } from "@ckpro/ui/components/progress";
 import { RowCover } from "@ckpro/ui/components/row-cover";
 import { Separator } from "@ckpro/ui/components/separator";
-import { cn } from "@ckpro/ui/lib/utils";
-import { Check, Play } from "lucide-react";
-import { ModuleCard, ModuleScroll } from "@/components/home/modules";
+import { Play } from "lucide-react";
+import { ModuleCard, ModuleScroll } from "@/components/home/modules/module-card";
 import type { suggestion } from "@/components/study/data";
 import { PlanPicker } from "@/components/study/plan-picker";
+import { PlanRow } from "@/components/study/plan-row";
 import { useExam, useExamBusy } from "@/stores/exam";
 import type { PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
+import { startLabel } from "@/words";
 
 /**
  * Today's session: the exams planned for today, done ones ticked with their
@@ -105,7 +106,7 @@ export function Today({
 					className="relative mt-3 flex items-center gap-3 hover:bg-hover"
 				>
 					<RowCover
-						aria-label={`Start practice: ${shortTitle(suggested.exam.title)}`}
+						aria-label={`${startLabel("practice")}: ${shortTitle(suggested.exam.title)}`}
 						disabled={busy}
 						onClick={() => askStart(suggested.exam.id, "practice", suggested.exam.title)}
 					/>
@@ -121,49 +122,14 @@ export function Today({
 			{plans.length > 0 && <Separator className="mt-3" />}
 			<ModuleScroll className="mt-1">
 				{plans.map(p => (
-					<div
+					<PlanRow
 						key={p.id}
-						className={cn(
-							"relative flex items-center gap-3 rounded-lg px-2 py-2",
-							p.done === null && "hover:bg-hover"
-						)}
-					>
-						{/* Not done yet: pressed, it starts once confirmed */}
-						{p.done === null && (
-							<RowCover
-								aria-label={`${p.mode === "exam" ? "Start exam" : "Start practice"}: ${shortTitle(p.title)}`}
-								disabled={busy}
-								onClick={() => askStart(p.exam_id, p.mode, p.title)}
-							/>
-						)}
-						<span
-							className={cn(
-								"grid size-[18px] shrink-0 place-items-center rounded-full",
-								p.done !== null
-									? "bg-success text-success-foreground"
-									: "ring-2 ring-muted-foreground ring-inset"
-							)}
-						>
-							{p.done !== null && <Check className="size-3" strokeWidth={3} />}
-						</span>
-						<div className="min-w-0 flex-1">
-							<div
-								className={cn(
-									"truncate text-callout",
-									p.done !== null && "text-muted-foreground line-through"
-								)}
-							>
-								{p.title}
-							</div>
-							<div className="text-2xs text-muted-foreground">
-								{several && `${p.certification.toUpperCase()} · `}
-								{p.mode === "exam" ? "Exam" : "Practice"}
-								{p.done !== null && <span className="tabular-nums">, {Math.round(p.done)}%</span>}
-								{/* What Start next starts */}
-								{p === next && <span className="text-highlight"> · Next</span>}
-							</div>
-						</div>
-					</div>
+						plan={p}
+						// Not done yet: pressed, it starts once confirmed
+						startable={p.done === null}
+						several={several}
+						next={p === next}
+					/>
 				))}
 			</ModuleScroll>
 		</ModuleCard>

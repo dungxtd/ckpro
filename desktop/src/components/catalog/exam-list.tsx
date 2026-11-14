@@ -37,7 +37,7 @@ import { useSettings, useSidebarLayout } from "@/stores/settings";
 import { useStudy } from "@/stores/study";
 import { type ExamSort, type ExamSummary, errorText, examApi } from "@/tauri/api";
 import { shortTitle } from "@/titles";
-import { plural } from "@/words";
+import { certName, plural } from "@/words";
 import { memoryFit, useSelection } from "./exams";
 import { arrange, moved, pinned, SORTS, stepped, toggled } from "./layout";
 
@@ -167,7 +167,7 @@ export function ExamList({
 					<SidebarItem
 						label={name}
 						// Pinned, away from its certification's heading: it says which
-						detail={`${isPinned ? `${exam.certification.toUpperCase()}, ` : ""}${plural(exam.questions, "question")}, ${exam.duration_minutes} min${f === "slower" ? ", runs slower" : f === "too-small" ? ", needs more memory" : ""}`}
+						detail={`${isPinned ? `${certName(exam.certification)}, ` : ""}${plural(exam.questions, "question")}, ${exam.duration_minutes} min${f === "slower" ? ", runs slower" : f === "too-small" ? ", needs more memory" : ""}`}
 						warning={f === "slower" || f === "too-small"}
 						current={onExams && shown?.id === exam.id}
 						onClick={() => select(exam.id)}
@@ -231,7 +231,7 @@ export function ExamList({
 						<ContextMenu>
 							<ContextMenuTrigger asChild>
 								<SidebarGroupToggle
-									label={cert.toUpperCase()}
+									label={certName(cert)}
 									open={open}
 									count={exams.length}
 									onToggle={() => setLayout({ collapsed: toggled(layout.collapsed, cert, open) })}
@@ -241,7 +241,7 @@ export function ExamList({
 											<>
 												<SidebarEye
 													hidden={hidden}
-													name={cert.toUpperCase()}
+													name={certName(cert)}
 													onToggle={() =>
 														setLayout({ hidden: toggled(layout.hidden, cert, !hidden) })
 													}
@@ -321,14 +321,14 @@ export function ExamMenuItems() {
 					<DropdownMenuLabel>Pinned</DropdownMenuLabel>
 					{top.map(exam => (
 						<DropdownMenuRadioItem key={exam.id} value={exam.id}>
-							{exam.certification.toUpperCase()} {shortTitle(exam.title)}
+							{certName(exam.certification)} {shortTitle(exam.title)}
 						</DropdownMenuRadioItem>
 					))}
 				</>
 			)}
 			{arrange(catalog, layout, false, stats).map(({ cert, exams }) => (
 				<Fragment key={cert}>
-					<DropdownMenuLabel>{cert.toUpperCase()}</DropdownMenuLabel>
+					<DropdownMenuLabel>{certName(cert)}</DropdownMenuLabel>
 					{exams.map(exam => (
 						<DropdownMenuRadioItem key={exam.id} value={exam.id}>
 							{shortTitle(exam.title)}

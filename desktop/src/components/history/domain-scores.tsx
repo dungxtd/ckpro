@@ -12,13 +12,13 @@ import {
 } from "@ckpro/ui/components/table";
 
 import { useState } from "react";
-import { scoreTone } from "@/components/study/data";
+import { PASS_DEFAULT, scoreTone } from "@/components/study/data";
 import { useStudy } from "@/stores/study";
 import type { DomainStat } from "@/tauri/api";
-import { domainName, plural } from "@/words";
+import { certName, domainName, plural } from "@/words";
 
 /** Passing is 66% on the CKA/CKAD/CKS */
-const PASS = 66;
+const PASS = PASS_DEFAULT;
 
 export const percentOf = (d: DomainStat) => (d.max_points ? (d.points * 100) / d.max_points : null);
 
@@ -54,7 +54,7 @@ export function DomainScores() {
 						onChange={setCert}
 						options={stats.map(s => ({
 							value: s.certification,
-							label: s.certification.toUpperCase(),
+							label: certName(s.certification),
 						}))}
 					/>
 				)}
