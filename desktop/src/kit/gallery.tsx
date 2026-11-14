@@ -213,7 +213,7 @@ function Gallery() {
 								["rounded-md", "md 6"],
 								["rounded-lg", "lg 8"],
 								["rounded-xl", "xl 12"],
-								["rounded-toast", "toast 22"],
+								["rounded-toast", "toast 16"],
 								["rounded-sheet", "sheet 26"],
 							] as const
 						).map(([radius, name]) => (
