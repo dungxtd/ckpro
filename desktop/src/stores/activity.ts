@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { type Activity, activityApi } from "@/tauri/api";
@@ -10,6 +10,9 @@ const KEPT = 20;
 interface ActivityStore {
 	/** By id; the Rust side keeps the last 20 */
 	byId: Record<number, Activity>;
+	/** Shown on the screen open now (its steps, its progress), by how many
+	 * places: the top bar's chip leaves those to it */
+	onScreen: Record<number, number>;
 	connect: () => Promise<() => void>;
 }
 
@@ -17,6 +20,7 @@ interface ActivityStore {
 export const useActivities = create<ActivityStore>()(
 	immer(set => ({
 		byId: {},
+		onScreen: {},
 		connect: async () => {
 			const stopChanged = await activityApi.onChanged(activity =>
 				set(s => {
@@ -63,3 +67,23 @@ export const useActivityList = () => {
 	const byId = useActivities(s => s.byId);
 	return useMemo(() => Object.values(byId).sort((a, b) => b.id - a.id), [byId]);
 };
+
+/**
+ * The screen shows activity `id` itself (its steps, a spinner at the one
+ * running) while this is mounted: the top bar's chip does not show it too,
+ * so one thing going on has one spinner
+ */
+export function useShowsActivity(id: number | null | undefined) {
+	useEffect(() => {
+		if (id == null) return;
+		useActivities.setState(s => {
+			s.onScreen[id] = (s.onScreen[id] ?? 0) + 1;
+		});
+		return () =>
+			useActivities.setState(s => {
+				const left = (s.onScreen[id] ?? 1) - 1;
+				if (left > 0) s.onScreen[id] = left;
+				else delete s.onScreen[id];
+			});
+	}, [id]);
+}

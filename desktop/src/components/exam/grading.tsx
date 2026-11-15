@@ -1,5 +1,4 @@
 import { Card } from "@ckpro/ui/components/card";
-import { Spinner } from "@ckpro/ui/components/spinner";
 import { cn } from "@ckpro/ui/lib/utils";
 import type { ReactNode, Ref } from "react";
 import { ActivityProgress } from "@/components/activity/activity-progress";
@@ -52,7 +51,7 @@ export function GradingCard({
 	);
 }
 
-/** Each question's score as it is in, a spinner until then */
+/** Each question's score as it is in, a dash until then */
 function ScoreList({
 	titles,
 	scores,
@@ -79,7 +78,10 @@ function ScoreList({
 								{score.points}/{score.max_points}
 							</span>
 						) : (
-							<Spinner size="inline" className="text-muted-foreground" />
+							// Not in yet: quiet; the grading's own step has the spinner
+							<span className="font-mono text-caption text-muted-foreground">
+								–<span className="sr-only">not graded yet</span>
+							</span>
 						)}
 					</li>
 				);

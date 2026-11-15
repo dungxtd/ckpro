@@ -56,7 +56,8 @@ export function DraftStrip() {
 
 /**
  * Exam | Proof: the questions, or the proof's steps (those to come before
- * the first); Proof says how one goes (k of n, a spinner) or how it ended
+ * the first); Proof says how one goes (k of n, a spinner while its steps are not
+ * shown) or how it ended
  * (✓ or ✗)
  */
 export function ProofTabs() {
@@ -66,9 +67,10 @@ export function ProofTabs() {
 	const items = useStudio(s => s.draft?.items.length ?? 0);
 	if (items === 0) return null;
 	const failed = proof?.results.some(r => r.status.state === "failed");
+	// Running: a spinner only while the steps are not shown (they have one)
 	const state = !proof ? null : !proof.ended_at ? (
 		<>
-			<Spinner size="inline" className="size-3" />
+			{tab !== "proof" && <Spinner size="inline" className="size-3" />}
 			<span className="tabular-nums">
 				{proof.results.length}/{proof.checking.length}
 			</span>

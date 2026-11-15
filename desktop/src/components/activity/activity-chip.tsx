@@ -3,7 +3,7 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";
-import { useActivityList } from "@/stores/activity";
+import { useActivities, useActivityList } from "@/stores/activity";
 
 /** How long a failure stays in the top bar */
 const FAILED_SHOWN_MS = 5 * 60_000;
@@ -12,10 +12,13 @@ const FAILED_SHOWN_MS = 5 * 60_000;
  * Top-bar status while something runs in the background (clusters starting
  * after the app reopened, a cluster being created…), or just failed. Opens
  * the Environment screen at its log. An icon in the corner, its words sliding
- * out under the pointer; a cancelled one (stopped on purpose) is not shown
+ * out under the pointer; a cancelled one (stopped on purpose) is not shown,
+ * nor one the screen open now shows itself (`useShowsActivity`)
  */
 export function ActivityChip() {
-	const list = useActivityList();
+	// What the screen open now shows itself is left to it
+	const onScreen = useActivities(s => s.onScreen);
+	const list = useActivityList().filter(a => !onScreen[a.id]);
 	const navigate = useNavigate();
 	const { pathname } = useLocation();
 	const running = list.filter(a => a.status === "running");

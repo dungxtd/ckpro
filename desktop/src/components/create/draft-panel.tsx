@@ -14,6 +14,7 @@ import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { AssistantIcon } from "@/components/assistant/assistant-icon";
+import { useShowsActivity } from "@/stores/activity";
 import { useStudio } from "@/stores/studio";
 import type { DraftItem, Proof } from "@/tauri/api";
 import { domainName, gb, plural } from "@/words";
@@ -382,6 +383,8 @@ function ProofProgress({ proof }: { proof: Proof }) {
 	const total = useStudio(s => s.draft?.items.length ?? 0);
 	const { stopProof } = useStudio.getState();
 	const now = useNow(true);
+	// Shown here, whichever tab is open: not in the top bar too
+	useShowsActivity(proof.activity);
 	const checking = proof.checking.length;
 	const stage = proof.stage;
 	const at = proof.stopped

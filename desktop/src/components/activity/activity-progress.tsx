@@ -11,7 +11,7 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { Check, ChevronDown, ChevronRight, Circle, Copy, X } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
-import { useActivities } from "@/stores/activity";
+import { useActivities, useShowsActivity } from "@/stores/activity";
 import { plural } from "@/words";
 
 /** A step running longer than this opens the log: something slow is going on */
@@ -40,6 +40,7 @@ export function ActivityProgress({
 	compact?: boolean;
 }) {
 	const activity = useActivities(s => s.byId[id]);
+	useShowsActivity(id);
 	// When the current step began: the slow-step clock restarts on each step
 	const [step, setStep] = useState({ current: activity?.current, since: Date.now() });
 	if (step.current !== activity?.current)

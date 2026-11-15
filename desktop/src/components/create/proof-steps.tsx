@@ -10,7 +10,7 @@ import { cn } from "@ckpro/ui/lib/utils";
 import { Check, Circle, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ActivityProgress } from "@/components/activity/activity-progress";
-import { useActivities } from "@/stores/activity";
+import { useActivities, useShowsActivity } from "@/stores/activity";
 import { useStudio } from "@/stores/studio";
 import type { Proof } from "@/tauri/api";
 import { plural } from "@/words";
@@ -44,6 +44,7 @@ function stepLogs(steps: string[], log: string[]) {
  */
 export function ProofSteps({ proof }: { proof: Proof }) {
 	const activity = useActivities(s => s.byId[proof.activity]);
+	useShowsActivity(proof.activity);
 	const [opened, setOpened] = useState<Record<number, boolean>>({});
 	const running = !proof.ended_at;
 	const now = useNow(running);
