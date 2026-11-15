@@ -1,38 +1,17 @@
+import { AppMark } from "@ckpro/ui/components/app-mark";
 import { Button } from "@ckpro/ui/components/button";
 import { Progress } from "@ckpro/ui/components/progress";
-import { reducedMotion } from "@ckpro/ui/lib/motion";
+import { useSequence } from "@ckpro/ui/hooks/use-sequence";
+import { easeDrop, easeGlide, reducedMotion } from "@ckpro/ui/lib/motion";
 import { cn } from "@ckpro/ui/lib/utils";
 import { CircleCheck } from "lucide-react";
-import { type Ref, useEffect, useId, useRef, useState } from "react";
+import { type Ref, useId, useRef, useState } from "react";
 import { GradingCard } from "@/components/exam/grading";
 import { daysUntil } from "@/days";
 import { useTargets } from "@/stores/settings";
 import type { Attempt, ExamResult } from "@/tauri/api";
-import { certName, plural } from "@/words";
+import { certName, certRole, plural } from "@/words";
 
-/** The role a certification proves, as its certificate names it */
-const ROLE: Record<string, string> = {
-	cka: "Kubernetes Administrator",
-	ckad: "Kubernetes Application Developer",
-	cks: "Kubernetes Security Specialist",
-};
-
-/** The app icon's heptagon and helm, the seal's centre (on the icon's 1024 grid) */
-const HEPTAGON =
-	"M436.9,192.4 Q500.0,162.0 563.1,192.4 L694.9,255.9 Q758.0,286.2 773.6,354.5 L806.1,497.2 Q821.7,565.4 778.1,620.2 L686.8,734.6 Q643.2,789.3 573.2,789.3 L426.8,789.3 Q356.8,789.3 313.2,734.6 L221.9,620.2 Q178.3,565.4 193.9,497.2 L226.4,354.5 Q242.0,286.2 305.1,255.9 Z";
-const SPOKES = [
-	[500, 270],
-	[673.6, 353.6],
-	[716.4, 541.4],
-	[596.3, 692],
-	[403.7, 692],
-	[283.6, 541.4],
-	[326.4, 353.6],
-];
-
-/** How the stamp comes down: fast at the end, as a hand pressing */
-const PRESS = "cubic-bezier(0.55, 0, 1, 0.45)";
-const GLIDE = "cubic-bezier(0.65, 0, 0.35, 1)";
 /** The stamp in hand, between the two: raised, its shadow under it */
 const LIFT = 1.3;
 const HELD = "drop-shadow(0 18px 18px rgb(0 0 0 / 0.35))";
@@ -57,47 +36,6 @@ const rectIn = (box: HTMLElement, el: Element) => {
 };
 const at = ({ x, y }: Point, turn: number, scale = 1) =>
 	`translate(${x}px, ${y}px) rotate(${turn}deg) scale(${scale})`;
-
-/**
- * Steps in time, run once as their element shows: each waits on the last
- * (`wait`, an animation's end); all stop and are cancelled when it goes
- * (React's second run in development included)
- */
-function useSteps(run: (s: Steps) => Promise<void>, when: boolean) {
-	// biome-ignore lint/correctness/useExhaustiveDependencies: once, as `when` turns true
-	useEffect(() => {
-		if (!when) return;
-		const playing: Animation[] = [];
-		const timers: number[] = [];
-		let live = true;
-		const steps: Steps = {
-			wait: ms =>
-				new Promise((done, stop) => {
-					timers.push(window.setTimeout(() => (live ? done() : stop()), ms));
-				}),
-			play: (el, frames, options) => {
-				const a = el.animate(frames, { fill: "forwards", ...options });
-				playing.push(a);
-				const done = a.finished.then(() => {
-					if (!live) throw new Error("stopped");
-				});
-				// Cancelled as it goes: not an error, whether awaited or not
-				done.catch(() => {});
-				return done;
-			},
-		};
-		run(steps).catch(() => {});
-		return () => {
-			live = false;
-			for (const t of timers) clearTimeout(t);
-			for (const a of playing) a.cancel();
-		};
-	}, [when]);
-}
-type Steps = {
-	wait: (ms: number) => Promise<void>;
-	play: (el: Element, frames: Keyframe[], options: KeyframeAnimationOptions) => Promise<void>;
-};
 
 /**
  * The first exam-mode attempt of a certification that passes: before its
@@ -136,7 +74,7 @@ export function FirstPass({
 	const stampAt = useRef<Point>({ x: 0, y: 0 });
 
 	// The graded card, stamped PASSED, then out of the way
-	useSteps(async ({ wait, play }) => {
+	useSequence(async ({ wait, play }) => {
 		const [b, c, s] = [box.current, card.current, stamp.current];
 		if (!b || !c || !s) return;
 		// Over the card's top right, across its first scores
@@ -150,7 +88,7 @@ export function FirstPass({
 				{ opacity: 0, transform: at(p, -24, 2.3) },
 				{ opacity: 1, transform: at(p, -9) },
 			],
-			{ duration: 280, easing: PRESS }
+			{ duration: 280, easing: easeDrop }
 		);
 		// Pressed: the ink spreads, the card gives under it
 		const splat = s.children[2];
@@ -189,7 +127,7 @@ export function FirstPass({
 
 	// The certificate risen and signed: the stamp is turned over to its CKPRO
 	// face above the corner, then comes down there as the seal
-	useSteps(
+	useSequence(
 		async ({ wait, play }) => {
 			const [b, s, to] = [box.current, stamp.current, seal.current];
 			const [front, back] = s ? [s.children[0], s.children[1]] : [];
@@ -203,7 +141,7 @@ export function FirstPass({
 				[{ transform: at(stampAt.current, -9, LIFT) }, { transform: at(above, -8, 1.35) }],
 				{
 					duration: 700,
-					easing: GLIDE,
+					easing: easeGlide,
 				}
 			);
 			await wait(100);
@@ -220,7 +158,7 @@ export function FirstPass({
 			await wait(100);
 			await play(s, [{ transform: at(above, -8, 1.35) }, { transform: at(p, -8) }], {
 				duration: 200,
-				easing: PRESS,
+				easing: easeDrop,
 			});
 			play(
 				paper,
@@ -276,7 +214,7 @@ export function FirstPass({
 					<div
 						className="cert mt-6 animate-rise animate-delay-600"
 						role="img"
-						aria-label={`Certificate: ${ROLE[cert] ?? certName(cert)}, ${day}`}
+						aria-label={`Certificate: ${certRole(cert)}, ${day}`}
 					>
 						<div className="cert-frame">
 							<div className="cert-head">
@@ -291,7 +229,7 @@ export function FirstPass({
 							<div className="cert-line">
 								passed, on real clusters and against the clock, a full practice exam for
 							</div>
-							<div className="cert-role">{ROLE[cert] ?? certName(cert)}</div>
+							<div className="cert-role">{certRole(cert)}</div>
 							<div className="cert-foot">
 								<div>
 									<span className="inline-block animate-enter animate-delay-1300">{day}</span>
@@ -415,23 +353,11 @@ function Seal({ className, ref }: { className?: string; ref?: Ref<SVGSVGElement>
 					PROVEN ON REAL CLUSTERS
 				</textPath>
 			</text>
-			<g transform="translate(70 66) scale(.0922) translate(-515 -475)">
-				<path d={HEPTAGON} className="cert-mark" />
-				<circle cx="500" cy="492" r="150" className="cert-helm" fill="none" strokeWidth="50" />
-				{SPOKES.map(([x, y]) => (
-					<line
-						key={`${x}`}
-						x1="500"
-						y1="492"
-						x2={x}
-						y2={y}
-						className="cert-helm"
-						strokeWidth="46"
-						strokeLinecap="round"
-					/>
-				))}
-				<circle cx="500" cy="492" r="66" className="cert-helm-hub" />
-			</g>
+			<AppMark
+				transform="translate(70 66) scale(.0922) translate(-515 -475)"
+				markClassName="cert-mark"
+				helmClassName="cert-helm"
+			/>
 		</svg>
 	);
 }

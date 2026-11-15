@@ -30,3 +30,9 @@ export const pressMotion =
  * animation then, as CSS ones do with `motion-reduce` */
 export const reducedMotion = () =>
 	typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Script-driven moves' curves (Web Animations), as CSS takes them: a
+ * strong ease-in, as a weight drops or a hand presses (`easeDrop`), and an
+ * ease-in-out for a glide from one place to another (`easeGlide`) */
+export const easeDrop = "cubic-bezier(0.55, 0, 1, 0.45)";
+export const easeGlide = "cubic-bezier(0.65, 0, 0.35, 1)";

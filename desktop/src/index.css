@@ -207,6 +207,136 @@ body,
 		radial-gradient(100% 80% at 0% 100%, var(--tint-cool), transparent 60%), var(--background);
 }
 
+/* An exam day just set, printed as an admit ticket (study/exam-ticket.tsx):
+   its colours the exam's, the same in both themes, as paper is */
+.ticket {
+	--ticket-light: #4f8cf7;
+	--ticket-mid: #2b5fd8;
+	--ticket-deep: #183b94;
+	position: absolute;
+	top: 0;
+	display: flex;
+	width: 380px;
+	height: 116px;
+	transform-origin: 50% 50%;
+	filter: drop-shadow(0 14px 24px rgb(0 0 0 / 0.38));
+}
+.ticket[data-cert="ckad"] {
+	--ticket-light: #5ad1b0;
+	--ticket-mid: #1f9e86;
+	--ticket-deep: #0f5e52;
+}
+.ticket[data-cert="cks"] {
+	--ticket-light: #f59a6b;
+	--ticket-mid: #d9573a;
+	--ticket-deep: #8c2a1b;
+}
+.ticket-slot {
+	position: absolute;
+	height: 18px;
+	border-radius: 9px;
+	background: #0b0b0d;
+	box-shadow:
+		0 0 0 1px rgb(255 255 255 / 0.08),
+		inset 0 2px 6px rgb(0 0 0 / 0.9);
+}
+.ticket-main {
+	position: relative;
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	justify-content: space-between;
+	overflow: hidden;
+	padding: 11px 14px 10px;
+	border-radius: 12px 4px 4px 12px;
+	background:
+		radial-gradient(120% 140% at 0% 0%, var(--ticket-light), transparent 60%),
+		linear-gradient(135deg, var(--ticket-mid), var(--ticket-deep));
+	color: white;
+	white-space: nowrap;
+}
+.ticket-mark {
+	position: absolute;
+	top: -14px;
+	right: -26px;
+	width: 120px;
+	height: 116px;
+	opacity: 0.1;
+	fill: white;
+	stroke: white;
+}
+.ticket-brand {
+	font:
+		700 9px -apple-system,
+		BlinkMacSystemFont,
+		sans-serif;
+	letter-spacing: 0.2em;
+	opacity: 0.85;
+}
+.ticket-date {
+	font:
+		800 25px / 1 -apple-system,
+		BlinkMacSystemFont,
+		sans-serif;
+	letter-spacing: -0.02em;
+}
+.ticket-role {
+	font:
+		600 12.5px -apple-system,
+		BlinkMacSystemFont,
+		sans-serif;
+}
+.ticket-meta {
+	display: flex;
+	gap: 12px;
+	font:
+		9.5px ui-monospace,
+		SFMono-Regular,
+		monospace;
+	letter-spacing: 0.04em;
+	opacity: 0.75;
+}
+.ticket-stub {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 3px;
+	width: 76px;
+	border-left: 2px dashed color-mix(in srgb, var(--ticket-deep) 40%, transparent);
+	border-radius: 4px 12px 12px 4px;
+	background: #f7f4ec;
+}
+.ticket-days {
+	font:
+		800 24px / 1 -apple-system,
+		BlinkMacSystemFont,
+		sans-serif;
+	color: var(--ticket-deep);
+}
+.ticket-days-label {
+	font:
+		700 7px -apple-system,
+		BlinkMacSystemFont,
+		sans-serif;
+	letter-spacing: 0.2em;
+	color: var(--ticket-deep);
+}
+.ticket-bar {
+	width: 48px;
+	height: 16px;
+	background: repeating-linear-gradient(
+		90deg,
+		var(--ticket-deep) 0 2px,
+		transparent 2px 3px,
+		var(--ticket-deep) 3px 4px,
+		transparent 4px 6px,
+		var(--ticket-deep) 6px 9px,
+		transparent 9px 10px
+	);
+}
+
 /* The first passed exam's certificate (exam/first-pass.tsx): paper, ink and
    the seal's blue, the same in both themes, as paper is */
 .cert,
@@ -375,10 +505,8 @@ body,
 	fill: #3d72e6;
 }
 .cert-helm {
-	stroke: #f4f3f7;
-}
-.cert-helm-hub {
 	fill: #f4f3f7;
+	stroke: #f4f3f7;
 }
 /* The PASSED stamp (exam/first-pass.tsx): placed and moved by script from
    its centre; PASSED on its face, the seal it turns into behind (the

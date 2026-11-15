@@ -97,7 +97,7 @@ test("the exams prepared for are set in the Calendar: added, changed, removed", 
 	]);
 	// CKA removed: CKAD stays
 	await examMenu(page);
-	await page.getByRole("button", { name: /CKA exam on 2026-12-15/ }).click();
+	await page.getByRole("button", { name: "Change the CKA exam" }).click();
 	await page.getByRole("dialog").getByRole("button", { name: "Remove", exact: true }).click();
 	expect((await saved()).map(t => t.certification)).toEqual(["ckad"]);
 });

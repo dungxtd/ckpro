@@ -12,6 +12,15 @@ export const noun = (n: number, word: string) => `${word}${n === 1 ? "" : "s"}`;
 /** A certification as it is written, in capitals: `cka` → `CKA` */
 export const certName = (certification: string) => certification.toUpperCase();
 
+/** The role a certification proves, as its certificate and its exam-day
+ * ticket name it: `Kubernetes Administrator` */
+export const certRole = (certification: string) =>
+	({
+		cka: "Kubernetes Administrator",
+		ckad: "Kubernetes Application Developer",
+		cks: "Kubernetes Security Specialist",
+	})[certification] ?? certName(certification);
+
 /** What starts an exam in a mode: `Start exam`, `Start practice` */
 export const startLabel = (mode: "exam" | "practice") =>
 	mode === "exam" ? "Start exam" : "Start practice";

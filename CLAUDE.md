@@ -57,10 +57,10 @@ greeting ("Welcome to CKPRO."). Never CKpro or CK-pro.
   `menu` classes, `DropdownMenu` (submenus), `Dialog`/`AlertDialog`,
   `ConfirmDialog`, `Tooltip`, `Truncated`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`), `Alert`, `CodeBlock`,
   `Badge`, `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal` (`Terminal.Prompt`), `Placeholder`, `Progress` (`marker`), `ProgressRing`, `ResizeHandle`, `Splitter` (`usePanelSize`), `Spinner`, `Loading`,
-  `MenuItem`, `DisclosureButton`, `InlineCode`, `Swatch`, `FadeScroll`, `RowCover` (a list row pressed as a whole), `UsageBar` (how a whole is used, as macOS Storage). A hand-rolled control or a class
+  `MenuItem`, `DisclosureButton`, `InlineCode`, `Swatch`, `FadeScroll`, `RowCover` (a list row pressed as a whole), `UsageBar` (how a whole is used, as macOS Storage), `AppMark` (the icon's mark, inside a picture). A hand-rolled control or a class
   string used twice becomes a kit component or variant.
 - **Kit helpers**: `useElementSize` (an element's size as it changes),
-  `useDragOrder`, `useCountUp` (a number counted in). Entrances are kit
+  `useDragOrder`, `useCountUp` (a number counted in), `useSequence` (animations in steps, cancelled when the component goes; curves `easeDrop`, `easeGlide`). Entrances are kit
   utilities: `animate-enter`, `animate-rise`, `animate-pop`, `animate-swap` (content replaced in place), placed with
   `animate-delay-<ms>`, `enter-stagger` for a column; no screen keeps its own.
 - **The design system, live**: `desktop/kit.html` (`pnpm exec vite`, then

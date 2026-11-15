@@ -2,6 +2,7 @@
 // in both themes. Development only (`pnpm vite` → /kit.html); the app build
 // does not include it. When a component or variant is added, add it here.
 import { Alert } from "@ckpro/ui/components/alert";
+import { AppMark } from "@ckpro/ui/components/app-mark";
 import { Badge } from "@ckpro/ui/components/badge";
 import { Button } from "@ckpro/ui/components/button";
 import { Capsule, CapsuleItem } from "@ckpro/ui/components/capsule";
@@ -578,6 +579,15 @@ function Gallery() {
 							</TableRow>
 						</TableBody>
 					</Table>
+				</Section>
+
+				<Section
+					title="AppMark"
+					note="The icon's mark, its heptagon and helm, for a picture that carries it (a seal, a watermark): placed by its group, coloured by class."
+				>
+					<svg viewBox="160 150 680 660" className="size-16" aria-hidden="true">
+						<AppMark markClassName="fill-highlight" helmClassName="fill-white stroke-white" />
+					</svg>
 				</Section>
 
 				<Section
