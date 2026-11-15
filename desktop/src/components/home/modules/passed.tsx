@@ -9,9 +9,7 @@ export function Passed({ history }: { history: HistoryEntry[] }) {
 	const figures = passed(history);
 	return (
 		<ModuleCard>
-			<span className="font-semibold text-success text-title tabular-nums leading-none">
-				{figures.passed}
-			</span>
+			<span className="font-semibold text-success text-title leading-none">{figures.passed}</span>
 			<span className="text-caption text-muted-foreground">
 				of {plural(figures.of, "attempt")} passed
 			</span>

@@ -40,9 +40,7 @@ export function ThisWeek({
 		>
 			<div className="flex min-h-0 flex-1 items-end justify-between gap-4">
 				<div className="flex flex-col">
-					<span className="font-semibold text-title tabular-nums leading-none">
-						{(total / 60).toFixed(1)}
-					</span>
+					<span className="font-semibold text-title leading-none">{(total / 60).toFixed(1)}</span>
 					<span className="text-caption text-muted-foreground">
 						hours · {plural(attempts, "attempt")}
 					</span>

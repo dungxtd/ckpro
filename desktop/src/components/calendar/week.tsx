@@ -196,6 +196,19 @@ function Day({
 						<Flag /> {certName(t.certification)} exam
 					</div>
 				))}
+				{/* What is left to do first, then what was done */}
+				{plans.map(p => (
+					<PlanRow
+						key={p.id}
+						plan={p}
+						compact
+						// Today's or later: pressed, it starts once confirmed
+						startable={ahead}
+						late={!ahead}
+						several={several}
+						onRemove={onRemove}
+					/>
+				))}
 				{attempts.map(h => {
 					const score = scoreOf(h);
 					return (
@@ -217,18 +230,6 @@ function Day({
 						</div>
 					);
 				})}
-				{plans.map(p => (
-					<PlanRow
-						key={p.id}
-						plan={p}
-						compact
-						// Today's or later: pressed, it starts once confirmed
-						startable={ahead}
-						late={!ahead}
-						several={several}
-						onRemove={onRemove}
-					/>
-				))}
 				{empty && (
 					<div className="px-1 py-1 text-caption text-muted-foreground">
 						{ahead ? "Free" : "No practice"}

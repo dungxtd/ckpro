@@ -13,10 +13,11 @@ export function InProgress({ exams }: { exams: Unpassed[] }) {
 	const askStart = useExam(s => s.askStart);
 	const busy = useExamBusy();
 	const top = exams[0];
-	const tints = ["bg-highlight/80", "bg-assistant/80", "bg-warning/80"];
+	// Solid cards: the one on top hides those under it, their names too
+	const tints = ["bg-highlight", "bg-assistant", "bg-warning"];
 	return (
 		<ModuleCard className="relative">
-			<span className="font-semibold text-title tabular-nums leading-none">{exams.length}</span>
+			<span className="font-semibold text-title leading-none">{exams.length}</span>
 			<span className="text-caption text-muted-foreground">
 				{exams.length ? "not passed yet" : "Every exam tried is passed"}
 			</span>
@@ -36,7 +37,7 @@ export function InProgress({ exams }: { exams: Unpassed[] }) {
 					<span
 						key={e.examId}
 						className={cn(
-							"absolute bottom-0 h-[70px] w-14 rounded-md p-1.5 font-semibold text-[9px] text-highlight-foreground leading-tight shadow-(--shadow-control)",
+							"absolute bottom-0 h-[70px] w-14 break-words overflow-hidden rounded-md p-1.5 font-semibold text-[9px] text-highlight-foreground leading-tight shadow-(--shadow-control)",
 							tints[i],
 							i === 0
 								? "left-6 z-[2] rotate-2"

@@ -27,7 +27,7 @@ export function ExamDay({ targets }: { targets: ExamTarget[] }) {
 				<div className="grid h-full auto-cols-fr grid-flow-col divide-x divide-border">
 					{targets.map(t => (
 						<div key={t.certification} className="flex min-w-0 flex-col px-3 first:pl-0 last:pr-0">
-							<span className="font-semibold text-title tabular-nums leading-none">
+							<span className="font-semibold text-title leading-none">
 								{Math.max(0, daysUntil(t.date, now))}
 							</span>
 							<span className="text-caption text-muted-foreground">
@@ -48,7 +48,7 @@ export function ExamDay({ targets }: { targets: ExamTarget[] }) {
 	return (
 		<ModuleCard>
 			<div className="flex items-baseline gap-2.5">
-				<span className="font-semibold text-title tabular-nums leading-none">
+				<span className="font-semibold text-title leading-none">
 					{Math.max(0, daysUntil(t.date, now))}
 				</span>
 				<span className="truncate text-caption text-muted-foreground">
