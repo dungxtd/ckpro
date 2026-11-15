@@ -326,6 +326,9 @@ export const useStudio = create<StudioStore>()((set, get) => {
 				// Signed out: asking again cannot answer until the candidate signs in
 				const again = !answered && code !== "sign_in_required";
 				if (code !== "cancelled") failed(session, e, again ? text : undefined);
+				// Stopped: Rust kept the turn as far as it went; shown as kept
+				// before the one being written goes
+				else if (get().session === session) await refresh();
 				if (code === "sign_in_required") useCoach.getState().loadAccount();
 			} finally {
 				change(() => null);

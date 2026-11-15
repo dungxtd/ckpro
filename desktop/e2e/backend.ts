@@ -32,7 +32,8 @@ import type {
 import app from "./fixtures/app.json" with { type: "json" };
 
 /** What a command answers: its value, `{ $error }` (it fails), or
- * `{ $after, value }` (it answers later: a slow command) */
+ * `{ $after, value }` (it answers later: a slow command), `{ $after, $error }`
+ * (it fails later: a command stopped) */
 export type Reply = unknown;
 
 /** The sample data: exams, attempts, plans, readiness, settings */
@@ -236,6 +237,7 @@ export async function launch(page: Page, path = "/", replies: Record<string, Rep
 					}
 					if (reply && typeof reply === "object" && "$after" in reply) {
 						await new Promise(r => setTimeout(r, reply.$after));
+						if ("$error" in reply) throw reply.$error;
 						return reply.value;
 					}
 					if (reply && typeof reply === "object" && "$error" in reply) throw reply.$error;

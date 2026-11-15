@@ -119,6 +119,30 @@ test("a proof shows its steps as Rust reports them, and Stop stops it", async ({
 	expect(await calls(page, "studio_stop_proof")).toEqual([{ session: 1 }]);
 });
 
+test("an answer stopped keeps the turn as far as it went", async ({ page }) => {
+	await openCreate(page, {
+		studio_ask: { $after: 800, $error: { code: "cancelled", message: "stopped" } },
+		studio_stop: null,
+	});
+	await page.getByRole("textbox", { name: "Message the assistant" }).fill("Add a question on etcd");
+	await page.keyboard.press("Enter");
+	// Rust keeps the turn when it is stopped: the conversation, read again, has it
+	const warmUp = conversation(1, "Warm-up");
+	await reply(page, "studio_open", {
+		...warmUp,
+		messages: [
+			...warmUp.messages,
+			{ role: "user", text: "Add a question on etcd", tools: [] },
+			{ role: "assistant", text: "Adding one.\n\n_You stopped the answer here._", tools: [] },
+		],
+	});
+	await page.getByRole("button", { name: "Stop" }).click();
+	expect(await calls(page, "studio_stop")).toEqual([{ session: 1 }]);
+	await expect(page.getByText("You stopped the answer here.")).toBeVisible();
+	await expect(page.getByText("Add a question on etcd")).toBeVisible();
+	await expect(page.getByText("Here is Warm-up.")).toBeVisible();
+});
+
 test("deleting a conversation asks first", async ({ page }) => {
 	await openCreate(page);
 	await reply(page, "studio_delete", null);

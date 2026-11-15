@@ -162,10 +162,23 @@ impl Coach {
         let (answer, title) = tokio::join!(self.agent.prompt_with(&agent_session, &prompt, cancel, &stream), naming);
         let answer = match answer {
             Ok(a) => a,
+            Err(e @ AppError::Cancelled { .. }) => {
+                // Stopped: the turn is kept as far as it went (the draft may
+                // have changed already, and the agent's session remembers it)
+                let mut kept = transcript.into_inner().unwrap_or_else(|p| p.into_inner());
+                kept.push_str(super::prompt::STOPPED);
+                let used = tools.into_inner().unwrap_or_else(|p| p.into_inner()).into_iter().map(|(t, _)| t).collect();
+                store.studio_add_messages(
+                    session,
+                    &[
+                        StudioMessage { role: Role::User, text: text.to_string(), tools: vec![] },
+                        StudioMessage { role: Role::Assistant, text: kept.trim_start().to_string(), tools: used },
+                    ],
+                )?;
+                return Err(e);
+            }
             Err(e) => {
-                if !matches!(e, AppError::Cancelled { .. }) {
-                    self.open.lock().await.remove(&key(session));
-                }
+                self.open.lock().await.remove(&key(session));
                 if matches!(e, AppError::SignInRequired { .. }) {
                     self.forget_account();
                 }

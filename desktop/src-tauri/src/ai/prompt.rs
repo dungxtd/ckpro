@@ -76,6 +76,8 @@ pub(super) fn system(subject: &CoachSubject, notes: &str) -> String {
 
 /// Said in the answer where the conversation was compacted: what came
 /// before was summarized to make room, so details of it may be gone
+/// Where an answer the candidate stopped ends, kept with what it wrote
+pub(super) const STOPPED: &str = "\n\n_You stopped the answer here._";
 pub(super) const COMPACTED: &str = "\n\n_Context compacted: the earlier part of this conversation was summarized to make room._\n\n";
 
 /// The candidate's own notes for the assistant (Settings), as a system
