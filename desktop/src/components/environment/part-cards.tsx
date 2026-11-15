@@ -1,5 +1,4 @@
 import { Button } from "@ckpro/ui/components/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@ckpro/ui/components/card";
 import { ConfirmDialog } from "@ckpro/ui/components/confirm-dialog";
 import { StatusDot, type StatusTone } from "@ckpro/ui/components/status-dot";
 import type { ReactNode } from "react";
@@ -19,6 +18,17 @@ export interface Row {
 	mb?: number;
 	/** What can be done to it, at the row's end */
 	action?: ReactNode;
+}
+
+/** A part's details, opened under its row on the memory map: what it is,
+ * then what is in it */
+export function Details({ about, children }: { about?: ReactNode; children: ReactNode }) {
+	return (
+		<div className="flex flex-col gap-1">
+			{about && <p className="mb-1 text-caption text-muted-foreground">{about}</p>}
+			{children}
+		</div>
+	);
 }
 
 export function Rows({ rows }: { rows: Row[] }) {
@@ -56,7 +66,7 @@ const IMAGES = [
 /** ckpro's own services: what runs now and what it takes; the ones that
  * start with an exam say so when they are not running. Under them, each
  * image an exam runs on: downloaded, being downloaded, or not yet */
-export function ServicesCard({
+export function ServicesDetails({
 	usage,
 	cacheMb,
 	clearing,
@@ -112,11 +122,7 @@ export function ServicesCard({
 		);
 	}
 	return (
-		<Card padding="sm">
-			<CardHeader>
-				<CardTitle>Exam tools</CardTitle>
-				<CardDescription>What every exam runs besides its clusters</CardDescription>
-			</CardHeader>
+		<Details about="What every exam runs besides its clusters">
 			<Rows rows={rows} />
 			<div className="mt-3 mb-1 font-semibold text-caption text-muted-foreground">Images</div>
 			<Rows
@@ -130,38 +136,31 @@ export function ServicesCard({
 					};
 				})}
 			/>
-		</Card>
+		</Details>
 	);
 }
 
 /** What else runs in the same Docker: ckpro leaves it alone */
-export function OtherAppsCard({ usage }: { usage: ContainerUse[] }) {
+export function OtherAppsDetails({ usage }: { usage: ContainerUse[] }) {
 	const rows: Row[] = otherApps(usage).map(a => ({ key: a.name, tone: "ok", ...a }));
 	return (
-		<Card padding="sm">
-			<CardHeader>
-				<CardTitle>Other containers</CardTitle>
-				<CardDescription>
-					Not started by ckpro, which leaves them alone. Stop them to free their memory
-				</CardDescription>
-			</CardHeader>
+		<Details about="Not started by ckpro, which leaves them alone. Stop them to free their memory">
 			<Rows rows={rows} />
-		</Card>
+		</Details>
 	);
 }
 
 /** What Docker's machine takes outside every container, and what it has
  * left: what ckpro weighs before it starts an exam or a proof */
-export function MachineCard({ usage, memory }: { usage: ContainerUse[]; memory: MachineMemory }) {
+export function MachineDetails({
+	usage,
+	memory,
+}: {
+	usage: ContainerUse[];
+	memory: MachineMemory;
+}) {
 	return (
-		<Card padding="sm">
-			<CardHeader>
-				<CardTitle>Other programs</CardTitle>
-				<CardDescription>
-					With Docker Engine on Linux, this computer's own programs (a browser, an editor); with
-					OrbStack or Docker Desktop, the engine itself. ckpro counts them before an exam starts
-				</CardDescription>
-			</CardHeader>
+		<Details about="With Docker Engine on Linux, this computer's own programs (a browser, an editor); with OrbStack or Docker Desktop, the engine itself. ckpro counts them before an exam starts">
 			<Rows
 				rows={[
 					{
@@ -180,22 +179,22 @@ export function MachineCard({ usage, memory }: { usage: ContainerUse[]; memory: 
 					},
 				]}
 			/>
-		</Card>
+		</Details>
 	);
 }
 
 /** A cluster ckpro made for a proof (or a verify run): its nodes and what
  * they take. It goes with its proof; Create stops it */
-export function ProofClusterCard({ cluster, usage }: { cluster: string; usage: ContainerUse[] }) {
+export function ProofClusterDetails({
+	cluster,
+	usage,
+}: {
+	cluster: string;
+	usage: ContainerUse[];
+}) {
 	const nodes = usage.filter(c => c.owner.kind === "cluster" && c.owner.cluster === cluster);
 	return (
-		<Card padding="sm">
-			<CardHeader>
-				<CardTitle>{cluster}</CardTitle>
-				<CardDescription>
-					Proving an exam in Create: removed when it ends (stop it there)
-				</CardDescription>
-			</CardHeader>
+		<Details about="Proving an exam in Create: removed when it ends (stop it there)">
 			<Rows
 				rows={nodes.map(n => ({
 					key: n.name,
@@ -205,6 +204,6 @@ export function ProofClusterCard({ cluster, usage }: { cluster: string; usage: C
 					mb: n.mb,
 				}))}
 			/>
-		</Card>
+		</Details>
 	);
 }

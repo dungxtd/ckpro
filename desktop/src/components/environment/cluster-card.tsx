@@ -6,7 +6,7 @@ import { useEnvironment } from "@/stores/environment";
 import type { ClusterState } from "@/tauri/api";
 import type { ContainerUse } from "@/tauri/bindings";
 import { plural } from "@/words";
-import { Rows } from "./part-cards";
+import { Details, Rows } from "./part-cards";
 import { nodeMb, type Purpose } from "./usage";
 
 const PURPOSE: Record<Purpose, string> = {
@@ -15,16 +15,34 @@ const PURPOSE: Record<Purpose, string> = {
 	other: "Not in use now",
 };
 
-/** A cluster: what it is for, its nodes (health, memory), its version and
- * guard, and what can be done to it */
-export function ClusterCard({
+/** A cluster on its own, before Docker's memory is measured (no map to open
+ * it from yet): its name over its details */
+export function ClusterCard(props: {
+	cluster: ClusterState;
+	purpose?: Purpose;
+	usage?: ContainerUse[] | null;
+}) {
+	return (
+		<Card padding="sm" className="flex flex-col gap-2">
+			<strong className="select-text truncate text-sm">{props.cluster.name}</strong>
+			<ClusterDetails {...props} named />
+		</Card>
+	);
+}
+
+/** A cluster's details: its nodes (health, memory), its version and guard,
+ * and what can be done to it; `named` (on its own, not under its row on the
+ * map), what it is for too */
+export function ClusterDetails({
 	cluster,
 	purpose = "other",
 	usage,
+	named = false,
 }: {
 	cluster: ClusterState;
 	purpose?: Purpose;
 	usage?: ContainerUse[] | null;
+	named?: boolean;
 }) {
 	// What Rust is doing to it now (starting its nodes, or removing it), or
 	// was just asked to
@@ -39,11 +57,10 @@ export function ClusterCard({
 	const version = cluster.nodes.find(n => n.version)?.version;
 
 	return (
-		<Card padding="sm">
-			<header className="mb-2 flex items-center gap-2">
-				<strong className="min-w-0 select-text truncate text-sm">{cluster.name}</strong>
+		<Details>
+			<header className="mb-1 flex items-center gap-2">
 				<span className="min-w-0 truncate text-caption text-muted-foreground">
-					{PURPOSE[purpose]} · 1 control plane, {plural(workers, "worker")}
+					{named && `${PURPOSE[purpose]} · `}1 control plane, {plural(workers, "worker")}
 				</span>
 				<div className="ml-auto flex shrink-0 gap-1.5">
 					{needsRepair && (
@@ -91,6 +108,6 @@ export function ClusterCard({
 						: "Off: on only while an exam runs on it"}
 				</dd>
 			</dl>
-		</Card>
+		</Details>
 	);
 }

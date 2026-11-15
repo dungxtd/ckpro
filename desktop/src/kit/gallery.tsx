@@ -80,6 +80,7 @@ import { Terminal } from "@ckpro/ui/components/terminal";
 import { Textarea } from "@ckpro/ui/components/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckpro/ui/components/tooltip";
 import { Truncated } from "@ckpro/ui/components/truncated";
+import { UsageBar, UsageMarkKey } from "@ckpro/ui/components/usage-bar";
 import { useCountUp } from "@ckpro/ui/hooks/use-count-up";
 import {
 	Check,
@@ -580,6 +581,13 @@ function Gallery() {
 				</Section>
 
 				<Section
+					title="UsageBar"
+					note="How a whole is used, as macOS Storage: a stretch per part, the room left with its size, a need hatched in it (amber when it does not fit). Hover a stretch, click to pick it."
+				>
+					<UsageDemo />
+				</Section>
+
+				<Section
 					title="Progress · Disclosure"
 					note="How far something is (a tone, or a colour of its own); a row that opens what is under it."
 				>
@@ -1043,6 +1051,40 @@ function Gallery() {
 				</Section>
 				<Toaster />
 			</div>
+		</div>
+	);
+}
+
+/** A usage bar to pick from, its parts growing on a button */
+function UsageDemo() {
+	const [picked, setPicked] = useState<string | null>(null);
+	const [more, setMore] = useState(false);
+	const gb = (mb: number) => (mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`);
+	const segments = [
+		{ key: "a", label: "Exam cluster", value: more ? 9200 : 2900, className: "bg-part-exam" },
+		{ key: "b", label: "Proof", value: 1400, className: "bg-part-proof" },
+		{ key: "c", label: "Exam tools", value: 94, className: "bg-part-services" },
+		{ key: "d", label: "Other programs", value: 627, className: "bg-part-machine" },
+	];
+	// The need fits the room left, or not (amber)
+	const tight = 3700 > 13_700 - segments.reduce((n, s) => n + s.value, 0);
+	return (
+		<div className="flex max-w-xl flex-col gap-2">
+			<UsageBar
+				label="Memory in use"
+				total={13_700}
+				segments={segments}
+				format={gb}
+				selected={picked}
+				onSelect={k => setPicked(p => (p === k ? null : k))}
+				mark={{ value: 3700, tight }}
+			/>
+			<span className="flex items-center gap-1.5 text-caption text-muted-foreground">
+				<UsageMarkKey tight={tight} />A CKA exam, about 3.7 GB
+				<Button size="push" variant="push" className="ml-auto" onClick={() => setMore(m => !m)}>
+					{more ? "Shrink" : "Grow the cluster"}
+				</Button>
+			</span>
 		</div>
 	);
 }

@@ -8,16 +8,16 @@ import { CircleCheck, Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { ActivityList } from "@/components/activity/activity-list";
-import { ClusterCard } from "@/components/environment/cluster-card";
+import { ClusterCard, ClusterDetails } from "@/components/environment/cluster-card";
 import { IssuesPanel } from "@/components/environment/issues-panel";
 import { MemoryMap } from "@/components/environment/memory-map";
 import {
-	MachineCard,
-	OtherAppsCard,
-	ProofClusterCard,
-	ServicesCard,
+	MachineDetails,
+	OtherAppsDetails,
+	ProofClusterDetails,
+	ServicesDetails,
 } from "@/components/environment/part-cards";
-import { parts as partsOf, purpose } from "@/components/environment/usage";
+import { type Part, parts as partsOf, purpose } from "@/components/environment/usage";
 import { Screen } from "@/components/shell/screen";
 import { useEnvironment } from "@/stores/environment";
 import { useCatalog, useExam } from "@/stores/exam";
@@ -68,7 +68,7 @@ export function EnvironmentRoute() {
 	const catalog = useCatalog();
 	// The exams aimed at: only theirs are weighed (all when none is)
 	const aimed = useTargets().map(t => t.certification);
-	// The part of the map whose details show (the first, until one is picked)
+	// The part of the map whose details show: the exam tools until one is picked
 	const [picked, setPicked] = useState<string | null>(null);
 	// Node readiness and what containers take are measured here only: while
 	// the page is open
@@ -108,7 +108,10 @@ export function EnvironmentRoute() {
 			)
 		: [];
 	const totalMb = machine?.total_mb ?? (docker.state === "up" ? docker.memory_mb : 0);
-	const open = picked && parts.some(p => p.key === picked) ? picked : (parts[0]?.key ?? null);
+	const open =
+		picked && parts.some(p => p.key === picked)
+			? picked
+			: ((parts.find(p => p.kind === "services") ?? parts[0])?.key ?? null);
 	// An exam's comfortable need, of the certification aimed at (else any):
 	// drawn beside the free room as an estimate
 	const exams = catalog.filter(e => aimed.length === 0 || aimed.includes(e.certification));
@@ -120,7 +123,34 @@ export function EnvironmentRoute() {
 		what: `A ${certName(largest.certification)} exam`,
 		mb: largest.memory_mb,
 	};
-	const cluster = env.clusters.find(c => c.name === open);
+	// A part's details, opened under its row on the map
+	const details = (part: Part) => {
+		if (!usage) return null;
+		if (part.kind === "services")
+			return (
+				<ServicesDetails
+					usage={usage}
+					cacheMb={env.host?.cache_mb}
+					clearing={env.cache_clearing ?? false}
+					missing={missing}
+					downloading={env.images_downloading ?? false}
+				/>
+			);
+		if (part.kind === "others") return <OtherAppsDetails usage={usage} />;
+		if (part.kind === "machine")
+			return machine && <MachineDetails usage={usage} memory={machine} />;
+		const cluster = env.clusters.find(c => c.name === part.key);
+		// One the app manages, else a cluster of ckpro's it does not (a proof's)
+		return cluster ? (
+			<ClusterDetails
+				cluster={cluster}
+				purpose={purpose(cluster.name, examClusters)}
+				usage={usage}
+			/>
+		) : (
+			<ProofClusterDetails cluster={part.key} usage={usage} />
+		);
+	};
 
 	return (
 		<Screen title="Environment" actions={<DockerStatus docker={docker} />} className="gap-3">
@@ -139,11 +169,10 @@ export function EnvironmentRoute() {
 						<MemoryMap
 							totalMb={totalMb}
 							parts={parts}
-							clusters={env.clusters}
-							usage={usage}
 							estimate={estimate}
 							open={open}
 							onOpen={setPicked}
+							details={details}
 						/>
 					</>
 				) : (
@@ -188,37 +217,11 @@ export function EnvironmentRoute() {
 				</p>
 			)}
 
-			{/* The details of the part picked on the map; every cluster until
-			    the first measurement */}
-			{usage
-				? cluster && (
-						<ClusterCard
-							cluster={cluster}
-							purpose={purpose(cluster.name, examClusters)}
-							usage={usage}
-						/>
-					)
-				: env.clusters.map(c => (
-						<ClusterCard key={c.name} cluster={c} purpose={purpose(c.name, examClusters)} />
-					))}
-			{/* A cluster of ckpro's the app does not manage itself (a proof's) */}
-			{!cluster &&
-				open &&
-				open !== "services" &&
-				open !== "others" &&
-				open !== "machine" &&
-				usage && <ProofClusterCard cluster={open} usage={usage} />}
-			{open === "services" && usage && (
-				<ServicesCard
-					usage={usage}
-					cacheMb={env.host?.cache_mb}
-					clearing={env.cache_clearing ?? false}
-					missing={missing}
-					downloading={env.images_downloading ?? false}
-				/>
-			)}
-			{open === "others" && usage && <OtherAppsCard usage={usage} />}
-			{open === "machine" && usage && machine && <MachineCard usage={usage} memory={machine} />}
+			{/* Every cluster on its own until the first measurement opens the map */}
+			{!usage &&
+				env.clusters.map(c => (
+					<ClusterCard key={c.name} cluster={c} purpose={purpose(c.name, examClusters)} />
+				))}
 			{env.clusters.length === 0 && !parts.some(p => p.kind === "proof" || p.kind === "exam") && (
 				<p className="text-muted-foreground text-sm">
 					No clusters: an exam makes the ones it needs when it starts.
