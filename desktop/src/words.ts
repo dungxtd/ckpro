@@ -37,13 +37,14 @@ const sameDay = (a: Date, b: Date) =>
 
 /**
  * A moment the app shows (an attempt's start, a step's time), in the
- * candidate's locale: the time alone when it is today, else the date and
- * the time; `NONE` when there is none
+ * candidate's locale, always with its day: "Today, 14:32" or the date and
+ * the time (a list mixes days; a time alone reads as any day); `NONE` when
+ * there is none
  */
 export function dateTime(ms: number | null | undefined, now = new Date()): string {
 	if (ms === null || ms === undefined) return NONE;
 	const d = new Date(ms);
 	return sameDay(d, now)
-		? d.toLocaleTimeString(undefined, { timeStyle: "short" })
+		? `Today, ${d.toLocaleTimeString(undefined, { timeStyle: "short" })}`
 		: d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
