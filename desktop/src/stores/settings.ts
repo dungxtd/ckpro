@@ -49,6 +49,7 @@ export const useSettings = create<SettingsStore>()(
 			},
 			theme: "dark",
 			plan_mode: null,
+			certified: [],
 			targets: [],
 			focus: null,
 			home: { places: [], hidden: [], custom: false },

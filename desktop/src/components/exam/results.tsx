@@ -14,6 +14,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@ckpro/ui/components/sheet";
+import { useCountUp } from "@ckpro/ui/hooks/use-count-up";
 import { cn } from "@ckpro/ui/lib/utils";
 import { Circle, CircleCheck, CircleDashed, ShieldAlert } from "lucide-react";
 import { useState } from "react";
@@ -50,6 +51,8 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 			: NONE;
 	const pass = attempt.pass_score;
 	const score = result.score ?? 0;
+	// Counted up as it opens, the bar filling with it
+	const shown = useCountUp(score);
 	const tone = scoreTone(score, pass);
 	const full = result.questions.filter(q => q.points === q.max_points).length;
 	const missed = result.questions.filter(q => q.points < q.max_points);
@@ -62,7 +65,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 		});
 
 	return (
-		<div className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
+		<div className="enter-stagger mx-auto flex max-w-3xl flex-col gap-4 p-6">
 			<Card padding="lg" className="flex flex-col gap-4">
 				<div className="flex items-start gap-3">
 					<div className="min-w-0 flex-1">
@@ -73,9 +76,12 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 							{/* One tone for the score, its badge and its bar: passing, near
 							    the pass line, far under it */}
 							<span className={cn("font-semibold text-display tabular-nums", TONE_TEXT[tone])}>
-								{result.score === null ? NONE : `${score}%`}
+								{result.score === null ? NONE : `${shown}%`}
 							</span>
-							<Badge variant={result.passed ? "success" : tone}>
+							<Badge
+								variant={result.passed ? "success" : tone}
+								className="animate-pop animate-delay-750"
+							>
 								{result.passed ? "Passed" : "Failed"}
 							</Badge>
 						</div>
@@ -92,7 +98,7 @@ export function Results({ attempt, result }: { attempt: Attempt; result: ExamRes
 						</Button>
 					</ConfirmDialog>
 				</div>
-				<Progress value={score} marker={pass} tone={tone} label="Score" />
+				<Progress value={shown} marker={pass} tone={tone} label="Score" />
 				<div className="text-muted-foreground text-sm tabular-nums">
 					{full} of {plural(result.questions.length, "question")} in full · pass line {pass}%{" · "}
 					{exam ? `${minutes} of ${exam.duration_minutes} min` : `${minutes} min`}

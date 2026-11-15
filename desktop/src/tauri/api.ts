@@ -92,6 +92,7 @@ export type {
 	PermissionOption,
 	Profile,
 	Provider,
+	QuestionScore,
 	RuntimeInfo,
 	Solution,
 	StudioSessionRow,

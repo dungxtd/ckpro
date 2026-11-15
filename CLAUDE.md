@@ -60,7 +60,9 @@ greeting ("Welcome to CKPRO."). Never CKpro or CK-pro.
   `MenuItem`, `DisclosureButton`, `InlineCode`, `Swatch`, `FadeScroll`, `RowCover` (a list row pressed as a whole). A hand-rolled control or a class
   string used twice becomes a kit component or variant.
 - **Kit helpers**: `useElementSize` (an element's size as it changes),
-  `useDragOrder`.
+  `useDragOrder`, `useCountUp` (a number counted in). Entrances are kit
+  utilities: `animate-enter`, `animate-rise`, `animate-pop`, placed with
+  `animate-delay-<ms>`, `enter-stagger` for a column; no screen keeps its own.
 - **The design system, live**: `desktop/kit.html` (`pnpm exec vite`, then
   `/kit.html`). New components and variants go there.
 - **Tokens, not colours**: the kit's theme tokens (`background`, `card`,

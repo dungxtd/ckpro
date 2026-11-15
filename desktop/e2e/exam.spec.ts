@@ -304,3 +304,41 @@ test("a preparation that failed starts over as a new attempt of the exam", async
 		.toEqual([{ id: "cka-001", mode: "practice", replace: true }]);
 	expect(await calls(page, "end_exam")).toHaveLength(1);
 });
+
+test("the first exam passed shows its certificate once, then the results", async ({ page }) => {
+	const passed = { ...result, score: 90, passed: true };
+	await launch(page, "/exam", {
+		exam_state: { phase: "finished", attempt: attempt("exam"), result: passed },
+		exam_history: [],
+	});
+	await expect(
+		page.getByRole("heading", { name: "You passed your first CKA exam." })
+	).toBeVisible();
+	await expect(
+		page.getByRole("img", { name: /Certificate: Kubernetes Administrator/ })
+	).toBeVisible();
+	// Seen: kept, so it is shown once
+	const saved = await calls(page, "save_settings");
+	expect((saved.at(-1) as { settings: { certified: string[] } }).settings.certified).toEqual([
+		"cka",
+	]);
+	await page.getByRole("button", { name: "See your results" }).click();
+	await expect(page.getByText("90%")).toBeVisible();
+	await expect(page.getByText("Passed", { exact: true })).toBeVisible();
+});
+
+test("a passed exam goes straight to the results once its certification was celebrated", async ({
+	page,
+}) => {
+	await launch(page, "/exam", {
+		exam_state: {
+			phase: "finished",
+			attempt: attempt("exam"),
+			result: { ...result, score: 90, passed: true },
+		},
+		exam_history: [],
+		settings: withSettings({ certified: ["cka"] }),
+	});
+	await expect(page.getByText("90%")).toBeVisible();
+	await expect(page.getByRole("button", { name: "See your results" })).toHaveCount(0);
+});

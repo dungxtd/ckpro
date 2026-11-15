@@ -443,6 +443,7 @@
 		},
 		"theme": "dark",
 		"plan_mode": null,
+		"certified": [],
 		"targets": [
 			{
 				"certification": "cka",

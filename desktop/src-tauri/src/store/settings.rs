@@ -47,6 +47,9 @@ pub struct Settings {
     pub focus: Option<String>,
     /// How Home's modules are arranged
     pub home: HomeLayout,
+    /// The certifications whose first passed exam was celebrated (its
+    /// certificate shown): once each
+    pub certified: Vec<String>,
 }
 
 /// Home's modules as the candidate arranged them: each one's cell on the
@@ -148,6 +151,7 @@ impl Default for Settings {
             sidebar: SidebarLayout::default(),
             theme: Theme::Dark,
             plan_mode: None,
+            certified: Vec::new(),
             targets: Vec::new(),
             focus: None,
             home: HomeLayout::default(),

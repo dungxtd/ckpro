@@ -1,14 +1,19 @@
 import { Button } from "@ckpro/ui/components/button";
 import { Card } from "@ckpro/ui/components/card";
 import { Loading } from "@ckpro/ui/components/loading";
+import { useEffect, useState } from "react";
 import { Navigate } from "react-router";
 import { useShallow } from "zustand/react/shallow";
 import { ActivityPage } from "@/components/activity/activity-progress";
+import { FirstPass } from "@/components/exam/first-pass";
 import { Grading } from "@/components/exam/grading";
 import { Results } from "@/components/exam/results";
 import { RunningExam } from "@/components/exam/running-exam";
 import { WindowFrame } from "@/components/shell/window";
 import { useExam } from "@/stores/exam";
+import { useSettings } from "@/stores/settings";
+import { useStudy } from "@/stores/study";
+import type { Attempt, ExamResult } from "@/tauri/api";
 
 const modeLabel = (mode: string) => (mode === "exam" ? "Exam mode" : "Practice mode");
 
@@ -83,11 +88,7 @@ function ExamPhase() {
 		case "ending":
 			return <ActivityPage id={state.activity} subtitle={state.attempt.title} />;
 		case "finished":
-			return (
-				<div className="h-full overflow-auto">
-					<Results attempt={state.attempt} result={state.result} />
-				</div>
-			);
+			return <Finished attempt={state.attempt} result={state.result} />;
 		case "failed": {
 			const attempt = state.attempt;
 			// Kept (its resume or grading failed): the same attempt, the work on it
@@ -130,4 +131,43 @@ function ExamPhase() {
 			);
 		}
 	}
+}
+
+/**
+ * A finished attempt's Results; the first exam-mode attempt of a
+ * certification that passes shows its certificate first (once: Settings'
+ * `certified` keeps it, and an earlier passed exam of it counts too)
+ */
+function Finished({ attempt, result }: { attempt: Attempt; result: ExamResult }) {
+	const certified = useSettings(s => s.settings.certified);
+	const update = useSettings(s => s.update);
+	const history = useStudy(s => s.history);
+	const cert = attempt.certification;
+	// Decided once, as the result opens: marking it seen does not take it away
+	const [celebrate, setCelebrate] = useState(
+		() =>
+			attempt.mode === "exam" &&
+			result.passed &&
+			!certified.includes(cert) &&
+			!(history ?? []).some(
+				h =>
+					h.attempt_id !== attempt.id &&
+					h.mode === "exam" &&
+					h.result.passed &&
+					h.certification === cert
+			)
+	);
+	// Seen as soon as it is shown: leaving and coming back goes to Results
+	// biome-ignore lint/correctness/useExhaustiveDependencies: once, as it opens
+	useEffect(() => {
+		const seen = useSettings.getState().settings.certified;
+		if (celebrate && !seen.includes(cert)) update({ certified: [...seen, cert] });
+	}, []);
+	if (celebrate)
+		return <FirstPass attempt={attempt} result={result} onDone={() => setCelebrate(false)} />;
+	return (
+		<div className="h-full overflow-auto">
+			<Results attempt={attempt} result={result} />
+		</div>
+	);
 }

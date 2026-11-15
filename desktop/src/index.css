@@ -189,3 +189,244 @@ body,
 		radial-gradient(120% 90% at 85% 0%, var(--tint-warm), transparent 60%),
 		radial-gradient(100% 80% at 0% 100%, var(--tint-cool), transparent 60%), var(--background);
 }
+
+/* The first passed exam's certificate (exam/first-pass.tsx): paper, ink and
+   the seal's blue, the same in both themes, as paper is */
+.cert,
+.pass-stamp {
+	--cert-paper: #fbfaf6;
+	--cert-ink: #23232a;
+	--cert-muted: #8a8478;
+	--cert-line: #d8d2c4;
+	--cert-blue: #2553c9;
+	--cert-blue-deep: #1b3f9e;
+	--cert-sign: #1f3f9c;
+}
+.cert {
+	position: relative;
+	width: 450px;
+	padding: 7px;
+	border-radius: 6px;
+	background: var(--cert-paper);
+	color: var(--cert-ink);
+	box-shadow: 0 22px 50px rgb(0 0 0 / 0.4);
+	text-align: center;
+	user-select: none;
+}
+.cert-frame {
+	border: 1.5px solid #c9c2ae;
+	outline: 1px solid #e3ddcc;
+	outline-offset: -5px;
+	padding: 11px 18px 10px;
+}
+.cert-head {
+	display: flex;
+	justify-content: space-between;
+	font-size: 11px;
+	font-weight: 600;
+	color: #3a3a40;
+}
+.cert-head span:last-child {
+	font-size: 9.5px;
+	font-weight: 400;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--cert-muted);
+}
+.cert-kind {
+	margin-top: 6px;
+	font:
+		600 12px Georgia,
+		serif;
+	letter-spacing: 0.32em;
+	text-transform: uppercase;
+	color: var(--cert-blue);
+}
+.cert-line {
+	margin-top: 4px;
+	font:
+		italic 10.5px Georgia,
+		serif;
+	color: #5e5a52;
+}
+.cert-name {
+	height: 33px;
+	width: 220px;
+	margin: 2px auto 0;
+	border-bottom: 1px solid var(--cert-line);
+	font:
+		italic 25px "Snell Roundhand",
+		"Apple Chancery",
+		Georgia,
+		serif;
+}
+.cert-name span {
+	display: inline-block;
+	padding: 0 0.3em 0.15em;
+}
+.cert-role {
+	margin-top: 3px;
+	font:
+		700 17px Georgia,
+		"Times New Roman",
+		serif;
+}
+.cert-foot {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	gap: 12px;
+	margin-top: 18px;
+	align-items: end;
+}
+.cert-foot > div {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 3px;
+	padding-top: 5px;
+	border-top: 1px solid var(--cert-line);
+	font:
+		11px Georgia,
+		serif;
+	min-height: 14px;
+}
+.cert-foot small {
+	font:
+		9.5px -apple-system,
+		BlinkMacSystemFont,
+		sans-serif;
+	color: var(--cert-muted);
+}
+.cert-mono {
+	font:
+		10px ui-monospace,
+		SFMono-Regular,
+		monospace;
+}
+.cert-sign {
+	width: 120px;
+	height: 24px;
+	margin-top: -26px;
+	fill: none;
+	stroke: var(--cert-sign);
+	stroke-width: 2.4;
+	stroke-linecap: round;
+	stroke-dasharray: 340;
+	stroke-dashoffset: 340;
+	/* longhands: the delay is the component's (animate-delay) */
+	animation-name: cert-sign;
+	animation-duration: 0.6s;
+	animation-timing-function: ease-in-out;
+	animation-fill-mode: both;
+}
+.cert-seal {
+	position: absolute;
+	right: -26px;
+	top: 40px;
+	width: 88px;
+	height: 107px;
+	overflow: visible;
+	filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.25));
+	transform: rotate(-8deg);
+}
+.cert-ribbon {
+	fill: var(--cert-blue-deep);
+}
+.cert-seal-ring {
+	fill: var(--cert-blue);
+}
+.cert-seal-core {
+	fill: var(--cert-paper);
+}
+.cert-seal-dots {
+	fill: none;
+	stroke: white;
+	stroke-width: 1.4;
+	stroke-dasharray: 2.5 2.5;
+	opacity: 0.8;
+}
+.cert-seal-text {
+	fill: white;
+	font:
+		700 8.5px -apple-system,
+		BlinkMacSystemFont,
+		sans-serif;
+	letter-spacing: 0.18em;
+	text-anchor: middle;
+}
+.cert-mark {
+	fill: #3d72e6;
+}
+.cert-helm {
+	stroke: #f4f3f7;
+}
+.cert-helm-hub {
+	fill: #f4f3f7;
+}
+/* The PASSED stamp (exam/first-pass.tsx): placed and moved by script from
+   its centre; PASSED on its face, the seal it turns into behind (the
+   certificate's colours, above) */
+.pass-stamp {
+	position: absolute;
+	left: 0;
+	top: 0;
+	z-index: 10;
+	opacity: 0;
+	pointer-events: none;
+}
+.pass-stamp > * {
+	position: absolute;
+	left: 0;
+	top: 0;
+	translate: -50% -50%;
+	overflow: visible;
+}
+.pass-stamp-face {
+	width: 188px;
+	height: 88px;
+	color: var(--color-success);
+}
+.pass-stamp-word {
+	fill: currentColor;
+	font:
+		800 33px -apple-system,
+		BlinkMacSystemFont,
+		sans-serif;
+	letter-spacing: 0.14em;
+	text-anchor: middle;
+}
+.pass-stamp-sub {
+	fill: currentColor;
+	font:
+		700 9px -apple-system,
+		BlinkMacSystemFont,
+		sans-serif;
+	letter-spacing: 0.22em;
+	text-anchor: middle;
+}
+/* The ink spreading as it is pressed */
+.pass-stamp-splat {
+	width: 210px;
+	height: 110px;
+	border: 3px solid var(--color-success);
+	border-radius: 16px;
+	opacity: 0;
+}
+.pass-stamp-seal {
+	width: 88px;
+	height: 107px;
+	opacity: 0;
+	filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.25));
+}
+@keyframes cert-sign {
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+/* Its signature, placed in time by the component (animate-delay) */
+@media (prefers-reduced-motion: reduce) {
+	.cert-sign {
+		animation-name: none;
+		stroke-dashoffset: 0;
+	}
+}

@@ -1596,6 +1596,11 @@ export type Settings_Deserialize = {
 	focus?: string | null,
 	/**  How Home's modules are arranged */
 	home?: HomeLayout_Deserialize,
+	/**
+	 *  The certifications whose first passed exam was celebrated (its
+	 *  certificate shown): once each
+	 */
+	certified?: string[],
 };
 
 /**  The exam desk's display settings */
@@ -1635,6 +1640,11 @@ export type Settings_Serialize = {
 	focus: string | null,
 	/**  How Home's modules are arranged */
 	home: HomeLayout_Serialize,
+	/**
+	 *  The certifications whose first passed exam was celebrated (its
+	 *  certificate shown): once each
+	 */
+	certified: string[],
 };
 
 export type Severity = "error" | "warning";

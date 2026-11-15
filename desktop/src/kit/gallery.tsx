@@ -80,6 +80,7 @@ import { Terminal } from "@ckpro/ui/components/terminal";
 import { Textarea } from "@ckpro/ui/components/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ckpro/ui/components/tooltip";
 import { Truncated } from "@ckpro/ui/components/truncated";
+import { useCountUp } from "@ckpro/ui/hooks/use-count-up";
 import {
 	Check,
 	ChevronDown,
@@ -660,6 +661,12 @@ function Gallery() {
 				</Section>
 
 				<Section
+					title="Entrances"
+					note="animate-enter (fade up), animate-rise (a large block up, tilted), animate-pop (a badge, overshoot), placed in time with animate-delay-<ms>; enter-stagger enters its children --stagger apart; useCountUp counts a number in. Only appear under reduced motion."
+				>
+					<EntranceDemo />
+				</Section>
+				<Section
 					title="Scroll edges"
 					note="FadeScroll (useScrollEdges + fade-x / fade-y, no scroll bar): a scroller fades at the edge that has more; sideways, a wheel scrolls it too."
 				>
@@ -1130,6 +1137,37 @@ function SplitterSample() {
 			</div>
 			<Splitter label="Resize the column" {...column.handle} />
 			<div className="flex-1 bg-muted/40" />
+		</div>
+	);
+}
+
+function EntranceDemo() {
+	const [run, setRun] = useState(0);
+	const score = useCountUp(run ? 82 : 0);
+	return (
+		<div className="flex flex-col gap-3">
+			<Button size="push" variant="push" className="self-start" onClick={() => setRun(n => n + 1)}>
+				Play
+			</Button>
+			<div key={run} className="enter-stagger flex flex-col gap-2">
+				<Card padding="md" className="flex items-center gap-3">
+					<span className="font-semibold text-display tabular-nums text-success">{score}%</span>
+					<Badge variant="success" className="animate-pop animate-delay-750">
+						Passed
+					</Badge>
+				</Card>
+				<Card padding="md">enter-stagger: second</Card>
+				<Card padding="md">enter-stagger: third</Card>
+			</div>
+			<div key={`r${run}`} className="flex gap-2">
+				<span className="animate-enter rounded-lg bg-fill-quiet px-3 py-2">enter</span>
+				<span className="animate-rise animate-delay-200 rounded-lg bg-fill-quiet px-3 py-2">
+					rise
+				</span>
+				<span className="animate-pop animate-delay-400 rounded-lg bg-fill-quiet px-3 py-2">
+					pop
+				</span>
+			</div>
 		</div>
 	);
 }
