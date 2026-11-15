@@ -4,7 +4,7 @@ import { reducedMotion } from "@ckpro/ui/lib/motion";
 import { cn } from "@ckpro/ui/lib/utils";
 import type * as React from "react";
 import { useLayoutEffect, useRef, useState } from "react";
-import { activityLevel, level, MAP_WEEKS, mapWeeks } from "@/components/study/data";
+import { activityLevel, level, MAP_WEEKS, mapEnd, mapWeeks } from "@/components/study/data";
 import { addDays, DAY_MS, dayKey, parseDay } from "@/days";
 import type { ExamTarget } from "@/tauri/api";
 import { certName, shortDay } from "@/words";
@@ -26,7 +26,8 @@ const short = (d: Date) => d.toLocaleDateString(undefined, { day: "numeric", mon
 
 /**
  * The preparation day by day, as a contribution graph, from its first day
- * to the last exam aimed at: the past tinted by time practised (`activity`)
+ * to the last exam aimed at or day planned, four weeks ahead at least
+ * (`mapEnd`): the past tinted by time practised (`activity`)
  * or by best score (`score`), planned days ringed, exam days filled, today
  * ringed. Squares keep their size: a longer preparation scrolls sideways,
  * opened with today two-thirds across, fading where there is more, and a chip
@@ -66,8 +67,8 @@ export function PracticeMap({
 }) {
 	const now = new Date();
 	const today = dayKey(now);
-	const lastExam = exams.reduce<string | null>((l, e) => (!l || e.date > l ? e.date : l), null);
-	const end = lastExam && lastExam > today ? parseDay(lastExam) : now;
+	const end = mapEnd(now, exams, planned.keys());
+	const last = dayKey(end);
 	const weeks = mapWeeks(start, end, MAP_WEEKS);
 	const first = dayKey(start);
 	const examOn = new Map(exams.map(e => [e.date, e]));
@@ -228,8 +229,8 @@ export function PracticeMap({
 								</span>,
 								...w.map(d => {
 									const k = dayKey(d);
-									const out = k < first || (lastExam ? k > lastExam && k > today : k > today);
-									if (out && k > today) return <span key={k} aria-hidden />;
+									const out = k < first || k > last;
+									if (k > last) return <span key={k} aria-hidden />;
 									const exam = examOn.get(k);
 									const past = k <= today;
 									const plans = planned.get(k);

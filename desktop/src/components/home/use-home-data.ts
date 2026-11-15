@@ -42,12 +42,8 @@ export function useHomeData() {
 	const latest = all?.find(h => h.certification)?.certification || null;
 	const certs = targets.length ? targets.map(t => t.certification) : latest ? [latest] : [];
 	const certKey = certs.join(",");
-	// The plans from this week to the last exam: the week, today and the map
-	const from = dayKey(weekStart);
-	const lastExam = [dayKey(addDays(weekStart, 6)), ...targets.map(t => t.date)]
-		.sort()
-		.at(-1) as string;
-	const planned = usePlans(from, lastExam);
+	// The plans from this week on: the week, today and the map
+	const planned = usePlans(dayKey(weekStart));
 	const [measuredBy, setMeasuredBy] = useState<{ key: string; list: Measured[] }>({
 		key: "",
 		list: [],

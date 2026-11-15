@@ -1,4 +1,4 @@
-import { addDays, dayKey, monday } from "@/days";
+import { addDays, dayKey, monday, parseDay } from "@/days";
 import type { ExamReadiness, ExamSummary, ExamTarget, HistoryEntry, PlanView } from "@/tauri/api";
 
 /** The pass line when none is known yet (no readiness read): 66%, the
@@ -39,6 +39,18 @@ export function bestByDay(history: HistoryEntry[]): Map<string, number> {
 
 /** The fewest weeks the prep map shows, so a new preparation is not two lone columns */
 export const MAP_WEEKS = 12;
+
+/** How far past today the map reaches when nothing later is aimed at or
+ * planned: room to plan the coming weeks on it */
+export const MAP_AHEAD_DAYS = 28;
+
+/** Where the map ends: the last exam aimed at, the last day planned, or
+ * `MAP_AHEAD_DAYS` past today, whichever is latest */
+export function mapEnd(today: Date, exams: ExamTarget[], planned: Iterable<string>): Date {
+	const ahead = dayKey(addDays(today, MAP_AHEAD_DAYS));
+	const last = [ahead, ...exams.map(e => e.date), ...planned].sort().at(-1) as string;
+	return last === ahead ? addDays(today, MAP_AHEAD_DAYS) : parseDay(last);
+}
 
 /** The prep map's columns: Monday-first weeks from `start`'s week to `end`'s,
  * `min` of them at least (reaching back before `start`) */

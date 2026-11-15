@@ -80,6 +80,9 @@ export function useShownStudy() {
 	};
 }
 
+/** No day lies after it: plans read to it are every plan from a day on */
+export const LAST_DAY = "9999-12-31";
+
 /**
  * The plans from `from` to `to` (YYYY-MM-DD), read as the range changes
  * and again whenever the study changes (`version`), while `enabled`.
@@ -89,7 +92,7 @@ export function useShownStudy() {
  * earlier one that came after it. `reload` reads them again (not failed
  * meanwhile: read again)
  */
-export function usePlans(from: string, to: string, { enabled = true } = {}) {
+export function usePlans(from: string, to = LAST_DAY, { enabled = true } = {}) {
 	const version = useStudy(s => s.version);
 	const [retry, setRetry] = useState(0);
 	const range = `${from}:${to}`;

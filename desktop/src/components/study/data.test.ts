@@ -8,6 +8,7 @@ import {
 	level,
 	longestStreak,
 	MAP_WEEKS,
+	mapEnd,
 	mapWeeks,
 	minutesByDay,
 	passed,
@@ -82,6 +83,15 @@ describe("home figures", () => {
 		const weeks = mapWeeks(new Date(2026, 9, 28), new Date(2026, 10, 1));
 		expect(weeks).toHaveLength(MAP_WEEKS);
 		expect(dayKey(weeks.at(-1)?.[0] as Date)).toBe("2026-10-26");
+	});
+
+	it("ends the map at the latest of four weeks ahead, the last exam and the last plan", () => {
+		const today = new Date(2026, 10, 15);
+		const exam = { certification: "cka", date: "2027-01-10", started: "2026-10-01", rest_days: [] };
+		expect(dayKey(mapEnd(today, [], []))).toBe("2026-12-13");
+		expect(dayKey(mapEnd(today, [], ["2026-11-20"]))).toBe("2026-12-13");
+		expect(dayKey(mapEnd(today, [exam], ["2026-12-20"]))).toBe("2027-01-10");
+		expect(dayKey(mapEnd(today, [exam], ["2027-02-03"]))).toBe("2027-02-03");
 	});
 
 	it("draws a score below the pass line apart from passing ones", () => {

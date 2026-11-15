@@ -14,7 +14,7 @@ import {
 } from "@/components/study/data";
 import { ExamMenu } from "@/components/study/exam-menu";
 import { PracticeMap } from "@/components/study/practice-map";
-import { addDays, dayKey, monday, parseDay, streak } from "@/days";
+import { dayKey, monday, parseDay, streak } from "@/days";
 import { useShownTargets } from "@/stores/settings";
 import { usePlans, useShownStudy, useStudy } from "@/stores/study";
 import { errorText, examApi, type PlanView } from "@/tauri/api";
@@ -42,16 +42,11 @@ export function CalendarRoute() {
 		? (params.get("day") as string)
 		: today;
 	const weekStart = monday(parseDay(anchor));
-	// From the preparation's start to the last exam (and the week picked)
+	// From the preparation's start (or the week picked, before it) on: the
+	// map reaches as far as anything is planned
 	const start = prepStart(targets, shown ?? [], now);
-	const lastExam = targets
-		.map(t => t.date)
-		.sort()
-		.at(-1);
-	// The map's whole span, and the week picked (it may lie outside it)
 	const from = [start, dayKey(weekStart)].sort()[0];
-	const to = [dayKey(addDays(weekStart, 6)), lastExam ?? today].sort().at(-1) as string;
-	const { plans: read } = usePlans(from, to);
+	const { plans: read } = usePlans(from);
 	const plans = ofShown(read ?? []);
 	const go = (day: string) => setParams({ day });
 
