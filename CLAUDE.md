@@ -32,6 +32,14 @@ Architecture: `docs/ARCHITECTURE.md`.
   together. What a script would do on the host is Rust (the `docker`
   stand-in kind runs is the app itself).
 
+## The name
+
+**ckpro**, lower case, everywhere the product is named: prose, the window,
+the CLI (`ckpro`), the repo, the Homebrew cask, `dev.ckpro.app`, README and
+docs. **CKPRO** only where capitals are the style: a certificate, a seal, a
+line set in capitals beside CKA, CKAD and CKS, and the first-launch
+greeting ("Welcome to CKPRO."). Never CKpro or CK-pro.
+
 ## Interface rules
 
 - **Where components live** (`desktop/src/components/`): `exam/` the exam
