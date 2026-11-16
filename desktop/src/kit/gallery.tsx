@@ -10,6 +10,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@ckpro/ui/componen
 import { Chip } from "@ckpro/ui/components/chip";
 import { CodeBlock } from "@ckpro/ui/components/code-block";
 import { ConfirmDialog } from "@ckpro/ui/components/confirm-dialog";
+import { DateField } from "@ckpro/ui/components/date-field";
 import { dayMarkerVariants } from "@ckpro/ui/components/day-marker";
 import { Disclosure, DisclosureButton } from "@ckpro/ui/components/disclosure";
 import {
@@ -579,6 +580,13 @@ function Gallery() {
 							</TableRow>
 						</TableBody>
 					</Table>
+				</Section>
+
+				<Section
+					title="DateField"
+					note="A day typed in numbers in one field, dd/mm/yyyy, the slashes put in as it is typed. No calendar to pick from."
+				>
+					<DateField label="Exam day" value="2026-12-15" onChange={() => {}} />
 				</Section>
 
 				<Section

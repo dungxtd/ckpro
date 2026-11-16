@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 
 /** What a sequence's steps are made of: an animation played to its end, or
- * a wait. Both stop the sequence once it is cancelled */
+ * a wait. Once the sequence is cancelled they never settle: what awaits
+ * them stops there, and nothing is thrown */
 export interface Sequence {
 	/** `el.animate`, kept at its end (`fill: forwards` unless said); resolves
 	 * when it ends */
@@ -9,11 +10,14 @@ export interface Sequence {
 	wait: (ms: number) => Promise<void>;
 }
 
+/** A promise that never settles: where a cancelled sequence stops */
+const never = () => new Promise<never>(() => {});
+
 /**
  * Steps in time, run once `when` turns true: each `await`s the last (an
  * animation's end, a wait). All stop and are cancelled when the component
  * goes, or `when` turns false (React's second run in development
- * included): an animation not awaited stops too, without an error
+ * included): an animation not awaited stops too, and nothing is thrown
  */
 export function useSequence(run: (s: Sequence) => Promise<void>, when = true) {
 	// biome-ignore lint/correctness/useExhaustiveDependencies: once, as `when` turns true
@@ -24,18 +28,17 @@ export function useSequence(run: (s: Sequence) => Promise<void>, when = true) {
 		let live = true;
 		const steps: Sequence = {
 			wait: ms =>
-				new Promise((done, stop) => {
-					timers.push(window.setTimeout(() => (live ? done() : stop()), ms));
+				new Promise(done => {
+					timers.push(window.setTimeout(() => live && done(), ms));
 				}),
 			play: (el, frames, options) => {
 				const a = el.animate(frames, { fill: "forwards", ...options });
 				playing.push(a);
-				const done = a.finished.then(() => {
-					if (!live) throw new Error("stopped");
-				});
-				// Cancelled as it goes: not an error, whether awaited or not
-				done.catch(() => {});
-				return done;
+				// Cancelled as it goes (it rejects then): left pending, not an error
+				return a.finished.then(
+					() => (live ? undefined : never()),
+					() => never()
+				);
 			},
 		};
 		run(steps).catch(() => {});

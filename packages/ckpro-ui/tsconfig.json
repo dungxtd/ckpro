@@ -6,5 +6,7 @@
 		"noEmit": true,
 		"paths": { "@ckpro/ui/*": ["./src/*"] }
 	},
-	"include": ["src"]
+	"include": ["src"],
+	// Its unit tests run under the app's vitest (desktop/vitest.config.ts)
+	"exclude": ["src/**/*.test.ts"]
 }

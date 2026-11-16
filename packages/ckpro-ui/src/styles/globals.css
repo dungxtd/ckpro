@@ -514,6 +514,20 @@
 	animation-timing-function: var(--ease-out);
 	animation-fill-mode: both;
 }
+/* One of a sequence of pages coming in from the side it is moved toward:
+   `--slide` its distance, signed (60px on, -60px back) */
+@keyframes slide {
+	from {
+		opacity: 0;
+		transform: translateX(var(--slide, 60px));
+	}
+}
+@utility animate-slide {
+	animation-name: slide;
+	animation-duration: 0.38s;
+	animation-timing-function: var(--ease-out);
+	animation-fill-mode: both;
+}
 @utility animate-delay-* {
 	animation-delay: calc(--value(integer) * 1ms);
 }
@@ -540,6 +554,7 @@
 	.animate-rise,
 	.animate-pop,
 	.animate-swap,
+	.animate-slide,
 	.enter-stagger > * {
 		animation-name: none;
 	}
