@@ -62,9 +62,10 @@ export function ExamMenu() {
 				target={edited}
 				taken={targets.map(t => t.certification).filter(c => c !== edited?.certification)}
 				others={targets.filter(t => t !== edited)}
-				onSave={t => {
+				onSave={(t, booked) => {
 					save(edited ? targets.map(o => (o === edited ? t : o)) : [...targets, t]);
-					if (t.date !== edited?.date && daysUntil(t.date, new Date()) >= 0) setTicket(t);
+					// A day booked prints its ticket; a goal is not one
+					if (booked && t.date !== edited?.date && daysUntil(t.date, new Date()) >= 0) setTicket(t);
 				}}
 				onRemove={edited && (() => save(targets.filter(o => o !== edited)))}
 			>

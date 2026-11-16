@@ -349,3 +349,12 @@ export async function calls(page: Page, cmd: string) {
 		cmd
 	);
 }
+
+/** Type a day into a DateField (dd/mm/yyyy) named `label` */
+export async function typeDay(page: Page, label: string, day: string) {
+	const [y, m, d] = day.split("-");
+	const field = page.getByRole("textbox", { name: label, exact: true });
+	await field.fill("");
+	await field.pressSequentially(`${d}${m}${y}`);
+	await field.press("Enter");
+}

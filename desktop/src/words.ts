@@ -1,3 +1,5 @@
+import { daysUntil, parseDay } from "@/days";
+
 /** How the app words things it counts and names, the same everywhere */
 
 /** A curriculum domain's id as words (`services-networking` → `services networking`) */
@@ -56,4 +58,21 @@ export function dateTime(ms: number | null | undefined, now = new Date()): strin
 	return sameDay(d, now)
 		? `Today, ${d.toLocaleTimeString(undefined, { timeStyle: "short" })}`
 		: d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+/**
+ * An exam day typed, said under its field: how to type one while it is
+ * not a whole day, that it has passed, or the day and how far it is
+ */
+export function examDayText(day: string | null, now = new Date()): string {
+	if (day === null) return "Type the day: dd/mm/yyyy";
+	const days = daysUntil(day, now);
+	if (days < 0) return "That day has passed";
+	const date = parseDay(day).toLocaleDateString(undefined, {
+		weekday: "short",
+		day: "numeric",
+		month: "short",
+		year: "numeric",
+	});
+	return `${date} · ${plural(days, "day")} from now`;
 }

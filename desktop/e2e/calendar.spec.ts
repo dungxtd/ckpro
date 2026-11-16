@@ -1,4 +1,4 @@
-import { calls, launch, reply, sample, withSettings } from "./backend";
+import { calls, launch, reply, sample, typeDay, withSettings } from "./backend";
 import { expect, type Page, test } from "./fixture";
 
 /** The day's own Plan, at the foot of its column */
@@ -52,10 +52,16 @@ test("a plan that cannot be kept says why", async ({ page }) => {
 test("a segmented control is one Tab stop: the arrows choose, Home and End go to the ends", async ({
 	page,
 }) => {
-	await launch(page, "/calendar");
-	await examMenu(page);
-	await page.getByRole("button", { name: "Add an exam you prepare for" }).click();
+	// History's domains, one certification at a time of three
+	const stat = (certification: string) => ({
+		certification,
+		title: certification,
+		scores: [70],
+		domains: [{ domain: "troubleshooting", weight: 30, points: 7, max_points: 10, questions: 1 }],
+	});
+	await launch(page, "/history", { study_stats: ["cka", "ckad", "cks"].map(stat) });
 	const radios = page.getByRole("radiogroup", { name: "Certification" }).getByRole("radio");
+	await expect(radios.first()).toBeVisible();
 	const last = (await radios.count()) - 1;
 	expect(last).toBeGreaterThan(0);
 	const chosen = async (i: number) => {
@@ -83,9 +89,10 @@ test("the exams prepared for are set in the Calendar: added, changed, removed", 
 	// The fixture aims at CKA; CKAD is added beside it
 	await examMenu(page);
 	await page.getByRole("button", { name: "Add an exam you prepare for" }).click();
-	await page.getByRole("radio", { name: "CKAD" }).click();
-	await page.getByLabel("Exam day").fill("2027-03-20");
-	await page.getByRole("dialog").getByRole("button", { name: "Add", exact: true }).click();
+	// Asked as the first launch asks: the exam, booked, its day
+	await page.getByRole("dialog").getByRole("button", { name: "CKAD" }).click();
+	await page.getByRole("button", { name: "Yes, I have a day" }).click();
+	await typeDay(page, "CKAD exam day", "2027-03-20");
 	const saved = async () => {
 		const all = await calls(page, "save_settings");
 		return (all.at(-1) as { settings: { targets: { certification: string; date: string }[] } })
