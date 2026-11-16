@@ -89,7 +89,6 @@ pub(super) fn remove_plans_of(conn: &rusqlite::Connection, exam_ids: &[String]) 
 mod tests {
     use crate::lab::exam::Mode;
     use crate::store::Store;
-    use rusqlite::params;
 
     #[test]
     fn plans_are_kept_by_day() {
@@ -119,27 +118,5 @@ mod tests {
         store.add_plan("2026-11-05", "cka-002", Mode::Exam).unwrap();
         store.add_plan("2026-11-06", "cka-001", Mode::Practice).unwrap();
         assert_eq!(store.plans("2026-11-01", "2026-11-30").unwrap().len(), 3);
-    }
-
-    /// Duplicates an earlier version let in go when the database learns
-    /// the rule: the first planned stays
-    #[test]
-    fn duplicate_plans_go_the_first_stays() {
-        let conn = rusqlite::Connection::open_in_memory().unwrap();
-        // The schema as it was before the rule
-        let before = super::super::MIGRATIONS.len() - 1;
-        for migration in &super::super::MIGRATIONS[..before] {
-            conn.execute_batch(migration).unwrap();
-        }
-        conn.pragma_update(None, "user_version", before as i64).unwrap();
-        for (day, exam, mode) in
-            [("2026-11-05", "a", "exam"), ("2026-11-05", "a", "practice"), ("2026-11-05", "b", "exam"), ("2026-11-06", "a", "practice")]
-        {
-            conn.execute("INSERT INTO plan (day, exam_id, mode, created_at) VALUES (?1, ?2, ?3, 0)", params![day, exam, mode]).unwrap();
-        }
-        let store = Store::with(conn).unwrap();
-        let plans = store.plans("2026-11-01", "2026-11-30").unwrap();
-        let kept: Vec<(&str, &str, Mode)> = plans.iter().map(|p| (p.day.as_str(), p.exam_id.as_str(), p.mode)).collect();
-        assert_eq!(kept, [("2026-11-05", "a", Mode::Exam), ("2026-11-05", "b", Mode::Exam), ("2026-11-06", "a", Mode::Practice)]);
     }
 }

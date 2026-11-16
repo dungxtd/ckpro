@@ -23,9 +23,10 @@ pub use plans::StoredPlan;
 pub use settings::{ExamTarget, Settings};
 pub use studio::{StudioMessage, StudioSessionRow, ToolUse};
 
-/// Schema versions, applied in order (`PRAGMA user_version` is how many ran)
-const MIGRATIONS: &[&str] = &[
-    "
+/// Schema versions, applied in order (`PRAGMA user_version` is how many ran).
+/// The first is the whole schema as the app was first released; each change
+/// after it is a new entry, never an edit to one before
+const MIGRATIONS: &[&str] = &["
     -- The attempt in progress, so it survives quitting the app (one at most)
     CREATE TABLE attempt (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -48,39 +49,8 @@ const MIGRATIONS: &[&str] = &[
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
-",
-    "
-    -- The practice coach's conversation, per attempt and question
+    -- The practice coach's conversations: several sessions per question
     CREATE TABLE coach_message (
-        attempt_id TEXT NOT NULL,
-        question_id TEXT NOT NULL,
-        seq INTEGER NOT NULL,
-        role TEXT NOT NULL,
-        text TEXT NOT NULL,
-        PRIMARY KEY (attempt_id, question_id, seq)
-    );
-",
-    "
-    -- A coach session's own name, when the candidate renamed it
-    CREATE TABLE coach_session (
-        attempt_id TEXT NOT NULL,
-        question_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        PRIMARY KEY (attempt_id, question_id)
-    );
-",
-    "
-    -- Questions where the assistant ran commands (Agent): their score was helped
-    CREATE TABLE assisted (
-        attempt_id TEXT NOT NULL,
-        question_id TEXT NOT NULL,
-        PRIMARY KEY (attempt_id, question_id)
-    );
-",
-    "
-    -- Several coach sessions per question: a new one keeps the earlier ones.
-    -- What was kept is the first session (0) of its question
-    CREATE TABLE coach_message_v5 (
         attempt_id TEXT NOT NULL,
         question_id TEXT NOT NULL,
         session INTEGER NOT NULL,
@@ -89,20 +59,14 @@ const MIGRATIONS: &[&str] = &[
         text TEXT NOT NULL,
         PRIMARY KEY (attempt_id, question_id, session, seq)
     );
-    INSERT INTO coach_message_v5 SELECT attempt_id, question_id, 0, seq, role, text FROM coach_message ORDER BY rowid;
-    DROP TABLE coach_message;
-    ALTER TABLE coach_message_v5 RENAME TO coach_message;
     -- Each session, made when it starts; its own name when renamed
-    CREATE TABLE coach_session_v5 (
+    CREATE TABLE coach_session (
         attempt_id TEXT NOT NULL,
         question_id TEXT NOT NULL,
         session INTEGER NOT NULL,
         title TEXT,
         PRIMARY KEY (attempt_id, question_id, session)
     );
-    INSERT INTO coach_session_v5 SELECT attempt_id, question_id, 0, title FROM coach_session;
-    DROP TABLE coach_session;
-    ALTER TABLE coach_session_v5 RENAME TO coach_session;
     -- The session a question's pane shows (else its latest)
     CREATE TABLE coach_current (
         attempt_id TEXT NOT NULL,
@@ -110,15 +74,14 @@ const MIGRATIONS: &[&str] = &[
         session INTEGER NOT NULL,
         PRIMARY KEY (attempt_id, question_id)
     );
-",
-    "
-    -- Study plans written by the coach are no longer kept
-    DELETE FROM coach_message WHERE attempt_id = 'study-plan';
-    DELETE FROM coach_session WHERE attempt_id = 'study-plan';
-    DELETE FROM coach_current WHERE attempt_id = 'study-plan';
-",
-    "
-    -- Exams the candidate plans to take on a day (YYYY-MM-DD, their own time)
+    -- Questions where the assistant ran commands (Agent): their score was helped
+    CREATE TABLE assisted (
+        attempt_id TEXT NOT NULL,
+        question_id TEXT NOT NULL,
+        PRIMARY KEY (attempt_id, question_id)
+    );
+    -- Exams the candidate plans to take on a day (YYYY-MM-DD, their own
+    -- time), each at most once a day
     CREATE TABLE plan (
         id INTEGER PRIMARY KEY,
         day TEXT NOT NULL,
@@ -127,8 +90,7 @@ const MIGRATIONS: &[&str] = &[
         created_at INTEGER NOT NULL
     );
     CREATE INDEX plan_day ON plan (day);
-",
-    "
+    CREATE UNIQUE INDEX plan_once_a_day ON plan (day, exam_id);
     -- Create with Claude: a conversation building an exam, and its draft (JSON)
     CREATE TABLE studio_session (
         id INTEGER PRIMARY KEY,
@@ -136,25 +98,16 @@ const MIGRATIONS: &[&str] = &[
         updated_at INTEGER NOT NULL,
         draft TEXT NOT NULL DEFAULT '{}'
     );
+    -- Its messages, with the tools Claude used for an answer, in order (JSON)
     CREATE TABLE studio_message (
         session INTEGER NOT NULL,
         seq INTEGER NOT NULL,
         role TEXT NOT NULL,
         text TEXT NOT NULL,
+        tools TEXT NOT NULL DEFAULT '[]',
         PRIMARY KEY (session, seq)
     );
-",
-    "
-    -- The tools Claude used for an answer in Create, in order (JSON)
-    ALTER TABLE studio_message ADD COLUMN tools TEXT NOT NULL DEFAULT '[]';
-",
-    "
-    -- An exam is planned at most once a day: earlier duplicates go (the
-    -- first planned stays), then the database holds it
-    DELETE FROM plan WHERE id NOT IN (SELECT MIN(id) FROM plan GROUP BY day, exam_id);
-    CREATE UNIQUE INDEX plan_once_a_day ON plan (day, exam_id);
-",
-];
+"];
 
 /// Where the candidate is in an attempt
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -187,34 +140,16 @@ impl Store {
     }
 
     /// The app's database, encrypted with `key` (64 hex digits, `key::database_key`).
-    /// One kept in the clear by an earlier version is encrypted first, and no
-    /// copy of it in the clear is kept; one encrypted with another key is
-    /// refused, never written over
+    /// One encrypted with another key is refused, never written over
     pub fn open_encrypted(path: &Path, key: &str) -> AppResult<Self> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| AppError::io("creating the data directory", e))?;
         }
         let conn = keyed(path, key)?;
-        if readable(&conn) {
-            drop(conn);
-            return Self::keyed_store(path, key);
-        }
-        drop(conn);
-        // Not with this key: in the clear (an earlier version's), or another key's
-        let plain = Connection::open(path).map_err(db)?;
-        if !readable(&plain) {
+        if !readable(&conn) {
             return Err(AppError::database("it is locked with another installation's key, so it cannot be read here"));
         }
-        encrypt(plain, path, key)?;
-        Self::keyed_store(path, key)
-    }
-
-    fn keyed_store(path: &Path, key: &str) -> AppResult<Self> {
-        let store = Self { conn: Mutex::new(migrated(keyed(path, key)?)?) };
-        // Opened with this key: a copy in the clear an earlier version kept
-        // beside it goes (not before: it may be the only readable one)
-        let _ = std::fs::remove_file(path.with_extension("unencrypted"));
-        Ok(store)
+        Ok(Self { conn: Mutex::new(migrated(conn)?) })
     }
 
     #[cfg(test)]
@@ -342,15 +277,6 @@ impl Store {
         studio::rewrite_drafts(&tx, rewrite)?;
         tx.commit().map_err(db)
     }
-
-    /// The entries kept before an entry kept its certification, as they are
-    pub fn history_without_certification<T: DeserializeOwned>(&self) -> AppResult<Vec<T>> {
-        let conn = self.conn();
-        let mut query =
-            conn.prepare("SELECT entry FROM history WHERE COALESCE(json_extract(entry, '$.certification'), '') = ''").map_err(db)?;
-        let rows = query.query_map([], |r| r.get::<_, String>(0)).map_err(db)?;
-        Ok(rows.flatten().filter_map(|json| serde_json::from_str(&json).ok()).collect())
-    }
 }
 
 /// A connection to `path` with SQLCipher's `key` given as raw bytes (no key
@@ -366,45 +292,6 @@ fn readable(conn: &Connection) -> bool {
     conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get::<_, i64>(0)).is_ok()
 }
 
-/// A database in the clear, encrypted in place with `key`: exported into an
-/// encrypted copy, which is read back before it takes the original's place;
-/// nothing in the clear stays
-fn encrypt(plain: Connection, path: &Path, key: &str) -> AppResult<()> {
-    let io = |e| AppError::io("encrypting the app database", e);
-    // Everything in the main file before it is copied
-    plain.pragma_update(None, "wal_checkpoint", "TRUNCATE").map_err(db)?;
-    let encrypted = path.with_extension("encrypting");
-    let _ = std::fs::remove_file(&encrypted);
-    plain
-            welcomed: true,
-            setup_step: None,
-        .execute_batch(&format!(
-            "ATTACH DATABASE '{}' AS encrypted KEY \"x'{key}'\"; SELECT sqlcipher_export('encrypted'); DETACH DATABASE encrypted;",
-            encrypted.display().to_string().replace('\'', "''")
-        ))
-        .map_err(db)?;
-    let version: i64 = plain.pragma_query_value(None, "user_version", |r| r.get(0)).map_err(db)?;
-    drop(plain);
-    let copy = keyed(&encrypted, key)?;
-    copy.pragma_update(None, "user_version", version).map_err(db)?;
-    // The copy reads with the key, and has what the original had
-    let tables = |conn: &Connection| conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get::<_, i64>(0)).map_err(db);
-    let plain = Connection::open(path).map_err(db)?;
-    if tables(&copy)? != tables(&plain)? {
-        drop(copy);
-        let _ = std::fs::remove_file(&encrypted);
-        return Err(AppError::database("the encrypted copy does not hold what the original does; it was left in the clear"));
-    }
-    drop((copy, plain));
-    for suffix in ["-wal", "-shm"] {
-        let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
-    }
-    // The clear original is written over in one step
-    std::fs::rename(&encrypted, path).map_err(io)?;
-    tracing::info!("the app database is encrypted now");
-    Ok(())
-}
-
 fn db(e: rusqlite::Error) -> AppError {
     AppError::database(e)
 }
@@ -418,28 +305,18 @@ mod tests {
     use super::settings::{ExamSort, ExamTarget, HomeLayout, ModulePlace, SidebarLayout, Theme};
     use super::*;
 
-    /// The app's database is encrypted: one kept in the clear is encrypted
-    /// in place (no copy in the clear kept, an earlier version's removed),
-    /// SQLite alone cannot read it, and another installation's key does not
-    /// open it, nor writes over it
+    /// The app's database is encrypted: SQLite alone cannot read it, and
+    /// another installation's key does not open it, nor writes over it
     #[test]
     fn the_database_is_encrypted_and_its_key_holds_it() {
         let dir = std::env::temp_dir().join(format!("ckpro-encrypted-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let path = dir.join("ckpro.db");
         let key = "ab".repeat(32);
-        // An earlier version's, in the clear
         {
-            let store = Store::open(&path).unwrap();
+            let store = Store::open_encrypted(&path, &key).unwrap();
             store.save_setting("probe", &serde_json::json!({ "kept": true })).unwrap();
         }
-        // A copy in the clear an earlier version kept beside
-        std::fs::copy(&path, dir.join("ckpro.unencrypted")).unwrap();
-        let store = Store::open_encrypted(&path, &key).unwrap();
-        let kept: serde_json::Value = store.setting::<Option<serde_json::Value>>("probe").unwrap().unwrap();
-        assert_eq!(kept["kept"], true);
-        drop(store);
-        assert!(!dir.join("ckpro.unencrypted").exists(), "no copy in the clear is kept");
         assert!(!readable(&Connection::open(&path).unwrap()), "SQLite alone reads nothing");
         // Another installation's key: refused, the file left as it was
         let before = std::fs::read(&path).unwrap();
@@ -447,7 +324,8 @@ mod tests {
         assert_eq!(std::fs::read(&path).unwrap(), before);
         // Its own key again: as it was
         let again = Store::open_encrypted(&path, &key).unwrap();
-        assert!(again.setting::<Option<serde_json::Value>>("probe").unwrap().is_some());
+        let kept: serde_json::Value = again.setting::<Option<serde_json::Value>>("probe").unwrap().unwrap();
+        assert_eq!(kept["kept"], true);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -498,6 +376,8 @@ mod tests {
             theme: Theme::System,
             plan_mode: Some(crate::lab::exam::Mode::Exam),
             certified: vec!["cka".into()],
+            welcomed: true,
+            setup_step: None,
             targets: vec![
                 ExamTarget { certification: "cka".into(), date: "2026-12-15".into(), started: "2026-10-06".into(), rest_days: vec![4] },
                 ExamTarget { certification: "ckad".into(), date: "2027-03-20".into(), started: "2026-11-02".into(), rest_days: vec![] },

@@ -235,7 +235,7 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::store::{MIGRATIONS, Store};
+    use crate::store::Store;
 
     #[test]
     fn keeps_coach_conversations_per_attempt_and_question() {
@@ -272,25 +272,5 @@ mod tests {
         store.clear_coach_messages("a1", "q1").unwrap();
         assert_eq!(texts(store.coach_messages("a1", "q1").unwrap()), ["again"]);
         assert_eq!(store.coach_messages("a1", "q2").unwrap().1.len(), 1);
-    }
-
-    #[test]
-    fn moves_kept_conversations_into_sessions() {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(MIGRATIONS[0]).unwrap();
-        conn.execute_batch(MIGRATIONS[1]).unwrap();
-        conn.execute_batch(MIGRATIONS[2]).unwrap();
-        conn.execute_batch(MIGRATIONS[3]).unwrap();
-        conn.pragma_update(None, "user_version", 4).unwrap();
-        conn.execute_batch(
-            "INSERT INTO coach_message VALUES ('a', 'q', 0, 'user', 'kept?');
-             INSERT INTO coach_message VALUES ('a', 'q', 1, 'assistant', 'yes');
-             INSERT INTO coach_session VALUES ('a', 'q', 'Old name');",
-        )
-        .unwrap();
-        let store = Store::with(conn).unwrap();
-        let (session, messages) = store.coach_messages("a", "q").unwrap();
-        assert_eq!((session, messages.len()), (0, 2));
-        assert_eq!(store.coach_session_title("a", "q").unwrap().as_deref(), Some("Old name"));
     }
 }

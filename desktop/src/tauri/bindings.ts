@@ -1085,11 +1085,8 @@ export type HistoryEntry_Deserialize = {
 	attempt_id: string,
 	exam_id: string,
 	title: string,
-	/**
-	 *  Its exam's certification: kept, the exam may be deleted since
-	 *  (entries from before it was kept got it once, `certify_history`)
-	 */
-	certification?: string,
+	/**  Its exam's certification: kept, the exam may be deleted since */
+	certification: string,
 	mode: Mode,
 	pass_score: number,
 	result: ExamResult_Deserialize,
@@ -1100,10 +1097,7 @@ export type HistoryEntry_Serialize = {
 	attempt_id: string,
 	exam_id: string,
 	title: string,
-	/**
-	 *  Its exam's certification: kept, the exam may be deleted since
-	 *  (entries from before it was kept got it once, `certify_history`)
-	 */
+	/**  Its exam's certification: kept, the exam may be deleted since */
 	certification: string,
 	mode: Mode,
 	pass_score: number,
@@ -1595,6 +1589,12 @@ export type Settings_Deserialize = {
 	/**  The certification Home and the Calendar show, or none for all of them */
 	focus?: string | null,
 	/**  How Home's modules are arranged */
+	home?: HomeLayout_Deserialize,
+	/**
+	 *  The certifications whose first passed exam was celebrated (its
+	 *  certificate shown): once each
+	 */
+	certified?: string[],
 	/**  The first-launch greeting and setup were seen through (or skipped) */
 	welcomed?: boolean,
 	/**
@@ -1602,12 +1602,6 @@ export type Settings_Deserialize = {
 	 *  app quit midway opens it there again
 	 */
 	setup_step?: string | null,
-	home?: HomeLayout_Deserialize,
-	/**
-	 *  The certifications whose first passed exam was celebrated (its
-	 *  certificate shown): once each
-	 */
-	certified?: string[],
 };
 
 /**  The exam desk's display settings */
@@ -1646,6 +1640,12 @@ export type Settings_Serialize = {
 	/**  The certification Home and the Calendar show, or none for all of them */
 	focus: string | null,
 	/**  How Home's modules are arranged */
+	home: HomeLayout_Serialize,
+	/**
+	 *  The certifications whose first passed exam was celebrated (its
+	 *  certificate shown): once each
+	 */
+	certified: string[],
 	/**  The first-launch greeting and setup were seen through (or skipped) */
 	welcomed: boolean,
 	/**
@@ -1653,12 +1653,6 @@ export type Settings_Serialize = {
 	 *  app quit midway opens it there again
 	 */
 	setup_step: string | null,
-	home: HomeLayout_Serialize,
-	/**
-	 *  The certifications whose first passed exam was celebrated (its
-	 *  certificate shown): once each
-	 */
-	certified: string[],
 };
 
 export type Severity = "error" | "warning";

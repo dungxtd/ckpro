@@ -308,8 +308,6 @@ pub fn run() {
             app.manage(store.clone());
             let exams_handle = app.handle().clone();
             let pack = lab::mine::merged(load_pack(app.path().resource_dir().ok()), &data_dir);
-            // Attempts kept before they kept their certification get it, once
-            lab::exam::history::certify_history(&store, &pack);
             let exams = Arc::new(lab::exam::Exams::new(
                 pack,
                 kind.clone(),
