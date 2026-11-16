@@ -104,39 +104,39 @@
 }
 
 [data-theme="dark"] {
-	--background: #1c1c1e; /* macOS dark window content */
-	--foreground: #ffffff;
-	--card: #2a2a2d; /* grouped cards */
-	--card-foreground: #ffffff;
-	--popover: #2c2c2e;
-	--popover-foreground: #ffffff;
+	--background: #161b22; /* the window */
+	--foreground: #d2d7df;
+	--card: #272c33; /* grouped cards */
+	--card-foreground: #d2d7df;
+	--popover: #2b313b;
+	--popover-foreground: #d2d7df;
 	--primary: #ffffff;
 	--primary-foreground: #000000;
-	--secondary: #2c2c2e;
-	--secondary-foreground: #ffffff;
-	--muted: #2a2a2d;
-	--muted-foreground: #98989d;
-	--accent: #3a3a3c;
-	--accent-foreground: #ffffff;
+	--secondary: #2b313b;
+	--secondary-foreground: #d2d7df;
+	--muted: #272c33;
+	--muted-foreground: #8b949e;
+	--accent: #373d47;
+	--accent-foreground: #d2d7df;
 	--destructive: #ff453a;
 	--success: #30d158;
 	--warning: #ff9f0a;
-	--highlight: #3478f6;
+	--highlight: #5889df;
 	--highlight-foreground: #ffffff;
 	--assistant: #7c6cf2;
 	--overlay: rgb(0 0 0 / 0.4);
-	--glass: #2c2c2e;
-	--glass-border: rgb(84 84 88 / 0.6);
+	--glass: #2b313b;
+	--glass-border: #383e47;
 	--glass-highlight: transparent;
 	--glass-rim: transparent;
-	--glass-selected: #636366;
+	--glass-selected: #444c56;
 	--glass-selected-foreground: #ffffff;
 	--surface-edge: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 0 0 1px rgb(255 255 255 / 0.08);
-	--border: rgb(84 84 88 / 0.6);
-	--input: #3a3a3c;
+	--border: #383e47;
+	--input: #373d47;
 	--ring: var(--highlight);
-	--card-tinted: rgb(255 255 255 / 0.06);
-	--card-tinted-edge: rgb(255 255 255 / 0.09);
+	--card-tinted: #272c33;
+	--card-tinted-edge: #383e47;
 	--shadow-float: 0 10px 38px rgb(0 0 0 / 0.5), 0 0 0 0.5px rgb(255 255 255 / 0.12);
 	--shadow-control: 0 0 0 0.5px rgb(0 0 0 / 0.3), 0 1px 2px rgb(0 0 0 / 0.3);
 	--shadow-push: inset 0 0 0 1px var(--push-edge), 0 1px 2px rgb(0 0 0 / 0.2);
@@ -144,27 +144,27 @@
 		0 1px 3px rgb(0 0 0 / 0.3), inset 0 0.5px 0 rgb(255 255 255 / 0.2), 0 0 0 0.5px rgb(0 0 0 / 0.1);
 	--shadow-glass-rim:
 		inset 0 1px 0 rgb(255 255 255 / 0.3), inset 0 0 0 0.5px rgb(255 255 255 / 0.12);
-	--switch-off: #4a4a4c;
+	--switch-off: #444c56;
 	--seg-bg: rgb(0 0 0 / 0.28); /* recessed track, reads on any dark surface */
-	--seg-on: #76767b; /* raised thumb, clearly lighter than the track */
+	--seg-on: #4b5361; /* raised thumb, clearly lighter than the track */
 	/* A push button: an edge on a faint fill, so a grey block never reads
 	   as a disabled one */
 	--push: rgb(255 255 255 / 0.04);
 	--push-edge: rgb(255 255 255 / 0.16);
-	--menu-bg: linear-gradient(rgb(109 109 115 / 0.78), rgb(93 93 99 / 0.78));
-	--menu-edge: rgb(0 0 0 / 0.85); /* near-black outer hairline (#070707) */
-	--menu-rim: rgb(255 255 255 / 0.24); /* bright inner rim */
+	--menu-bg: linear-gradient(#2b313b, #2b313b); /* solid: read on anything */
+	--menu-edge: #383e47;
+	--menu-rim: transparent;
 	--menu-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
 	--hover-glow: 0 2px 8px rgb(255 255 255 / 0.1);
-	--sidebar-panel: #262628;
-	--sidebar-selected: rgb(255 255 255 / 0.12);
-	--sidebar-hover: rgb(255 255 255 / 0.05);
-	--capsule: rgb(44 44 46 / 0.72);
-	--capsule-edge: rgb(255 255 255 / 0.14);
+	--sidebar-panel: #1c2128;
+	--sidebar-selected: #2b313b;
+	--sidebar-hover: #21262d;
+	--capsule: rgb(43 49 59 / 0.85);
+	--capsule-edge: #383e47;
 	--capsule-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
-	--terminal: #0d0d0e;
-	--terminal-foreground: #d1d1d6;
-	--terminal-edge: rgb(255 255 255 / 0.05);
+	--terminal: #0d1117;
+	--terminal-foreground: #d2d7df;
+	--terminal-edge: #30363d;
 	/* The accent, lightened to read on the near-black ground */
 	--terminal-prompt: color-mix(in oklab, var(--highlight), white 30%);
 	--terminal-muted: rgb(255 255 255 / 0.45);
