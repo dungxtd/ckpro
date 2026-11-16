@@ -59,7 +59,7 @@ export function AboutSettings() {
 			{/* Who the app is, at the end of the page */}
 			<footer className="flex flex-col items-center gap-1 pt-4 text-center">
 				<img src={appIcon} alt="" className="size-16" />
-				<div className="font-semibold">ckpro</div>
+				<div className="font-semibold">CKPro</div>
 				{info ? (
 					<div className="text-caption text-muted-foreground tabular-nums">
 						Version {info.version}

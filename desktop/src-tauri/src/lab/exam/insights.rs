@@ -137,7 +137,7 @@ impl Exams {
         self.assistant_allowed()?;
         match self.state() {
             ExamState::Running { attempt, .. } if attempt.mode == Mode::Practice => Ok(()),
-            _ => Err(AppError::not_found("no practice attempt is running in ckpro")),
+            _ => Err(AppError::not_found("no practice attempt is running in CKPro")),
         }
     }
 

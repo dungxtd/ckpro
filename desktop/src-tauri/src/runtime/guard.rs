@@ -219,7 +219,7 @@ impl Guard {
             let Ok(c) = docker.inspect_container(&name, None).await else { continue };
             let state = c.state.unwrap_or_default();
             if state.paused == Some(true) {
-                self.record(format!("{name} was paused while ckpro lost Docker: resumed"));
+                self.record(format!("{name} was paused while CKPro lost Docker: resumed"));
                 let _ = docker.unpause_container(&name).await;
             } else if state.running != Some(true) {
                 self.record(format!("{name} was not running when Docker came back: started again"));
@@ -315,19 +315,19 @@ impl Guard {
                             tokio::time::sleep(Duration::from_secs(2)).await;
                             let running = docker.inspect_container(&name, None).await.ok().and_then(|c| c.state?.running).unwrap_or(false);
                             if !running {
-                                this.record(format!("{name} was stopped outside ckpro: started again"));
+                                this.record(format!("{name} was stopped outside CKPro: started again"));
                                 let _ = docker.start_container(&name, None::<bollard::query_parameters::StartContainerOptions>).await;
                             }
                         });
                     }
                     "pause" => {
                         tokio::spawn(async move {
-                            this.record(format!("{name} was paused outside ckpro: resumed"));
+                            this.record(format!("{name} was paused outside CKPro: resumed"));
                             let _ = docker.unpause_container(&name).await;
                         });
                     }
                     "destroy" if !expected => {
-                        self.record(format!("{name} was removed outside ckpro: end the exam and start it again"));
+                        self.record(format!("{name} was removed outside CKPro: end the exam and start it again"));
                     }
                     // A control plane started again lost its firewall rule
                     "start" if name.ends_with("-control-plane") => {
@@ -351,7 +351,7 @@ impl Guard {
                         let running = c.state.and_then(|s| s.running).unwrap_or(false);
                         let attached = c.network_settings.and_then(|n| n.networks).is_some_and(|n| n.contains_key(NETWORK));
                         if running && !attached {
-                            this.record(format!("{name} was disconnected from the {NETWORK} network outside ckpro: connected again"));
+                            this.record(format!("{name} was disconnected from the {NETWORK} network outside CKPro: connected again"));
                             let request = NetworkConnectRequest { container: id, ..Default::default() };
                             let _ = docker.connect_network(NETWORK, request).await;
                         }
@@ -361,7 +361,7 @@ impl Guard {
             Some(EventMessageTypeEnum::VOLUME) if action == "destroy" => {
                 let name = actor.and_then(|a| a.id.clone()).unwrap_or_default();
                 if self.lock().is_some() && name.starts_with("ckpro") {
-                    self.record(format!("Volume {name} was removed outside ckpro"));
+                    self.record(format!("Volume {name} was removed outside CKPro"));
                 }
             }
             _ => {}

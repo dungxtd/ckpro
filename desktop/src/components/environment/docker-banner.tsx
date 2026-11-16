@@ -16,7 +16,7 @@ export function DockerBanner() {
 	return (
 		<Alert variant="warning" className="items-center">
 			<span className="flex-1">
-				<strong>Docker is not running.</strong> {hint ?? "ckpro connects as soon as it is up."}
+				<strong>Docker is not running.</strong> {hint ?? "CKPro connects as soon as it is up."}
 			</span>
 			<Button size="push" variant="push" onClick={() => envApi.retry()}>
 				Try again

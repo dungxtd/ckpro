@@ -71,7 +71,7 @@ jobs:
           set -euo pipefail
           mkdir -p _artifacts
           for f in desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg; do
-            cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f")"
+            cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f" | sed 's/^CKPro_/ckpro_/')"
           done
           ls -la _artifacts
 
@@ -127,7 +127,7 @@ jobs:
           set -euo pipefail
           mkdir -p _artifacts
           for f in desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe; do
-            cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f")"
+            cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f" | sed 's/^CKPro_/ckpro_/')"
           done
           ls -la _artifacts
 
@@ -190,7 +190,7 @@ jobs:
           mkdir -p _artifacts
           bundle=desktop/src-tauri/target/${{ matrix.target }}/release/bundle
           for f in "$bundle"/appimage/*.AppImage "$bundle"/deb/*.deb; do
-            cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f")"
+            cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f" | sed 's/^CKPro_/ckpro_/')"
           done
           ls -la _artifacts
 

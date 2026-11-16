@@ -1,6 +1,6 @@
 <div align="center">
   <img width="112" src="desktop/src-tauri/icons/128x128@2x.png" alt="" />
-  <h1>ckpro</h1>
+  <h1>CKPro</h1>
   <p>Practise the CKA, CKAD and CKS on real Kubernetes clusters,<br />in a desktop laid out like the exam.</p>
   <p>
     <a href="https://github.com/dungxtd/ckpro/releases/latest"><strong>Download</strong></a> ·
@@ -17,7 +17,7 @@
 <p align="center">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="resources/home-dark.png" />
-  <img alt="ckpro's Home: the exam day, readiness, the practice map" src="resources/home-light.png" />
+  <img alt="CKPro's Home: the exam day, readiness, the practice map" src="resources/home-light.png" />
 </picture>
 </p>
 
@@ -34,7 +34,7 @@ Each attempt gets its own kind clusters, a task host to `ssh` into and a remote 
 - **Environment**: what uses Docker's memory and disk, with fixes.
 - **Guard**: during an attempt, changes from outside the exam desktop are undone and reported.
 
-## How is ckpro different?
+## How is CKPro different?
 
 Online simulators hand you a session: a few runs, a clock you did not choose, a browser tab.
 
@@ -72,7 +72,7 @@ Your attempts, plans and settings stay on this computer, in a database encrypted
 
 ## Tech
 
-ckpro is a [Tauri](https://tauri.app) app: its interface is [React](https://react.dev) and [TypeScript](https://www.typescriptlang.org), its backend [Rust](https://www.rust-lang.org). The clusters are [kind](https://kind.sigs.k8s.io) on Docker. See [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+CKPro is a [Tauri](https://tauri.app) app: its interface is [React](https://react.dev) and [TypeScript](https://www.typescriptlang.org), its backend [Rust](https://www.rust-lang.org). The clusters are [kind](https://kind.sigs.k8s.io) on Docker. See [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Development
 

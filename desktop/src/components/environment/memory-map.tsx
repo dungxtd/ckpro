@@ -24,7 +24,7 @@ const WHAT: Record<Part["kind"], string> = {
 	proof: "Proving an exam",
 	other: "Not in use now",
 	services: "Task host, desktop, image cache",
-	others: "Not started by ckpro",
+	others: "Not started by CKPro",
 	machine: "Running outside Docker",
 };
 

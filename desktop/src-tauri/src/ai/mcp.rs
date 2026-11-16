@@ -56,7 +56,7 @@ impl Server {
             return Err(AppError::assistant_off());
         }
         let (_, questions) =
-            exam::saved_running(&self.store).ok_or_else(|| AppError::not_found("no practice attempt is running in ckpro"))?;
+            exam::saved_running(&self.store).ok_or_else(|| AppError::not_found("no practice attempt is running in CKPro"))?;
         questions.into_iter().find(|(id, _)| *id == self.question).ok_or_else(|| AppError::not_found("the question is not in the attempt"))
     }
 
@@ -160,7 +160,7 @@ async fn task_host() -> AppResult<(bollard::Docker, &'static str)> {
     let host = crate::runtime::jumphost::APP_NAME;
     let running = docker.inspect_container(host, None).await.ok().and_then(|c| c.state?.running).unwrap_or(false);
     if !running {
-        return Err(AppError::invalid("The attempt's cluster is not running: open ckpro to resume the attempt, then try again."));
+        return Err(AppError::invalid("The attempt's cluster is not running: open CKPro to resume the attempt, then try again."));
     }
     Ok((docker, host))
 }
@@ -280,7 +280,7 @@ mod tests {
     #[tokio::test]
     async fn speaks_mcp_with_the_agent_tools_only() {
         // What the app says of the attempt: none, then an exam, then practice
-        let says = std::sync::Arc::new(std::sync::Mutex::new(Err::<(), _>(AppError::not_found("no practice attempt is running in ckpro"))));
+        let says = std::sync::Arc::new(std::sync::Mutex::new(Err::<(), _>(AppError::not_found("no practice attempt is running in CKPro"))));
         let said = says.clone();
         let allowed: Allowed = std::sync::Arc::new(move || match &*said.lock().unwrap() {
             Ok(()) => Ok(()),

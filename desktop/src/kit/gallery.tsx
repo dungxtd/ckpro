@@ -165,7 +165,7 @@ function Gallery() {
 			<div className="mx-auto flex max-w-5xl flex-col gap-10 p-8">
 				<header className="flex items-center gap-4">
 					<div className="flex-1">
-						<h1 className="font-semibold text-2xl">ckpro design system</h1>
+						<h1 className="font-semibold text-2xl">CKPro design system</h1>
 						<p className="text-muted-foreground text-sm">
 							@ckpro/ui (packages/ckpro-ui) and the app's patterns. Use these; a hand-rolled control
 							is a missing component.
@@ -890,7 +890,7 @@ function Gallery() {
 					<Row>
 						<Loading label="Loading exams…" />
 						<div className="h-32 w-64 rounded-lg border border-border">
-							<Loading fill label="Opening ckpro…" />
+							<Loading fill label="Opening CKPro…" />
 						</div>
 					</Row>
 					<Separator />
@@ -1000,7 +1000,7 @@ function Gallery() {
 					</div>
 				</Section>
 
-				<Section title="App patterns" note="ckpro's own components, built on the kit.">
+				<Section title="App patterns" note="CKPro's own components, built on the kit.">
 					<Row>
 						<Timer startedAt={Date.now() - 60_000} endsAt={Date.now() + 7_200_000} />
 						<Timer startedAt={Date.now() - 60_000} endsAt={Date.now() + 1_200_000} />

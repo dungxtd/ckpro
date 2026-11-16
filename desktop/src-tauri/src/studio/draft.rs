@@ -445,7 +445,7 @@ impl ExamDraft {
             if !q.value.certifications.contains_key(&self.certification) {
                 refused.push(format!("{id}: not a {} question", self.certification));
             } else if !q.value.runnable() {
-                refused.push(format!("{id}: needs what ckpro does not provide"));
+                refused.push(format!("{id}: needs what CKPro does not provide"));
             } else if q.value.cluster != CLUSTER {
                 refused.push(format!("{id}: runs on another cluster than `{CLUSTER}`"));
             } else if self.items.iter().any(|i| i.key() == id) {

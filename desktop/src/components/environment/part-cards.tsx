@@ -111,7 +111,7 @@ export function ServicesDetails({
 		) : (
 			<ConfirmDialog
 				title="Clear the image cache?"
-				description="The images clusters pulled through ckpro go; the next exam downloads them again. Not while an exam is open or being proven."
+				description="The images clusters pulled through CKPro go; the next exam downloads them again. Not while an exam is open or being proven."
 				action="Clear cache"
 				onConfirm={() => envApi.clearCache().catch(e => toast.error(errorText(e)))}
 			>
@@ -144,7 +144,7 @@ export function ServicesDetails({
 export function OtherAppsDetails({ usage }: { usage: ContainerUse[] }) {
 	const rows: Row[] = otherApps(usage).map(a => ({ key: a.name, tone: "ok", ...a }));
 	return (
-		<Details about="Not started by ckpro, which leaves them alone. Stop them to free their memory">
+		<Details about="Not started by CKPro, which leaves them alone. Stop them to free their memory">
 			<Rows rows={rows} />
 		</Details>
 	);
@@ -160,7 +160,7 @@ export function MachineDetails({
 	memory: MachineMemory;
 }) {
 	return (
-		<Details about="With Docker Engine on Linux, this computer's own programs (a browser, an editor); with OrbStack or Docker Desktop, the engine itself. ckpro counts them before an exam starts">
+		<Details about="With Docker Engine on Linux, this computer's own programs (a browser, an editor); with OrbStack or Docker Desktop, the engine itself. CKPro counts them before an exam starts">
 			<Rows
 				rows={[
 					{

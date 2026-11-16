@@ -65,7 +65,7 @@ function ExamPhase() {
 				<ActivityPage
 					id={state.activity}
 					subtitle={state.attempt.title}
-					note="ckpro was closed during this exam. Its clusters and desktop are starting again; the exam timer kept running."
+					note="CKPro was closed during this exam. Its clusters and desktop are starting again; the exam timer kept running."
 				/>
 			);
 		case "running":

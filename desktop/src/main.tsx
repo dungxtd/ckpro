@@ -241,7 +241,7 @@ function App() {
 	if (!settingsLoaded || !examKnown || (!welcomed && !historyKnown))
 		return (
 			<WindowFrame>
-				<Loading fill label="Opening ckpro…" />
+				<Loading fill label="Opening CKPro…" />
 			</WindowFrame>
 		);
 
@@ -294,7 +294,7 @@ function OpenFailed({ message, onRetry }: { message: string; onRetry: () => void
 				<CircleAlert />
 				<div className="flex min-w-0 flex-1 flex-col gap-3">
 					<div>
-						<strong>ckpro could not open</strong>
+						<strong>CKPro could not open</strong>
 						<p className="mt-1 break-words text-muted-foreground">{message}</p>
 					</div>
 					<Button size="push" variant="push" className="self-end" onClick={onRetry}>

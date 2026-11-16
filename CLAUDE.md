@@ -1,4 +1,4 @@
-# ckpro
+# CKPro
 
 Tauri v2 desktop app for practising the CKA/CKAD/CKS exams on local kind
 clusters: Rust core in `desktop/src-tauri`, React 19 interface in
@@ -34,11 +34,15 @@ Architecture: `docs/ARCHITECTURE.md`.
 
 ## The name
 
-**ckpro**, lower case, everywhere the product is named: prose, the window,
-the CLI (`ckpro`), the repo, the Homebrew cask, `dev.ckpro.app`, README and
-docs. **CKPRO** only where capitals are the style: a certificate, a seal, a
-line set in capitals beside CKA, CKAD and CKS, and the first-launch
-greeting ("Welcome to CKPRO."). Never CKpro or CK-pro.
+**CKPro** wherever the product is named for people: the window, the Dock
+and the app bundle (`productName`), the interface's prose (labels, notes,
+errors, the guard's notes, "Welcome to CKPro."), README and docs prose,
+the GitHub description. **CKPRO** only where capitals are the style: a
+certificate, a seal, a line set in capitals beside CKA, CKAD and CKS.
+**ckpro**, lower case, where it is an identifier: the CLI and its binary
+(`mainBinaryName`), the repo, the Homebrew cask, `dev.ckpro.app`, container
+and image names (`ckpro-…`), the compose project, file names, code.
+Never CKpro or CK-pro.
 
 ## Interface rules
 

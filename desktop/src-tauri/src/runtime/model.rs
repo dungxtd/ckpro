@@ -226,7 +226,7 @@ impl EnvState {
                 severity: Severity::Error,
                 component: "docker".into(),
                 message: reason.clone(),
-                hint: format!("{}; ckpro reconnects on its own.", crate::runtime::docker::START),
+                hint: format!("{}; CKPro reconnects on its own.", crate::runtime::docker::START),
             });
             return issues;
         }

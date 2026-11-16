@@ -187,7 +187,7 @@ const result = {
 	passed: false,
 	started_at: startedAt,
 	finished_at: startedAt + 25 * 60_000,
-	outside: ["ckpro-desktop was paused outside ckpro: resumed"],
+	outside: ["ckpro-desktop was paused outside CKPro: resumed"],
 	assisted: [],
 	questions: [
 		{
@@ -219,7 +219,7 @@ test("the result shows the score, what changed outside, each check, and closing 
 	await expect(page.getByText("60%")).toBeVisible();
 	await expect(page.getByText("Failed", { exact: true })).toBeVisible();
 	await expect(page.getByText(/pass line 66%/)).toBeVisible();
-	await expect(page.getByText("ckpro-desktop was paused outside ckpro: resumed")).toBeVisible();
+	await expect(page.getByText("ckpro-desktop was paused outside CKPro: resumed")).toBeVisible();
 
 	// The questions are listed: one opened shows its checks
 	await page.getByRole("button", { name: /Scale a Deployment/ }).click();

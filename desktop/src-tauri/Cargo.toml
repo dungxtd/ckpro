@@ -1,7 +1,7 @@
 [package]
 name = "ckpro"
 version = "0.2.1"
-description = "ckpro - Kubernetes exam practice"
+description = "CKPro - Kubernetes exam practice"
 authors = ["dungxtd"]
 edition = "2024"
 # Let-chains (edition 2024)

@@ -402,7 +402,7 @@ async fn remove_untagged(docker: &Docker, log: &(dyn Fn(String) + Sync)) {
     if let Ok(pruned) = docker.prune_images(Some(bollard::query_parameters::PruneImagesOptions { filters: Some(filters) })).await
         && let Some(bytes) = pruned.space_reclaimed.filter(|b| *b > 0)
     {
-        log(format!("Removed old ckpro image layers ({} MB)", bytes / 1_000_000));
+        log(format!("Removed old CKPro image layers ({} MB)", bytes / 1_000_000));
     }
 }
 
