@@ -33,6 +33,7 @@ const attempt = (
 		attempt_id: id,
 		exam_id: exam,
 		title,
+		certification: "cka",
 		mode: "practice",
 		pass_score: 66,
 		result: {
