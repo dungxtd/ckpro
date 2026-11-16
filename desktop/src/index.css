@@ -206,6 +206,56 @@ body,
 		radial-gradient(120% 90% at 85% 0%, var(--tint-warm), transparent 60%),
 		radial-gradient(100% 80% at 0% 100%, var(--tint-cool), transparent 60%), var(--background);
 }
+/* The first launch's greeting (onboarding/greeting.tsx), on the window's
+   ground: the flags rolling in its command, the caret, the two dashes on
+   their way from the icon into the command, the glint on Get started */
+.greet-roll {
+	display: inline-block;
+	height: 1.7em;
+	overflow: hidden;
+	vertical-align: top;
+}
+.greet-flag {
+	height: 1.7em;
+	line-height: 1.7em;
+}
+.greet-caret {
+	display: inline-block;
+	width: 8px;
+	height: 16px;
+	margin-left: 1px;
+	vertical-align: -3px;
+	background: currentColor;
+}
+.greet-shine {
+	position: absolute;
+	inset-block: 0;
+	left: 0;
+	width: 40%;
+	background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.45), transparent);
+	transform: translateX(-160%) skewX(-18deg);
+	animation: greet-shine 0.9s 0.35s cubic-bezier(0.65, 0, 0.35, 1) both;
+	pointer-events: none;
+}
+@keyframes greet-shine {
+	to {
+		transform: translateX(360%) skewX(-18deg);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.greet-shine {
+		animation: none;
+		display: none;
+	}
+}
+.greet-fly {
+	position: absolute;
+	z-index: 10;
+	border-radius: 999px;
+	background: linear-gradient(#3b3b3e, #121214);
+	box-shadow: 0 6px 14px rgb(0 0 0 / 0.3);
+	pointer-events: none;
+}
 
 /* An exam day just set, printed as an admit ticket (study/exam-ticket.tsx):
    its colours the exam's, the same in both themes, as paper is */

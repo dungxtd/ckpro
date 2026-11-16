@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { pageView, setAnalytics, track } from "@/analytics";
 import { StartPrompt } from "@/components/exam/start-prompt";
+import { Onboarding } from "@/components/onboarding/onboarding";
 import { AppSidebar } from "@/components/shell/app-sidebar";
 import { CAPSULE_GAP } from "@/components/shell/capsule-nav";
 import {
@@ -217,6 +218,15 @@ function App() {
 		});
 	}, [analyticsOn]);
 	const examKnown = useExam(s => s.state !== null);
+	// The first launch greets and sets up; one who used the app before the
+	// greeting was there is not greeted (attempts kept), nor one mid-attempt
+	const welcomed = useSettings(s => s.settings.welcomed);
+	const historyKnown = useStudy(s => s.history !== null);
+	const used = useStudy(s => (s.history?.length ?? 0) > 0);
+	const attempting = useExam(s => !!s.state && s.state.phase !== "idle");
+	useEffect(() => {
+		if (settingsLoaded && !welcomed && used) useSettings.getState().update({ welcomed: true });
+	}, [settingsLoaded, welcomed, used]);
 	const settingsError = useSettings(s => s.error);
 	const examError = useExam(s => s.connectError);
 	const failed = settingsError ?? examError;
@@ -226,11 +236,23 @@ function App() {
 				<OpenFailed message={failed} onRetry={() => setBoot(b => b + 1)} />
 			</WindowFrame>
 		);
-	if (!settingsLoaded || !examKnown)
+	// Not welcomed yet: whether the app was used before (its history) decides
+	// the greeting, so it waits for the history too
+	if (!settingsLoaded || !examKnown || (!welcomed && !historyKnown))
 		return (
 			<WindowFrame>
 				<Loading fill label="Opening ckpro…" />
 			</WindowFrame>
+		);
+
+	if (!welcomed && !used && !attempting)
+		return (
+			<>
+				<WindowFrame className="shell-ground">
+					<Onboarding />
+				</WindowFrame>
+				<Toaster />
+			</>
 		);
 
 	return (

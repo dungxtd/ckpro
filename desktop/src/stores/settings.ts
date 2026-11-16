@@ -50,6 +50,8 @@ export const useSettings = create<SettingsStore>()(
 			theme: "dark",
 			plan_mode: null,
 			certified: [],
+			welcomed: false,
+			setup_step: null,
 			targets: [],
 			focus: null,
 			home: { places: [], hidden: [], custom: false },

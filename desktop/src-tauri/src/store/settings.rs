@@ -50,6 +50,11 @@ pub struct Settings {
     /// The certifications whose first passed exam was celebrated (its
     /// certificate shown): once each
     pub certified: Vec<String>,
+    /// The first-launch greeting and setup were seen through (or skipped)
+    pub welcomed: bool,
+    /// The first-launch setup's step reached, while it is not finished: the
+    /// app quit midway opens it there again
+    pub setup_step: Option<String>,
 }
 
 /// Home's modules as the candidate arranged them: each one's cell on the
@@ -152,6 +157,8 @@ impl Default for Settings {
             theme: Theme::Dark,
             plan_mode: None,
             certified: Vec::new(),
+            welcomed: false,
+            setup_step: None,
             targets: Vec::new(),
             focus: None,
             home: HomeLayout::default(),

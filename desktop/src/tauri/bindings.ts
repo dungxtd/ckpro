@@ -1595,6 +1595,13 @@ export type Settings_Deserialize = {
 	/**  The certification Home and the Calendar show, or none for all of them */
 	focus?: string | null,
 	/**  How Home's modules are arranged */
+	/**  The first-launch greeting and setup were seen through (or skipped) */
+	welcomed?: boolean,
+	/**
+	 *  The first-launch setup's step reached, while it is not finished: the
+	 *  app quit midway opens it there again
+	 */
+	setup_step?: string | null,
 	home?: HomeLayout_Deserialize,
 	/**
 	 *  The certifications whose first passed exam was celebrated (its
@@ -1639,6 +1646,13 @@ export type Settings_Serialize = {
 	/**  The certification Home and the Calendar show, or none for all of them */
 	focus: string | null,
 	/**  How Home's modules are arranged */
+	/**  The first-launch greeting and setup were seen through (or skipped) */
+	welcomed: boolean,
+	/**
+	 *  The first-launch setup's step reached, while it is not finished: the
+	 *  app quit midway opens it there again
+	 */
+	setup_step: string | null,
 	home: HomeLayout_Serialize,
 	/**
 	 *  The certifications whose first passed exam was celebrated (its

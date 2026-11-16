@@ -376,6 +376,8 @@ fn encrypt(plain: Connection, path: &Path, key: &str) -> AppResult<()> {
     let encrypted = path.with_extension("encrypting");
     let _ = std::fs::remove_file(&encrypted);
     plain
+            welcomed: true,
+            setup_step: None,
         .execute_batch(&format!(
             "ATTACH DATABASE '{}' AS encrypted KEY \"x'{key}'\"; SELECT sqlcipher_export('encrypted'); DETACH DATABASE encrypted;",
             encrypted.display().to_string().replace('\'', "''")

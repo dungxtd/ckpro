@@ -48,7 +48,7 @@ greeting ("Welcome to CKPRO."). Never CKpro or CK-pro.
   documentation links), `shell/` the window's chrome (sidebar, title bar,
   capsule), `study/` what Home and the Calendar share (figures),
   then one folder per screen (`home/`, `calendar/`, `create/`, `catalog/`,
-  `history/`, `environment/`, `settings/`, `activity/`). Shared across screens means the
+  `history/`, `environment/`, `settings/`, `activity/`, `onboarding/` the first launch). Shared across screens means the
   kit, not another screen's folder.
 
 - **The kit first.** `@ckpro/ui` (`@ckpro/ui/components/<name>`) owns every

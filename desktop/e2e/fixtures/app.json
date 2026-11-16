@@ -444,6 +444,8 @@
 		"theme": "dark",
 		"plan_mode": null,
 		"certified": [],
+		"welcomed": true,
+		"setup_step": null,
 		"targets": [
 			{
 				"certification": "cka",

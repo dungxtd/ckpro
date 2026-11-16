@@ -1,4 +1,5 @@
 import { mac } from "@ckpro/ui/lib/platform";
+import { cn } from "@ckpro/ui/lib/utils";
 import type { ReactNode } from "react";
 import { WindowControls } from "@/components/shell/window-controls";
 
@@ -7,9 +8,9 @@ import { WindowControls } from "@/components/shell/window-controls";
  * bar is hidden: on macOS its buttons sit over this one, on Windows the bar
  * draws them)
  */
-export function WindowFrame({ children }: { children: ReactNode }) {
+export function WindowFrame({ children, className }: { children: ReactNode; className?: string }) {
 	return (
-		<div className="flex h-full flex-col bg-background">
+		<div className={cn("flex h-full flex-col bg-background", className)}>
 			<div data-tauri-drag-region className="flex h-12 shrink-0 justify-end pr-3">
 				{!mac && <WindowControls />}
 			</div>
