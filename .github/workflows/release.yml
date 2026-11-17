@@ -1,11 +1,16 @@
 # Builds the macOS app (arm64 and x86_64, one DMG each), the Windows app (x64
 # and arm64, an installer each) and the Linux app (x64 and arm64, an AppImage
-# and a .deb each) for a version tag, side by side, publishes them on this
-# repo's GitHub Release, then points the Homebrew cask in dungxtd/homebrew-tap
-# at the DMGs and the AppImages (Homebrew installs casks on Linux too):
+# and a .deb each) for a version tag, side by side, into a draft of this
+# repo's GitHub Release; once every build is in, writes latest.json (what the
+# app's updater reads) and publishes the release, then points the Homebrew
+# cask in dungxtd/homebrew-tap at the DMGs and the AppImages (Homebrew
+# installs casks on Linux too):
 #   brew install --cask dungxtd/tap/ckpro
-# Writing to the tap uses the HOMEBREW_TAP_DEPLOY_KEY secret: the private half
-# of a deploy key that may write to dungxtd/homebrew-tap and nothing else.
+# The updates are signed with TAURI_SIGNING_PRIVATE_KEY (and its
+# _PASSWORD): the private half of the key whose public half is the updater's
+# pubkey in tauri.conf.json. Writing to the tap uses the
+# HOMEBREW_TAP_DEPLOY_KEY secret: the private half of a deploy key that may
+# write to dungxtd/homebrew-tap and nothing else.
 name: release
 
 on:
@@ -26,13 +31,50 @@ on:
 env:
   # Public PostHog project key, baked into the interface at build time
   VITE_POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
+  # The updates' signing key (each bundle is signed for the updater)
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
 permissions:
   contents: write
 
 jobs:
+  # The release, as a draft the builds upload into: nobody (and no updater)
+  # sees it until every build is in and latest.json is written
+  draft:
+    if: ${{ !inputs.cask_tag && inputs.dry_run != true }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: The updates can be signed and checked
+        env:
+          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          [[ -n "$SIGNING_KEY" ]] || { echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set"; exit 1; }
+          pubkey="$(jq -r '.plugins.updater.pubkey' desktop/src-tauri/tauri.conf.json)"
+          [[ -n "$pubkey" && "$pubkey" != null ]] || { echo "::error::the updater's pubkey in tauri.conf.json is empty"; exit 1; }
+
+      - name: Make the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Again (a run tried twice): the draft there is used
+          if gh release view "$GITHUB_REF_NAME" --json isDraft -q .isDraft 2>/dev/null | grep -q true; then
+            echo "The draft is there"
+            exit 0
+          fi
+          scripts/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+
   build-macos:
-    if: ${{ !inputs.cask_tag }}
+    needs: draft
+    # After the draft, or alone for a dry run (no draft)
+    if: ${{ !cancelled() && !inputs.cask_tag && needs.draft.result != 'failure' }}
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -63,38 +105,40 @@ jobs:
           POSTHOG_CLI_API_KEY: ${{ matrix.arch == 'arm64' && inputs.dry_run != true && secrets.POSTHOG_CLI_API_KEY || '' }}
           POSTHOG_CLI_PROJECT_ID: ${{ secrets.POSTHOG_CLI_PROJECT_ID }}
           POSTHOG_CLI_HOST: https://us.posthog.com
-        run: pnpm run build --target ${{ matrix.target }} --bundles app,dmg
+        run: pnpm run build --target ${{ matrix.target }} --bundles app,dmg --config src-tauri/tauri.updater.conf.json
 
-      - name: Collect the DMG
+      - name: Collect the DMG and the update
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p _artifacts
-          for f in desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg; do
+          bundle=desktop/src-tauri/target/${{ matrix.target }}/release/bundle
+          for f in "$bundle"/dmg/*.dmg; do
             cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f" | sed 's/^CKPro_/ckpro_/')"
           done
+          # The app, as the updater installs it, and its signature (both
+          # architectures make CKPro.app.tar.gz: named by label and version)
+          version="$(jq -r .version desktop/src-tauri/tauri.conf.json)"
+          cp "$bundle"/macos/*.app.tar.gz "_artifacts/ckpro_${{ matrix.label }}_${version}.app.tar.gz"
+          cp "$bundle"/macos/*.app.tar.gz.sig "_artifacts/ckpro_${{ matrix.label }}_${version}.app.tar.gz.sig"
           ls -la _artifacts
 
       - name: Keep the DMG with the run
         uses: actions/upload-artifact@v4
         with:
           name: ckpro-${{ matrix.label }}
-          path: _artifacts/*.dmg
+          path: _artifacts/*
           retention-days: 7
 
-      - name: Publish to the GitHub Release
+      - name: Upload into the draft
         if: ${{ inputs.dry_run != true }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          # Whichever leg comes first makes the release; the others upload beside it
-          scripts/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag || true
-          gh release upload "$GITHUB_REF_NAME" _artifacts/*.dmg --clobber
+        run: gh release upload "$GITHUB_REF_NAME" _artifacts/* --clobber
 
   build-windows:
-    if: ${{ !inputs.cask_tag }}
+    needs: draft
+    if: ${{ !cancelled() && !inputs.cask_tag && needs.draft.result != 'failure' }}
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -119,14 +163,15 @@ jobs:
 
       - name: Build the app
         working-directory: desktop
-        run: pnpm run build --target ${{ matrix.target }} --bundles nsis
+        run: pnpm run build --target ${{ matrix.target }} --bundles nsis --config src-tauri/tauri.updater.conf.json
 
       - name: Collect the installer
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p _artifacts
-          for f in desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe; do
+          # The installer, and its signature for the updater
+          for f in desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe{,.sig}; do
             cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f" | sed 's/^CKPro_/ckpro_/')"
           done
           ls -la _artifacts
@@ -135,23 +180,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ckpro-${{ matrix.label }}
-          path: _artifacts/*.exe
+          path: _artifacts/*
           retention-days: 7
 
-      - name: Publish to the GitHub Release
+      - name: Upload into the draft
         if: ${{ inputs.dry_run != true }}
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          # Whichever leg comes first makes the release; the others upload beside it
-          scripts/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag || true
-          gh release upload "$GITHUB_REF_NAME" _artifacts/*.exe --clobber
+        run: gh release upload "$GITHUB_REF_NAME" _artifacts/* --clobber
 
   build-linux:
-    if: ${{ !inputs.cask_tag }}
+    needs: draft
+    if: ${{ !cancelled() && !inputs.cask_tag && needs.draft.result != 'failure' }}
     strategy:
       fail-fast: false
       matrix:
@@ -182,14 +223,15 @@ jobs:
 
       - name: Build the app
         working-directory: desktop
-        run: pnpm run build --target ${{ matrix.target }} --bundles appimage,deb
+        run: pnpm run build --target ${{ matrix.target }} --bundles appimage,deb --config src-tauri/tauri.updater.conf.json
 
       - name: Collect the packages
         run: |
           set -euo pipefail
           mkdir -p _artifacts
           bundle=desktop/src-tauri/target/${{ matrix.target }}/release/bundle
-          for f in "$bundle"/appimage/*.AppImage "$bundle"/deb/*.deb; do
+          # The packages, and their signatures for the updater
+          for f in "$bundle"/appimage/*.AppImage{,.sig} "$bundle"/deb/*.deb{,.sig}; do
             cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f" | sed 's/^CKPro_/ckpro_/')"
           done
           ls -la _artifacts
@@ -201,24 +243,43 @@ jobs:
           path: _artifacts/*
           retention-days: 7
 
-      - name: Publish to the GitHub Release
+      - name: Upload into the draft
         if: ${{ inputs.dry_run != true }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" _artifacts/* --clobber
+
+  # Every build in: latest.json from their signatures, then the release is
+  # published (the updaters see it from here, all platforms at once)
+  publish:
+    needs: [build-macos, build-windows, build-linux]
+    if: ${{ !cancelled() && !inputs.cask_tag && inputs.dry_run != true && needs.build-macos.result == 'success' && needs.build-windows.result == 'success' && needs.build-linux.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Write latest.json and publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Whichever leg comes first makes the release; the others upload beside it
+          mkdir -p sigs
+          gh release download "$GITHUB_REF_NAME" --pattern '*.sig' --dir sigs --clobber
           scripts/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag || true
-          gh release upload "$GITHUB_REF_NAME" _artifacts/* --clobber
+          scripts/latest-json.sh "$GITHUB_REF_NAME" sigs "$RUNNER_TEMP/notes.md" > latest.json
+          jq . latest.json
+          gh release upload "$GITHUB_REF_NAME" latest.json --clobber
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
 
   cask:
-    needs: [build-macos, build-linux]
-    # After the macOS and Linux builds of a tag, or alone for a release named
+    needs: [publish]
+    # After the release of a tag is published, or alone for a release named
     # by cask_tag
     if: >-
       ${{ !cancelled() && (inputs.cask_tag != '' && inputs.cask_tag != null
-      || inputs.dry_run != true && needs.build-macos.result == 'success' && needs.build-linux.result == 'success') }}
+      || inputs.dry_run != true && needs.publish.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       # The cask lives in the shared tap; the installers stay on this repo's releases

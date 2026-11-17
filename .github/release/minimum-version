@@ -1,0 +1,4 @@
+# The oldest CKPro the next release still lets start an exam: latest.json's
+# minimum_version. Set it (e.g. 0.4.0) when a release must be installed
+# before another attempt (new exam images, a change in the exam engine);
+# the running attempt always finishes first. Empty: every version may.

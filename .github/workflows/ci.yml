@@ -22,6 +22,7 @@ jobs:
     outputs:
       interface: ${{ steps.filter.outputs.interface }}
       rust: ${{ steps.filter.outputs.rust }}
+      release: ${{ steps.filter.outputs.release }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v3
@@ -46,6 +47,11 @@ jobs:
               - 'desktop/src/tauri/bindings.ts'
               - 'packs/**'
               - '.github/actions/setup-linux/**'
+              - '.github/workflows/ci.yml'
+            release:
+              - 'scripts/**'
+              - '.github/release/**'
+              - '.github/workflows/release.yml'
               - '.github/workflows/ci.yml'
 
   # Types, unit tests and lint of the interface and the kit
@@ -142,9 +148,19 @@ jobs:
         working-directory: desktop/src-tauri
         run: cargo clippy --locked --all-targets -- -D warnings
 
+  # What a release runs besides the build: latest.json, from signatures
+  release:
+    needs: changes
+    if: needs.changes.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: latest.json
+        run: scripts/latest-json.test.sh
+
   ci:
     if: always()
-    needs: [changes, interface, journeys, rust, rust-other]
+    needs: [changes, interface, journeys, rust, rust-other, release]
     runs-on: ubuntu-latest
     steps:
       - name: Every suite that ran passed
