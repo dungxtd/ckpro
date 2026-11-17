@@ -41,10 +41,14 @@ desktop/
     commands.rs           the commands the interface calls
     lib.rs                setup, managed state, events
     error.rs              AppError, the typed error contract
+    update/               updates: the release's latest.json checked, a newer
+                          version downloaded (signature checked) and kept,
+                          installed at a restart or as the app quits
     telemetry.rs          the core's errors to PostHog (beside analytics.ts)
     observability.rs      the log (`CKPRO_LOG`), to the data directory
     cli.rs                `ckpro lab …`, `ckpro images`, `ckpro schema`,
-                          `ckpro demo`, `ckpro quit` (the app's own, on quit)
+                          `ckpro demo`, `ckpro quit` (the app's own, on quit:
+                          the containers stopped, then a Windows update run)
     e2e.rs                end-to-end tests on Docker (opt-in)
   src-tauri/resources/    images: desktop, task host (jumphost), nodes
 packages/ckpro-ui/        the UI kit (Radix, cva)
@@ -186,11 +190,46 @@ packs/core/               the question bank (YAML) and its JSON Schemas
   reach the interface as `{ code, message }`; it branches on `code`.
 - **Events, not polling**: Rust pushes `EnvChanged`, `ExamChanged`,
   `ActivityChanged` and `ActivityLog`, `GuardNotice`, `StudyChanged`,
-  `StudioDraft` and `StudioProof`; the stores follow them for the life of
+  `StudioDraft`, `StudioProof` and `UpdateChanged`; the stores follow them for the life of
   the app. A wait Rust can answer (the exam desktop coming up) is one long
   call, not a loop.
 - **State lives in SQLite** (`store/`): new fields get `#[serde(default)]`;
   schema changes are new migrations.
+
+## Updates (`update/`)
+
+- Every release carries `latest.json` (written by `release.yml` from each
+  bundle's signature, all platforms or the release is not published) and
+  the bundles the updater installs, signed with the key whose public half
+  is the updater's `pubkey` in `tauri.conf.json`; signed for their version,
+  so an older package cannot pass for a newer one.
+- `Updater` checks a minute after start, then every 6 hours by the clock
+  (quiet when it fails; said when the candidate asked), downloads a newer
+  version by itself into `updates/<version>/` in the data directory (kept
+  across runs, whole or not at all) and pushes its state (`UpdateChanged`).
+  `policy.rs` holds what it decides, tested alone; `source.rs` the plugin.
+- How a copy installs is its bundle's (`policy::install`): a macOS app or
+  an AppImage is replaced in place, at a restart or as the app quits when
+  its folder can be written; the Windows installer runs at a restart, or
+  from `ckpro quit` once the app is gone and its containers are stopped,
+  its signature checked again; a .deb asks for the password (pkexec), so
+  only at a restart; what cannot update itself (a read-only folder, a copy
+  run from the disk image, no way to ask for the password) says how to
+  install it by hand.
+- Never while anything would be cut short: an attempt from its start to
+  its result (or kept to be resumed), a proof, a long operation. A restart
+  then is refused (`Busy`) and quitting installs nothing, so an attempt
+  resumes on the version that started it.
+- A restart onto an update leaves the environment running (no `ckpro
+  quit`): the app is back in a moment and finds the clusters as they were.
+- A release can require its version (`minimum_version`, from
+  `.github/release/minimum-version`): no new attempt starts until it runs
+  (`AppError::UpdateRequired`); the running one finishes.
+- The interface: a chip in the title bar's corner (none while up to date;
+  it slides out once when an update is ready; its words restart onto it,
+  its × puts it away), a banner where exams start when one is required,
+  and Settings > About. Nothing about updates while an exam-mode attempt
+  runs, nor on the exam desk.
 
 ## Telemetry
 

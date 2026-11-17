@@ -61,6 +61,8 @@ sudo apt install ./ckpro_linux-x64_*.deb   # Debian, Ubuntu
 chmod +x ckpro_linux-x64_*.AppImage && ./ckpro_linux-x64_*.AppImage
 ```
 
+CKPro updates itself: a new version downloads in the background and installs when you restart it or quit, never during an attempt. Installed with the `.deb`, it asks for your password to install.
+
 ## Requirements
 
 - macOS (Apple silicon or Intel), Windows 10/11 (x64, or Arm on Windows 11) or Linux (x64 or arm64, with WebKitGTK 4.1: Ubuntu 22.04 or later)
