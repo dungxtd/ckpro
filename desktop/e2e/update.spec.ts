@@ -5,11 +5,12 @@ import { expect, test } from "./fixture";
 const chip = (page: import("@playwright/test").Page, name: RegExp) =>
 	page.getByRole("button", { name });
 
-test("up to date, the corner says nothing and About says so", async ({ page }) => {
+test("up to date, the corner says nothing and Settings says so", async ({ page }) => {
 	await launch(page, "/");
 	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
 	await expect(chip(page, /CKPro 0\.4\.0/)).toHaveCount(0);
 	await page.goto("/#/settings");
+	await page.getByRole("button", { name: /Updates.*Up to date/ }).click();
 	await expect(page.getByText("CKPro is up to date")).toBeVisible();
 	await page.getByRole("button", { name: "Check now" }).click();
 	expect(await calls(page, "update_check")).toHaveLength(1);
@@ -110,7 +111,7 @@ test("an update CKPro cannot install opens its release, with the command to run"
 	expect(await calls(page, "open_in_browser")).toEqual([
 		{ url: "https://github.com/dungxtd/ckpro/releases/tag/v0.4.0" },
 	]);
-	await page.goto("/#/settings");
+	await page.goto("/#/settings/updates");
 	await expect(page.getByText("sudo apt install ./ckpro_0.4.0_linux-x64.deb")).toBeVisible();
 });
 

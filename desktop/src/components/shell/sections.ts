@@ -14,13 +14,6 @@ export const SECTIONS = [
 /** Screens there only with the assistant on (AI is optional) */
 const ASSISTANT_SCREENS = ["/create"];
 
-/** Settings' own pages, under /settings/<part> */
-export const SETTINGS_PARTS: Record<string, string> = {
-	interface: "Interface",
-	desk: "Exam desk",
-	assistant: "Assistant",
-};
-
 /**
  * The screens as the sidebar lists them: in the order the candidate dragged
  * them (the rest after, as they come), hidden ones left out unless

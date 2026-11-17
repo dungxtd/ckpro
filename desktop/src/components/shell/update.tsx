@@ -50,7 +50,7 @@ export function UpdateCorner() {
 			onRestart={actions.restart}
 			onDownload={() => actions.download(info.status)}
 			onCheck={actions.check}
-			onOpen={() => navigate("/settings")}
+			onOpen={() => navigate("/settings/updates")}
 			onDismiss={actions.dismiss}
 		/>
 	);
@@ -65,7 +65,7 @@ export function UpdateBanner() {
 		<UpdateRequiredNotice
 			status={status}
 			onRestart={actions.restart}
-			onOpen={() => navigate("/settings")}
+			onOpen={() => navigate("/settings/updates")}
 		/>
 	);
 }

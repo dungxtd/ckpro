@@ -16,7 +16,7 @@ import { Markdown } from "@/components/text/markdown";
 import { ago, size, type UpdateInfo, updateActions, useUpdate } from "@/stores/update";
 
 /**
- * Settings > About's updates: where CKPro is (up to date, downloading,
+ * Settings > Updates: where CKPro is (up to date, downloading,
  * ready, to install by hand), what the new version brings, and the one
  * action that fits. The rest happens without asking: checks every few
  * hours, the download, the install when CKPro quits
@@ -35,10 +35,7 @@ export function UpdateGroup({
 }) {
 	const s = info.status;
 	return (
-		<Group
-			title="Updates"
-			description="CKPro checks for updates every few hours and downloads them by itself. It never restarts during an attempt."
-		>
+		<Group description="CKPro checks for updates every few hours and downloads them by itself. It never restarts during an attempt.">
 			{s.state === "idle" && (
 				<Row
 					icon={<CircleCheck />}
@@ -135,7 +132,7 @@ export function UpdateGroup({
 	);
 }
 
-/** Settings > About's updates, as Rust has them */
+/** Settings > Updates, as Rust has them */
 export function UpdateSettings() {
 	const info = useUpdate(s => s.info);
 	if (!info) return null;

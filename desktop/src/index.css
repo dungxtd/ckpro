@@ -625,3 +625,22 @@ body,
 		stroke-dashoffset: 0;
 	}
 }
+
+/* A theme picked (theme.ts, pickTheme): the new look spreads as a circle
+   from where it was picked, over the old one left as it was */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation: none;
+	mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+	animation: theme-reveal 500ms var(--ease-out);
+}
+@keyframes theme-reveal {
+	from {
+		clip-path: circle(0 at var(--reveal-x) var(--reveal-y));
+	}
+	to {
+		clip-path: circle(var(--reveal-r) at var(--reveal-x) var(--reveal-y));
+	}
+}

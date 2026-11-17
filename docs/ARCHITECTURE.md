@@ -249,9 +249,12 @@ packs/core/               the question bank (YAML) and its JSON Schemas
   decides what CSS cannot (whether the capsule fits whole or as a dock).
 - Each view subscribes to the fields it reads from a store, not the whole
   store.
-- Settings (⌘,): Interface, Exam desk and Assistant (the one switch;
-  the agent's CLI, account, model and effort; Tool access and Privacy), each
-  a page, with the app's version and data folder below. Layout, panel
+- Settings (⌘,): a list of its parts, each row with where it stands, each
+  opening its page (/settings/<part>): Appearance (the theme, picked from
+  small windows), Exam desk, Assistant (the one switch; the agent's CLI,
+  account, model and effort; Tool access and Privacy), Updates, About (the
+  data folder, analytics, the version). The agents' settings are one store
+  (`stores/agent-settings.ts`) that Settings and the assistant share. Layout, panel
   sizes, the sidebar and desk settings are kept in the database; the window
   keeps its size and place.
 - Starting an exam whose clusters exist asks first, from any screen; a start

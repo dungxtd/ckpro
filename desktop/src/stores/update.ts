@@ -58,6 +58,26 @@ export const releaseUrl = (version: string) =>
 export const isRequired = (s: UpdateStatus) =>
 	(s.state === "ready" || s.state === "manual") && s.required;
 
+/** Where an update is, in a few words (Settings' list) */
+export function updateSummary(s: UpdateStatus) {
+	switch (s.state) {
+		case "idle":
+			return "Up to date";
+		case "checking":
+			return "Checking…";
+		case "downloading":
+			return `Downloading ${s.version}`;
+		case "ready":
+			return `${s.version} ready to install`;
+		case "manual":
+			return `${s.version} available`;
+		case "failed":
+			return "Could not check";
+		case "restarting":
+			return `Installing ${s.version}`;
+	}
+}
+
 /** Bytes as the candidate reads them: 38 MB, 1.2 GB */
 export function size(bytes: number) {
 	const mb = bytes / 1_048_576;

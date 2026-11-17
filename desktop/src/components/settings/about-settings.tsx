@@ -5,7 +5,6 @@ import { ChartNoAxesColumn, Copy, FolderOpen } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Group, Row } from "@/components/settings/layout";
-import { UpdateSettings } from "@/components/settings/update-group";
 import { useSettings } from "@/stores/settings";
 import { type AppInfo, appApi, errorText } from "@/tauri/api";
 import appIcon from "../../../src-tauri/icons/128x128@2x.png";
@@ -24,8 +23,7 @@ export function AboutSettings() {
 	// its version) waits for them
 	return (
 		<>
-			<UpdateSettings />
-			<Group title="App">
+			<Group>
 				<Row
 					icon={<FolderOpen />}
 					label="Data folder"
