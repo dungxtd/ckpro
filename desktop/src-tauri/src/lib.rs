@@ -371,7 +371,9 @@ pub fn run() {
                 let checks = (!cfg!(debug_assertions) || endpoint.is_some())
                     && current != semver::Version::new(0, 0, 0)
                     && !update::source::public_key().is_empty();
-                let appimage = app.env().appimage.map(std::path::PathBuf::from);
+                // The AppImage this runs from, as its runtime says (what Tauri's
+                // Linux-only `Env::appimage` holds); unset anywhere else
+                let appimage = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from);
                 let locate = move || update::policy::install(&update::place(appimage.as_deref()));
                 let source = update::source::Release::new(handle.clone(), endpoint);
                 let updater =
