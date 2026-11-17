@@ -113,14 +113,14 @@ jobs:
           set -euo pipefail
           mkdir -p _artifacts
           bundle=desktop/src-tauri/target/${{ matrix.target }}/release/bundle
-          for f in "$bundle"/dmg/*.dmg; do
-            cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f" | sed 's/^CKPro_/ckpro_/')"
-          done
-          # The app, as the updater installs it, and its signature (both
-          # architectures make CKPro.app.tar.gz: named by label and version)
-          version="$(jq -r .version desktop/src-tauri/tauri.conf.json)"
-          cp "$bundle"/macos/*.app.tar.gz "_artifacts/ckpro_${{ matrix.label }}_${version}.app.tar.gz"
-          cp "$bundle"/macos/*.app.tar.gz.sig "_artifacts/ckpro_${{ matrix.label }}_${version}.app.tar.gz.sig"
+          # ckpro_<version>_<label>: Tauri's own names repeat the product and
+          # say the architecture its way (CKPro_0.3.3_aarch64.dmg)
+          name="ckpro_$(jq -r .version desktop/src-tauri/tauri.conf.json)_${{ matrix.label }}"
+          one() { [[ $# -eq 1 && -f "$1" ]] || { echo "::error::expected one file, found: $*"; exit 1; }; echo "$1"; }
+          cp "$(one "$bundle"/dmg/*.dmg)" "_artifacts/$name.dmg"
+          # The app as the updater installs it, and its signature
+          cp "$(one "$bundle"/macos/*.app.tar.gz)" "_artifacts/$name.app.tar.gz"
+          cp "$(one "$bundle"/macos/*.app.tar.gz.sig)" "_artifacts/$name.app.tar.gz.sig"
           ls -la _artifacts
 
       - name: Keep the DMG with the run
@@ -170,10 +170,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p _artifacts
+          bundle=desktop/src-tauri/target/${{ matrix.target }}/release/bundle
+          name="ckpro_$(jq -r .version desktop/src-tauri/tauri.conf.json)_${{ matrix.label }}"
+          one() { [[ $# -eq 1 && -f "$1" ]] || { echo "::error::expected one file, found: $*"; exit 1; }; echo "$1"; }
           # The installer, and its signature for the updater
-          for f in desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe{,.sig}; do
-            cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f" | sed 's/^CKPro_/ckpro_/')"
-          done
+          cp "$(one "$bundle"/nsis/*.exe)" "_artifacts/$name-setup.exe"
+          cp "$(one "$bundle"/nsis/*.exe.sig)" "_artifacts/$name-setup.exe.sig"
           ls -la _artifacts
 
       - name: Keep the installer with the run
@@ -230,9 +232,12 @@ jobs:
           set -euo pipefail
           mkdir -p _artifacts
           bundle=desktop/src-tauri/target/${{ matrix.target }}/release/bundle
+          name="ckpro_$(jq -r .version desktop/src-tauri/tauri.conf.json)_${{ matrix.label }}"
+          one() { [[ $# -eq 1 && -f "$1" ]] || { echo "::error::expected one file, found: $*"; exit 1; }; echo "$1"; }
           # The packages, and their signatures for the updater
-          for f in "$bundle"/appimage/*.AppImage{,.sig} "$bundle"/deb/*.deb{,.sig}; do
-            cp "$f" "_artifacts/ckpro_${{ matrix.label }}_$(basename "$f" | sed 's/^CKPro_/ckpro_/')"
+          for ext in AppImage deb; do
+            cp "$(one "$bundle"/${ext,,}/*.$ext)" "_artifacts/$name.$ext"
+            cp "$(one "$bundle"/${ext,,}/*.$ext.sig)" "_artifacts/$name.$ext.sig"
           done
           ls -la _artifacts
 
@@ -298,15 +303,22 @@ jobs:
           VERSION="${TAG#v}"
           mkdir -p pkg
           gh release download "$TAG" -R "$GITHUB_REPOSITORY" --pattern '*.dmg' --pattern '*.AppImage' --dir pkg
-          sha() { shasum -a 256 "$(find pkg -name "$1" | head -n 1)" | awk '{print $1}'; }
-          # The macOS DMGs and the Linux AppImages, each under its sha256 key
-          sed -i -E \
-            -e "s/^  version \".*\"/  version \"$VERSION\"/" \
-            -e "s/(arm: +)\"[0-9a-f]{64}\"/\1\"$(sha '*_macos-arm64_*.dmg')\"/" \
-            -e "s/(intel: +)\"[0-9a-f]{64}\"/\1\"$(sha '*_macos-x64_*.dmg')\"/" \
-            -e "s/(arm64_linux: +)\"[0-9a-f]{64}\"/\1\"$(sha '*_linux-arm64_*.AppImage')\"/" \
-            -e "s/(x86_64_linux: +)\"[0-9a-f]{64}\"/\1\"$(sha '*_linux-x64_*.AppImage')\"/" \
-            Casks/ckpro.rb
+          # The macOS DMGs and the Linux AppImages: each one's sha256 under its
+          # key, and its file name (the version as #{version}) in the url and
+          # app_image lines, so the cask follows the release's names, old or new
+          sed -i -E "s/^  version \".*\"/  version \"$VERSION\"/" Casks/ckpro.rb
+          for entry in "arm macos-arm64 dmg" "intel macos-x64 dmg" \
+                       "arm64_linux linux-arm64 AppImage" "x86_64_linux linux-x64 AppImage"; do
+            read -r key label ext <<< "$entry"
+            files=(pkg/*"$label"*."$ext")
+            [[ ${#files[@]} -eq 1 && -f "${files[0]}" ]] || { echo "::error::expected one $label .$ext, found: ${files[*]}"; exit 1; }
+            sha="$(shasum -a 256 "${files[0]}" | awk '{print $1}')"
+            name="$(basename "${files[0]}" | sed "s/${VERSION//./\\.}/#{version}/g")"
+            sed -i -E \
+              -e "s/(${key}: +)\"[0-9a-f]{64}\"/\1\"$sha\"/" \
+              -e "s|ckpro_[^\"/]*${label}[^\"/]*\\.${ext}|$name|g" \
+              Casks/ckpro.rb
+          done
           cat Casks/ckpro.rb
           if git diff --quiet Casks/ckpro.rb; then
             echo "Cask already up to date"

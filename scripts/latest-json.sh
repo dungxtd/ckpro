@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Print latest.json, what the app's updater reads, for release <tag>: each
 # platform's package and its signature, from the signatures in <dir> (the
-# release's *.sig, named as their packages are, plus .sig). Every platform
+# release's *.sig, named as their packages are, plus .sig: ckpro_<version>_
+# <label>, as the release workflow names them). Every platform
 # CKPro ships must be there, once: a missing one fails, rather than a
 # release that leaves some computers without updates.
 #   scripts/latest-json.sh v0.4.0 pkg [notes.md] > latest.json
@@ -35,18 +36,18 @@ package() {
 # is neither the AppImage nor the .deb (built from source) gets nothing
 # rather than an AppImage over itself
 declare -a KEYS=(
-  "darwin-aarch64 *_macos-arm64_*.app.tar.gz"
-  "darwin-aarch64-app *_macos-arm64_*.app.tar.gz"
-  "darwin-x86_64 *_macos-x64_*.app.tar.gz"
-  "darwin-x86_64-app *_macos-x64_*.app.tar.gz"
-  "windows-x86_64 *_windows-x64_*-setup.exe"
-  "windows-x86_64-nsis *_windows-x64_*-setup.exe"
-  "windows-aarch64 *_windows-arm64_*-setup.exe"
-  "windows-aarch64-nsis *_windows-arm64_*-setup.exe"
-  "linux-x86_64-appimage *_linux-x64_*.AppImage"
-  "linux-x86_64-deb *_linux-x64_*.deb"
-  "linux-aarch64-appimage *_linux-arm64_*.AppImage"
-  "linux-aarch64-deb *_linux-arm64_*.deb"
+  "darwin-aarch64 *_macos-arm64.app.tar.gz"
+  "darwin-aarch64-app *_macos-arm64.app.tar.gz"
+  "darwin-x86_64 *_macos-x64.app.tar.gz"
+  "darwin-x86_64-app *_macos-x64.app.tar.gz"
+  "windows-x86_64 *_windows-x64-setup.exe"
+  "windows-x86_64-nsis *_windows-x64-setup.exe"
+  "windows-aarch64 *_windows-arm64-setup.exe"
+  "windows-aarch64-nsis *_windows-arm64-setup.exe"
+  "linux-x86_64-appimage *_linux-x64.AppImage"
+  "linux-x86_64-deb *_linux-x64.deb"
+  "linux-aarch64-appimage *_linux-arm64.AppImage"
+  "linux-aarch64-deb *_linux-arm64.deb"
 )
 
 platforms='{}'

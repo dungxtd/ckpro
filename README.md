@@ -52,13 +52,13 @@ macOS or Linux, with [Homebrew](https://brew.sh) (casks on Linux need Homebrew 4
 brew install --cask dungxtd/tap/ckpro
 ```
 
-**Windows**: the installer for your PC (`ckpro_windows-x64_….exe`, or `ckpro_windows-arm64_….exe` on Windows on Arm) from the [latest release](https://github.com/dungxtd/ckpro/releases/latest). It is not signed yet: SmartScreen asks once (More info, then Run anyway).
+**Windows**: the installer for your PC (`ckpro_…_windows-x64-setup.exe`, or `ckpro_…_windows-arm64-setup.exe` on Windows on Arm) from the [latest release](https://github.com/dungxtd/ckpro/releases/latest). It is not signed yet: SmartScreen asks once (More info, then Run anyway).
 
 **Linux without Homebrew**: the AppImage or the `.deb` for your machine (`linux-x64` or `linux-arm64`) from the same release:
 
 ```bash
-sudo apt install ./ckpro_linux-x64_*.deb   # Debian, Ubuntu
-chmod +x ckpro_linux-x64_*.AppImage && ./ckpro_linux-x64_*.AppImage
+sudo apt install ./ckpro_*_linux-x64.deb   # Debian, Ubuntu
+chmod +x ckpro_*_linux-x64.AppImage && ./ckpro_*_linux-x64.AppImage
 ```
 
 CKPro updates itself: a new version downloads in the background and installs when you restart it or quit, never during an attempt. Installed with the `.deb`, it asks for your password to install.

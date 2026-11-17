@@ -101,7 +101,7 @@ test("an update CKPro cannot install opens its release, with the command to run"
 				required: false,
 				reason: "This computer has no way to ask for your password (pkexec is missing)",
 				url: "https://github.com/dungxtd/ckpro/releases/tag/v0.4.0",
-				command: "sudo apt install ./ckpro_linux-x64_0.4.0_amd64.deb",
+				command: "sudo apt install ./ckpro_0.4.0_linux-x64.deb",
 			},
 		},
 		open_in_browser: null,
@@ -111,7 +111,7 @@ test("an update CKPro cannot install opens its release, with the command to run"
 		{ url: "https://github.com/dungxtd/ckpro/releases/tag/v0.4.0" },
 	]);
 	await page.goto("/#/settings");
-	await expect(page.getByText("sudo apt install ./ckpro_linux-x64_0.4.0_amd64.deb")).toBeVisible();
+	await expect(page.getByText("sudo apt install ./ckpro_0.4.0_linux-x64.deb")).toBeVisible();
 });
 
 test("the first run on a new version says it once", async ({ page }) => {

@@ -218,7 +218,7 @@ async fn a_restart_that_fails_keeps_the_update() {
 #[tokio::test]
 async fn a_package_that_cannot_be_installed_is_left_to_the_candidate() {
     let r = run(Install::Package);
-    *r.fake.check.locked() = Some(Ok(Some(found("0.4.0", None, "ckpro_linux-x64_0.4.0_amd64.deb"))));
+    *r.fake.check.locked() = Some(Ok(Some(found("0.4.0", None, "ckpro_0.4.0_linux-x64.deb"))));
     r.updater.run(false).await;
     // Never installed unasked
     assert_eq!(r.updater.on_quit(), None);
@@ -226,14 +226,14 @@ async fn a_package_that_cannot_be_installed_is_left_to_the_candidate() {
     assert!(r.updater.restart(|| {}, || {}).await.is_err());
     let UpdateStatus::Manual { reason, command, url, .. } = status(&r) else { panic!("{:?}", status(&r)) };
     assert!(reason.contains("could not be installed"));
-    assert_eq!(command.as_deref(), Some("sudo apt install ./ckpro_linux-x64_0.4.0_amd64.deb"));
+    assert_eq!(command.as_deref(), Some("sudo apt install ./ckpro_0.4.0_linux-x64.deb"));
     assert!(url.ends_with("/tag/v0.4.0"));
 }
 
 #[tokio::test]
 async fn a_copy_that_cannot_update_itself_says_so_without_downloading() {
     let r = run(Install::Manual("CKPro cannot write to the folder its AppImage is in"));
-    *r.fake.check.locked() = Some(Ok(Some(found("0.4.0", None, "ckpro_linux-x64_0.4.0.AppImage"))));
+    *r.fake.check.locked() = Some(Ok(Some(found("0.4.0", None, "ckpro_0.4.0_linux-x64.AppImage"))));
     *r.fake.download.locked() = Some(Err(AppError::update("downloaded")));
     r.updater.run(false).await;
     let UpdateStatus::Manual { reason, command: None, .. } = status(&r) else { panic!("{:?}", status(&r)) };
@@ -244,7 +244,7 @@ async fn a_copy_that_cannot_update_itself_says_so_without_downloading() {
 #[tokio::test]
 async fn the_windows_installer_runs_after_quitting() {
     let r = run(Install::Installer);
-    *r.fake.check.locked() = Some(Ok(Some(found("0.4.0", None, "ckpro_windows-x64_0.4.0_x64-setup.exe"))));
+    *r.fake.check.locked() = Some(Ok(Some(found("0.4.0", None, "ckpro_0.4.0_windows-x64-setup.exe"))));
     r.updater.run(false).await;
     assert_eq!(r.updater.on_quit(), Some(OnQuit::After("0.4.0".into())));
 }

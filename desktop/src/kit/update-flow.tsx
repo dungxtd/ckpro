@@ -42,7 +42,7 @@ const manual = (patch: Partial<Extract<UpdateStatus, { state: "manual" }>> = {})
 	required: false,
 	reason: "This computer has no way to ask for your password (pkexec is missing)",
 	url: `https://github.com/dungxtd/ckpro/releases/tag/v${NEXT}`,
-	command: "sudo apt install ./ckpro_linux-x64_*.deb",
+	command: "sudo apt install ./ckpro_*_linux-x64.deb",
 	...patch,
 });
 

@@ -92,7 +92,7 @@ mod tests {
     fn staged(version: &str) -> Staged {
         Staged {
             version: version.into(),
-            package: "ckpro_linux-x64_0.4.0.AppImage".into(),
+            package: "ckpro_0.4.0_linux-x64.AppImage".into(),
             signature: "sig".into(),
             release: serde_json::json!({ "version": version }),
         }
