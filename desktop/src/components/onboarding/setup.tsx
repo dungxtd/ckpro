@@ -301,14 +301,16 @@ function ExamsStep() {
 	const update = useSettings(s => s.update);
 	const today = dayKey(new Date());
 	const left = CERTS.filter(c => !targets.some(t => t.certification === c));
-	const [asking, setAsking] = useState(targets.length === 0);
+	// No exam left (the last one removed): asked again
+	const [adding, setAdding] = useState(false);
+	const asking = adding || targets.length === 0;
 	// A booked day prints its ticket, as the app's exam menu does; a goal not
 	const [ticket, setTicket] = useState<ExamTarget | null>(null);
 	const keep = ({ certification, date, booked }: ExamTold) => {
 		const target: ExamTarget = { certification, date, started: today, rest_days: [] };
 		update({ targets: [...targets.filter(t => t.certification !== certification), target] });
 		if (booked) setTicket(target);
-		setAsking(false);
+		setAdding(false);
 	};
 	const cksEarly =
 		targets.some(t => t.certification === "cks") && !targets.some(t => t.certification === "cka");
@@ -357,7 +359,7 @@ function ExamsStep() {
 								size="push"
 								variant="push"
 								className="self-start"
-								onClick={() => setAsking(true)}
+								onClick={() => setAdding(true)}
 							>
 								<Plus /> Another exam
 							</Button>

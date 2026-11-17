@@ -96,3 +96,13 @@ test("an exam is asked for, its day empty; the day typed and settled prints its 
 	await typeDay(page, "CKAD exam day", "2027-03-20");
 	await expect(page.locator(".ticket")).toHaveCount(1);
 });
+
+test("the last exam removed, the setup asks for one again", async ({ page }) => {
+	await launch(page, "/", {
+		settings: withSettings({ welcomed: false, setup_step: "exams" }),
+		exam_history: [],
+	});
+	const remove = page.getByRole("button", { name: "Remove" });
+	while ((await remove.count()) > 0) await remove.first().click();
+	await expect(page.getByRole("button", { name: /^CKA\b/ })).toBeVisible();
+});
