@@ -14,6 +14,7 @@ import {
 	type UpdateStatus,
 	useUpdate,
 } from "@/stores/update";
+import { updateApi } from "@/tauri/api";
 
 /** How long the chip keeps its words out when it announces an update */
 const ANNOUNCED_MS = 8000;
@@ -293,4 +294,68 @@ export function toastUpdated(version: string, onNotes: () => void) {
 	toast.success(`Updated to CKPro ${version}`, {
 		action: { label: "What's new", onClick: onNotes },
 	});
+}
+
+/** How long a check from the menu is waited for before its toast goes */
+const CHECK_WAIT_MS = 60_000;
+
+/**
+ * Check for Updates… in the app menu: a toast says it is checking, then
+ * what the check found (up to date, coming down, ready to restart onto,
+ * to download by hand, or why it could not check). Nothing over an attempt
+ */
+export function useMenuCheck() {
+	useEffect(() => {
+		let watching: (() => void) | undefined;
+		const stop = updateApi.onCheckAsked(() => {
+			const exam = useExam.getState().state;
+			if (exam && exam.phase !== "idle") return;
+			watching?.();
+			const id = toast.loading("Checking for updates…");
+			const give = setTimeout(() => {
+				watching?.();
+				toast.dismiss(id);
+			}, CHECK_WAIT_MS);
+			watching = useUpdate.subscribe(({ info }) => {
+				if (!info || info.status.state === "checking") return;
+				watching?.();
+				watching = undefined;
+				clearTimeout(give);
+				said(id, info.status, info.current);
+			});
+		});
+		return () => {
+			watching?.();
+			stop.then(unlisten => unlisten());
+		};
+	}, []);
+}
+
+/** What a check found, in the toast `id` */
+function said(id: string | number, s: UpdateStatus, current: string) {
+	switch (s.state) {
+		case "idle":
+			return toast.success("CKPro is up to date", { id, description: `Version ${current}` });
+		case "downloading":
+			return toast(`CKPro ${s.version} is downloading`, {
+				id,
+				description: "It installs when CKPro restarts",
+			});
+		case "ready":
+			return toast.success(`CKPro ${s.version} is ready`, {
+				id,
+				description: s.blocked ? `It installs after ${s.blocked}` : undefined,
+				action: s.blocked ? undefined : { label: "Restart", onClick: actions.restart },
+			});
+		case "manual":
+			return toast(`CKPro ${s.version} is out`, {
+				id,
+				description: s.reason,
+				action: { label: "Download", onClick: () => actions.download(s) },
+			});
+		case "failed":
+			return toast.error("Could not check for updates", { id, description: s.message });
+		default:
+			return toast.dismiss(id);
+	}
 }

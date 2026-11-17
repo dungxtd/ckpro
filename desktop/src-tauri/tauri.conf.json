@@ -72,6 +72,7 @@
   "bundle": {
     "active": true,
     "license": "GPL-3.0-only",
+    "copyright": "© 2026 dungxtd",
     "targets": "all",
     "icon": [
       "icons/32x32.png",

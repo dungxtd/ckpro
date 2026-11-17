@@ -49,6 +49,9 @@ pub trait Platform {
     const DOCKER_MEMORY: &'static str;
     /// How to give Docker more disk here, for when it runs low
     const DOCKER_DISK: &'static str;
+    /// The app has a menu of its own, always there (macOS's menu bar): Check
+    /// for Updates… goes in it. Elsewhere the window has none
+    const APP_MENU: bool;
     /// kind's release file for this system and `arch` (`std::env::consts::ARCH`)
     fn kind_asset(arch: &str) -> Option<&'static str>;
 
@@ -125,6 +128,7 @@ pub const DOCKER_START: &str = Os::DOCKER_START;
 pub const DOCKER_INSTALL: &str = Os::DOCKER_INSTALL;
 pub const DOCKER_MEMORY: &str = Os::DOCKER_MEMORY;
 pub const DOCKER_DISK: &str = Os::DOCKER_DISK;
+pub const APP_MENU: bool = Os::APP_MENU;
 
 /// kind's release file for this computer, if kind ships one
 pub fn kind_asset() -> Option<&'static str> {

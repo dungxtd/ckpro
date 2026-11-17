@@ -228,8 +228,12 @@ packs/core/               the question bank (YAML) and its JSON Schemas
 - The interface: a chip in the title bar's corner (none while up to date;
   it slides out once when an update is ready; its words restart onto it,
   its × puts it away), a banner where exams start when one is required,
-  and Settings > About. Nothing about updates while an exam-mode attempt
-  runs, nor on the exam desk.
+  and Settings > Updates. On macOS the app menu has them under About
+  CKPro (`menu.rs`): Check for Updates… (the check, what it finds said in a
+  toast, not over an attempt), and the update itself, there only while
+  there is one (restart onto it, or download it by hand; dimmed, saying
+  what it waits for, while something holds it back). Nothing about updates
+  while an exam-mode attempt runs, nor on the exam desk.
 
 ## Telemetry
 

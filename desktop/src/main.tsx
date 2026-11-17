@@ -38,7 +38,7 @@ import {
 	useInspectorSlot,
 } from "@/components/shell/inspector";
 import { TitleBar } from "@/components/shell/title-bar";
-import { Restarting, toastUpdated } from "@/components/shell/update";
+import { Restarting, toastUpdated, useMenuCheck } from "@/components/shell/update";
 import { WindowFrame } from "@/components/shell/window";
 import { CatalogRoute } from "@/routes/catalog";
 import { SHORTCUTS } from "@/shortcuts";
@@ -88,6 +88,8 @@ function Layout() {
 		window.addEventListener("keydown", keys);
 		return () => window.removeEventListener("keydown", keys);
 	}, [navigate, update]);
+	// Check for Updates… in the app menu: a toast says what it finds
+	useMenuCheck();
 	// An inspector when the content and it have room together
 	const [area, { width }] = useElementSize<HTMLDivElement>();
 	const inspector = useInspectorSlot(width >= INSPECTOR_FROM_PX);

@@ -223,6 +223,7 @@ export const events = {
 	studioProof: makeEvent<StudioProof_Serialize, StudioProof_Deserialize>("studio-proof"),
 	studyChanged: makeEvent<StudyChanged, StudyChanged>("study-changed"),
 	updateChanged: makeEvent<UpdateChanged_Serialize, UpdateChanged_Deserialize>("update-changed"),
+	updateCheckAsked: makeEvent<UpdateCheckAsked, UpdateCheckAsked>("update-check-asked"),
 };
 
 /* Types */
@@ -1906,6 +1907,12 @@ export type UpdateChanged_Deserialize = UpdateInfo_Deserialize;
 
 /**  Where updates are: checked, downloading, ready, required, by hand. */
 export type UpdateChanged_Serialize = UpdateInfo_Serialize;
+
+/**
+ *  Check for Updates… was chosen: the interface says what the check
+ *  finds, in a toast (not over an attempt)
+ */
+export type UpdateCheckAsked = null;
 
 export type UpdateInfo = UpdateInfo_Serialize | UpdateInfo_Deserialize;
 

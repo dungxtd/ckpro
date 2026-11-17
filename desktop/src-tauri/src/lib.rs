@@ -5,6 +5,7 @@ mod commands;
 mod demo;
 mod error;
 mod lab;
+mod menu;
 mod observability;
 mod platform;
 mod runtime;
@@ -130,7 +131,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             StudioDraft,
             StudioProof,
             StudyChanged,
-            UpdateChanged
+            UpdateChanged,
+            menu::UpdateCheckAsked
         ])
         .commands(tauri_specta::collect_commands![
             commands::env_state,
@@ -378,6 +380,7 @@ pub fn run() {
                 let source = update::source::Release::new(handle.clone(), endpoint);
                 let updater =
                     update::Updater::new(Box::new(source), locate, current.clone(), data_dir.join(update::UPDATES), checks, move |info| {
+                        menu::show(&handle, info);
                         let _ = UpdateChanged(info.clone()).emit(&handle);
                     });
                 let previous: Option<String> = store.setting(update::LAST_VERSION).unwrap_or_default();
@@ -386,6 +389,10 @@ pub fn run() {
                 }
                 updater.restore(previous.as_deref());
                 app.manage(updater.clone());
+                // Check for Updates… and the update, in the app's menu
+                if let Err(e) = menu::install(app.handle(), &updater.state()) {
+                    tracing::warn!(error = %e, "adding the update items to the menu");
+                }
                 updater
             };
             // The assistant runs where its settings say

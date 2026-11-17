@@ -41,6 +41,7 @@ impl Platform for Os {
     const DOCKER_INSTALL: &'static str = "Install OrbStack or Docker Desktop";
     const DOCKER_MEMORY: &'static str = "Raise the memory limit in OrbStack or Docker Desktop, or delete a cluster";
     const DOCKER_DISK: &'static str = "free space in OrbStack or Docker Desktop";
+    const APP_MENU: bool = true;
 
     fn kind_asset(arch: &str) -> Option<&'static str> {
         match arch {

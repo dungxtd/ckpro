@@ -128,3 +128,25 @@ test("installing covers the window until CKPro starts again", async ({ page }) =
 	});
 	await expect(page.getByRole("status").getByText("Updating to CKPro 0.4.0")).toBeVisible();
 });
+
+test("Check for Updates… in the app menu says what it finds in a toast", async ({ page }) => {
+	await launch(page, "/");
+	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+	await emit(page, "update-check-asked", null);
+	await expect(page.getByText("Checking for updates…")).toBeVisible();
+	await emit(page, "update-changed", { ...upToDate, status: { state: "checking" } });
+	await emit(page, "update-changed", upToDate);
+	await expect(page.getByText("CKPro is up to date")).toBeVisible();
+	// Where it was: no screen opened
+	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+});
+
+test("a check from the menu that finds an update offers the restart", async ({ page }) => {
+	await launch(page, "/");
+	await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
+	await emit(page, "update-check-asked", null);
+	await emit(page, "update-changed", updateReady());
+	await expect(page.getByText("CKPro 0.4.0 is ready")).toBeVisible();
+	await page.getByRole("button", { name: "Restart", exact: true }).click();
+	expect(await calls(page, "update_restart")).toHaveLength(1);
+});

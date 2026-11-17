@@ -297,6 +297,8 @@ export const updateApi = {
 	restart: () => unwrap(commands.updateRestart()),
 	/** Put it away until a newer one (a required one cannot be) */
 	dismiss: () => unwrap(commands.updateDismiss()),
+	/** Check for Updates… chosen in the app menu; resolves to the unsubscribe */
+	onCheckAsked: async (on: () => void) => events.updateCheckAsked.listen(() => on()),
 };
 
 /** The app's own window: its theme (title bar buttons, menus) and, on
