@@ -1,6 +1,6 @@
 [package]
 name = "ckpro"
-version = "0.3.3"
+version = "0.3.4"
 description = "CKPro - Kubernetes exam practice"
 authors = ["dungxtd"]
 license = "GPL-3.0-only"
