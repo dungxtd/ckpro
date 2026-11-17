@@ -59,7 +59,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVDQjVFOTY4MzY2QTM5NUUKUldSZU9XbzJhT20xN0FrYlg2VFJ0MS9mY2FiQ2JuV2JjTWJkTFhoZTFGRmtGdEd6dWl2ZGNzalcK",
       "endpoints": [
         "https://github.com/dungxtd/ckpro/releases/latest/download/latest.json"
       ],
