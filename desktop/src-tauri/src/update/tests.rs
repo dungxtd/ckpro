@@ -202,6 +202,27 @@ async fn a_restart_installs_and_leaves_the_environment_running() {
     assert!(r.updater.restarting());
     assert_eq!(r.updater.on_quit(), None);
     assert!(matches!(status(&r), UpdateStatus::Restarting { .. }));
+    // No attempt starts while it restarts
+    assert!(matches!(r.updater.allow_start(), Err(AppError::Busy { .. })));
+}
+
+/// An update ready stays ready when a check fails, or when the newer one
+/// found after it fails to come down
+#[tokio::test]
+async fn a_ready_update_stays_ready_when_a_check_or_a_newer_download_fails() {
+    let r = run(IN_PLACE);
+    *r.fake.check.locked() = Some(Ok(Some(found("0.4.0", None, "CKPro.app.tar.gz"))));
+    r.updater.run(false).await;
+    let ready = |r: &Run| matches!(status(r), UpdateStatus::Ready { ref version, .. } if version == "0.4.0");
+    assert!(ready(&r));
+    *r.fake.check.locked() = Some(Err(AppError::update("GitHub did not answer in time")));
+    r.updater.run(true).await;
+    assert!(ready(&r));
+    *r.fake.check.locked() = Some(Ok(Some(found("0.5.0", None, "CKPro.app.tar.gz"))));
+    *r.fake.download.locked() = Some(Err(AppError::update("CKPro could not reach GitHub")));
+    r.updater.run(true).await;
+    assert!(ready(&r));
+    assert_eq!(stage::load(&r.root).map(|s| s.version).as_deref(), Some("0.4.0"));
 }
 
 #[tokio::test]

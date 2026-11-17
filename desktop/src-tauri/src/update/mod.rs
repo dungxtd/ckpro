@@ -80,9 +80,19 @@ pub struct UpdateInfo {
 enum Phase {
     Idle,
     Checking,
-    Downloading { found: Found, done: u64, total: Option<u64> },
+    /// `kept`: the update ready before this newer one was found; it is
+    /// ready again if this download fails
+    Downloading {
+        found: Found,
+        done: u64,
+        total: Option<u64>,
+        kept: Option<Staged>,
+    },
     Ready(Staged),
-    Manual { found: Found, reason: String },
+    Manual {
+        found: Found,
+        reason: String,
+    },
     Failed(String),
     Restarting(String),
 }
@@ -212,7 +222,7 @@ impl Updater {
         let status = match &inner.phase {
             Phase::Idle => UpdateStatus::Idle { checked_at: inner.checked_at },
             Phase::Checking => UpdateStatus::Checking,
-            Phase::Downloading { found, done, total } => {
+            Phase::Downloading { found, done, total, .. } => {
                 UpdateStatus::Downloading { version: found.version.clone(), done: *done as f64, total: total.map(|t| t as f64) }
             }
             Phase::Ready(staged) => UpdateStatus::Ready {
@@ -328,7 +338,13 @@ impl Updater {
                     drop(inner);
                     return self.refresh();
                 }
-                _ => inner.phase = Phase::Downloading { found: found.clone(), done: 0, total: None },
+                _ => {
+                    let kept = match std::mem::replace(&mut inner.phase, Phase::Idle) {
+                        Phase::Ready(staged) => Some(staged),
+                        _ => None,
+                    };
+                    inner.phase = Phase::Downloading { found: found.clone(), done: 0, total: None, kept };
+                }
             }
         }
         self.refresh();
@@ -372,13 +388,19 @@ impl Updater {
     }
 
     /// A check or download failed: shown when it was asked for, and tried
-    /// again in a while either way
+    /// again in a while either way. An update ready before stays ready (the
+    /// one it was found with failed to come down, or the check did)
     fn failed(&self, e: AppError, now: SystemTime) {
         tracing::warn!(error = %e, "checking for updates");
         {
             let mut inner = self.inner.locked();
             inner.next = Some(now + policy::RETRY);
-            inner.phase = if inner.asked { Phase::Failed(e.to_string()) } else { Phase::Idle };
+            let asked = inner.asked;
+            inner.phase = match std::mem::replace(&mut inner.phase, Phase::Idle) {
+                Phase::Ready(staged) | Phase::Downloading { kept: Some(staged), .. } => Phase::Ready(staged),
+                _ if asked => Phase::Failed(e.to_string()),
+                _ => Phase::Idle,
+            };
         }
         self.refresh();
     }
@@ -399,9 +421,11 @@ impl Updater {
         Ok(())
     }
 
-    /// Whether a new attempt may start: not while a newer version is required
+    /// Whether a new attempt may start: not while a newer version is
+    /// required, nor while CKPro is restarting to install one
     pub fn allow_start(&self) -> AppResult<()> {
         match self.info().status {
+            UpdateStatus::Restarting { version } => Err(AppError::busy(format!("CKPro is restarting to install {version}"))),
             UpdateStatus::Ready { required: true, version, .. } | UpdateStatus::Manual { required: true, version, .. } => {
                 Err(AppError::update_required(&version))
             }
@@ -418,14 +442,20 @@ impl Updater {
         prepare: impl Fn() + Send + Sync + 'static,
         restart: impl FnOnce() + Send + 'static,
     ) -> AppResult<()> {
+        // Restarting first, then what holds it back: an attempt that starts
+        // meanwhile is refused (`allow_start`), none slips in between
+        let staged = {
+            let mut inner = self.inner.locked();
+            let Phase::Ready(staged) = &inner.phase else { return Err(AppError::invalid("no update is ready to install")) };
+            let staged = staged.clone();
+            inner.phase = Phase::Restarting(staged.version.clone());
+            staged
+        };
         if let Some(what) = self.held() {
+            self.inner.locked().phase = Phase::Ready(staged);
+            self.refresh();
             return Err(AppError::busy(format!("CKPro restarts to update after {what}")));
         }
-        let staged = match &self.inner.locked().phase {
-            Phase::Ready(staged) => staged.clone(),
-            _ => return Err(AppError::invalid("no update is ready to install")),
-        };
-        self.inner.locked().phase = Phase::Restarting(staged.version.clone());
         self.refresh();
         // From here the app's exit leaves the environment running
         self.restarting.store(true, Ordering::SeqCst);
