@@ -1,6 +1,6 @@
 [package]
 name = "ckpro"
-version = "0.2.1"
+version = "0.3.3"
 description = "CKPro - Kubernetes exam practice"
 authors = ["dungxtd"]
 edition = "2024"
