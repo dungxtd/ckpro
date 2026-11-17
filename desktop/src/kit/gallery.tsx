@@ -66,6 +66,7 @@ import { Toaster } from "@ckpro/ui/components/sonner";
 import { Spinner } from "@ckpro/ui/components/spinner";
 import { Splitter, usePanelSize } from "@ckpro/ui/components/splitter";
 import { Stat, StatGroup } from "@ckpro/ui/components/stat";
+import { StatusChip } from "@ckpro/ui/components/status-chip";
 import { StatusDot } from "@ckpro/ui/components/status-dot";
 import { Stepper } from "@ckpro/ui/components/stepper";
 import { Swatch } from "@ckpro/ui/components/swatch";
@@ -88,6 +89,7 @@ import {
 	Check,
 	ChevronDown,
 	CircleAlert,
+	CircleArrowUp,
 	Copy,
 	History,
 	Info,
@@ -110,6 +112,7 @@ import { AssistantIcon } from "@/components/assistant/assistant-icon";
 import { CheckList } from "@/components/exam/check-list";
 import { Timer } from "@/components/exam/timer";
 import { CopyBlock, CopyText } from "@/components/text/copy-text";
+import { UpdateFlow, UpdateStates } from "./update-flow";
 import "../index.css";
 
 // The app's commands answer nothing here
@@ -440,6 +443,31 @@ function Gallery() {
 					title="Chip · Badge"
 					note="Chip: a pill you can pick or remove. Badge: a small status label; tag and warningTag the notes beside a choice."
 				>
+					<Row>
+						<span className="text-muted-foreground text-sm">StatusChip (point at one):</span>
+						<StatusChip
+							icon={<ActivityStatusIcon status="running" className="size-3.5 text-current" />}
+							words="Starting cluster k8s"
+						/>
+						<StatusChip
+							icon={<CircleArrowUp className="size-3.5" />}
+							words="Restart to update to CKPro 0.4.0"
+							tone="highlight"
+							onClick={() => toast("Restart")}
+							onDismiss={() => toast("Not now")}
+							dismissLabel="Not now"
+						/>
+						<StatusChip
+							icon={<CircleArrowUp className="size-3.5" />}
+							words="CKPro 0.4.0 is required"
+							tone="warning"
+						/>
+						<StatusChip
+							icon={<CircleAlert className="size-3.5" />}
+							words="Failed: Grading CKA"
+							tone="destructive"
+						/>
+					</Row>
 					<Row>
 						<Chip selected={chip} onClick={() => setChip(c => !c)}>
 							Selectable
@@ -999,6 +1027,21 @@ function Gallery() {
 						))}
 					</div>
 				</Section>
+
+				<div id="updates" className="flex scroll-mt-8 flex-col gap-10">
+					<Section
+						title="Updates"
+						note="Each case step by step: what the candidate sees, and what Rust does meanwhile. Restart and Check now in the frame move to the next step."
+					>
+						<UpdateFlow />
+					</Section>
+					<Section
+						title="Update states"
+						note="Every state: the chip in the title bar's corner, its words out (none while there is nothing to do), and Settings > About's group."
+					>
+						<UpdateStates />
+					</Section>
+				</div>
 
 				<Section title="App patterns" note="CKPro's own components, built on the kit.">
 					<Row>

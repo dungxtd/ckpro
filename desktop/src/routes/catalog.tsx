@@ -9,6 +9,7 @@ import { ExamDetail } from "@/components/catalog/exam-detail";
 import { useSelection } from "@/components/catalog/exams";
 import { DockerBanner } from "@/components/environment/docker-banner";
 import { screenPage } from "@/components/shell/screen";
+import { UpdateBanner } from "@/components/shell/update";
 import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 
@@ -34,6 +35,7 @@ export function CatalogRoute() {
 	return (
 		<div className={screenPage()}>
 			<DockerBanner />
+			<UpdateBanner />
 			{error && empty ? (
 				<Alert variant="destructive" className="flex-col items-start">
 					<span className="font-medium">The exams could not be read.</span>

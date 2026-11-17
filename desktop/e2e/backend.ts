@@ -28,6 +28,7 @@ import type {
 	StudioConversation_Serialize,
 	StudioSessionRow,
 	StudyStats,
+	UpdateInfo_Serialize,
 } from "../src/tauri/bindings";
 import app from "./fixtures/app.json" with { type: "json" };
 
@@ -102,7 +103,35 @@ type Results = {
 	save_exam_progress: null;
 	desktop_session: DesktopSession | null;
 	telemetry_configure: null;
+	update_state: UpdateInfo_Serialize;
+	update_check: null;
+	update_restart: null;
+	update_dismiss: null;
 };
+
+/** No update to make: as the app opens up to date */
+export const upToDate: UpdateInfo_Serialize = {
+	current: "0.3.2",
+	status: { state: "idle", checked_at: null },
+	dismissed: false,
+	updated_from: null,
+};
+
+/** An update `version` downloaded and ready (`patch`: required, held back…) */
+export const updateReady = (
+	patch: Partial<Extract<UpdateInfo_Serialize["status"], { state: "ready" }>> = {}
+): UpdateInfo_Serialize => ({
+	...upToDate,
+	status: {
+		state: "ready",
+		version: "0.4.0",
+		notes: "- **Calendar:** a week at once",
+		required: false,
+		blocked: null,
+		on_quit: true,
+		...patch,
+	},
+});
 
 /** What the app answers with no test asking otherwise: the sample data */
 export const defaults: Partial<Results> & Record<string, Reply> = {
@@ -135,6 +164,11 @@ export const defaults: Partial<Results> & Record<string, Reply> = {
 	env_watch_nodes: null,
 	activities: [],
 	app_info: { data_dir: "/tmp/ckpro", version: "0.1.0" },
+	// Up to date: nothing in the corner
+	update_state: upToDate,
+	update_check: null,
+	update_restart: null,
+	update_dismiss: null,
 	coach_status: { ready: true, problem: null },
 	coach_account: { signed_in: true, method: null, email: null, plan: null },
 	coach_runtime: {

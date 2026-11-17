@@ -26,6 +26,7 @@ import {
 	type SignInEvent,
 	type SignInMethod,
 	type StudioConversation_Serialize,
+	type UpdateInfo_Serialize,
 } from "./bindings";
 
 /** What the generated command functions resolve to. */
@@ -278,6 +279,24 @@ export const agentApi = {
 export const appApi = {
 	/** Where the app keeps its data, and its version */
 	info: () => commands.appInfo(),
+};
+
+/** Where updates are, as Rust has them */
+export type UpdateInfo = UpdateInfo_Serialize;
+export type UpdateStatus = UpdateInfo["status"];
+
+export const updateApi = {
+	/** As the interface opens: an update just installed is said this once */
+	state: () => commands.updateState() as Promise<UpdateInfo>,
+	/** Every change, for the life of the app; resolves to the unsubscribe */
+	onChanged: async (on: (info: UpdateInfo) => void) =>
+		events.updateChanged.listen(event => on(event.payload as UpdateInfo)),
+	/** Check now: what it finds comes as a change */
+	check: () => commands.updateCheck(),
+	/** Install the downloaded update and start again (`busy` while an attempt runs) */
+	restart: () => unwrap(commands.updateRestart()),
+	/** Put it away until a newer one (a required one cannot be) */
+	dismiss: () => unwrap(commands.updateDismiss()),
 };
 
 /** The app's own window: its theme (title bar buttons, menus) and, on

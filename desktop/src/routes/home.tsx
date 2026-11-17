@@ -16,6 +16,7 @@ import { ThisWeek } from "@/components/home/modules/this-week";
 import { Today } from "@/components/home/modules/today";
 import { useHomeData } from "@/components/home/use-home-data";
 import { Screen } from "@/components/shell/screen";
+import { UpdateBanner } from "@/components/shell/update";
 import { longestStreak, PASS_DEFAULT } from "@/components/study/data";
 import { ExamMenu } from "@/components/study/exam-menu";
 import { PracticeMap } from "@/components/study/practice-map";
@@ -220,6 +221,7 @@ export function HomeRoute() {
 				{now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
 			</p>
 			<DockerBanner />
+			<UpdateBanner />
 			<ModuleGrid
 				modules={modules}
 				defaults={DEFAULTS[(fresh ? "new" : "used") + (assistant ? "" : "NoAi")]}

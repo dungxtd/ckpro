@@ -38,6 +38,7 @@ import {
 	useInspectorSlot,
 } from "@/components/shell/inspector";
 import { TitleBar } from "@/components/shell/title-bar";
+import { Restarting, toastUpdated } from "@/components/shell/update";
 import { WindowFrame } from "@/components/shell/window";
 import { CatalogRoute } from "@/routes/catalog";
 import { SHORTCUTS } from "@/shortcuts";
@@ -47,7 +48,8 @@ import { useEnvironment } from "@/stores/environment";
 import { useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
 import { useStudy } from "@/stores/study";
-import { appApi, errorText } from "@/tauri/api";
+import { releaseUrl, useUpdate } from "@/stores/update";
+import { appApi, browserApi, errorText } from "@/tauri/api";
 import { useTheme } from "@/theme";
 import "./index.css";
 
@@ -169,6 +171,14 @@ function Layout() {
 	);
 }
 
+/** The whole window while an update installs and CKPro starts again */
+function UpdateRestarting() {
+	const version = useUpdate(s =>
+		s.info?.status.state === "restarting" ? s.info.status.version : null
+	);
+	return version ? <Restarting version={version} /> : null;
+}
+
 /** An attempt in progress owns the window until it is closed. */
 function ExamGuard() {
 	const phase = useExam(s => s.state?.phase);
@@ -182,6 +192,7 @@ function App() {
 	const connectExam = useExam(s => s.connect);
 	const connectActivities = useActivities(s => s.connect);
 	const connectStudy = useStudy(s => s.connect);
+	const connectUpdate = useUpdate(s => s.connect);
 	useTheme();
 	const loadSettings = useSettings(s => s.load);
 	// Bumped by Try again: everything is read and followed afresh
@@ -191,7 +202,16 @@ function App() {
 	useEffect(() => {
 		void boot;
 		loadSettings();
-		const stops = [connectEnv(), connectExam(), connectActivities(), connectStudy()];
+		const stops = [
+			connectEnv(),
+			connectExam(),
+			connectActivities(),
+			connectStudy(),
+			// An update just installed is said once, as the app opens
+			connectUpdate((_, version) =>
+				toastUpdated(version, () => browserApi.open(releaseUrl(version)).catch(() => {}))
+			),
+		];
 		return () => {
 			for (const stop of stops)
 				stop.then(
@@ -199,7 +219,7 @@ function App() {
 					() => {}
 				);
 		};
-	}, [connectEnv, connectExam, connectActivities, connectStudy, loadSettings, boot]);
+	}, [connectEnv, connectExam, connectActivities, connectStudy, connectUpdate, loadSettings, boot]);
 	// Opened straight on the right screen: the settings and where the exam is
 	// are known before anything shows (no catalog flashing before a resume)
 	const settingsLoaded = useSettings(s => s.loaded);
@@ -281,6 +301,7 @@ function App() {
 			{/* Starting an exam whose clusters exist asks first, from any screen */}
 			<StartPrompt />
 			<Toaster />
+			<UpdateRestarting />
 		</>
 	);
 }

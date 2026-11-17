@@ -6,6 +6,7 @@ import { ActivityChip } from "@/components/activity/activity-chip";
 import { useInspectorShown } from "@/components/shell/inspector";
 import { WindowControls } from "@/components/shell/window-controls";
 import { CapsuleNav } from "./capsule-nav";
+import { UpdateCorner } from "./update";
 
 /**
  * The bar over the content: it moves the window and shows what is running.
@@ -42,6 +43,8 @@ export function TitleBar({
 			{/* As tall as the bar: Windows' buttons fill it */}
 			<div ref={end} className="flex items-center gap-2 self-stretch">
 				<ActivityChip />
+				{/* The update, in the corner: never on the exam desk */}
+				<UpdateCorner />
 				{/* Windows' buttons at the window's corner: the inspector's, when one shows */}
 				{!mac && !inspecting && <WindowControls />}
 			</div>
