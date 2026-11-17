@@ -8,8 +8,11 @@ type ChipProps = React.ComponentProps<"button"> & {
 	selected?: boolean;
 	/** Small count badge after the label. */
 	count?: number;
-	/** Makes the chip static and adds a × remove button. */
+	/** Adds a × remove button; the chip is static unless `onClick` is given
+	 * too (then its label acts and the × removes, as a notice dismissed). */
 	onRemove?: () => void;
+	/** The ×'s accessible name, when "Remove <label>" does not say it. */
+	removeLabel?: string;
 	/** xs 22px (context in a composer) · sm 28px (filters, scopes) · md 32px (source sort/quality). */
 	size?: "xs" | "sm" | "md";
 };
@@ -23,6 +26,7 @@ export function Chip({
 	selected,
 	count,
 	onRemove,
+	removeLabel,
 	onClick,
 	size = "sm",
 	className,
@@ -65,12 +69,32 @@ export function Chip({
 	if (onRemove) {
 		return (
 			<span {...root} className={base}>
-				{children}
-				{badge}
+				{onClick ? (
+					// The label acts; the × beside it removes
+					<button
+						type={type}
+						onClick={onClick}
+						className={cn(
+							"inline-flex cursor-pointer items-center gap-1.5 rounded-full outline-none",
+							focusRing
+						)}
+					>
+						{children}
+						{badge}
+					</button>
+				) : (
+					<>
+						{children}
+						{badge}
+					</>
+				)}
 				<button
 					type="button"
+					data-slot="chip-remove"
 					// Which chip: "Remove" alone does not say
-					aria-label={typeof children === "string" ? `Remove ${children}` : "Remove"}
+					aria-label={
+						removeLabel ?? (typeof children === "string" ? `Remove ${children}` : "Remove")
+					}
 					onClick={onRemove}
 					className={cn(
 						"grid size-5 cursor-pointer place-items-center rounded-full bg-[var(--seg-bg)] hover:bg-foreground/15",

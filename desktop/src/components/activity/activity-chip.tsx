@@ -1,5 +1,4 @@
-import { Chip } from "@ckpro/ui/components/chip";
-import { cn } from "@ckpro/ui/lib/utils";
+import { StatusChip } from "@ckpro/ui/components/status-chip";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { ActivityStatusIcon } from "@/components/activity/activity-status-icon";
@@ -50,29 +49,14 @@ export function ActivityChip() {
 			state: { activity: shown.id },
 			replace: pathname === "/environment",
 		});
-	const tone =
-		isFailed && "bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive";
 	return (
-		// An icon in the corner; under the pointer (or focused) it slides out to
-		// its words, over what is beside it: the bar's layout never moves
-		<span className="group/chip relative ml-auto flex h-7 items-center">
-			<Chip aria-hidden tabIndex={-1} className={cn("invisible", tone)} count={count}>
-				<ActivityStatusIcon status={shown.status} className="size-3.5 text-current" />
-			</Chip>
-			<Chip
-				onClick={open}
-				aria-label={words}
-				className={cn(
-					"absolute top-0 right-0 z-10 shadow-(--shadow-control) transition-[background-color,color] motion-safe:transition-[max-width] motion-safe:duration-200",
-					tone
-				)}
-				count={count}
-			>
-				<ActivityStatusIcon status={shown.status} className="size-3.5 text-current" />
-				<span className="max-w-0 truncate opacity-0 transition-[max-width,opacity] duration-200 ease-out group-focus-within/chip:max-w-72 group-focus-within/chip:opacity-100 group-hover/chip:max-w-72 group-hover/chip:opacity-100 motion-reduce:transition-none">
-					{words}
-				</span>
-			</Chip>
-		</span>
+		<StatusChip
+			className="ml-auto"
+			icon={<ActivityStatusIcon status={shown.status} className="size-3.5 text-current" />}
+			words={words}
+			tone={isFailed ? "destructive" : "default"}
+			count={count}
+			onClick={open}
+		/>
 	);
 }

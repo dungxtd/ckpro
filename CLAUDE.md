@@ -62,7 +62,7 @@ or CK-pro.
   `SegmentedControl`, `Stepper`, `Select`, `Switch`, `Popover` with the
   `menu` classes, `DropdownMenu` (submenus), `Dialog`/`AlertDialog`,
   `ConfirmDialog`, `Tooltip`, `Truncated`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`), `Alert`, `CodeBlock`,
-  `Badge`, `Chip`, `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal` (`Terminal.Prompt`), `Placeholder`, `Progress` (`marker`), `ProgressRing`, `ResizeHandle`, `Splitter` (`usePanelSize`), `Spinner`, `Loading`,
+  `Badge`, `Chip` (a pressable label beside its ×), `StatusChip` (a status in a bar's corner, its words sliding out), `StatusDot`, `Sidebar`, `Capsule`, `Stat`, `Terminal` (`Terminal.Prompt`), `Placeholder`, `Progress` (`marker`), `ProgressRing`, `ResizeHandle`, `Splitter` (`usePanelSize`), `Spinner`, `Loading`,
   `MenuItem`, `DisclosureButton`, `InlineCode`, `Swatch`, `FadeScroll`, `RowCover` (a list row pressed as a whole), `UsageBar` (how a whole is used, as macOS Storage), `AppMark` (the icon's mark, inside a picture), `DateField` (a day typed dd/mm/yyyy in one field; no calendar picker anywhere). A hand-rolled control or a class
   string used twice becomes a kit component or variant.
 - **Kit helpers**: `useElementSize` (an element's size as it changes),
