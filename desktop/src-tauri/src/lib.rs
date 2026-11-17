@@ -160,23 +160,28 @@ fn typescript() -> specta_typescript::Typescript {
     specta_typescript::Typescript::default().header("// @ts-nocheck")
 }
 
-/// Bundle identifier (tauri.conf.json); names the app data directory.
-pub const APP_ID: &str = "dev.ckpro.app";
+/// The app's folder in the system's local data directory, named after the
+/// product, not the bundle identifier:
+/// `~/Library/Application Support/ckpro`, `~/.local/share/ckpro`,
+/// `%LOCALAPPDATA%\ckpro`. tauri.conf.json's `appDirectoriesOverride` gives
+/// Tauri the same folder (the webview's data, the logs, the plugins'), so
+/// everything CKPro keeps is in one place
+pub const DATA_FOLDER: &str = "ckpro";
 /// The database, in the data directory (store.rs)
 pub const DATABASE: &str = "ckpro.db";
+
+/// Another data directory, to look at the app with other data (`ckpro
+/// demo`): in development builds only, so a release reads no other database
+fn other_data_dir() -> Option<std::path::PathBuf> {
+    std::env::var_os("CKPRO_DATA_DIR").filter(|d| cfg!(debug_assertions) && !d.is_empty()).map(std::path::PathBuf::from)
+}
 
 /// Where the app keeps kind, kubeconfigs and the jumphost files: the same
 /// directory for the app and the CLI.
 /// Kubeconfigs, keys and the database are the user's only: the directory is
 /// made private before anything goes in, whichever runs first.
 pub fn data_dir() -> std::path::PathBuf {
-    // Another data directory, to look at the app with other data (`ckpro
-    // demo`): in development builds only, so a release reads no other database
-    let other = std::env::var_os("CKPRO_DATA_DIR").filter(|d| cfg!(debug_assertions) && !d.is_empty());
-    let dir = match other {
-        Some(dir) => std::path::PathBuf::from(dir),
-        None => dirs::data_dir().unwrap_or_else(std::env::temp_dir).join(APP_ID),
-    };
+    let dir = other_data_dir().unwrap_or_else(|| dirs::data_local_dir().unwrap_or_else(std::env::temp_dir).join(DATA_FOLDER));
     let _ = std::fs::create_dir_all(&dir);
     if let Err(e) = platform::make_private(&dir) {
         tracing::warn!(dir = %dir.display(), error = %e, "the data directory could not be made private");
@@ -360,7 +365,14 @@ pub fn run() {
             tracing::info!(version = env!("CARGO_PKG_VERSION"), "ckpro started");
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build({
+            let mut context = tauri::generate_context!();
+            // Another data directory (development): Tauri's own follow it
+            if let Some(dir) = other_data_dir() {
+                context.config_mut().app.app_directories_override = Some(tauri::utils::config::AppDirectoriesOverride::Root(dir));
+            }
+            context
+        })
         .expect("error while building tauri application")
         .run(|app, event| {
             if let RunEvent::Exit = event {
@@ -376,3 +388,14 @@ pub fn run() {
 
 #[cfg(test)]
 mod e2e;
+
+#[cfg(test)]
+mod tests {
+    /// Tauri and the app (and the CLI, which has no Tauri) keep one folder
+    #[test]
+    fn tauri_and_the_app_keep_one_folder() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(config["app"]["appDirectoriesOverride"], format!("$LOCALDATA/{}", super::DATA_FOLDER));
+        assert_eq!(config["identifier"], "dev.ckpro.CKPro");
+    }
+}

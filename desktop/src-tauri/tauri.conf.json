@@ -3,7 +3,7 @@
   "productName": "CKPro",
   "mainBinaryName": "ckpro",
   "version": "0.2.1",
-  "identifier": "dev.ckpro.app",
+  "identifier": "dev.ckpro.CKPro",
   "build": {
     "beforeDevCommand": "pnpm vite:dev",
     "devUrl": "http://localhost:1420",
@@ -11,6 +11,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "appDirectoriesOverride": "$LOCALDATA/ckpro",
     "withGlobalTauri": true,
     "windows": [
       {

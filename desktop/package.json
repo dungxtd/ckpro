@@ -17,7 +17,7 @@
   "dependencies": {
     "@ckpro/ui": "workspace:^",
     "@novnc/novnc": "1.7.0",
-    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/api": "^2.12.5",
     "immer": "^11.2.7",
     "lucide-react": "^1.61.0",
     "posthog-js": "^1.441.2",
@@ -33,7 +33,7 @@
     "@playwright/test": "^1.64.1",
     "@posthog/cli": "^0.19.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@tauri-apps/cli": "^2.12.4",
+    "@tauri-apps/cli": "^2.12.5",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

@@ -128,7 +128,7 @@ touches the app's clusters. On failure:
 
 With `--keep`, inspect the cluster with
 `docker exec ckpro-jumphost-<run> kubectl ...`. When done, delete
-`~/Library/Application Support/dev.ckpro.app/runs/<run>/keep`; the next
+`runs/<run>/keep` in the data folder (`~/Library/Application Support/ckpro`, `~/.local/share/ckpro`); the next
 verify removes the run (its cluster, node volumes and jumphost). Verify also
 cleans up after runs that were killed or crashed. Never remove kind nodes
 with a bare `docker rm -f`, which leaves a ~1 GB volume per node behind.

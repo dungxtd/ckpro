@@ -40,9 +40,11 @@ errors, the guard's notes, "Welcome to CKPro."), README and docs prose,
 the GitHub description. **CKPRO** only where capitals are the style: a
 certificate, a seal, a line set in capitals beside CKA, CKAD and CKS.
 **ckpro**, lower case, where it is an identifier: the CLI and its binary
-(`mainBinaryName`), the repo, the Homebrew cask, `dev.ckpro.app`, container
-and image names (`ckpro-…`), the compose project, file names, code.
-Never CKpro or CK-pro.
+(`mainBinaryName`), the repo, the Homebrew cask, the data folder (`ckpro`
+in the system's local data directory), container and image names
+(`ckpro-…`), the compose project, file names, code. The bundle identifier
+is `dev.ckpro.CKPro`: the domain reversed, then the product. Never CKpro
+or CK-pro.
 
 ## Interface rules
 
