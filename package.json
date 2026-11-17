@@ -3,6 +3,7 @@
   "version": "0.3.3",
   "private": true,
   "description": "ckpro - Kubernetes exam practice app monorepo",
+  "license": "GPL-3.0-only",
   "packageManager": "pnpm@12.11.2",
   "scripts": {
     "dev": "pnpm --filter ckpro-desktop dev",

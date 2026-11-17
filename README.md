@@ -86,3 +86,7 @@ cargo test -- --ignored --test-threads=1   # end-to-end tests on Docker
 cargo run -- lab lint ../../packs/core     # check the question pack
 cargo run -- lab verify ../../packs/core   # prove it on real clusters
 ```
+
+## License
+
+CKPro is free software: you can share and change it under the [GNU General Public License v3.0](LICENSE). Copies you pass on, changed or not, stay under the same license, their source with them.

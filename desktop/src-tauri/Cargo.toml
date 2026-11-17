@@ -3,6 +3,7 @@ name = "ckpro"
 version = "0.3.3"
 description = "CKPro - Kubernetes exam practice"
 authors = ["dungxtd"]
+license = "GPL-3.0-only"
 edition = "2024"
 # Let-chains (edition 2024)
 rust-version = "1.88"
