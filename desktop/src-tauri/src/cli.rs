@@ -48,6 +48,12 @@ enum Command {
         clusters: Vec<String>,
         #[arg(long = "container")]
         containers: Vec<String>,
+        /// Then run the update kept for this version (the Windows installer)
+        #[arg(long)]
+        install: Option<String>,
+        /// Once this process (the app) is gone
+        #[arg(long)]
+        after: Option<u32>,
     },
 }
 
@@ -103,13 +109,20 @@ pub fn main() -> ExitCode {
             verify_pack(&pack, &exams, &questions, keep, parallel, json)
         }
         Command::Schema { out } => write_schemas(&out),
-        Command::Quit { action, clusters, containers } => {
+        Command::Quit { action, clusters, containers, install, after } => {
             let Ok(runtime) = tokio::runtime::Runtime::new() else { return ExitCode::FAILURE };
             let done = runtime.block_on(async {
                 tokio::time::timeout(std::time::Duration::from_secs(120), crate::runtime::docker::quit(action, &clusters, &containers))
                     .await
             });
-            if matches!(done, Ok(Ok(()))) { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+            // The containers stopped (or given up on): the update installs
+            // whatever Docker did, the app being gone
+            let installed = install.map(|version| {
+                crate::update::install_after_quit(&crate::data_dir().join(crate::update::UPDATES), &version, after)
+                    .inspect_err(|e| eprintln!("ckpro: {e}"))
+                    .is_ok()
+            });
+            if matches!(done, Ok(Ok(()))) && installed != Some(false) { ExitCode::SUCCESS } else { ExitCode::FAILURE }
         }
         Command::Demo { dir, remove } => {
             // A development tool: a release puts nothing into the candidate's data

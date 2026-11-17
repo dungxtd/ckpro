@@ -12,6 +12,7 @@ mod store;
 mod studio;
 mod sync;
 mod telemetry;
+mod update;
 
 use runtime::model::{Env, EnvState};
 use serde::{Deserialize, Serialize};
@@ -66,6 +67,53 @@ pub fn study_changed(app: &tauri::AppHandle, catalog: bool) {
     let _ = StudyChanged { catalog }.emit(app);
 }
 
+/// Where updates are: checked, downloading, ready, required, by hand.
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct UpdateChanged(update::UpdateInfo);
+
+/// What an update waits for (an attempt, a proof, a long operation), read
+/// when the updater asks
+fn busy(app: &tauri::AppHandle) -> update::policy::Busy {
+    use lab::exam::ExamState as S;
+    let mut busy = update::policy::Busy::default();
+    if let Some(exams) = app.try_state::<Arc<lab::exam::Exams>>() {
+        match exams.state() {
+            S::Preparing { attempt, .. }
+            | S::Resuming { attempt, .. }
+            | S::Running { attempt, .. }
+            | S::Grading { attempt, .. }
+            | S::Ending { attempt, .. } => busy.attempt = Some(attempt.mode),
+            S::Failed { resumable: true, .. } => busy.kept = true,
+            _ => {}
+        }
+    }
+    busy.proving = app.try_state::<studio::proof::Proofs>().is_some_and(|p| !p.list().is_empty());
+    busy.activity = app
+        .try_state::<Arc<runtime::activity::Activities>>()
+        .is_some_and(|a| a.list().iter().any(|a| a.status == runtime::activity::ActivityStatus::Running));
+    busy
+}
+
+/// What holds an update back may have moved (an attempt, a proof, an
+/// activity): the updater reads it again, off the caller's locks
+fn update_moved(app: &tauri::AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Some(updater) = app.try_state::<Arc<update::Updater>>() {
+            updater.refresh();
+        }
+    });
+}
+
+/// Before CKPro goes to install an update (the Windows installer ends it
+/// at once, past the app's exit): the guard stops watching, Create's
+/// proof clusters go; the environment stays for the app coming back
+pub(crate) fn prepare_restart(app: &tauri::AppHandle) {
+    app.state::<Arc<runtime::guard::Guard>>().suspend();
+    app.state::<studio::proof::Proofs>().on_exit();
+    app.cleanup_before_exit();
+}
+
 /// Pushed to the UI on every environment change.
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 pub struct EnvChanged(EnvState);
@@ -81,7 +129,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             GuardNotice,
             StudioDraft,
             StudioProof,
-            StudyChanged
+            StudyChanged,
+            UpdateChanged
         ])
         .commands(tauri_specta::collect_commands![
             commands::env_state,
@@ -151,6 +200,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::check_question,
             commands::question_solution,
             commands::exam_history,
+            commands::update_state,
+            commands::update_check,
+            commands::update_restart,
+            commands::update_dismiss,
         ])
 }
 
@@ -237,6 +290,8 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         // Links open in the system browser (`open_in_browser`)
         .plugin(tauri_plugin_opener::init())
+        // Updates, driven from Rust (update/): no permission for the interface
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(ai::Coach::new())
         .invoke_handler({
             let handler = builder.invoke_handler();
@@ -261,12 +316,14 @@ pub fn run() {
             let proving = app.handle().clone();
             app.manage(studio::proof::Proofs::new(move |session, proof| {
                 let _ = StudioProof { session, proof: proof.cloned() }.emit(&proving);
+                update_moved(&proving);
             }));
             app.manage(Arc::new(runtime::jumphost::Jumphost::app(&data_dir)));
             let (changed, line) = (app.handle().clone(), app.handle().clone());
             let activities = runtime::activity::Activities::new(
                 move |activity| {
                     let _ = ActivityChanged(activity.clone()).emit(&changed);
+                    update_moved(&changed);
                 },
                 move |id, text| {
                     let _ = ActivityLog { id, line: text.to_string() }.emit(&line);
@@ -302,6 +359,33 @@ pub fn run() {
             // Everything kept between runs
             let key = store::key::database_key(&data_dir)?;
             let store = Arc::new(store::Store::open_encrypted(&data_dir.join(DATABASE), &key)?);
+            // Updates: a download kept from before is ready again, an update
+            // just installed is said once; checks start once all is up
+            let updater = {
+                let handle = app.handle().clone();
+                let current = app.package_info().version.clone();
+                // Another latest.json, to try updates in development
+                let endpoint = std::env::var("CKPRO_UPDATE_URL").ok().filter(|_| cfg!(debug_assertions)).and_then(|u| u.parse().ok());
+                // A release build signed for (dry runs are 0.0.0), or a development
+                // build pointed elsewhere
+                let checks = (!cfg!(debug_assertions) || endpoint.is_some())
+                    && current != semver::Version::new(0, 0, 0)
+                    && !update::source::public_key().is_empty();
+                let appimage = app.env().appimage.map(std::path::PathBuf::from);
+                let locate = move || update::policy::install(&update::place(appimage.as_deref()));
+                let source = update::source::Release::new(handle.clone(), endpoint);
+                let updater =
+                    update::Updater::new(Box::new(source), locate, current.clone(), data_dir.join(update::UPDATES), checks, move |info| {
+                        let _ = UpdateChanged(info.clone()).emit(&handle);
+                    });
+                let previous: Option<String> = store.setting(update::LAST_VERSION).unwrap_or_default();
+                if let Err(e) = store.save_setting(update::LAST_VERSION, &current.to_string()) {
+                    tracing::warn!(error = %e, "keeping the version that ran");
+                }
+                updater.restore(previous.as_deref());
+                app.manage(updater.clone());
+                updater
+            };
             // The assistant runs where its settings say
             app.state::<ai::Coach>().apply(&ai::policy::AgentSettings::load_or_guarded(&store));
             // Docker, the clusters and the guard; the attempt being resumed
@@ -322,6 +406,7 @@ pub fn run() {
                 store.clone(),
                 move |state| {
                     let _ = ExamChanged(state.clone()).emit(&exams_handle);
+                    update_moved(&exams_handle);
                     // A result in, or an attempt gone: the history moved
                     if matches!(state, lab::exam::ExamState::Finished { .. } | lab::exam::ExamState::Idle) {
                         study_changed(&exams_handle, false);
@@ -331,6 +416,17 @@ pub fn run() {
                 guard,
             ));
             exams.restore();
+            // No new attempt while a newer CKPro is required; no restart while
+            // anything would be cut short
+            exams.gate_starts({
+                let updater = updater.clone();
+                Arc::new(move || updater.allow_start())
+            });
+            {
+                let handle = app.handle().clone();
+                updater.watch(move || busy(&handle));
+            }
+            updater.start();
             // The agent sessions' tools, served to the agent on the loopback
             {
                 let (handle, store) = (app.handle().clone(), store.clone());
@@ -378,10 +474,24 @@ pub fn run() {
             if let RunEvent::Exit = event {
                 // ckpro stops the containers itself now: not for the guard to restart
                 app.state::<Arc<runtime::guard::Guard>>().suspend();
-                // Clusters stop until the next start
-                runtime::reconcile::on_exit(&app.state::<Arc<cluster::kind::Kind>>());
+                let updater = app.state::<Arc<update::Updater>>();
+                // A downloaded update installs as CKPro quits, when nothing is
+                // cut short: in place now, or by `ckpro quit` once the app is gone
+                let on_quit = updater.on_quit();
+                // Clusters stop until the next start; not for a restart onto an
+                // update, which finds them running
+                if !updater.restarting() {
+                    let after = match &on_quit {
+                        Some(update::OnQuit::After(version)) => Some(version.as_str()),
+                        _ => None,
+                    };
+                    runtime::reconcile::on_exit(&app.state::<Arc<cluster::kind::Kind>>(), after);
+                }
                 // Exams being proven in Create: their clusters go
                 app.state::<studio::proof::Proofs>().on_exit();
+                if let Some(update::OnQuit::Now(staged)) = on_quit {
+                    updater.install_now(&staged);
+                }
             }
         });
 }

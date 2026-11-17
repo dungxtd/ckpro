@@ -270,7 +270,12 @@ pub struct Exams {
     /// Exam-mode starts under way (`exam_starting`): the assistant refuses
     /// as if the exam ran already
     exam_starting: std::sync::atomic::AtomicUsize,
+    /// Whether a new attempt may start (a newer CKPro required refuses it)
+    may_start: std::sync::OnceLock<StartGate>,
 }
+
+/// Whether a new attempt may start now (`Exams::gate_starts`)
+pub type StartGate = Arc<dyn Fn() -> AppResult<()> + Send + Sync>;
 
 /// What the candidate saw in an attempt (`attempt`): each question's last
 /// checks, and the solutions opened
@@ -313,7 +318,13 @@ impl Exams {
             activities,
             guard,
             exam_starting: Default::default(),
+            may_start: Default::default(),
         }
+    }
+
+    /// Ask `gate` before each new attempt (the updater: a required version)
+    pub fn gate_starts(&self, gate: StartGate) {
+        let _ = self.may_start.set(gate);
     }
 
     /// Note what the candidate saw in `attempt`: a question's checks, or
@@ -461,6 +472,15 @@ mod tests {
         assert!(matches!(exams.reset_desktop().await, Err(AppError::Invalid { .. })));
         // Closing nothing is fine, and leaves nothing
         exams.end().await.unwrap();
+        assert!(matches!(exams.state(), ExamState::Idle));
+    }
+
+    /// A newer CKPro required: no attempt starts, before anything is made
+    #[tokio::test]
+    async fn a_required_update_refuses_a_new_attempt() {
+        let exams = exams();
+        exams.gate_starts(Arc::new(|| Err(AppError::update_required("0.4.0"))));
+        assert!(matches!(exams.start("core/none", Mode::Practice, false).await, Err(AppError::UpdateRequired { .. })));
         assert!(matches!(exams.state(), ExamState::Idle));
     }
 

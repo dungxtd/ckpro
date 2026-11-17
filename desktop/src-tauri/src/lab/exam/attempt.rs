@@ -145,6 +145,10 @@ impl Exams {
         ) {
             return Err(AppError::busy("an exam is already in progress"));
         }
+        // A newer CKPro required: not on this one (a running attempt goes on)
+        if let Some(gate) = self.may_start.get() {
+            gate()?;
+        }
         // Whatever a guard noted before belongs to an earlier attempt
         self.guard.take_outside();
         let exam = pack.exams.get(exam_id).ok_or_else(|| AppError::not_found(format!("no exam '{exam_id}'")))?;

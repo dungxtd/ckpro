@@ -152,9 +152,10 @@ pub enum OnQuit {
 /// Hand the nodes of kind clusters `clusters` and the containers `named` to
 /// a process of their own (this app, as `ckpro quit`): it finds the nodes
 /// and stops or removes them after the app is gone, so quitting waits for
-/// nothing
-pub fn on_quit(action: OnQuit, clusters: &[String], named: &[String]) {
-    if clusters.is_empty() && named.is_empty() {
+/// nothing. `install`: then, the app gone, it runs the update kept for that
+/// version (the Windows installer, which cannot replace a running app)
+pub fn on_quit(action: OnQuit, clusters: &[String], named: &[String], install: Option<&str>) {
+    if clusters.is_empty() && named.is_empty() && install.is_none() {
         return;
     }
     // The app itself (in tests, the app built beside them: a test binary
@@ -166,6 +167,9 @@ pub fn on_quit(action: OnQuit, clusters: &[String], named: &[String]) {
     }
     for n in named {
         args.extend(["--container".to_string(), n.clone()]);
+    }
+    if let Some(version) = install {
+        args.extend(["--install".to_string(), version.to_string(), "--after".to_string(), std::process::id().to_string()]);
     }
     let spawned = crate::platform::std_command(app)
         .args(args)

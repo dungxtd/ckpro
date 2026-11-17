@@ -799,3 +799,37 @@ pub async fn studio_save(app: AppHandle, session: i32) -> AppResult<String> {
     })
     .await
 }
+
+/// Where updates are, as the interface opens: an update just installed is
+/// said this once (`updated_from`); what changes comes as `UpdateChanged`
+#[tauri::command]
+#[specta::specta]
+pub fn update_state(updater: State<'_, Arc<crate::update::Updater>>) -> crate::update::UpdateInfo {
+    updater.state()
+}
+
+/// Check for an update now (Check now, Try again): what it finds, or why it
+/// could not, comes as `UpdateChanged`
+#[tauri::command]
+#[specta::specta]
+pub fn update_check(updater: State<'_, Arc<crate::update::Updater>>) {
+    updater.check();
+}
+
+/// Install the downloaded update and start again on it, the environment
+/// left running. Refused while anything would be cut short (an attempt, a
+/// proof): `Busy`, with what it waits for
+#[tauri::command]
+#[specta::specta]
+pub async fn update_restart(app: AppHandle, updater: State<'_, Arc<crate::update::Updater>>) -> AppResult<()> {
+    let preparing = app.clone();
+    updater.inner().restart(move || crate::prepare_restart(&preparing), move || app.request_restart()).await
+}
+
+/// Put the update away until there is a newer one (Not now): it still
+/// installs as CKPro quits. A required one cannot be
+#[tauri::command]
+#[specta::specta]
+pub fn update_dismiss(updater: State<'_, Arc<crate::update::Updater>>) -> AppResult<()> {
+    updater.dismiss()
+}

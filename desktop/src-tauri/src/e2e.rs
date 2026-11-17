@@ -133,7 +133,7 @@ async fn exam_cluster_from_the_jumphost() {
     let containers = [format!("{name}-control-plane"), format!("{name}-worker"), infra::MIRROR.to_string()];
     let running =
         async |container: &str| docker.inspect_container(container, None).await.ok().and_then(|c| c.state?.running).unwrap_or(false);
-    runtime::reconcile::on_exit(&f.kind);
+    runtime::reconcile::on_exit(&f.kind, None);
     eventually("quitting stops the nodes and cache", 30, async || {
         for c in &containers {
             if running(c).await {

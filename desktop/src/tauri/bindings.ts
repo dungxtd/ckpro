@@ -189,6 +189,27 @@ export const commands = {
 	/**  Practice mode, or after the result. */
 	questionSolution: (questionId: string) => typedError<Solution, AppError>(__TAURI_INVOKE("question_solution", { questionId })),
 	examHistory: () => __TAURI_INVOKE<HistoryEntry_Serialize[]>("exam_history"),
+	/**
+	 *  Where updates are, as the interface opens: an update just installed is
+	 *  said this once (`updated_from`); what changes comes as `UpdateChanged`
+	 */
+	updateState: () => __TAURI_INVOKE<UpdateInfo_Serialize>("update_state"),
+	/**
+	 *  Check for an update now (Check now, Try again): what it finds, or why it
+	 *  could not, comes as `UpdateChanged`
+	 */
+	updateCheck: () => __TAURI_INVOKE<void>("update_check"),
+	/**
+	 *  Install the downloaded update and start again on it, the environment
+	 *  left running. Refused while anything would be cut short (an attempt, a
+	 *  proof): `Busy`, with what it waits for
+	 */
+	updateRestart: () => typedError<null, AppError>(__TAURI_INVOKE("update_restart")),
+	/**
+	 *  Put the update away until there is a newer one (Not now): it still
+	 *  installs as CKPro quits. A required one cannot be
+	 */
+	updateDismiss: () => typedError<null, AppError>(__TAURI_INVOKE("update_dismiss")),
 };
 
 /** Events */
@@ -201,6 +222,7 @@ export const events = {
 	studioDraft: makeEvent<StudioDraft_Serialize, StudioDraft_Deserialize>("studio-draft"),
 	studioProof: makeEvent<StudioProof_Serialize, StudioProof_Deserialize>("studio-proof"),
 	studyChanged: makeEvent<StudyChanged, StudyChanged>("study-changed"),
+	updateChanged: makeEvent<UpdateChanged_Serialize, UpdateChanged_Deserialize>("update-changed"),
 };
 
 /* Types */
@@ -403,7 +425,14 @@ export type AppError =
 /**  The AI assistant (the `claude` CLI) is missing or failed. */
 { code: "assistant"; message: string } | 
 /**  The assistant has no Claude login (or it expired). */
-{ code: "sign_in_required"; message: string };
+{ code: "sign_in_required"; message: string } | 
+/**  An update could not be checked for, downloaded or installed. */
+{ code: "update"; message: string } | 
+/**
+ *  A newer CKPro is required (the release says so): no new attempt
+ *  starts until it runs.
+ */
+{ code: "update_required"; message: string };
 
 export type AppInfo = {
 	data_dir: string,
@@ -1868,6 +1897,92 @@ export type ToolUse_Serialize = {
 	/**  How long it took, in milliseconds */
 	ms: number | null,
 };
+
+/**  Where updates are: checked, downloading, ready, required, by hand. */
+export type UpdateChanged = UpdateChanged_Serialize | UpdateChanged_Deserialize;
+
+/**  Where updates are: checked, downloading, ready, required, by hand. */
+export type UpdateChanged_Deserialize = UpdateInfo_Deserialize;
+
+/**  Where updates are: checked, downloading, ready, required, by hand. */
+export type UpdateChanged_Serialize = UpdateInfo_Serialize;
+
+export type UpdateInfo = UpdateInfo_Serialize | UpdateInfo_Deserialize;
+
+export type UpdateInfo_Deserialize = {
+	/**  The version running */
+	current: string,
+	status: UpdateStatus_Deserialize,
+	/**  The candidate put this status away (Not now): nothing in the corner */
+	dismissed: boolean,
+	/**
+	 *  The version this run replaced, right after an update (once: the
+	 *  first `update_state` only)
+	 */
+	updated_from?: string | null,
+};
+
+export type UpdateInfo_Serialize = {
+	/**  The version running */
+	current: string,
+	status: UpdateStatus_Serialize,
+	/**  The candidate put this status away (Not now): nothing in the corner */
+	dismissed: boolean,
+	/**
+	 *  The version this run replaced, right after an update (once: the
+	 *  first `update_state` only)
+	 */
+	updated_from: string | null,
+};
+
+/**  Where an update is, as the interface shows it */
+export type UpdateStatus = UpdateStatus_Serialize | UpdateStatus_Deserialize;
+
+/**  Where an update is, as the interface shows it */
+export type UpdateStatus_Deserialize = 
+/**  Up to date as of `checked_at` (ms; none: not checked yet) */
+{ state: "idle"; checked_at?: number | null } | 
+/**  Asking for the latest version (shown when the candidate asked) */
+{ state: "checking" } | 
+/**  Coming down in the background; `total` once the server says it */
+{ state: "downloading"; version: string; done: number | null; total?: number | null } | 
+/**
+ *  Downloaded and verified: a restart installs it. `blocked`: what holds
+ *  the restart back; `on_quit`: quitting installs it too
+ */
+{ state: "ready"; version: string; notes: string; required: boolean; blocked?: string | null; on_quit: boolean } | 
+/**
+ *  This copy cannot install it itself: why, the release to get, and the
+ *  command that installs it when there is one
+ */
+{ state: "manual"; version: string; notes: string; required: boolean; reason: string; url: string; command?: string | null } | 
+/**  A check the candidate asked for failed */
+{ state: "failed"; message: string } | 
+/**  Installing, then starting again */
+{ state: "restarting"; version: string };
+
+/**  Where an update is, as the interface shows it */
+export type UpdateStatus_Serialize = 
+/**  Up to date as of `checked_at` (ms; none: not checked yet) */
+{ state: "idle"; checked_at: number | null } | 
+/**  Asking for the latest version (shown when the candidate asked) */
+{ state: "checking" } | 
+/**  Coming down in the background; `total` once the server says it */
+{ state: "downloading"; version: string; done: number | null; total: number | null } | 
+/**
+ *  Downloaded and verified: a restart installs it. `blocked`: what holds
+ *  the restart back; `on_quit`: quitting installs it too
+ */
+{ state: "ready"; version: string; notes: string; required: boolean; blocked: string | null; on_quit: boolean } | 
+/**
+ *  This copy cannot install it itself: why, the release to get, and the
+ *  command that installs it when there is one
+ */
+{ state: "manual"; version: string; notes: string; required: boolean; reason: string; url: string; command: string | null } | 
+/**  A check the candidate asked for failed */
+{ state: "failed"; message: string } | 
+/**  Installing, then starting again */
+{ state: "restarting"; version: string };
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

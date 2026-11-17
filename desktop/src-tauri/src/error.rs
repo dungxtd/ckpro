@@ -61,6 +61,13 @@ pub enum AppError {
     /// The assistant has no Claude login (or it expired).
     #[error("{message}")]
     SignInRequired { message: String },
+    /// An update could not be checked for, downloaded or installed.
+    #[error("{message}")]
+    Update { message: String },
+    /// A newer CKPro is required (the release says so): no new attempt
+    /// starts until it runs.
+    #[error("{message}")]
+    UpdateRequired { message: String },
 }
 
 pub type AppResult<T> = Result<T, AppError>;
@@ -102,6 +109,12 @@ impl AppError {
     }
     pub fn internal(context: &str, e: impl std::fmt::Display) -> Self {
         Self::Internal { message: format!("{context}: {e}") }
+    }
+    pub fn update(message: impl Into<String>) -> Self {
+        Self::Update { message: message.into() }
+    }
+    pub fn update_required(version: &str) -> Self {
+        Self::UpdateRequired { message: format!("CKPro {version} is required to start an exam: restart to update.") }
     }
 }
 

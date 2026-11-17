@@ -181,7 +181,7 @@ impl Run {
     /// and files
     pub fn remove_detached(&self) {
         let clusters: Vec<String> = self.placement.locked().values().cloned().collect();
-        docker::on_quit(docker::OnQuit::Remove, &clusters, std::slice::from_ref(&self.jumphost.name));
+        docker::on_quit(docker::OnQuit::Remove, &clusters, std::slice::from_ref(&self.jumphost.name), None);
     }
 
     /// Remove the clusters, the jumphost and the run's files

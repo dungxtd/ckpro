@@ -101,8 +101,9 @@ pub async fn repair(docker: &Docker, cluster: &str) -> AppResult<()> {
 
 /// Stop the app's clusters, jumphost and cache when it quits; `on_startup`
 /// starts them again. Handed to a process of their own so quitting is
-/// instant (verify runs from the CLI are not touched).
-pub fn on_exit(kind: &Kind) {
+/// instant (verify runs from the CLI are not touched); `install`: the
+/// update it then installs, once the app is gone (`ckpro quit --install`)
+pub fn on_exit(kind: &Kind, install: Option<&str>) {
     let named = [super::infra::MIRROR, super::jumphost::APP_NAME, super::desktop::NAME].map(str::to_string);
-    super::docker::on_quit(super::docker::OnQuit::Stop, &kind.owned_clusters(), &named);
+    super::docker::on_quit(super::docker::OnQuit::Stop, &kind.owned_clusters(), &named, install);
 }
