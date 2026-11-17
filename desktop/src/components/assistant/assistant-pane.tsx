@@ -23,6 +23,7 @@ import { FindInSession } from "@/components/assistant/find-in-session";
 import { PermissionCard } from "@/components/assistant/permission-card";
 import { SignInBar } from "@/components/assistant/sign-in-bar";
 import { SignInDialog } from "@/components/assistant/sign-in-dialog";
+import { useEnabledAgents } from "@/stores/agent-settings";
 import { useCoach } from "@/stores/coach";
 import { useExam } from "@/stores/exam";
 import {
@@ -61,12 +62,12 @@ export function AssistantPane({
 	onOpenQuestion?: (questionId: string) => void;
 }) {
 	// What the pane shows and does: not the rest of the store (usage, runtime…)
+	const enabledAgents = useEnabledAgents();
 	const coach = useCoach(
 		useShallow(s => ({
 			account: s.account,
 			ask: s.ask,
 			clear: s.clear,
-			enabledAgents: s.enabledAgents,
 			error: s.error,
 			listSessions: s.listSessions,
 			load: s.load,
@@ -104,8 +105,8 @@ export function AssistantPane({
 	});
 	const signedOut = coach.account?.signed_in === false;
 	// The agents offered: turned on in Settings and signed in
-	const claudeOn = coach.enabledAgents.includes("claude");
-	const agents = AGENTS.filter(a => coach.enabledAgents.includes(a.id) && coach.account?.signed_in);
+	const claudeOn = enabledAgents.includes("claude");
+	const agents = AGENTS.filter(a => enabledAgents.includes(a.id) && coach.account?.signed_in);
 
 	useEffect(() => {
 		coachApi.status().then(setStatus);

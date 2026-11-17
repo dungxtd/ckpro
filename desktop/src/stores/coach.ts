@@ -4,7 +4,6 @@ import { track } from "@/analytics";
 import {
 	type Account,
 	ApiError,
-	agentApi,
 	type CoachContext,
 	type CoachEvent,
 	type CoachMessage,
@@ -15,9 +14,9 @@ import {
 	type ModelOption,
 	type PermissionOption,
 	type Profile,
-	type Provider,
 	type RuntimeInfo,
 } from "@/tauri/api";
+import { useAgentSettings } from "./agent-settings";
 import { useExam } from "./exam";
 import { useSettings } from "./settings";
 
@@ -62,10 +61,6 @@ interface CoachStore {
 	efforts: ModelOption[];
 	effort: string;
 	setEffort: (effort: string) => void;
-	/** The agents turned on in Settings > Assistant (offered once signed in) */
-	enabledAgents: Provider[];
-	/** What the candidate lets go to Claude at all (Settings > Assistant > Privacy) */
-	shared: { checks: boolean; cluster: boolean };
 	/** What goes with a question besides the task (the context chips) */
 	context: CoachContext;
 	/** How much of the model's context each conversation uses */
@@ -185,8 +180,6 @@ export const useCoach = create<CoachStore>()(
 			models: [],
 			model: "sonnet",
 			context: { checks: true, cluster: true },
-			shared: { checks: true, cluster: true },
-			enabledAgents: ["claude"],
 			usage: {},
 			account: null,
 			runtime: null,
@@ -203,16 +196,10 @@ export const useCoach = create<CoachStore>()(
 				get().loadRuntime();
 				get().loadAccount();
 				// A new run starts in the profile Settings name
-				agentApi
-					.settings()
-					.then(s =>
-						set({
-							enabledAgents: s.enabled,
-							profile: s.default_profile,
-							shared: { checks: s.share_checks, cluster: s.share_cluster },
-						})
-					)
-					.catch(() => {});
+				useAgentSettings
+					.getState()
+					.read()
+					.then(s => s && set({ profile: s.default_profile }));
 			},
 			// The models come from the agent's adapter: read when the pane or the
 			// agent's settings first need them, not as the app opens

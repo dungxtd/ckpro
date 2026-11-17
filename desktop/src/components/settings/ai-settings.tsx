@@ -24,23 +24,16 @@ import { Textarea } from "@ckpro/ui/components/textarea";
 import { cn } from "@ckpro/ui/lib/utils";
 import { ChevronRight, RotateCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { MASK } from "@/analytics";
 import { AGENTS, agentOf } from "@/components/assistant/agents";
 import { effortLabel, shortName } from "@/components/assistant/models";
 import { SignInDialog } from "@/components/assistant/sign-in-dialog";
 import { Group, Row } from "@/components/settings/layout";
+import { useAgentSettings } from "@/stores/agent-settings";
 import { useCoach } from "@/stores/coach";
 import { useAssistantEnabled, useSettings } from "@/stores/settings";
-import {
-	type AgentPermission,
-	type AgentSettings,
-	agentApi,
-	errorText,
-	type Provider,
-	type RuntimeInfo,
-} from "@/tauri/api";
+import type { AgentPermission, AgentSettings, Provider, RuntimeInfo } from "@/tauri/api";
 
 const PERMISSIONS: { value: AgentPermission; label: string }[] = [
 	{ value: "confirm", label: "Ask before every command" },
@@ -63,9 +56,7 @@ export function AiSettings() {
 			warm: s.warm,
 		}))
 	);
-	const [settings, setSettings] = useState<AgentSettings | null>(null);
-	// Why they could not be read: said in place, with a way to read them again
-	const [error, setError] = useState<string | null>(null);
+	const { settings, error, read, save: keep } = useAgentSettings();
 	// What was read as the app opened (no checking here); Check again reads again
 	const runtime = coach.runtime;
 	const [checking, setChecking] = useState(false);
@@ -76,36 +67,17 @@ export function AiSettings() {
 		await Promise.all([loadRuntime(), loadAccount()]);
 		setChecking(false);
 	}, []);
-	const read = useCallback(() => {
-		setError(null);
-		agentApi.settings().then(setSettings, e => setError(errorText(e)));
-	}, []);
-	useEffect(read, [read]);
+	useEffect(() => {
+		read();
+	}, [read]);
 	useEffect(() => {
 		if (enabled) coach.warm();
 	}, [enabled, coach.warm]);
-	const save = (patch: Partial<AgentSettings>) => {
-		if (!settings) return;
-		const before = settings;
-		const next = { ...settings, ...patch };
-		setSettings(next);
-		agentApi.save(next).then(
-			saved => {
-				setSettings(saved);
-				useCoach.setState({
-					enabledAgents: saved.enabled,
-					shared: { checks: saved.share_checks, cluster: saved.share_cluster },
-				});
-				// Another CLI: what runs now, and as whom
-				if ("claude_path" in patch) recheck();
-			},
-			e => {
-				// Not kept: the switch or field shows what is kept
-				setSettings(before);
-				toast.error(errorText(e));
-			}
-		);
-	};
+	const save = (patch: Partial<AgentSettings>) =>
+		keep(patch).then(kept => {
+			// Another CLI: what runs now, and as whom
+			if (kept && "claude_path" in patch) recheck();
+		});
 	const agent = open ? agentOf(open) : null;
 
 	return (

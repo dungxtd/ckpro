@@ -24,6 +24,7 @@ import { type ReactNode, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { blurb, effortLabel, shortName } from "@/components/assistant/models";
 import { SendButton, sendOnEnter } from "@/components/assistant/send-button";
+import { useShared } from "@/stores/agent-settings";
 import { useCoach } from "@/stores/coach";
 import type { CheckResult, Profile } from "@/tauri/api";
 
@@ -56,11 +57,11 @@ export function AssistantComposer({
 	onSend: (text: string) => boolean;
 }) {
 	// Not the conversation: the composer stays still while an answer streams
+	const shared = useShared();
 	const coach = useCoach(
 		useShallow(s => ({
 			context: s.context,
 			setContext: s.setContext,
-			shared: s.shared,
 			profile: s.profile,
 			setProfile: s.setProfile,
 			models: s.models,
@@ -92,13 +93,13 @@ export function AssistantComposer({
 		<div className="flex flex-col gap-2 border-border border-t bg-card/40 p-2.5">
 			<div className="flex flex-wrap gap-1">
 				<Chip size="xs">Task</Chip>
-				{checks && coach.shared.checks && coach.context.checks && (
+				{checks && shared.checks && coach.context.checks && (
 					<Chip size="xs" onRemove={() => coach.setContext({ checks: false })}>
 						Last check
 					</Chip>
 				)}
 				{/* Agent looks at the cluster itself: no look goes with it */}
-				{coach.shared.cluster && coach.context.cluster && (review || coach.profile === "ask") && (
+				{shared.cluster && coach.context.cluster && (review || coach.profile === "ask") && (
 					<Chip size="xs" onRemove={() => coach.setContext({ cluster: false })}>
 						Cluster
 					</Chip>
@@ -135,22 +136,18 @@ export function AssistantComposer({
 					<PopoverContent side="top" variant="menu" className="w-64">
 						<div className={menu.header}>Add context</div>
 						<ContextRow
-							on={coach.context.checks && coach.shared.checks}
-							disabled={!checks || !coach.shared.checks}
+							on={coach.context.checks && shared.checks}
+							disabled={!checks || !shared.checks}
 							label="Last check"
-							hint={!coach.shared.checks ? "off in Settings" : checks ? undefined : "check first"}
+							hint={!shared.checks ? "off in Settings" : checks ? undefined : "check first"}
 							toggle={() => coach.setContext({ checks: !coach.context.checks })}
 						/>
 						<ContextRow
-							on={coach.context.cluster && coach.shared.cluster && agentLooks === false}
-							disabled={!coach.shared.cluster || agentLooks}
+							on={coach.context.cluster && shared.cluster && agentLooks === false}
+							disabled={!shared.cluster || agentLooks}
 							label="Cluster snapshot"
 							hint={
-								agentLooks
-									? "Agent looks itself"
-									: coach.shared.cluster
-										? "read-only"
-										: "off in Settings"
+								agentLooks ? "Agent looks itself" : shared.cluster ? "read-only" : "off in Settings"
 							}
 							toggle={() => coach.setContext({ cluster: !coach.context.cluster })}
 						/>
