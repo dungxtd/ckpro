@@ -226,3 +226,15 @@ test("the picker is the day's checklist: planned ones ticked, pressed again they
 	await expect(menu.getByRole("button", { pressed: true })).toHaveCount(0);
 	expect(await calls(page, "plan_add")).toEqual([]);
 });
+
+test("an exam day typed, then Cancel, adds no exam", async ({ page }) => {
+	await launch(page, "/calendar", { settings: withSettings({ targets: [] }) });
+	await page.getByRole("button", { name: "Add an exam you prepare for" }).click();
+	const editor = page.getByRole("dialog");
+	await editor.getByRole("button", { name: /^CKAD/ }).click();
+	await editor.getByRole("button", { name: "Yes, I have a day" }).click();
+	await editor.getByRole("textbox", { name: "CKAD exam day" }).pressSequentially("20032027");
+	await editor.getByRole("button", { name: "Cancel" }).click();
+	await expect(editor).toHaveCount(0);
+	expect(await calls(page, "save_settings")).toHaveLength(0);
+});

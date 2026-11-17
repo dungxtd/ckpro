@@ -29,8 +29,9 @@ export function dayOf(digits: string): string | null {
  * A day typed in numbers in one field, dd/mm/yyyy, the slashes put in as
  * it is typed (20032027 reads 20/03/2027; a whole date pasted works). No
  * calendar to pick from. `onChange` gets YYYY-MM-DD once it is a real day
- * (null while it is not); `onCommit` once the field is left or Enter is
- * pressed. `invalid` marks it (a day passed). A new `value` given replaces
+ * (null while it is not); `onCommit` when Enter is pressed (leaving the
+ * field commits nothing: a click on Cancel or elsewhere is not a yes).
+ * `invalid` marks it (a day passed). A new `value` given replaces
  * what is typed; editing mid-field keeps the caret where it was
  */
 export function DateField({
@@ -89,7 +90,6 @@ export function DateField({
 				const at = digitsBefore(el.value, el.selectionStart ?? el.value.length);
 				take(el.value.replace(/\D/g, "").slice(0, 8), at);
 			}}
-			onBlur={() => onCommit?.()}
 			onKeyDown={e => {
 				if (e.key === "Enter") onCommit?.();
 				// Backspace just after a slash takes the digit before it

@@ -106,3 +106,17 @@ test("the last exam removed, the setup asks for one again", async ({ page }) => 
 	while ((await remove.count()) > 0) await remove.first().click();
 	await expect(page.getByRole("button", { name: /^CKA\b/ })).toBeVisible();
 });
+
+test("a day typed, then Not yet, is no booking: the goal is asked for", async ({ page }) => {
+	await launch(page, "/", {
+		settings: withSettings({ welcomed: false, setup_step: "exams", targets: [] }),
+		exam_history: [],
+	});
+	await page.getByRole("button", { name: /^CKAD/ }).click();
+	await page.getByRole("button", { name: "Yes, I have a day" }).click();
+	await page.getByRole("textbox", { name: "CKAD exam day" }).pressSequentially("20032027");
+	await page.getByRole("button", { name: "Not yet" }).click();
+	await expect(page.getByText("When would you like to be ready?")).toBeVisible();
+	await expect(page.getByRole("button", { name: "Remove" })).toHaveCount(0);
+	await expect(page.locator(".ticket")).toHaveCount(0);
+});
