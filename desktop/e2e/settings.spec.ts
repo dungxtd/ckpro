@@ -71,3 +71,18 @@ test("an address that is no page goes back to Settings", async ({ page }) => {
 	await launch(page, "/settings/nothing");
 	await expect(page).toHaveURL(/#\/settings$/);
 });
+
+test("Check again reads the Claude login again, not the last read", async ({ page }) => {
+	await launch(page, "/settings/assistant");
+	await page
+		.getByRole("button", { name: /Claude Code/ })
+		.first()
+		.click();
+	await page.getByRole("button", { name: "Check again" }).click();
+	await expect
+		.poll(
+			async () =>
+				((await calls(page, "coach_account")).at(-1) as { fresh: boolean } | undefined)?.fresh
+		)
+		.toBe(true);
+});

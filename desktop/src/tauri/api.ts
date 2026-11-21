@@ -214,7 +214,8 @@ export const coachApi = {
 	/** Stop the answer being written */
 	cancel: () => commands.coachCancel(),
 	/** The Claude login it answers as */
-	account: () => unwrap(commands.coachAccount()) as Promise<Account>,
+	/** `fresh`: read again, not the last read (a login made in a terminal since) */
+	account: (fresh = false) => unwrap(commands.coachAccount(fresh)) as Promise<Account>,
 	/** Run the Claude CLI's login; `onOutput` gets what it prints (the link,
 	 * a prompt for the browser's code). Resolves when signed in. */
 	signIn: (method: SignInMethod, onOutput: (text: string) => void) =>

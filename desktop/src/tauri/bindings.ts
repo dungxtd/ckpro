@@ -131,8 +131,11 @@ export const commands = {
 	 *  (allow once, always, reject…), or none to cancel.
 	 */
 	coachPermit: (id: number, option: string | null) => typedError<null, AppError>(__TAURI_INVOKE("coach_permit", { id, option })),
-	/**  The Claude login the assistant answers as. */
-	coachAccount: () => typedError<Account_Serialize, AppError>(__TAURI_INVOKE("coach_account")),
+	/**
+	 *  The Claude login the assistant answers as; `fresh`: read again, not
+	 *  the last read (a login made in a terminal since).
+	 */
+	coachAccount: (fresh: boolean) => typedError<Account_Serialize, AppError>(__TAURI_INVOKE("coach_account", { fresh })),
 	/**
 	 *  Sign in to Claude with the CLI's login; what it prints streams on
 	 *  `events` (the sign-in link, a prompt for the browser's code).

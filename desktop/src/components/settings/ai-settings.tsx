@@ -64,7 +64,7 @@ export function AiSettings() {
 	const recheck = useCallback(async () => {
 		setChecking(true);
 		const { loadRuntime, loadAccount } = useCoach.getState();
-		await Promise.all([loadRuntime(), loadAccount()]);
+		await Promise.all([loadRuntime(), loadAccount(true)]);
 		setChecking(false);
 	}, []);
 	useEffect(() => {

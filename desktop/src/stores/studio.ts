@@ -329,7 +329,7 @@ export const useStudio = create<StudioStore>()((set, get) => {
 				// Stopped: Rust kept the turn as far as it went; shown as kept
 				// before the one being written goes
 				else if (get().session === session) await refresh();
-				if (code === "sign_in_required") useCoach.getState().loadAccount();
+				if (code === "sign_in_required") useCoach.getState().loadAccount(true);
 			} finally {
 				change(() => null);
 			}

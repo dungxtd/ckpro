@@ -11,6 +11,7 @@ import type {
 	Activity_Serialize,
 	AgentSettings_Serialize,
 	AppInfo,
+	CoachModels_Serialize,
 	CoachStatus_Serialize,
 	DesktopSession,
 	DockerState,
@@ -91,6 +92,8 @@ type Results = {
 	app_info: AppInfo;
 	coach_status: CoachStatus_Serialize;
 	coach_account: Account_Serialize;
+	coach_models: CoachModels_Serialize;
+	coach_efforts: [];
 	coach_runtime: RuntimeInfo_Serialize;
 	agent_settings: AgentSettings_Serialize;
 	studio_sessions: StudioSessionRow[];
@@ -171,6 +174,8 @@ export const defaults: Partial<Results> & Record<string, Reply> = {
 	update_dismiss: null,
 	coach_status: { ready: true, problem: null },
 	coach_account: { signed_in: true, method: null, email: null, plan: null },
+	coach_models: { options: [], default: "default" },
+	coach_efforts: [],
 	coach_runtime: {
 		claude: "/usr/local/bin/claude",
 		claude_version: "2.0.0",

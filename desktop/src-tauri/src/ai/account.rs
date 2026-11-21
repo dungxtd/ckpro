@@ -208,9 +208,11 @@ fn strip_terminal_codes(text: &str) -> String {
 const ACCOUNT_FRESH: std::time::Duration = std::time::Duration::from_secs(60);
 
 impl super::Coach {
-    /// Who the assistant answers as
-    pub async fn account(&self) -> AppResult<Account> {
+    /// Who the assistant answers as; `fresh`: read again whatever was read
+    /// last (Check again, after a login in a terminal the app did not see)
+    pub async fn account(&self, fresh: bool) -> AppResult<Account> {
         if let Some((account, read)) = self.account.locked().clone()
+            && !fresh
             && read.elapsed() < ACCOUNT_FRESH
         {
             return Ok(account);

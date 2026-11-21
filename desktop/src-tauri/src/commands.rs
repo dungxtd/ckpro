@@ -403,12 +403,13 @@ pub fn open_in_browser(app: AppHandle, url: String) -> AppResult<()> {
     app.opener().open_url(url, None::<&str>).map_err(|e| AppError::io("opening the browser", std::io::Error::other(e)))
 }
 
-/// The Claude login the assistant answers as.
+/// The Claude login the assistant answers as; `fresh`: read again, not
+/// the last read (a login made in a terminal since).
 #[tauri::command]
 #[specta::specta]
-pub async fn coach_account(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>) -> AppResult<Account> {
+pub async fn coach_account(exams: State<'_, Arc<Exams>>, coach: State<'_, Coach>, fresh: bool) -> AppResult<Account> {
     exams.assistant_allowed()?;
-    coach.account().await
+    coach.account(fresh).await
 }
 
 /// Sign in to Claude with the CLI's login; what it prints streams on

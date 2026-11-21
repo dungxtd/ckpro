@@ -68,7 +68,8 @@ interface CoachStore {
 	/** The Claude login, once read; null until then */
 	account: Account | null;
 	/** Read the login again (after signing in or out) */
-	loadAccount: () => Promise<void>;
+	/** `fresh`: read again, not the last read (Check again; a login refused) */
+	loadAccount: (fresh?: boolean) => Promise<void>;
 	/** What this Mac offers (the Claude CLI, Node.js), once read; null until then */
 	runtime: RuntimeInfo | null;
 	/** Read it again (Recheck, another CLI path); the last value stays meanwhile */
@@ -208,10 +209,10 @@ export const useCoach = create<CoachStore>()(
 				if (get().models.length > 0) return;
 				loadModels(set, get);
 			},
-			loadAccount: async () => {
+			loadAccount: async (fresh = false) => {
 				try {
 					const before = get().account;
-					const account = await coachApi.account();
+					const account = await coachApi.account(fresh);
 					set({ account });
 					// Another login, maybe another plan: its own models
 					if (
