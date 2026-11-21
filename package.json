@@ -1,6 +1,6 @@
 {
   "name": "ckpro",
-  "version": "0.4.0",
+  "version": "0.3.5",
   "private": true,
   "description": "ckpro - Kubernetes exam practice app monorepo",
   "license": "GPL-3.0-only",
