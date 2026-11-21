@@ -379,8 +379,20 @@ mod tests {
             welcomed: true,
             setup_step: None,
             targets: vec![
-                ExamTarget { certification: "cka".into(), date: "2026-12-15".into(), started: "2026-10-06".into(), rest_days: vec![4] },
-                ExamTarget { certification: "ckad".into(), date: "2027-03-20".into(), started: "2026-11-02".into(), rest_days: vec![] },
+                ExamTarget {
+                    certification: "cka".into(),
+                    date: "2026-12-15".into(),
+                    started: "2026-10-06".into(),
+                    rest_days: vec![4],
+                    goal: false,
+                },
+                ExamTarget {
+                    certification: "ckad".into(),
+                    date: "2027-03-20".into(),
+                    started: "2026-11-02".into(),
+                    rest_days: vec![],
+                    goal: true,
+                },
             ],
             focus: Some("ckad".into()),
             home: HomeLayout {

@@ -451,14 +451,16 @@
 				"certification": "cka",
 				"date": "2026-12-15",
 				"started": "2026-10-02",
-				"rest_days": [4]
+				"rest_days": [4],
+				"goal": false
 			}
 		],
 		"target": {
 			"certification": "cka",
 			"date": "2026-12-15",
 			"started": "2026-10-02",
-			"rest_days": [4]
+			"rest_days": [4],
+			"goal": false
 		},
 		"focus": null,
 		"home": { "places": [], "hidden": [], "custom": false }

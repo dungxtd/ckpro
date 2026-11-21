@@ -10,7 +10,7 @@ import { TargetEditor } from "@/components/study/target-editor";
 import { daysUntil, parseDay } from "@/days";
 import { useFocus, useSettings, useTargets } from "@/stores/settings";
 import type { ExamTarget } from "@/tauri/api";
-import { certName, plural } from "@/words";
+import { certName, plural, readyBy } from "@/words";
 
 const short = (day: string) =>
 	parseDay(day).toLocaleDateString(undefined, { day: "numeric", month: "short" });
@@ -62,10 +62,14 @@ export function ExamMenu() {
 				target={edited}
 				taken={targets.map(t => t.certification).filter(c => c !== edited?.certification)}
 				others={targets.filter(t => t !== edited)}
-				onSave={(t, booked) => {
+				onSave={t => {
 					save(edited ? targets.map(o => (o === edited ? t : o)) : [...targets, t]);
-					// A day booked prints its ticket; a goal is not one
-					if (booked && t.date !== edited?.date && daysUntil(t.date, new Date()) >= 0) setTicket(t);
+					// A new day, or a goal booked (or back to a goal), prints its ticket
+					if (
+						(t.date !== edited?.date || t.goal !== edited?.goal) &&
+						daysUntil(t.date, new Date()) >= 0
+					)
+						setTicket(t);
 				}}
 				onRemove={edited && (() => save(targets.filter(o => o !== edited)))}
 			>
@@ -108,7 +112,7 @@ export function ExamMenu() {
 									<div key={t.certification} className="group/exam relative">
 										<MenuItem
 											checked={t === focused}
-											hint={`${short(t.date)} · ${left(t)}`}
+											hint={`${readyBy(t)}${short(t.date)} · ${left(t)}`}
 											icon={
 												<Swatch
 													size="sm"
@@ -144,14 +148,14 @@ export function ExamMenu() {
 					{(focused ?? next) && (
 						<span className="truncate text-callout text-muted-foreground">
 							{focused ? (
-								`${short(focused.date)} · ${left(focused)}`
+								`${readyBy(focused)}${short(focused.date)} · ${left(focused)}`
 							) : next ? (
 								<>
 									Next:{" "}
 									<span className="font-semibold text-foreground">
 										{certName(next.certification)}
 									</span>{" "}
-									in {left(next)}
+									{next.goal && "goal "}in {left(next)}
 								</>
 							) : null}
 						</span>

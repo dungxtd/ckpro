@@ -6,7 +6,12 @@ import { type ReactNode, useState } from "react";
 import { addDays, dayKey } from "@/days";
 import { certName, certRole, examDayText } from "@/words";
 
-/** How far away a goal is put, for an exam not booked yet: when to be ready */
+/** The day filled in to start from, booked or a goal: the first of the
+ * third month on (21 Nov: 1 Feb), time enough to prepare */
+const startDay = (now: Date) => dayKey(new Date(now.getFullYear(), now.getMonth() + 3, 1));
+
+/** How far away a goal may be put, for an exam not booked yet: each fills
+ * the field in, kept only once added */
 const READY_IN = [
 	{ label: "In a month", days: 30 },
 	{ label: "In 2 months", days: 61 },
@@ -25,8 +30,9 @@ export interface ExamTold {
 /**
  * An exam to aim at, asked one question at a time: which exam (of `certs`;
  * asked only when there is a choice), whether it is booked, then its day,
- * typed, or, not booked yet, when to be ready by (a goal). Nothing is
- * filled in for the candidate. `onTell` once answered. `compact` in a
+ * typed, or, not booked yet, the day to be ready by (a goal, also picked
+ * from how far away); both start from the first of the third month on.
+ * `onTell` once added. `compact` in a
  * popover; the first question's words are `first`
  */
 export function ExamAsker({
@@ -44,6 +50,12 @@ export function ExamAsker({
 	const [cert, setCert] = useState<string | null>(certs.length === 1 ? (certs[0] as string) : null);
 	const [booked, setBooked] = useState<boolean | null>(null);
 	const [day, setDay] = useState<string | null>(null);
+	// The day put in the field (to start from, or a goal's distance picked)
+	const [given, setGiven] = useState("");
+	const give = (to: string) => {
+		setGiven(to);
+		setDay(to);
+	};
 	const passed = day !== null && day < today;
 	const size = compact ? "sm" : "md";
 	const tell = (date: string, isBooked: boolean) =>
@@ -76,7 +88,10 @@ export function ExamAsker({
 						size={size}
 						selected={booked === true}
 						aria-pressed={booked === true}
-						onClick={() => setBooked(true)}
+						onClick={() => {
+							if (booked === null) give(startDay(new Date()));
+							setBooked(true);
+						}}
 					>
 						Yes, I have a day
 					</Chip>
@@ -84,53 +99,63 @@ export function ExamAsker({
 						size={size}
 						selected={booked === false}
 						aria-pressed={booked === false}
-						onClick={() => setBooked(false)}
+						onClick={() => {
+							if (booked === null) give(startDay(new Date()));
+							setBooked(false);
+						}}
 					>
 						Not yet
 					</Chip>
 				</Question>
 			)}
-			{cert && booked === true && (
+			{cert && booked !== null && (
 				<Question
-					title="What day?"
-					detail={day === null ? undefined : examDayText(day)}
+					title={booked ? "What day?" : "When would you like to be ready?"}
+					detail={
+						booked
+							? day === null
+								? undefined
+								: examDayText(day)
+							: `${day === null ? "" : `${examDayText(day)}. `}A goal, not a booking: set the real day once you book.`
+					}
 					compact={compact}
 				>
+					{!booked && (
+						<div className="flex w-full flex-wrap gap-2">
+							{READY_IN.map(r => {
+								const to = dayKey(addDays(new Date(), r.days));
+								return (
+									<Chip
+										key={r.days}
+										size={size}
+										selected={day === to}
+										aria-pressed={day === to}
+										onClick={() => give(to)}
+									>
+										{r.label}
+									</Chip>
+								);
+							})}
+						</div>
+					)}
 					<DateField
 						key={cert}
-						label={`${certName(cert)} exam day`}
-						value=""
+						label={`${certName(cert)} ${booked ? "exam day" : "goal"}`}
+						value={given}
 						invalid={passed}
 						onChange={setDay}
 						onCommit={() => {
-							if (day && !passed) tell(day, true);
+							if (day && !passed) tell(day, booked);
 						}}
 					/>
 					<Button
 						size="push"
 						variant="pushDefault"
 						disabled={!day || passed}
-						onClick={() => day && tell(day, true)}
+						onClick={() => day && tell(day, booked)}
 					>
 						Add
 					</Button>
-				</Question>
-			)}
-			{cert && booked === false && (
-				<Question
-					title="When would you like to be ready?"
-					detail="A goal, not a booking: Home counts down to it; set the real day once you book."
-					compact={compact}
-				>
-					{READY_IN.map(r => (
-						<Chip
-							key={r.days}
-							size={size}
-							onClick={() => tell(dayKey(addDays(new Date(), r.days)), false)}
-						>
-							{r.label}
-						</Chip>
-					))}
 				</Question>
 			)}
 		</div>

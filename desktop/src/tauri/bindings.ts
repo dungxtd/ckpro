@@ -1088,23 +1088,27 @@ export type ExamTarget = ExamTarget_Serialize | ExamTarget_Deserialize;
 /**  The real exam the candidate aims at */
 export type ExamTarget_Deserialize = {
 	certification: string,
-	/**  The exam day, YYYY-MM-DD */
+	/**  The exam day, YYYY-MM-DD; with `goal`, the day to be ready by */
 	date: string,
 	/**  The day the preparation started (the target was set), YYYY-MM-DD */
 	started: string,
 	/**  Days of the week kept free, 0 Monday to 6 Sunday */
 	rest_days?: number[],
+	/**  Not booked yet: `date` is a goal the candidate set, not an exam day */
+	goal?: boolean,
 };
 
 /**  The real exam the candidate aims at */
 export type ExamTarget_Serialize = {
 	certification: string,
-	/**  The exam day, YYYY-MM-DD */
+	/**  The exam day, YYYY-MM-DD; with `goal`, the day to be ready by */
 	date: string,
 	/**  The day the preparation started (the target was set), YYYY-MM-DD */
 	started: string,
 	/**  Days of the week kept free, 0 Monday to 6 Sunday */
 	rest_days: number[],
+	/**  Not booked yet: `date` is a goal the candidate set, not an exam day */
+	goal: boolean,
 };
 
 /**  Something changed the running attempt's environment outside ckpro. */

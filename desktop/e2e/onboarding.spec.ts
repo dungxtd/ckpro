@@ -19,7 +19,7 @@ test("the first launch greets, sets up, and is not shown again", async ({ page }
 	// One question at a time, nothing filled in: the exam, not booked, a goal
 	await page.getByRole("button", { name: /^CKA Kubernetes Administrator/ }).click();
 	await page.getByRole("button", { name: "Not yet" }).click();
-	await page.getByRole("button", { name: "In 2 months" }).click();
+	await page.getByRole("textbox", { name: "CKA goal" }).press("Enter");
 	expect((await saved(page)).targets.map(t => t.certification)).toEqual(["cka"]);
 	await page.getByRole("button", { name: "Continue" }).click();
 	await expect(page.getByRole("switch", { name: "Use the assistant" })).toBeVisible();
@@ -77,7 +77,7 @@ test("one who used the app before is not greeted", async ({ page }) => {
 	await expect.poll(async () => (await saved(page)).welcomed).toBe(true);
 });
 
-test("an exam is asked for, its day empty; the day typed and settled prints its ticket", async ({
+test("an exam is asked for, the first of the third month filled in; the day typed and settled prints its ticket", async ({
 	page,
 }) => {
 	await page.setViewportSize({ width: 1180, height: 800 });
@@ -91,7 +91,11 @@ test("an exam is asked for, its day empty; the day typed and settled prints its 
 	await page.getByRole("button", { name: "Another exam" }).click();
 	await page.getByRole("button", { name: /^CKAD/ }).click();
 	await page.getByRole("button", { name: "Yes, I have a day" }).click();
-	await expect(page.getByRole("textbox", { name: "CKAD exam day" })).toHaveValue("");
+	const start = await page.evaluate(() => {
+		const d = new Date();
+		return new Date(d.getFullYear(), d.getMonth() + 3, 1).toLocaleDateString("en-GB");
+	});
+	await expect(page.getByRole("textbox", { name: "CKAD exam day" })).toHaveValue(start);
 	await expect(page.locator(".ticket")).toHaveCount(0);
 	await typeDay(page, "CKAD exam day", "2027-03-20");
 	await expect(page.locator(".ticket")).toHaveCount(1);
@@ -119,4 +123,47 @@ test("a day typed, then Not yet, is no booking: the goal is asked for", async ({
 	await expect(page.getByText("When would you like to be ready?")).toBeVisible();
 	await expect(page.getByRole("button", { name: "Remove" })).toHaveCount(0);
 	await expect(page.locator(".ticket")).toHaveCount(0);
+});
+
+test("an exam not booked yet is kept as a goal, read as one, its ticket printed", async ({
+	page,
+}) => {
+	await launch(page, "/", {
+		settings: withSettings({ welcomed: false, setup_step: "exams", targets: [] }),
+		exam_history: [],
+	});
+	await page.getByRole("button", { name: /^CKA Kubernetes Administrator/ }).click();
+	await page.getByRole("button", { name: "Not yet" }).click();
+	await page.getByRole("textbox", { name: "CKA goal" }).press("Enter");
+	await expect(page.getByText(/^Goal, ready by /)).toBeVisible();
+	const target = (await saved(page)).targets[0] as { goal?: boolean };
+	expect(target.goal).toBe(true);
+	await expect(page.locator(".ticket")).toHaveCount(1);
+});
+
+test("not booked yet, the goal starts on the first of the third month on; a distance picked only fills it in", async ({
+	page,
+}) => {
+	await launch(page, "/", {
+		settings: withSettings({ welcomed: false, setup_step: "exams", targets: [] }),
+		exam_history: [],
+	});
+	await page.getByRole("button", { name: /^CKA Kubernetes Administrator/ }).click();
+	await page.getByRole("button", { name: "Not yet" }).click();
+	const first = await page.evaluate(() => {
+		const d = new Date();
+		return new Date(d.getFullYear(), d.getMonth() + 3, 1).toLocaleDateString("en-GB");
+	});
+	const field = page.getByRole("textbox", { name: "CKA goal" });
+	await expect(field).toHaveValue(first);
+	// A distance picked fills the field in, nothing kept until added
+	await page.getByRole("button", { name: "In a month" }).click();
+	await expect(field).not.toHaveValue(first);
+	expect((await saved(page)).targets ?? []).toHaveLength(0);
+	await field.fill("");
+	await field.pressSequentially(first.replaceAll("/", ""));
+	await page.getByRole("button", { name: "Add" }).click();
+	const target = (await saved(page)).targets[0] as unknown as { goal?: boolean; date: string };
+	expect(target.goal).toBe(true);
+	expect(target.date.endsWith("-01")).toBe(true);
 });

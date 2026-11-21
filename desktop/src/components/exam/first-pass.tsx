@@ -208,7 +208,7 @@ export function FirstPass({
 					</h2>
 					<p className="animate-enter animate-delay-350 text-lead text-muted-foreground">
 						{days !== null && days >= 0
-							? `Your real ${certName(cert)} is in ${plural(days, "day")}, and you can already pass it in time.`
+							? `${target?.goal ? `Your ${certName(cert)} goal` : `Your real ${certName(cert)}`} is in ${plural(days, "day")}, and you can already pass it in time.`
 							: "You can already pass it in time. Set your exam day when you're ready."}
 					</p>
 					<div

@@ -145,7 +145,7 @@ impl Tools {
             .collect();
         Ok(pretty(&json!({
             "today": local_day(now),
-            "targets": settings.targets.iter().map(|t| json!({ "certification": t.certification, "exam_day": t.date, "preparing_since": t.started })).collect::<Vec<_>>(),
+            "targets": settings.targets.iter().map(|t| json!({ "certification": t.certification, "exam_day": t.date, "booked": !t.goal, "preparing_since": t.started })).collect::<Vec<_>>(),
             "readiness": readiness,
             "attempts": history.len(),
             "attempts_with_points": history.iter().filter(|h| h.result.worked()).count(),

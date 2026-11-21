@@ -178,3 +178,21 @@ test("Home's Plan today plans in place, with the Calendar's picker", async ({ pa
 	});
 	await expect(page).toHaveURL(/\/$/);
 });
+
+test("a goal, not booked yet, reads as a goal on Home", async ({ page }) => {
+	await launch(page, "/", {
+		settings: withSettings({
+			targets: [
+				{
+					certification: "cka",
+					date: "2027-01-21",
+					started: "2026-11-01",
+					rest_days: [],
+					goal: true,
+				},
+			],
+		}),
+	});
+	await expect(page.getByText(/Next: CKA goal in/)).toBeVisible();
+	await expect(page.getByText(/ready by/).first()).toBeVisible();
+});

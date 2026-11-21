@@ -80,13 +80,16 @@ pub struct ModulePlace {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
 pub struct ExamTarget {
     pub certification: String,
-    /// The exam day, YYYY-MM-DD
+    /// The exam day, YYYY-MM-DD; with `goal`, the day to be ready by
     pub date: String,
     /// The day the preparation started (the target was set), YYYY-MM-DD
     pub started: String,
     /// Days of the week kept free, 0 Monday to 6 Sunday
     #[serde(default)]
     pub rest_days: Vec<u8>,
+    /// Not booked yet: `date` is a goal the candidate set, not an exam day
+    #[serde(default)]
+    pub goal: bool,
 }
 
 /// The app's appearance

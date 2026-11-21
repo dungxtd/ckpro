@@ -88,7 +88,13 @@ describe("home figures", () => {
 
 	it("ends the map at the latest of four weeks ahead, the last exam and the last plan", () => {
 		const today = new Date(2026, 10, 15);
-		const exam = { certification: "cka", date: "2027-01-10", started: "2026-10-01", rest_days: [] };
+		const exam = {
+			certification: "cka",
+			date: "2027-01-10",
+			started: "2026-10-01",
+			rest_days: [],
+			goal: false,
+		};
 		expect(dayKey(mapEnd(today, [], []))).toBe("2026-12-13");
 		expect(dayKey(mapEnd(today, [], ["2026-11-20"]))).toBe("2026-12-13");
 		expect(dayKey(mapEnd(today, [exam], ["2026-12-20"]))).toBe("2027-01-10");
@@ -247,7 +253,13 @@ describe("the plans and the preparation", () => {
 	it("starts the preparation at the earliest exam's start, else the first attempt", () => {
 		const today = new Date(2026, 10, 14);
 		const target = (started: string) =>
-			({ certification: "cka", date: "2027-01-01", started, rest_days: [] }) as ExamTarget;
+			({
+				certification: "cka",
+				date: "2027-01-01",
+				started,
+				rest_days: [],
+				goal: false,
+			}) as ExamTarget;
 		expect(prepStart([target("2026-10-01"), target("2026-09-20")], history, today)).toBe(
 			"2026-09-20"
 		);

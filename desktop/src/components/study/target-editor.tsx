@@ -5,15 +5,15 @@ import { ExamAsker } from "@/components/study/exam-asker";
 import { dayKey } from "@/days";
 import { useExam } from "@/stores/exam";
 import type { ExamTarget } from "@/tauri/api";
-import { certName, examDayText } from "@/words";
+import { aimDayText, certName } from "@/words";
 
 /**
  * An exam the candidate prepares for, added or changed, against what opened
  * it (`children`): asked one question at a time, as the first launch's
- * setup asks (`ExamAsker`), nothing filled in; changed, its day now is
+ * setup asks (`ExamAsker`), the day starting from today; changed, its day now is
  * shown above and Remove takes it away. Each certification once; CKS
- * before a CKA is allowed, with a note. `onSave` says whether the day is
- * booked (a goal is not)
+ * before a CKA is allowed, with a note. `onSave` with the exam (a goal
+ * not booked yet says so)
  */
 export function TargetEditor({
 	open,
@@ -32,7 +32,7 @@ export function TargetEditor({
 	/** Certifications already aimed at (each once) */
 	taken: string[];
 	others: ExamTarget[];
-	onSave: (target: ExamTarget, booked: boolean) => void;
+	onSave: (target: ExamTarget) => void;
 	onRemove?: () => void;
 	/** What it opens against */
 	children: ReactNode;
@@ -55,9 +55,7 @@ export function TargetEditor({
 						{target ? `Your ${certName(target.certification)} exam` : "An exam you prepare for"}
 					</span>
 					{target && (
-						<span className="text-caption text-muted-foreground">
-							Now: {examDayText(target.date)}
-						</span>
+						<span className="text-caption text-muted-foreground">Now: {aimDayText(target)}</span>
 					)}
 				</div>
 				{certs.length > 0 ? (
@@ -66,15 +64,13 @@ export function TargetEditor({
 						certs={certs}
 						first="Which exam?"
 						onTell={({ certification, date, booked }) => {
-							onSave(
-								{
-									certification,
-									date,
-									started: target?.started ?? today,
-									rest_days: target?.rest_days ?? [],
-								},
-								booked
-							);
+							onSave({
+								certification,
+								date,
+								started: target?.started ?? today,
+								rest_days: target?.rest_days ?? [],
+								goal: !booked,
+							});
 							setOpen(false);
 						}}
 					/>

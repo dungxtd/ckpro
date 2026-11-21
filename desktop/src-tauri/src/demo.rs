@@ -75,18 +75,21 @@ pub fn seed(dir: &Path, pack: &LoadedPack) -> Result<String, String> {
             date: local_day(now + 45.0 * DAY_MS),
             started: local_day(now - 49.0 * DAY_MS),
             rest_days: vec![6],
+            goal: false,
         },
         ExamTarget {
             certification: "ckad".into(),
             date: local_day(now + 128.0 * DAY_MS),
             started: local_day(now - 21.0 * DAY_MS),
             rest_days: vec![6],
+            goal: false,
         },
         ExamTarget {
             certification: "cks".into(),
             date: local_day(now + 230.0 * DAY_MS),
             started: local_day(now - 3.0 * DAY_MS),
             rest_days: vec![],
+            goal: false,
         },
     ];
     let mut settings = store.settings().map_err(|e| e.to_string())?;

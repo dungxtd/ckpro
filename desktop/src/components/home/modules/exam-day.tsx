@@ -4,10 +4,11 @@ import { Link } from "react-router";
 import { ModuleCard } from "@/components/home/modules/module-card";
 import { daysUntil, parseDay } from "@/days";
 import type { ExamTarget } from "@/tauri/api";
-import { certName, shortDay } from "@/words";
+import { certName, readyBy, shortDay } from "@/words";
 
-/** How many days to each exam aimed at: the nearest large; several side by
- * side; one with how far the preparation has come */
+/** How many days to each exam aimed at (a goal, not booked yet, says so):
+ * the nearest large; several side by side; one with how far the
+ * preparation has come */
 export function ExamDay({ targets }: { targets: ExamTarget[] }) {
 	const now = new Date();
 	if (targets.length === 0)
@@ -32,8 +33,10 @@ export function ExamDay({ targets }: { targets: ExamTarget[] }) {
 							</span>
 							<span className="text-caption text-muted-foreground">
 								days to <b className="text-foreground">{certName(t.certification)}</b>
+								{t.goal && " goal"}
 							</span>
 							<span className="mt-auto truncate text-caption text-muted-foreground">
+								{readyBy(t)}
 								{shortDay(parseDay(t.date))}
 							</span>
 						</div>
@@ -52,7 +55,8 @@ export function ExamDay({ targets }: { targets: ExamTarget[] }) {
 					{Math.max(0, daysUntil(t.date, now))}
 				</span>
 				<span className="truncate text-caption text-muted-foreground">
-					days to <b className="text-foreground">{certName(t.certification)}</b> ·{" "}
+					days to <b className="text-foreground">{certName(t.certification)}</b>
+					{t.goal && " goal"} · {readyBy(t)}
 					{shortDay(parseDay(t.date))}
 				</span>
 			</div>

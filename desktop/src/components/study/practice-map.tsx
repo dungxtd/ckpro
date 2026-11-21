@@ -7,7 +7,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { activityLevel, level, MAP_WEEKS, mapEnd, mapWeeks } from "@/components/study/data";
 import { addDays, DAY_MS, dayKey, parseDay } from "@/days";
 import type { ExamTarget } from "@/tauri/api";
-import { certName, shortDay } from "@/words";
+import { aimWord, certName, readyBy, shortDay } from "@/words";
 
 /** Where an element starts along the scroller's content (its scroll offset
  * included), whatever is positioned between them */
@@ -83,7 +83,7 @@ export function PracticeMap({
 	const describe = (d: Date): string => {
 		const k = dayKey(d);
 		const exam = examOn.get(k);
-		if (exam) return `${certName(exam.certification)} exam · ${label(d)}`;
+		if (exam) return `${certName(exam.certification)} ${aimWord(exam)} · ${label(d)}`;
 		if (k <= today) {
 			if (mode === "activity") {
 				const m = minutes.get(k);
@@ -194,7 +194,8 @@ export function PracticeMap({
 											gridColumn: `${Math.max(0, week(e.started)) + 1} / ${Math.max(0, week(e.date)) + 2}`,
 										}}
 									>
-										{certName(e.certification)} · {short(parseDay(e.date))}
+										{certName(e.certification)} · {readyBy(e)}
+										{short(parseDay(e.date))}
 									</span>
 								))}
 							</div>
@@ -319,7 +320,8 @@ export function PracticeMap({
 							setTimeout(flash, still ? 0 : 450);
 						}}
 					>
-						{certName(ahead.certification)} {short(parseDay(ahead.date))} ›
+						{certName(ahead.certification)} {ahead.goal && "goal "}
+						{short(parseDay(ahead.date))} ›
 					</button>
 				)}
 			</div>

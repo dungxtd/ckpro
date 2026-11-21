@@ -14,7 +14,7 @@ import { PlanRow } from "@/components/study/plan-row";
 import { addDays, dayKey, parseDay, relativeDay, weekName, weekRange } from "@/days";
 import type { ExamTarget, HistoryEntry, PlanView } from "@/tauri/api";
 import { shortTitle } from "@/titles";
-import { certName, NONE } from "@/words";
+import { aimWord, certName, NONE } from "@/words";
 
 /**
  * One week, a column a day as a week calendar lays it out: each day's exam
@@ -193,7 +193,7 @@ function Day({
 						key={t.certification}
 						className="flex items-center gap-1.5 rounded-md bg-highlight/12 px-1.5 py-1 font-semibold text-caption text-highlight [&_svg]:size-3.5"
 					>
-						<Flag /> {certName(t.certification)} exam
+						<Flag /> {certName(t.certification)} {aimWord(t)}
 					</div>
 				))}
 				{/* What is left to do first, then what was done */}

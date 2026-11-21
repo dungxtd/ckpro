@@ -13,7 +13,7 @@ import { useEnvironment } from "@/stores/environment";
 import { useCatalog, useExam } from "@/stores/exam";
 import { useSettings } from "@/stores/settings";
 import { type ExamSummary, type ExamTarget, envApi } from "@/tauri/api";
-import { certName, certRole, examDayText, plural } from "@/words";
+import { aimDayText, certName, certRole, plural } from "@/words";
 
 type Step = "docker" | "exams" | "assistant" | "ready";
 /** The steps in their order, all of them (the first practice is not always one) */
@@ -291,10 +291,9 @@ function DockerStep() {
 
 /**
  * The exams prepared for, one question at a time: which exam, whether it
- * is booked, then its day (typed; settled, it prints its ticket) or, not
- * booked yet, when to be ready by (a goal: its day is set once booked).
- * Nothing is filled in for the candidate. Each exam is kept as it is
- * answered; those kept are listed, and another can be added
+ * is booked, then its day, or, not booked yet, when to be ready by (a
+ * goal); added, it prints its ticket (a goal's pencilled in). Each exam is
+ * kept as it is answered; those kept are listed, and another can be added
  */
 function ExamsStep() {
 	const targets = useSettings(s => s.settings.targets);
@@ -304,12 +303,19 @@ function ExamsStep() {
 	// No exam left (the last one removed): asked again
 	const [adding, setAdding] = useState(false);
 	const asking = adding || targets.length === 0;
-	// A booked day prints its ticket, as the app's exam menu does; a goal not
+	// The day added prints its ticket, as the app's exam menu does (a goal's
+	// pencilled in)
 	const [ticket, setTicket] = useState<ExamTarget | null>(null);
 	const keep = ({ certification, date, booked }: ExamTold) => {
-		const target: ExamTarget = { certification, date, started: today, rest_days: [] };
+		const target: ExamTarget = {
+			certification,
+			date,
+			started: today,
+			rest_days: [],
+			goal: !booked,
+		};
 		update({ targets: [...targets.filter(t => t.certification !== certification), target] });
-		if (booked) setTicket(target);
+		setTicket(target);
 		setAdding(false);
 	};
 	const cksEarly =
@@ -341,7 +347,7 @@ function ExamsStep() {
 										<span className="text-muted-foreground">{certRole(t.certification)}</span>
 									</span>
 								}
-								detail={examDayText(t.date)}
+								detail={aimDayText(t)}
 							>
 								<Button
 									size="push"

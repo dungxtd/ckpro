@@ -64,6 +64,17 @@ export function dateTime(ms: number | null | undefined, now = new Date()): strin
  * An exam day typed, said under its field: how to type one while it is
  * not a whole day, that it has passed, or the day and how far it is
  */
+/** What an exam aimed at counts down to: its exam (booked) or its goal (the
+ * day to be ready by, not booked yet), as in "CKA exam", "CKA goal" */
+export const aimWord = (t: { goal?: boolean }) => (t.goal ? "goal" : "exam");
+
+/** Before a day aimed at: a goal's is the day to be ready by */
+export const readyBy = (t: { goal?: boolean }) => (t.goal ? "ready by " : "");
+
+/** An exam aimed at, its day as the candidate reads it: a goal says so */
+export const aimDayText = (t: { date: string; goal?: boolean }, now = new Date()) =>
+	`${t.goal ? "Goal, ready by " : ""}${examDayText(t.date, now)}`;
+
 export function examDayText(day: string | null, now = new Date()): string {
 	if (day === null) return "Type the day: dd/mm/yyyy";
 	const days = daysUntil(day, now);

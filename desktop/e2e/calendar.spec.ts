@@ -126,7 +126,13 @@ test("the chip to an exam out of view takes the map there and goes, with no tip 
 		settings: withSettings({
 			targets: [
 				...sample.settings.targets,
-				{ certification: "cks", date: "2027-06-30", started: "2026-11-01", rest_days: [] },
+				{
+					certification: "cks",
+					date: "2027-06-30",
+					started: "2026-11-01",
+					rest_days: [],
+					goal: false,
+				},
 			],
 		}),
 	});
@@ -182,7 +188,13 @@ test("one exam picked in the menu is what the screen shows", async ({ page }) =>
 		settings: withSettings({
 			targets: [
 				...sample.settings.targets,
-				{ certification: "ckad", date: "2027-03-20", started: "2026-11-01", rest_days: [] },
+				{
+					certification: "ckad",
+					date: "2027-03-20",
+					started: "2026-11-01",
+					rest_days: [],
+					goal: false,
+				},
 			],
 		}),
 	});
