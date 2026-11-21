@@ -36,6 +36,9 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2.5"
 kube = { version = "4.2.0", default-features = false, features = ["client", "runtime", "rustls-tls"] }
+# The TLS kube's client uses: with two crypto backends built in (reqwest's
+# and the updater's), it is chosen, not guessed (runtime/monitor.rs)
+rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "std"] }
 k8s-openapi = { version = "0.28.0", features = ["v1_35"] }
 tokio-util = "0.7.20"
 process-wrap = { version = "8.2.2", default-features = false, features = ["tokio1", "kill-on-drop", "process-session", "job-object", "creation-flags"] }

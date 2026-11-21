@@ -320,6 +320,10 @@ async fn watch_nodes(cluster: String, kubeconfig: PathBuf, env: Arc<Env>) {
 }
 
 async fn client(kubeconfig: &PathBuf) -> AppResult<kube::Client> {
+    // kube's TLS takes the process's crypto provider, which rustls cannot
+    // pick by itself with both of its backends built in (reqwest brings
+    // aws-lc-rs, the updater ring): chosen here, once (already set: kept)
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let config = kube::config::Kubeconfig::read_from(kubeconfig).map_err(|e| AppError::cluster(format!("reading the kubeconfig: {e}")))?;
     let config = kube::Config::from_custom_kubeconfig(config, &Default::default())
         .await

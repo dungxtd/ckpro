@@ -704,6 +704,7 @@ dependencies = [
  "rand",
  "reqwest",
  "rusqlite",
+ "rustls",
  "schemars 1.2.3",
  "semver",
  "serde",
