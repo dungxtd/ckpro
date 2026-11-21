@@ -258,18 +258,88 @@ body,
 }
 
 /* An exam day just set, printed as an admit ticket (study/exam-ticket.tsx):
-   its colours the exam's, the same in both themes, as paper is */
+   its colours the exam's, the same in both themes, as paper is. Lit from
+   above as it falls (the frame sets the variables): its shadow, a band of
+   sheen, the shade of the side turned away, a glint under the pointer */
 .ticket {
 	--ticket-light: #4f8cf7;
 	--ticket-mid: #2b5fd8;
 	--ticket-deep: #183b94;
 	position: absolute;
 	top: 0;
+	left: 0;
 	display: flex;
 	width: 380px;
 	height: 116px;
 	transform-origin: 50% 50%;
-	filter: drop-shadow(0 14px 24px rgb(0 0 0 / 0.38));
+	filter: drop-shadow(
+		var(--shadow-x, 0px) var(--shadow-y, 14px) var(--shadow-blur, 24px)
+			rgb(0 0 0 / var(--shadow-alpha, 0.38))
+	);
+	touch-action: none;
+}
+/* Falling, it can be grabbed and thrown: only the ticket takes the pointer */
+.ticket[data-live] {
+	pointer-events: auto;
+	cursor: grab;
+}
+.ticket[data-held] {
+	cursor: grabbing;
+}
+.ticket-sheen {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	overflow: hidden;
+	border-radius: 12px;
+	background: linear-gradient(
+		calc(90deg + var(--tilt, 0deg)),
+		rgb(0 0 0 / var(--shade, 0.03)),
+		transparent 55%
+	);
+	pointer-events: none;
+}
+.ticket-sheen::before {
+	content: "";
+	position: absolute;
+	inset: -60% -30%;
+	background: linear-gradient(
+		105deg,
+		transparent 38%,
+		rgb(255 255 255 / 0.18) 50%,
+		transparent 62%
+	);
+	transform: translateX(var(--sheen, 0%));
+}
+.ticket-sheen::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: radial-gradient(
+		160px 120px at var(--glint-x, 50%) var(--glint-y, 50%),
+		rgb(255 255 255 / var(--glint, 0)),
+		transparent 70%
+	);
+}
+/* Foil on the stub, its colours shifting with the card's angle */
+.ticket-holo {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	background: repeating-linear-gradient(
+		115deg,
+		#ff6ec7 0%,
+		#ffd36e 8%,
+		#6effa8 16%,
+		#6ed8ff 24%,
+		#b06eff 32%,
+		#ff6ec7 40%
+	);
+	background-position: var(--holo, 50%) 50%;
+	background-size: 300% 300%;
+	opacity: 0.22;
+	mix-blend-mode: color-dodge;
+	pointer-events: none;
 }
 .ticket[data-cert="ckad"] {
 	--ticket-light: #5ad1b0;
@@ -385,6 +455,72 @@ body,
 		var(--ticket-deep) 6px 9px,
 		transparent 9px 10px
 	);
+}
+
+/* Its stub torn off: the card ends at the perforation, the stub falls alone */
+[data-torn] > .ticket-stub {
+	display: none;
+}
+.ticket-torn {
+	width: auto;
+}
+/* A goal, not booked yet: pencilled in on blank paper in the exam's ink,
+   a dashed edge, stamped GOAL; the coloured ticket prints once booked */
+.ticket-goal .ticket-main {
+	background: #f7f4ec;
+	color: var(--ticket-deep);
+	box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ticket-mid) 55%, transparent);
+}
+.ticket-goal .ticket-main::after {
+	content: "";
+	position: absolute;
+	inset: 5px;
+	border: 1.5px dashed color-mix(in srgb, var(--ticket-mid) 45%, transparent);
+	border-radius: 8px 2px 2px 8px;
+	pointer-events: none;
+}
+/* Blank paper: no mark under the stamp */
+.ticket-goal .ticket-mark {
+	display: none;
+}
+.ticket-goal .ticket-stub {
+	background: color-mix(in srgb, var(--ticket-light) 18%, #f7f4ec);
+}
+.ticket-goal .ticket-sheen {
+	background: linear-gradient(
+		calc(90deg + var(--tilt, 0deg)),
+		color-mix(in srgb, var(--ticket-deep) calc(var(--shade, 0.03) * 140%), transparent),
+		transparent 55%
+	);
+}
+.ticket-goal .ticket-sheen::before {
+	background: linear-gradient(
+		105deg,
+		transparent 38%,
+		rgb(255 255 255 / 0.35) 50%,
+		transparent 62%
+	);
+}
+.ticket-goal .ticket-holo {
+	opacity: 0.12;
+	mix-blend-mode: multiply;
+}
+/* Comes down as the ticket lands (study/exam-ticket.tsx) */
+.ticket-stamp {
+	opacity: 0;
+	position: absolute;
+	top: 40px;
+	right: 22px;
+	padding: 3px 6px;
+	border: 2px solid var(--ticket-mid);
+	border-radius: 4px;
+	rotate: -9deg;
+	font:
+		800 10px -apple-system,
+		BlinkMacSystemFont,
+		sans-serif;
+	letter-spacing: 0.18em;
+	color: var(--ticket-mid);
 }
 
 /* The first passed exam's certificate (exam/first-pass.tsx): paper, ink and

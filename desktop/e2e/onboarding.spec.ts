@@ -125,7 +125,7 @@ test("a day typed, then Not yet, is no booking: the goal is asked for", async ({
 	await expect(page.locator(".ticket")).toHaveCount(0);
 });
 
-test("an exam not booked yet is kept as a goal, read as one, its ticket printed", async ({
+test("an exam not booked yet is kept as a goal, read as one, its ticket pencilled in", async ({
 	page,
 }) => {
 	await launch(page, "/", {
@@ -138,7 +138,7 @@ test("an exam not booked yet is kept as a goal, read as one, its ticket printed"
 	await expect(page.getByText(/^Goal, ready by /)).toBeVisible();
 	const target = (await saved(page)).targets[0] as { goal?: boolean };
 	expect(target.goal).toBe(true);
-	await expect(page.locator(".ticket")).toHaveCount(1);
+	await expect(page.locator(".ticket.ticket-goal")).toHaveCount(1);
 });
 
 test("not booked yet, the goal starts on the first of the third month on; a distance picked only fills it in", async ({
